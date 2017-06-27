@@ -37,8 +37,7 @@ fn main() {
         panic!("Failed to initialize GTK.");
     }
 
-    let glade_src = include_str!("media-toc.glade");
-    let builder = Builder::new_from_string(glade_src);
+    let builder = Builder::new_from_string(include_str!("media-toc.glade"));
 
     let window: ApplicationWindow = builder.get_object("application-window").unwrap();
     let header_bar: HeaderBar = builder.get_object("header-bar").unwrap();
