@@ -1,0 +1,11 @@
+[package]
+name = "media-toc"
+version = "0.1.0"
+authors = ["fengalin <fengalin@free.fr>"]
+
+[dependencies.gtk]
+version = "0.1.3"
+features = ["v3_18"]
+
+[dependencies]
+cairo-rs = "0.1.3"
