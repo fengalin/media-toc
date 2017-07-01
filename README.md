@@ -10,8 +10,12 @@ if you find it interesting.
 ## Technologies
 Media-TOC is developped in Rust. This is my first project using this language.
 Current design is merely a [UI prototype](#ui) and a set of technologies:
-- [GTK-3](https://developer.gnome.org/gtk3/stable/) and [Glade](https://glade.gnome.org/).
-- [FFMPEG](https://ffmpeg.org/).
+- **GTK-3** ([official documentation](https://developer.gnome.org/gtk3/stable/),
+[Rust binding](https://crates.io/crates/gtk)) and [Glade](https://glade.gnome.org/).
+- **Cairo** ([official documentation](https://www.cairographics.org/documentation/),
+[Rust binding](https://crates.io/crates/cairo-rs)).
+- **FFMPEG** ([official documentation](https://ffmpeg.org/documentation.html),
+[Rust binding](https://crates.io/crates/ffmpeg)).
 
 ## <a name='ui'></a>UI prototype
 ![Media TOC UI prototype](assets/media-toc.png)
@@ -22,7 +26,24 @@ Contributions are welcomed.
 - If you wish to contribute to the code, please fork your own copy and submit a
 [pull request](https://github.com/fengalin/media-toc/pulls).
 
-# Generation
+# Environment preparation
+## Toolchain
+You can install Rust via your package manager or using Rustup which allows
+installing the compiler for your user only and which will fetch the latest
+versions (stable or nightly, depending on your preferences).
+
+### Using the distribution's package manager
+Example on Fedora:
+```
+sudo dnf install rust cargo
+```
+
+### Using rustup
+```
+curl https://sh.rustup.rs -sSf | sh
+```
+See the full documentation [here](https://github.com/rust-lang-nursery/rustup.rs#installation).
+
 ## Dependencies
 Dependencies are handled by [Cargo](http://doc.crates.io/). You will need the
 following packages installed on your OS:
