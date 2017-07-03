@@ -2,31 +2,18 @@ extern crate gtk;
 extern crate cairo;
 
 use gtk::prelude::*;
-use gtk::{Builder, ApplicationWindow, HeaderBar, DrawingArea, Statusbar};
+use gtk::{Builder, ApplicationWindow, HeaderBar, Statusbar};
 
-use cairo::enums::{FontSlant, FontWeight};
-use cairo::Context;
+mod video_controller;
+use video_controller::VideoController;
 
-fn draw_something(da: &DrawingArea, cr: &cairo::Context) -> Inhibit {
-    let allocation = da.get_allocation();
-    cr.scale(allocation.width as f64, allocation.height as f64);
+mod audio_controller;
+use audio_controller::AudioController;
 
-    cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
-    cr.set_font_size(0.07);
-
-    cr.move_to(0.1, 0.53);
-    cr.show_text(&format!("{} place holder", da.get_name().unwrap()));
-
-    Inhibit(false)
-}
 
 fn display_something(builder: &Builder) {
-    let video_area: DrawingArea = builder.get_object("video-drawingarea").unwrap();
-    video_area.connect_draw(draw_something);
-
-    let audio_area: DrawingArea = builder.get_object("audio-drawingarea").unwrap();
-    audio_area.connect_draw(draw_something);
-
+    let video_ctrl = VideoController::new(builder);
+    let audio_ctrl = AudioController::new(builder);
 
     let status_bar: Statusbar = builder.get_object("status-bar").unwrap();
     status_bar.push(status_bar.get_context_id("dummy msg"), "Media-TOC prototype");
