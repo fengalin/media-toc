@@ -75,3 +75,7 @@ Use Cargo (from the root of the project directory):
 $ cargo run
 ```
 
+# References
+## Passing member as callback
+The strategy to allow using the draw function from AudioController and VideoController
+impl as a callback originates from [Process-Viewer](https://github.com/GuillaumeGomez/process-viewer).

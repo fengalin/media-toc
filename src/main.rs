@@ -12,9 +12,6 @@ use audio_controller::AudioController;
 
 
 fn display_something(builder: &Builder) {
-    let video_ctrl = VideoController::new(builder);
-    let audio_ctrl = AudioController::new(builder);
-
     let status_bar: Statusbar = builder.get_object("status-bar").unwrap();
     status_bar.push(status_bar.get_context_id("dummy msg"), "Media-TOC prototype");
 }
@@ -34,6 +31,10 @@ fn main() {
         gtk::main_quit();
         Inhibit(false)
     });
+
+
+    let video_ctrl = VideoController::new(&builder);
+    let audio_ctrl = AudioController::new(&builder);
 
     window.show_all();
 
