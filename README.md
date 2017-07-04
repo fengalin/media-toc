@@ -50,17 +50,20 @@ following packages installed on your OS:
 
 ### Fedora
 ```
-$ sudo dnf install gtk3-devel glib2-devel
+$ export C_INCLUDE_PATH=$C_INCLUDE_PATH:/usr/include/ffmpeg/
+$ sudo dnf install gtk3-devel glib2-devel ffmpeg-devel
 ```
 
 ### Debian & Unbuntu
+**Needs confirmation**
 ```
-$ sudo apt-get install libgtk-3-dev
+$ sudo apt-get install libgtk-3-dev libavutil-dev libavformat-dev libavcodec-dev libswscale-dev
 ```
 
 ### OS X
+**Needs confirmation**
 ```
-$ brew install gtk+3
+$ brew install gtk+3 ffmpeg
 ```
 
 ### Windows
