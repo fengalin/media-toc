@@ -10,6 +10,7 @@ use cairo::enums::{FontSlant, FontWeight};
 
 pub struct VideoController {
     area: gtk::DrawingArea,
+    message: String,
 }
 
 
@@ -21,6 +22,7 @@ impl VideoController {
         // when the UI controllers will get a mutable version from time to time
         let vc = Rc::new(RefCell::new(VideoController {
             area: builder.get_object("video-drawingarea").expect("Couldn't find video-drawingarea"),
+            message: String::from("video place holder"),
         }));
 
         let vc_for_cb = vc.clone();
@@ -41,9 +43,13 @@ impl VideoController {
         cr.set_font_size(0.07);
 
         cr.move_to(0.1, 0.53);
-        cr.show_text("video place holder");
+        cr.show_text(&self.message);
     }
 
+    pub fn notify_new_media(&mut self) {
+        self.message = String::from("new media opened");
+        self.area.queue_draw();
+    }
 }
 
 

@@ -9,6 +9,7 @@ use cairo::enums::{FontSlant, FontWeight};
 
 pub struct AudioController {
     area: gtk::DrawingArea,
+    message: String,
 }
 
 impl AudioController {
@@ -17,6 +18,7 @@ impl AudioController {
         // when the UI controllers will get a mutable version from time to time
         let ac = Rc::new(RefCell::new(AudioController {
             area: builder.get_object("audio-drawingarea").expect("Couldn't find audio-drawingarea"),
+            message: String::from("audio place holder"),
         }));
 
         let ac_for_cb = ac.clone();
@@ -37,7 +39,12 @@ impl AudioController {
         cr.set_font_size(0.07);
 
         cr.move_to(0.1, 0.53);
-        cr.show_text("audio place holder");
+        cr.show_text(&self.message);
+    }
+
+    pub fn notify_new_media(&mut self) {
+        self.message = String::from("new media opened");
+        self.area.queue_draw();
     }
 }
 
