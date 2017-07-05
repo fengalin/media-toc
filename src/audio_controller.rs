@@ -13,21 +13,20 @@ pub struct AudioController {
 
 impl AudioController {
     pub fn new(builder: &gtk::Builder) -> Rc<RefCell<AudioController>> {
-        let ac = AudioController {
+        // need RefCell on because the callbacks will use immutable versions of ac
+        // when the UI controllers will get a mutable version from time to time
+        let ac = Rc::new(RefCell::new(AudioController {
             area: builder.get_object("audio-drawingarea").expect("Couldn't find audio-drawingarea"),
-        };
+        }));
 
-        // connect draw event - tricky because of the callback
-        let area = ac.area.clone(); // clone needed because ac will be moved in next statement
-        let ac_rc = Rc::new(RefCell::new(ac));
-        let cloned_ac_rc = ac_rc.clone(); // clone needed otherwise ac_rc would be moved in closure
-        area.connect_draw(move |drawing_area, cairo_ctx| {
-            let ac = cloned_ac_rc.borrow(); // TODO: or is it ac_rc?
+        let ac_for_cb = ac.clone();
+        ac.borrow().area.connect_draw(move |_, cairo_ctx| {
+            let ac = ac_for_cb.borrow();
             ac.draw(&cairo_ctx);
             Inhibit(false)
         });
 
-        ac_rc
+        ac
     }
 
     fn draw(&self, cr: &cairo::Context) {

@@ -17,21 +17,20 @@ impl VideoController {
     pub fn new(builder: &gtk::Builder) -> Rc<RefCell<VideoController>> {
         ffmpeg::init().expect("Couln't initialize FFMPEG");
 
-        let vc = VideoController {
+        // need RefCell on because the callbacks will use immutable versions of vc
+        // when the UI controllers will get a mutable version from time to time
+        let vc = Rc::new(RefCell::new(VideoController {
             area: builder.get_object("video-drawingarea").expect("Couldn't find video-drawingarea"),
-        };
+        }));
 
-        // connect draw event - tricky because of the callback
-        let area = vc.area.clone(); // clone needed because vc will be moved in next statement
-        let vc_rc = Rc::new(RefCell::new(vc));
-        let cloned_vc_rc = vc_rc.clone(); // clone needed otherwise vc_rc would be moved in closure
-        area.connect_draw(move |drawing_area, cairo_ctx| {
-            let vc = cloned_vc_rc.borrow(); // TODO: or is it vc_rc?
+        let vc_for_cb = vc.clone();
+        vc.borrow().area.connect_draw(move |_, cairo_ctx| {
+            let vc = vc_for_cb.borrow();
             vc.draw(&cairo_ctx);
             Inhibit(false)
         });
 
-        vc_rc
+        vc
     }
 
     fn draw(&self, cr: &cairo::Context) {
