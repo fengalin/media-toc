@@ -21,7 +21,7 @@ fn main() {
         panic!("Failed to initialize GTK.");
     }
 
-    let builder = Builder::new_from_string(include_str!("media-toc.glade"));
+    let builder = Builder::new_from_string(include_str!("media-toc.ui"));
 
     let window: ApplicationWindow = builder.get_object("application-window").unwrap();
     let header_bar: HeaderBar = builder.get_object("header-bar").unwrap();
