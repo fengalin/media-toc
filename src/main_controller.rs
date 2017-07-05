@@ -65,7 +65,7 @@ impl MainController {
                                               FileChooserAction::Open,
             );
         // Note: couldn't find equivalents for STOCK_OK
-        file_dlg.add_button("Ok", ResponseType::Ok.into());
+        file_dlg.add_button("Open", ResponseType::Ok.into());
 
         let result = file_dlg.run();
 
