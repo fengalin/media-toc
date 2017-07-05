@@ -16,7 +16,7 @@ fn main() {
     }
 
     let builder = Builder::new_from_string(include_str!("media-toc.ui"));
-    let main_ctrl = MainController::new(&builder);
+    let main_ctrl = MainController::new(builder);
     main_ctrl.borrow().show_all();
 
     gtk::main();

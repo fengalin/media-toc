@@ -23,7 +23,7 @@ pub struct MainController {
 }
 
 impl MainController {
-    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<MainController>> {
+    pub fn new(builder: gtk::Builder) -> Rc<RefCell<MainController>> {
         let mc = Rc::new(RefCell::new(MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
