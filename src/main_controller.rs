@@ -88,11 +88,11 @@ impl MainController {
                 // TODO: process metadata
 
                 // for the moment, let's work on the best streams, if available
-			    self.video_ctrl.borrow_mut().notify_new_media(
-			        context.streams().best(ffmpeg::media::Type::Video)
-		        );
-			    self.audio_ctrl.borrow_mut().notify_new_media(
-			        context.streams().best(ffmpeg::media::Type::Audio)
+                self.video_ctrl.borrow_mut().notify_new_media(
+                    context.streams().best(ffmpeg::media::Type::Video)
+                );
+                self.audio_ctrl.borrow_mut().notify_new_media(
+                    context.streams().best(ffmpeg::media::Type::Audio)
                 );
 
                 // TODO: see what we should do with subtitles
