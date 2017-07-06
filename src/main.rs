@@ -6,6 +6,7 @@ use gtk::Builder;
 mod main_controller;
 use main_controller::MainController;
 
+mod controller_ext;
 mod video_controller;
 mod audio_controller;
 

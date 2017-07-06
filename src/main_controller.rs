@@ -9,6 +9,7 @@ use gtk::prelude::*;
 use gtk::{ApplicationWindow, HeaderBar, Statusbar, Button,
           FileChooserDialog, ResponseType, FileChooserAction};
 
+use controller_ext::Notifiable;
 use video_controller::VideoController;
 use audio_controller::AudioController;
 
@@ -85,7 +86,7 @@ impl MainController {
 
         // TODO: use FFMPEG to open the media
 
-        self.video_ctrl.borrow_mut().notify_new_media(); // could be a trait on a MediaController base
+        self.video_ctrl.borrow_mut().notify_new_media();
         self.audio_ctrl.borrow_mut().notify_new_media();
     }
 }

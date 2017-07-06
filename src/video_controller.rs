@@ -8,6 +8,8 @@ use std::cell::RefCell;
 use gtk::prelude::*;
 use cairo::enums::{FontSlant, FontWeight};
 
+use controller_ext::Notifiable;
+
 pub struct VideoController {
     drawingarea: gtk::DrawingArea,
     message: String,
@@ -44,11 +46,11 @@ impl VideoController {
         cr.move_to(0.1, 0.53);
         cr.show_text(&self.message);
     }
+}
 
-    pub fn notify_new_media(&mut self) {
+impl Notifiable for VideoController {
+    fn notify_new_media(&mut self) {
         self.message = String::from("new media opened");
         self.drawingarea.queue_draw();
     }
 }
-
-
