@@ -49,8 +49,16 @@ impl VideoController {
 }
 
 impl Notifiable for VideoController {
-    fn notify_new_media(&mut self) {
-        self.message = String::from("new media opened");
+    fn notify_new_media(&mut self, stream: Option<ffmpeg::Stream>) {
+        match stream {
+            Some(stream) => {
+                self.message = String::from(format!("video at index: {}", stream.index()));
+            }
+            None => {
+                self.message = String::from("no video stream found");
+                // TODO: hide video area
+            }
+        }
         self.drawingarea.queue_draw();
     }
 }

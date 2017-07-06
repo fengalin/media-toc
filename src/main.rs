@@ -1,5 +1,6 @@
 extern crate gtk;
 extern crate cairo;
+extern crate ffmpeg;
 
 use gtk::Builder;
 
@@ -15,6 +16,8 @@ fn main() {
     if gtk::init().is_err() {
         panic!("Failed to initialize GTK.");
     }
+
+    ffmpeg::init().unwrap();
 
     let builder = Builder::new_from_string(include_str!("media-toc.ui"));
     let main_ctrl = MainController::new(builder);

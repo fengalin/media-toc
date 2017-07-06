@@ -1,5 +1,6 @@
 extern crate gtk;
 extern crate cairo;
+extern crate ffmpeg;
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -45,8 +46,16 @@ impl AudioController {
 }
 
 impl Notifiable for AudioController {
-    fn notify_new_media(&mut self) {
-        self.message = String::from("new media opened");
+    fn notify_new_media(&mut self, stream: Option<ffmpeg::Stream>) {
+        match stream {
+            Some(stream) => {
+                self.message = String::from(format!("audio at index: {}", stream.index()));
+            }
+            None => {
+                self.message = String::from("no audio stream found");
+                // TODO: hide audio area
+            }
+        }
         self.drawingarea.queue_draw();
     }
 }

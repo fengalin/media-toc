@@ -1,4 +1,5 @@
 extern crate gtk;
+extern crate ffmpeg;
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -20,7 +21,7 @@ pub struct MainController {
     video_ctrl: Rc<RefCell<VideoController>>,
     audio_ctrl: Rc<RefCell<AudioController>>,
 
-    filename: PathBuf,
+    filepath: PathBuf,
 }
 
 impl MainController {
@@ -31,7 +32,7 @@ impl MainController {
             status_bar: builder.get_object("status-bar").unwrap(),
             video_ctrl: VideoController::new(&builder),
             audio_ctrl: AudioController::new(&builder),
-            filename: PathBuf::new(),
+            filepath: PathBuf::new(),
         }));
 
         {
@@ -41,7 +42,6 @@ impl MainController {
                 Inhibit(false)
             });
             mc_ref.window.set_titlebar(&mc_ref.header_bar);
-            mc_ref.display_something();
         }
 
         let open_btn: Button = builder.get_object("open-btn").unwrap();
@@ -51,9 +51,8 @@ impl MainController {
         mc
     }
 
-    fn display_something(&self) {
-        self.status_bar.push(self.status_bar.get_context_id("dummy msg"),
-                             "Media-TOC prototype");
+    fn display_message(&self, context: &str, message: &str) {
+        self.status_bar.push(self.status_bar.get_context_id(context), message);
     }
 
     pub fn show_all(&self) {
@@ -79,14 +78,35 @@ impl MainController {
         file_dlg.close();
     }
 
-    fn open_media(&mut self, filename: PathBuf) {
-        self.filename = filename;
-        self.status_bar.push(self.status_bar.get_context_id("open media"),
-                             &format!("Opened {:?}", self.filename));
+    fn open_media(&mut self, filepath: PathBuf) {
+        self.filepath = filepath;
 
-        // TODO: use FFMPEG to open the media
+        let message: String;
+        let path_str = String::from(self.filepath.to_str().unwrap());
+        match ffmpeg::format::input(&path_str) {
+            Ok(context) => {
+                // TODO: process metadata
 
-        self.video_ctrl.borrow_mut().notify_new_media();
-        self.audio_ctrl.borrow_mut().notify_new_media();
+                // for the moment, let's work on the best streams, if available
+			    self.video_ctrl.borrow_mut().notify_new_media(
+			        context.streams().best(ffmpeg::media::Type::Video)
+		        );
+			    self.audio_ctrl.borrow_mut().notify_new_media(
+			        context.streams().best(ffmpeg::media::Type::Audio)
+                );
+
+                // TODO: see what we should do with subtitles
+
+                message = format!("Opened {:?}", self.filepath);
+            }
+            Err(error) => {
+                message = format!("Error opening media {:?}: {}",
+                                  self.filepath.file_name().unwrap().to_os_string(),
+                                  error
+                    );
+            }
+        }
+
+        self.display_message("open media", &message);
     }
 }
