@@ -1,16 +1,18 @@
 extern crate gtk;
 extern crate cairo;
-extern crate ffmpeg;
 
 use std::rc::Rc;
+use std::rc::Weak;
 use std::cell::RefCell;
 
 use gtk::prelude::*;
 use cairo::enums::{FontSlant, FontWeight};
 
 use controller_ext::Notifiable;
+use main_controller::MainController;
 
 pub struct VideoController {
+    main_ctrl: Weak<RefCell<MainController>>,
     drawingarea: gtk::DrawingArea,
     message: String,
 }
@@ -18,11 +20,10 @@ pub struct VideoController {
 
 impl VideoController {
     pub fn new(builder: &gtk::Builder) -> Rc<RefCell<VideoController>> {
-        ffmpeg::init().expect("Couln't initialize FFMPEG");
-
         // need a RefCell because the callbacks will use immutable versions of vc
         // when the UI controllers will get a mutable version from time to time
         let vc = Rc::new(RefCell::new(VideoController {
+            main_ctrl: Weak::new(),
             drawingarea: builder.get_object("video-drawingarea").unwrap(),
             message: String::from("video place holder"),
         }));
@@ -49,16 +50,13 @@ impl VideoController {
 }
 
 impl Notifiable for VideoController {
-    fn notify_new_media(&mut self, stream: Option<ffmpeg::Stream>) {
-        match stream {
-            Some(stream) => {
-                self.message = String::from(format!("video at index: {}", stream.index()));
-            }
-            None => {
-                self.message = String::from("no video stream found");
-                // TODO: hide video area
-            }
-        }
+    fn set_main_controller(&mut self, main_ctrl: Rc<RefCell<MainController>>) {
+        self.main_ctrl = Rc::downgrade(&main_ctrl);
+    }
+
+    fn notify_new_media(&mut self) {
+        self.message = String::from("media opened");
+
         self.drawingarea.queue_draw();
     }
 }

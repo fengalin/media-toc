@@ -1,16 +1,18 @@
 extern crate gtk;
 extern crate cairo;
-extern crate ffmpeg;
 
 use std::rc::Rc;
+use std::rc::Weak;
 use std::cell::RefCell;
 
 use gtk::prelude::*;
 use cairo::enums::{FontSlant, FontWeight};
 
 use controller_ext::Notifiable;
+use main_controller::MainController;
 
 pub struct AudioController {
+    main_ctrl: Weak<RefCell<MainController>>,
     drawingarea: gtk::DrawingArea,
     message: String,
 }
@@ -20,6 +22,7 @@ impl AudioController {
         // need a RefCell because the callbacks will use immutable versions of ac
         // when the UI controllers will get a mutable version from time to time
         let ac = Rc::new(RefCell::new(AudioController {
+            main_ctrl: Weak::new(),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
             message: String::from("audio place holder"),
         }));
@@ -46,16 +49,12 @@ impl AudioController {
 }
 
 impl Notifiable for AudioController {
-    fn notify_new_media(&mut self, stream: Option<ffmpeg::Stream>) {
-        match stream {
-            Some(stream) => {
-                self.message = String::from(format!("audio at index: {}", stream.index()));
-            }
-            None => {
-                self.message = String::from("no audio stream found");
-                // TODO: hide audio area
-            }
-        }
+    fn set_main_controller(&mut self, main_ctrl: Rc<RefCell<MainController>>) {
+        self.main_ctrl = Rc::downgrade(&main_ctrl);
+    }
+
+    fn notify_new_media(&mut self) {
+        self.message = String::from("media opened");
         self.drawingarea.queue_draw();
     }
 }

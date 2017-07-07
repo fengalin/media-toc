@@ -1,5 +1,4 @@
 extern crate gtk;
-extern crate ffmpeg;
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -37,6 +36,8 @@ impl MainController {
 
         {
             let mc_ref = mc.borrow();
+            mc_ref.video_ctrl.borrow_mut().set_main_controller(mc.clone());
+
             mc_ref.window.connect_delete_event(|_, _| {
                 gtk::main_quit();
                 Inhibit(false)
@@ -51,12 +52,13 @@ impl MainController {
         mc
     }
 
-    fn display_message(&self, context: &str, message: &str) {
-        self.status_bar.push(self.status_bar.get_context_id(context), message);
-    }
-
     pub fn show_all(&self) {
         self.window.show_all();
+    }
+
+
+    fn display_message(&self, context: &str, message: &str) {
+        self.status_bar.push(self.status_bar.get_context_id(context), message);
     }
 
     fn select_media(&mut self) {
@@ -83,29 +85,10 @@ impl MainController {
 
         let message: String;
         let path_str = String::from(self.filepath.to_str().unwrap());
-        match ffmpeg::format::input(&path_str) {
-            Ok(context) => {
-                // TODO: process metadata
+        message = format!("Opening media {:?}", path_str);
 
-                // for the moment, let's work on the best streams, if available
-                self.video_ctrl.borrow_mut().notify_new_media(
-                    context.streams().best(ffmpeg::media::Type::Video)
-                );
-                self.audio_ctrl.borrow_mut().notify_new_media(
-                    context.streams().best(ffmpeg::media::Type::Audio)
-                );
-
-                // TODO: see what we should do with subtitles
-
-                message = format!("Opened {:?}", self.filepath);
-            }
-            Err(error) => {
-                message = format!("Error opening media {:?}: {}",
-                                  self.filepath.file_name().unwrap().to_os_string(),
-                                  error
-                    );
-            }
-        }
+        self.video_ctrl.borrow_mut().notify_new_media();
+        self.audio_ctrl.borrow_mut().notify_new_media();
 
         self.display_message("open media", &message);
     }
