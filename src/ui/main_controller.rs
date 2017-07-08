@@ -9,9 +9,9 @@ use gtk::prelude::*;
 use gtk::{ApplicationWindow, HeaderBar, Statusbar, Button,
           FileChooserDialog, ResponseType, FileChooserAction};
 
-use controller_ext::Notifiable;
-use video_controller::VideoController;
-use audio_controller::AudioController;
+use ui::controller_ext::Notifiable;
+use ui::video_controller::VideoController;
+use ui::audio_controller::AudioController;
 
 pub struct MainController {
     window: ApplicationWindow,

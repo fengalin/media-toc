@@ -8,32 +8,33 @@ use std::cell::RefCell;
 use gtk::prelude::*;
 use cairo::enums::{FontSlant, FontWeight};
 
-use controller_ext::Notifiable;
-use main_controller::MainController;
+use ui::controller_ext::Notifiable;
+use ui::main_controller::MainController;
 
-pub struct AudioController {
+pub struct VideoController {
     main_ctrl: Weak<RefCell<MainController>>,
     drawingarea: gtk::DrawingArea,
     message: String,
 }
 
-impl AudioController {
-    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<AudioController>> {
-        // need a RefCell because the callbacks will use immutable versions of ac
+
+impl VideoController {
+    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<VideoController>> {
+        // need a RefCell because the callbacks will use immutable versions of vc
         // when the UI controllers will get a mutable version from time to time
-        let ac = Rc::new(RefCell::new(AudioController {
+        let vc = Rc::new(RefCell::new(VideoController {
             main_ctrl: Weak::new(),
-            drawingarea: builder.get_object("audio-drawingarea").unwrap(),
-            message: String::from("audio place holder"),
+            drawingarea: builder.get_object("video-drawingarea").unwrap(),
+            message: String::from("video place holder"),
         }));
 
-        let ac_for_cb = ac.clone();
-        ac.borrow().drawingarea.connect_draw(move |_, cairo_ctx| {
-            ac_for_cb.borrow().draw(&cairo_ctx);
+        let vc_for_cb = vc.clone();
+        vc.borrow().drawingarea.connect_draw(move |_, cairo_ctx| {
+            vc_for_cb.borrow().draw(&cairo_ctx);
             Inhibit(false)
         });
 
-        ac
+        vc
     }
 
     fn draw(&self, cr: &cairo::Context) {
@@ -48,13 +49,14 @@ impl AudioController {
     }
 }
 
-impl Notifiable for AudioController {
+impl Notifiable for VideoController {
     fn set_main_controller(&mut self, main_ctrl: Rc<RefCell<MainController>>) {
         self.main_ctrl = Rc::downgrade(&main_ctrl);
     }
 
     fn notify_new_media(&mut self) {
         self.message = String::from("media opened");
+
         self.drawingarea.queue_draw();
     }
 }
