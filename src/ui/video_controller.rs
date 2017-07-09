@@ -27,7 +27,7 @@ impl VideoController {
         let vc = Rc::new(RefCell::new(VideoController {
             main_ctrl: Weak::new(),
             drawingarea: builder.get_object("video-drawingarea").unwrap(),
-            message: String::from("video place holder"),
+            message: "video place holder".to_owned(),
         }));
 
         let vc_for_cb = vc.clone();
@@ -61,7 +61,7 @@ impl Notifiable for VideoController {
             Some(stream) => {
                 format!("video stream {}", stream.index)
             },
-            None => format!("no video stream"),
+            None => "no video stream".to_owned(),
         };
 
         self.drawingarea.queue_draw();

@@ -26,7 +26,7 @@ impl AudioController {
         let ac = Rc::new(RefCell::new(AudioController {
             main_ctrl: Weak::new(),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
-            message: String::from("audio place holder"),
+            message: "audio place holder".to_owned(),
         }));
 
         let ac_for_cb = ac.clone();
@@ -60,7 +60,7 @@ impl Notifiable for AudioController {
             Some(stream) => {
                 format!("audio stream {}", stream.index)
             },
-            None => format!("no audio stream"),
+            None => "no audio stream".to_owned(),
         };
 
         self.drawingarea.queue_draw();

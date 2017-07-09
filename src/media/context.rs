@@ -53,7 +53,7 @@ impl Context {
                     Ok(new_ctx)
                 }
                 else {
-                    Err(String::from("Couldn't find any video or audio stream"))
+                    Err("Couldn't find any video or audio stream".to_owned())
                 }
             },
             Err(error) => {
