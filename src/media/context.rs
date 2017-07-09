@@ -1,6 +1,7 @@
 extern crate ffmpeg;
 
 use std::path::Path;
+use std::ops::{Deref, DerefMut};
 
 use ffmpeg::Rational;
 use ffmpeg::format::stream::Disposition;
@@ -64,7 +65,7 @@ impl Context {
 
 }
 
-pub struct VideoStream {
+pub struct Stream {
     pub index: usize,
     pub time_base: Rational,
     pub start_time: i64,
@@ -73,25 +74,42 @@ pub struct VideoStream {
     pub disposition: Disposition,
     pub rate: Rational,
     pub avg_frame_rate: Rational,
+}
+
+impl Stream {
+    pub fn new(stream_iter: &ffmpeg::format::context::common::StreamIter,
+               media_type: ffmpeg::media::Type) -> Option<Stream> {
+        let stream = stream_iter.best(media_type);
+        match stream {
+            Some(stream) => {
+                Some(Stream {
+                    index: stream.index(),
+                    time_base: stream.time_base(),
+                    start_time: stream.start_time(),
+                    duration: stream.duration(),
+                    frames: stream.frames(),
+                    disposition: stream.disposition(),
+                    rate: stream.rate(),
+                    avg_frame_rate: stream.avg_frame_rate(),
+                })
+            },
+            None => None,
+        }
+    }
+}
+
+pub struct VideoStream {
+    pub stream: Stream,
 }
 
 impl VideoStream {
     pub fn new(stream_iter: &ffmpeg::format::context::common::StreamIter) -> Option<VideoStream> {
-        let video_stream = stream_iter.best(ffmpeg::media::Type::Video);
+        let video_stream = Stream::new(stream_iter, ffmpeg::media::Type::Video);
 
         match video_stream {
             Some(video_stream) => {
-                if video_stream.frames() > 0 {
-                    Some(VideoStream {
-                        index: video_stream.index(),
-                        time_base: video_stream.time_base(),
-                        start_time: video_stream.start_time(),
-                        duration: video_stream.duration(),
-                        frames: video_stream.frames(),
-                        disposition: video_stream.disposition(),
-                        rate: video_stream.rate(),
-                        avg_frame_rate: video_stream.avg_frame_rate(),
-                    })
+                if video_stream.frames > 0 {
+                    Some(VideoStream{ stream: video_stream, })
                 }
                 else {
                     None
@@ -102,36 +120,34 @@ impl VideoStream {
     }
 }
 
+impl Deref for VideoStream {
+	type Target = Stream;
 
-// TODO: use composition to factorize the members common to Video and Audio
+	fn deref(&self) -> &Self::Target {
+		&self.stream
+	}
+}
+
+impl DerefMut for VideoStream {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.stream
+	}
+}
+
+
+
 pub struct AudioStream {
-    pub index: usize,
-    pub time_base: Rational,
-    pub start_time: i64,
-    pub duration: i64,
-    pub frames: i64,
-    pub disposition: Disposition,
-    pub rate: Rational,
-    pub avg_frame_rate: Rational,
+    pub stream: Stream,
 }
 
 impl AudioStream {
     pub fn new(stream_iter: &ffmpeg::format::context::common::StreamIter) -> Option<AudioStream> {
-        let audio_stream = stream_iter.best(ffmpeg::media::Type::Audio);
+        let audio_stream = Stream::new(stream_iter, ffmpeg::media::Type::Audio);
 
         match audio_stream {
             Some(audio_stream) => {
-                if audio_stream.duration() > 0 || audio_stream.frames() > 0 {
-                    Some(AudioStream {
-                        index: audio_stream.index(),
-                        time_base: audio_stream.time_base(),
-                        start_time: audio_stream.start_time(),
-                        duration: audio_stream.duration(),
-                        frames: audio_stream.frames(),
-                        disposition: audio_stream.disposition(),
-                        rate: audio_stream.rate(),
-                        avg_frame_rate: audio_stream.avg_frame_rate(),
-                    })
+                if audio_stream.frames > 0 || audio_stream.duration > 0 {
+                    Some(AudioStream{ stream: audio_stream, })
                 }
                 else {
                     None
@@ -139,5 +155,19 @@ impl AudioStream {
             },
             None => None,
         }
-    }
+   }
+}
+
+impl Deref for AudioStream {
+	type Target = Stream;
+
+	fn deref(&self) -> &Self::Target {
+		&self.stream
+	}
+}
+
+impl DerefMut for AudioStream {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.stream
+	}
 }
