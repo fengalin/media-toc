@@ -50,8 +50,8 @@ following packages installed on your OS:
 
 ### Fedora
 ```
-$ export C_INCLUDE_PATH=$C_INCLUDE_PATH:/usr/include/ffmpeg/
 $ sudo dnf install gtk3-devel glib2-devel ffmpeg-devel
+$ export C_INCLUDE_PATH=$C_INCLUDE_PATH:/usr/include/ffmpeg/
 ```
 
 ### Debian & Unbuntu
@@ -65,9 +65,6 @@ $ sudo apt-get install libgtk-3-dev libavutil-dev libavformat-dev libavcodec-dev
 ```
 $ brew install gtk+3 ffmpeg
 ```
-
-### Windows
-See [this page](http://gtk-rs.org/docs/requirements.html).
 
 # Build and run
 Use Cargo (from the root of the project directory):
