@@ -8,8 +8,10 @@ use std::cell::RefCell;
 use gtk::prelude::*;
 use cairo::enums::{FontSlant, FontWeight};
 
-use ui::controller_ext::Notifiable;
-use ui::main_controller::MainController;
+use ::media::Context;
+
+use super::Notifiable;
+use super::MainController;
 
 pub struct AudioController {
     main_ctrl: Weak<RefCell<MainController>>,
@@ -53,8 +55,14 @@ impl Notifiable for AudioController {
         self.main_ctrl = Rc::downgrade(&main_ctrl);
     }
 
-    fn notify_new_media(&mut self) {
-        self.message = String::from("media opened");
+    fn notify_new_media(&mut self, context: &mut Context) {
+        self.message = match context.audio_stream.as_mut() {
+            Some(stream) => {
+                format!("audio stream {}", stream.index)
+            },
+            None => format!("no audio stream"),
+        };
+
         self.drawingarea.queue_draw();
     }
 }

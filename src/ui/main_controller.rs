@@ -1,3 +1,5 @@
+extern crate ffmpeg;
+
 extern crate gtk;
 
 use std::rc::Rc;
@@ -9,9 +11,9 @@ use gtk::prelude::*;
 use gtk::{ApplicationWindow, HeaderBar, Statusbar, Button,
           FileChooserDialog, ResponseType, FileChooserAction};
 
-use ui::controller_ext::Notifiable;
-use ui::video_controller::VideoController;
-use ui::audio_controller::AudioController;
+use super::Notifiable;
+use super::VideoController;
+use super::AudioController;
 
 pub struct MainController {
     window: ApplicationWindow,
@@ -21,6 +23,7 @@ pub struct MainController {
     audio_ctrl: Rc<RefCell<AudioController>>,
 
     filepath: PathBuf,
+    context: Option<::media::context::Context>,
 }
 
 impl MainController {
@@ -32,6 +35,7 @@ impl MainController {
             video_ctrl: VideoController::new(&builder),
             audio_ctrl: AudioController::new(&builder),
             filepath: PathBuf::new(),
+            context: None,
         }));
 
         {
@@ -83,12 +87,17 @@ impl MainController {
     fn open_media(&mut self, filepath: PathBuf) {
         self.filepath = filepath;
 
-        let message: String;
         let path_str = String::from(self.filepath.to_str().unwrap());
-        message = format!("Opening media {:?}", path_str);
+        let message = match ::media::Context::new(&self.filepath.as_path()) {
+            Ok(context) => {
+                self.context = Some(context);
+                self.video_ctrl.borrow_mut().notify_new_media(self.context.as_mut().unwrap());
+                self.audio_ctrl.borrow_mut().notify_new_media(self.context.as_mut().unwrap());
 
-        self.video_ctrl.borrow_mut().notify_new_media();
-        self.audio_ctrl.borrow_mut().notify_new_media();
+                format!("Opened media {:?}", path_str)
+            },
+            Err(error) => format!("Error opening media {}, {}", path_str, error),
+        };
 
         self.display_message("open media", &message);
     }
