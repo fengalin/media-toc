@@ -19,7 +19,6 @@ impl Context {
     pub fn new(path: &Path) -> Result<Context, String> {
         match ffmpeg::format::input(&path) {
             Ok(ffmpeg_context) => {
-                // for the moment, let's work on the best streams, if available
                 let mut new_ctx = Context{
                     ffmpeg_context: ffmpeg_context,
                     name: String::new(),
@@ -100,7 +99,7 @@ impl Stream {
         println!("\ttime_base: {}", new_stream.time_base);
         println!("\tstart_time: {}", new_stream.start_time);
         println!("\tduration (stream timebase): {}", new_stream.duration);
-        println!("\tduration (seconds): {:.2}", new_stream.duration as f64 * f64::from(stream.time_base()));
+        println!("\tduration (seconds): {:.2}", new_stream.duration as f64 * f64::from(new_stream.time_base));
         println!("\tframes: {}", new_stream.frames);
         println!("\tdisposition: {:?}", new_stream.disposition);
         println!("\tdiscard: {:?}", new_stream.discard);
@@ -174,7 +173,7 @@ impl VideoStream {
                         Some(new_vs)
                     },
                     Err(error) => {
-                        println!("audio stream: {:?}", error);
+                        println!("video stream: {:?}", error);
                         // TODO: should probably panic here
                         None
                     }
