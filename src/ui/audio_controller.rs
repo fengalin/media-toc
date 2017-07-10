@@ -71,6 +71,7 @@ impl NotifiableMedia for AudioController {
         self.message = match context.audio_stream.as_mut() {
             Some(stream) => {
                 self.show();
+                println!("** Audio stream\n{:?}", &stream);
                 format!("audio stream {}", stream.index)
             },
             None => {

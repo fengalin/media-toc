@@ -71,6 +71,7 @@ impl NotifiableMedia for VideoController {
         self.message = match context.video_stream.as_mut() {
             Some(stream) => {
                 self.show();
+                println!("** Video stream\n{:?}", &stream);
                 format!("video stream {}", stream.index)
             },
             None => {

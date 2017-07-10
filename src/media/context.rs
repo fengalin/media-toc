@@ -64,6 +64,8 @@ impl Context {
 }
 
 // TODO: use lifetimes to hold ffmped stream and codec within the structure below
+
+#[derive(Debug)]
 pub struct Stream {
     pub index: usize,
     pub time_base: Rational,
@@ -81,7 +83,7 @@ pub struct Stream {
 impl Stream {
     pub fn new(stream: ffmpeg::format::stream::Stream) -> Stream {
         let codec = stream.codec();
-        let new_stream = Stream {
+        Stream {
             index: stream.index(),
             time_base: stream.time_base(),
             start_time: stream.start_time(),
@@ -93,23 +95,11 @@ impl Stream {
             avg_frame_rate: stream.avg_frame_rate(),
             codec_medium: codec.medium(),
             codec_id: codec.id(),
-        };
-
-        println!("stream index {} - {:?}:", new_stream.index, new_stream.codec_medium);
-        println!("\ttime_base: {}", new_stream.time_base);
-        println!("\tstart_time: {}", new_stream.start_time);
-        println!("\tduration (stream timebase): {}", new_stream.duration);
-        println!("\tduration (seconds): {:.2}", new_stream.duration as f64 * f64::from(new_stream.time_base));
-        println!("\tframes: {}", new_stream.frames);
-        println!("\tdisposition: {:?}", new_stream.disposition);
-        println!("\tdiscard: {:?}", new_stream.discard);
-        println!("\trate: {}", new_stream.rate);
-        println!("\tcodec_id: {:?}", new_stream.codec_id);
-
-        new_stream
+        }
     }
 }
 
+#[derive(Debug)]
 pub struct VideoStream {
     pub stream: Stream,
 	pub bit_rate: usize,
@@ -135,7 +125,7 @@ impl VideoStream {
             Some(video_stream) => {
                 match video_stream.codec().decoder().video() {
                     Ok(video) => {
-                        let new_vs = VideoStream{
+                        Some(VideoStream{
                             bit_rate: video.bit_rate(),
                             max_bit_rate: video.max_bit_rate(),
                             delay: video.delay(),
@@ -152,25 +142,7 @@ impl VideoStream {
                             references: video.references(),
                             intra_dc_precision: video.intra_dc_precision(),
                             stream: Stream::new(video_stream),
-                        };
-
-                        println!("\tbit_rate: {}", new_vs.bit_rate);
-                        println!("\tmax_bit_rate: {}", new_vs.max_bit_rate);
-                        println!("\tdelay: {}", new_vs.delay);
-					    println!("\twidth: {}", new_vs.width);
-					    println!("\theight: {}", new_vs.height);
-					    println!("\tformat: {:?}", new_vs.format);
-					    println!("\thas_b_frames: {}", new_vs.has_b_frames);
-					    println!("\taspect_ratio: {}", new_vs.aspect_ratio);
-					    println!("\tcolor_space: {:?}", new_vs.color_space);
-					    println!("\tcolor_range: {:?}", new_vs.color_range);
-					    println!("\tcolor_primaries: {:?}", new_vs.color_primaries);
-					    println!("\tcolor_transfer_characteristic: {:?}", new_vs.color_transfer_characteristic);
-					    println!("\tchroma_location: {:?}", new_vs.chroma_location);
-					    println!("\treferences: {}", new_vs.references);
-                        println!("\tintra_dc_precision: {}", new_vs.intra_dc_precision);
-
-                        Some(new_vs)
+                        })
                     },
                     Err(error) => {
                         println!("video stream: {:?}", error);
@@ -200,6 +172,7 @@ impl DerefMut for VideoStream {
 
 
 
+#[derive(Debug)]
 pub struct AudioStream {
     pub stream: Stream,
 	pub bit_rate: usize,
@@ -220,7 +193,7 @@ impl AudioStream {
             Some(audio_stream) => {
                 match audio_stream.codec().decoder().audio() {
                     Ok(audio) => {
-                        let new_as = AudioStream{
+                        Some(AudioStream{
                             bit_rate: audio.bit_rate(),
                             max_bit_rate: audio.max_bit_rate(),
                             delay: audio.delay(),
@@ -232,20 +205,7 @@ impl AudioStream {
                             channel_layout: audio.channel_layout(),
                             frame_start: audio.frame_start(),
                             stream: Stream::new(audio_stream),
-                        };
-
-                        println!("\tbit_rate: {}", new_as.bit_rate);
-                        println!("\tmax_bit_rate: {}", new_as.max_bit_rate);
-                        println!("\tdelay: {}", new_as.delay);
-                        println!("\trate: {}", new_as.rate);
-                        println!("\tchannels: {}", new_as.channels);
-                        println!("\tformat: {:?}", new_as.format);
-                        println!("\tframes: {}", new_as.frames);
-                        println!("\talign: {}", new_as.align);
-                        println!("\tchannel_layout: {:?}", new_as.channel_layout);
-                        println!("\tframe_start: {:?}", new_as.frame_start);
-
-                        Some(new_as)
+                        })
                     },
                     Err(error) => {
                         println!("audio stream: {:?}", error);
