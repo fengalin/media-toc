@@ -2,8 +2,9 @@ pub mod main_controller;
 pub use self::main_controller::MainController;
 
 
-mod controller_ext;
-use self::controller_ext::Notifiable;
+mod media_controller;
+use self::media_controller::MediaController;
+use self::media_controller::NotifiableMedia;
 
 mod video_controller;
 use self::video_controller::VideoController;

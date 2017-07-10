@@ -11,7 +11,7 @@ use gtk::prelude::*;
 use gtk::{ApplicationWindow, HeaderBar, Statusbar, Button,
           FileChooserDialog, ResponseType, FileChooserAction};
 
-use super::Notifiable;
+use super::NotifiableMedia;
 use super::VideoController;
 use super::AudioController;
 
@@ -40,8 +40,6 @@ impl MainController {
 
         {
             let mc_ref = mc.borrow();
-            mc_ref.video_ctrl.borrow_mut().set_main_controller(mc.clone());
-
             mc_ref.window.connect_delete_event(|_, _| {
                 gtk::main_quit();
                 Inhibit(false)

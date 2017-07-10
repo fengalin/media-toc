@@ -1,8 +1,9 @@
 extern crate gtk;
 extern crate cairo;
 
+use std::ops::{Deref, DerefMut};
+
 use std::rc::Rc;
-use std::rc::Weak;
 use std::cell::RefCell;
 
 use gtk::prelude::*;
@@ -10,11 +11,11 @@ use cairo::enums::{FontSlant, FontWeight};
 
 use ::media::Context;
 
-use super::Notifiable;
-use super::MainController;
+use super::NotifiableMedia;
+use super::MediaController;
 
 pub struct VideoController {
-    main_ctrl: Weak<RefCell<MainController>>,
+    media_ctl: MediaController,
     drawingarea: gtk::DrawingArea,
     message: String,
 }
@@ -25,7 +26,7 @@ impl VideoController {
         // need a RefCell because the callbacks will use immutable versions of vc
         // when the UI controllers will get a mutable version from time to time
         let vc = Rc::new(RefCell::new(VideoController {
-            main_ctrl: Weak::new(),
+            media_ctl: MediaController::new(builder.get_object("video-container").unwrap()),
             drawingarea: builder.get_object("video-drawingarea").unwrap(),
             message: "video place holder".to_owned(),
         }));
@@ -51,17 +52,31 @@ impl VideoController {
     }
 }
 
-impl Notifiable for VideoController {
-    fn set_main_controller(&mut self, main_ctrl: Rc<RefCell<MainController>>) {
-        self.main_ctrl = Rc::downgrade(&main_ctrl);
-    }
+impl Deref for VideoController {
+	type Target = MediaController;
 
+	fn deref(&self) -> &Self::Target {
+		&self.media_ctl
+	}
+}
+
+impl DerefMut for VideoController {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.media_ctl
+	}
+}
+
+impl NotifiableMedia for VideoController {
     fn notify_new_media(&mut self, context: &mut Context) {
         self.message = match context.video_stream.as_mut() {
             Some(stream) => {
+                self.show();
                 format!("video stream {}", stream.index)
             },
-            None => "no video stream".to_owned(),
+            None => {
+                self.hide();
+                "no video stream".to_owned()
+            },
         };
 
         self.drawingarea.queue_draw();
