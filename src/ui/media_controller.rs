@@ -20,8 +20,8 @@ impl MediaController {
         self.stream_index = Some(index);
     }
 
-    pub fn stream_index(&self) -> usize {
-        self.stream_index.unwrap()
+    pub fn stream_index(&self) -> Option<usize> {
+        self.stream_index
     }
 
     pub fn show(&self) {
@@ -33,17 +33,6 @@ impl MediaController {
     }
 }
 
-pub trait NotifiableMedia {
+pub trait MediaNotifiable {
     fn new_media(&mut self, &mut Context);
-
-    fn new_packet(&mut self, stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
-        println!("stream: {}", stream.index());
-        println!("packet: size: {} - duration: {}", packet.size(), packet.duration());
-        if let Some(data) = packet.data() {
-            println!("found data");
-        }
-
-        let data_iter = stream.side_data();
-        println!("side data nb: {}", data_iter.size_hint().0);
-    }
 }

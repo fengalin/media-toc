@@ -10,8 +10,9 @@ use gtk::prelude::*;
 use cairo::enums::{FontSlant, FontWeight};
 
 use ::media::Context;
+use ::media::PacketNotifiable;
 
-use super::NotifiableMedia;
+use super::MediaNotifiable;
 use super::MediaController;
 
 pub struct AudioController {
@@ -66,13 +67,15 @@ impl DerefMut for AudioController {
 	}
 }
 
-impl NotifiableMedia for AudioController {
+impl MediaNotifiable for AudioController {
     fn new_media(&mut self, context: &mut Context) {
         self.message = match context.audio_stream.as_mut() {
             Some(stream) => {
+                self.set_index(stream.index);
+
                 self.show();
-                println!("** Audio stream\n{:?}", &stream);
-                format!("audio stream {}", stream.index)
+                println!("\n** Audio stream\n{:?}", &stream);
+                format!("audio stream {}", self.stream_index().unwrap())
             },
             None => {
                 self.hide();
@@ -82,4 +85,7 @@ impl NotifiableMedia for AudioController {
 
         self.drawingarea.queue_draw();
     }
+}
+
+impl PacketNotifiable for AudioController {
 }

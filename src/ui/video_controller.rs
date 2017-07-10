@@ -14,8 +14,9 @@ use cairo::enums::{FontSlant, FontWeight};
 use ffmpeg::format::stream::disposition::ATTACHED_PIC;
 
 use ::media::Context;
+use ::media::PacketNotifiable;
 
-use super::NotifiableMedia;
+use super::MediaNotifiable;
 use super::MediaController;
 
 pub struct VideoController {
@@ -70,16 +71,14 @@ impl DerefMut for VideoController {
 	}
 }
 
-impl NotifiableMedia for VideoController {
+impl MediaNotifiable for VideoController {
     fn new_media(&mut self, context: &mut Context) {
-        let can_register;
         self.message = match context.video_stream.as_mut() {
             Some(stream) => {
-                can_register = true;
                 self.set_index(stream.index);
 
                 self.show();
-                println!("** Video stream\n{:?}", &stream);
+                println!("\n** Video stream\n{:?}", &stream);
 
                 let stream_type;
                 if stream.disposition | ATTACHED_PIC == ATTACHED_PIC {
@@ -88,30 +87,17 @@ impl NotifiableMedia for VideoController {
                 else {
                     stream_type = "video stream";
                 }
-                format!("{} {}", stream_type, self.stream_index())
+                format!("{} {}", stream_type, self.stream_index().unwrap())
             },
             None => {
-                can_register = false;
                 self.hide();
                 "no video stream".to_owned()
             },
         };
 
-        // FIXME: might be a better way (can't do this in Some arm above
-        // since context is already borrowed
-        if can_register {
-            // FIXME: multiple issues: 1. register_packets doesn't accept closure
-            // with current signature; 2. this requires a Rc<RefCell> which is not
-            // available within this method? Either the signature can be changed
-            // to replace self with Rc<RefCell<Self>> or, register should
-            // be done in MainController
-            println!("Would register stream {}", self.stream_index())
-            /*
-            context.register_packets(self.stream_index(), |stream, packet| {
-                self.new_packet(stream, packet);
-            });*/
-        }
-
         self.drawingarea.queue_draw();
     }
+}
+
+impl PacketNotifiable for VideoController {
 }

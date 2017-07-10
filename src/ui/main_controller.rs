@@ -11,7 +11,7 @@ use gtk::prelude::*;
 use gtk::{ApplicationWindow, HeaderBar, Statusbar, Button,
           FileChooserDialog, ResponseType, FileChooserAction};
 
-use super::NotifiableMedia;
+use super::MediaNotifiable;
 use super::VideoController;
 use super::AudioController;
 
@@ -89,10 +89,23 @@ impl MainController {
         let message = match ::media::Context::new(&self.filepath.as_path()) {
             Ok(context) => {
                 self.context = Some(context);
-                self.video_ctrl.borrow_mut().new_media(self.context.as_mut().unwrap());
-                self.audio_ctrl.borrow_mut().new_media(self.context.as_mut().unwrap());
+                let context = self.context.as_mut().unwrap();
 
-                self.context.as_mut().unwrap().preview();
+                self.video_ctrl.borrow_mut().new_media(context);
+                match self.video_ctrl.borrow().stream_index() {
+                    Some(stream_index) =>
+                        context.register_packets(stream_index, self.video_ctrl.clone()),
+                    None => (),
+                }
+
+                self.audio_ctrl.borrow_mut().new_media(context);
+                match self.audio_ctrl.borrow().stream_index() {
+                    Some(stream_index) =>
+                        context.register_packets(stream_index, self.audio_ctrl.clone()),
+                    None => (),
+                }
+
+                context.preview();
 
                 format!("Opened media {:?}", path_str)
             },
