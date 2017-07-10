@@ -89,8 +89,10 @@ impl MainController {
         let message = match ::media::Context::new(&self.filepath.as_path()) {
             Ok(context) => {
                 self.context = Some(context);
-                self.video_ctrl.borrow_mut().notify_new_media(self.context.as_mut().unwrap());
-                self.audio_ctrl.borrow_mut().notify_new_media(self.context.as_mut().unwrap());
+                self.video_ctrl.borrow_mut().new_media(self.context.as_mut().unwrap());
+                self.audio_ctrl.borrow_mut().new_media(self.context.as_mut().unwrap());
+
+                self.context.as_mut().unwrap().preview();
 
                 format!("Opened media {:?}", path_str)
             },

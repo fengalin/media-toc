@@ -67,7 +67,7 @@ impl DerefMut for AudioController {
 }
 
 impl NotifiableMedia for AudioController {
-    fn notify_new_media(&mut self, context: &mut Context) {
+    fn new_media(&mut self, context: &mut Context) {
         self.message = match context.audio_stream.as_mut() {
             Some(stream) => {
                 self.show();

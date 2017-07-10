@@ -2,16 +2,21 @@ extern crate ffmpeg;
 
 use std::path::Path;
 use std::ops::{Deref, DerefMut};
+use std::collections::HashMap;
 
 use ffmpeg::Rational;
 use ffmpeg::format::stream::Disposition;
 
+type PacketCallback = fn(&ffmpeg::format::stream::Stream, &ffmpeg::codec::packet::Packet);
+
 pub struct Context {
-    ffmpeg_context: ffmpeg::format::context::Input,
+    pub ffmpeg_context: ffmpeg::format::context::Input,
     pub name: String,
     pub description: String,
+    pub stream_count: usize,
     pub video_stream: Option<VideoStream>,
     pub audio_stream: Option<AudioStream>,
+    pub packet_cb_map: HashMap<usize, PacketCallback>,
 }
 
 
@@ -23,11 +28,12 @@ impl Context {
                     ffmpeg_context: ffmpeg_context,
                     name: String::new(),
                     description: String::new(),
+                    stream_count: 0,
                     video_stream: None,
                     audio_stream: None,
+                    packet_cb_map: HashMap::new(),
                 };
 
-                let stream_count;
                 {
                     let format = new_ctx.ffmpeg_context.format();
                     new_ctx.name = String::from(format.name());
@@ -36,18 +42,18 @@ impl Context {
                     let stream_iter = new_ctx.ffmpeg_context.streams();
                     new_ctx.video_stream = VideoStream::new(&stream_iter);
                     new_ctx.audio_stream = AudioStream::new(&stream_iter);
-                    stream_count = stream_iter.size_hint().0;
+                    new_ctx.stream_count = stream_iter.size_hint().0;
                 }
 
                 // TODO: process metadata
 
                 // TODO: see what we should do with subtitles
 
-                println!("Input: {} - {}, {} streams",
-                         &new_ctx.name, &new_ctx.description, stream_count
+                println!("*** New media - Input: {} - {}, {} streams",
+                         &new_ctx.name, &new_ctx.description, new_ctx.stream_count
                 );
 
-                if stream_count > 0 {
+                if new_ctx.video_stream.is_some() || new_ctx.audio_stream.is_some() {
                     // TODO: also check for misdetections (detection score)
                     Ok(new_ctx)
                 }
@@ -61,6 +67,28 @@ impl Context {
         }
     }
 
+    // FIXME: this is not appropriate for a closure, should use Box<FnMut(,)>
+    pub fn register_packets(&mut self, stream_index: usize, cb: PacketCallback) {
+        self.packet_cb_map.insert(stream_index, cb);
+    }
+
+    pub fn preview(&mut self) {
+        let packet_iter = self.ffmpeg_context.packets();
+        let mut count = 0;
+        for (stream, packet) in packet_iter {
+            match self.packet_cb_map.get(&stream.index()) {
+                Some(packet_cb) => packet_cb(&stream, &packet),
+                None => println!("No handler for stream {}", stream.index()),
+            }
+
+            // TODO: do something better like using a HashMap to store
+            // streams index that were already previewed
+            count += 1;
+            if count == self.stream_count {
+                break;
+            }
+        }
+    }
 }
 
 // TODO: use lifetimes to hold ffmped stream and codec within the structure below
