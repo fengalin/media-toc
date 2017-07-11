@@ -155,24 +155,19 @@ impl VideoController {
                             frame.stride(0) as i32
                         );
 
-                    let x;
-                    let y;
-                    let mut width_scale = allocation.width as f64 / surface.get_width() as f64;
-                    let mut height_scale = allocation.height as f64 / surface.get_height() as f64;
-                    let ratio = width_scale / height_scale;
-                    if ratio > 0f64 {
-                        width_scale /= ratio;
-                        x = (allocation.width as f64 - width_scale * (surface.get_width() as f64)).abs();
-                        y = 0f64;
+                    let scale;
+                    let alloc_ratio = allocation.width as f64 / allocation.height as f64;
+                    let surface_ratio = surface.get_width() as f64 / surface.get_height() as f64;
+                    if surface_ratio < alloc_ratio {
+                        scale = allocation.height as f64 / surface.get_height() as f64;
                     }
                     else {
-                        height_scale /= ratio;
-                        x = 0f64;
-                        y = (allocation.height as f64 - height_scale * (surface.get_height() as f64)).abs();
+                        scale = allocation.width as f64 / surface.get_width() as f64;
                     }
-                    println!("aw {}, ah {}, sw {}, sh {}, ratio {}, x {}, y {}",
-                             allocation.width, allocation.height, surface.get_width(), surface.get_height(), ratio, x, y);
-                    cr.scale(width_scale, height_scale);
+                    let x = (allocation.width as f64 / scale - surface.get_width() as f64).abs() / 2f64;
+                    let y = (allocation.height as f64 / scale - surface.get_height() as f64).abs() / 2f64;
+
+                    cr.scale(scale, scale);
                     cr.set_source_surface(&surface, x, y);
                     cr.paint();
                 }
