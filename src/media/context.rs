@@ -14,6 +14,10 @@ use ffmpeg::format::stream::Disposition;
 
 pub trait PacketNotifiable {
     fn new_packet(&mut self, stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
+        self.print_content(stream, packet);
+    }
+
+    fn print_content(&self, stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
         println!("\n* Packet for stream: {}", stream.index());
         println!("\tsize: {} - duration: {}, is key: {}",
                  packet.size(), packet.duration(), packet.is_key(),
@@ -29,9 +33,27 @@ pub trait PacketNotifiable {
         if let Some(data) = packet.data() {
             println!("\tfound data with len: {}", data.len());
         }
+        let side_data_iter = stream.side_data();
+        let side_data_len = side_data_iter.size_hint().0;
+        if side_data_len > 0 {
+            println!("\tside data nb: {}", side_data_len);
+        }
 
-        let data_iter = stream.side_data();
-        println!("\tside data nb: {}", data_iter.size_hint().0);
+        let codec_ctx = stream.codec();
+        let decoder = codec_ctx.decoder();
+        match decoder.medium() {
+            ffmpeg::media::Type::Video => match decoder.video() {
+                Ok(video) => println!("\tvideo decoder: {:?}, width: {}, height: {}",
+                                      video.format(), video.width(), video.height()),
+                Err(_) => (),
+            },
+            ffmpeg::media::Type::Audio => match decoder.audio() {
+                Ok(audio) => println!("\taudio decoder: {:?}, channels: {}, frame count: {}",
+                                      audio.format(), audio.channels(), audio.frames()),
+                Err(_) => (),
+            },
+            _ => (),
+        }
     }
 }
 
