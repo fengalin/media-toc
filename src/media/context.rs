@@ -14,10 +14,10 @@ use ffmpeg::format::stream::Disposition;
 
 pub trait PacketNotifiable {
     fn new_packet(&mut self, stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
-        self.print_content(stream, packet);
+        self.print_packet_content(stream, packet);
     }
 
-    fn print_content(&self, stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
+    fn print_packet_content(&self, stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
         println!("\n* Packet for stream: {}", stream.index());
         println!("\tsize: {} - duration: {}, is key: {}",
                  packet.size(), packet.duration(), packet.is_key(),
@@ -39,8 +39,7 @@ pub trait PacketNotifiable {
             println!("\tside data nb: {}", side_data_len);
         }
 
-        let codec_ctx = stream.codec();
-        let decoder = codec_ctx.decoder();
+        let decoder = stream.codec().decoder();
         match decoder.medium() {
             ffmpeg::media::Type::Video => match decoder.video() {
                 Ok(video) => println!("\tvideo decoder: {:?}, width: {}, height: {}",
@@ -123,6 +122,8 @@ impl Context {
     // TODO: check if this could be an iterator instead (managed from MainController)
     pub fn preview(&mut self) {
         let mut processed = HashSet::new();
+
+        // FIXME: sometimes packets don't seem to contain a whole frame
 
         let packet_iter = self.ffmpeg_context.packets();
         for (stream, packet) in packet_iter {
