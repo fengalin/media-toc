@@ -15,7 +15,17 @@ use ffmpeg::format::stream::Disposition;
 pub trait PacketNotifiable {
     fn new_packet(&mut self, stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
         println!("\n* Packet for stream: {}", stream.index());
-        println!("\tsize: {} - duration: {}", packet.size(), packet.duration());
+        println!("\tsize: {} - duration: {}, is key: {}",
+                 packet.size(), packet.duration(), packet.is_key(),
+        );
+        match packet.pts() {
+            Some(pts) => println!("\tpts: {}", pts),
+            None => (),
+        }
+        match packet.dts() {
+            Some(dts) => println!("\tdts: {}", dts),
+            None => (),
+        }
         if let Some(data) = packet.data() {
             println!("\tfound data with len: {}", data.len());
         }
@@ -94,6 +104,10 @@ impl Context {
 
         let packet_iter = self.ffmpeg_context.packets();
         for (stream, packet) in packet_iter {
+            if !packet.is_key() {
+                // get a key frame
+                continue;
+            }
             let stream_index = stream.index();
             match self.packet_cb_map.get(&stream_index) {
                 Some(to_notify_weak) => {
