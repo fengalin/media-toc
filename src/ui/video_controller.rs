@@ -33,6 +33,7 @@ pub struct VideoController {
     drawingarea: gtk::DrawingArea,
     message: String,
     frame: Option<ffmpeg::frame::Video>,
+    graph: Option<ffmpeg::filter::Graph>,
 }
 
 
@@ -45,6 +46,7 @@ impl VideoController {
             drawingarea: builder.get_object("video-drawingarea").unwrap(),
             message: "video place holder".to_owned(),
             frame: None,
+            graph: None,
         }));
 
         let vc_for_cb = vc.clone();
@@ -56,79 +58,87 @@ impl VideoController {
         vc
     }
 
-    fn convert_to_rgb(&mut self, frame_in: &mut ffmpeg::frame::Video, time_base:
-                      ffmpeg::Rational) -> Result<(ffmpeg::frame::Video), String> {
-        let mut graph = ffmpeg::filter::Graph::new();
-        let in_filter;
-        match ffmpeg::filter::find("buffer") {
-            Some(value) => in_filter = value,
-            None => return Err("Couldn't get buffer".to_owned()),
+    fn build_graph(&mut self, frame_in: &mut ffmpeg::frame::Video,
+                 time_base: ffmpeg::Rational) -> Result<bool, String> { // TODO: check how to return Ok() only
+        match self.graph {
+            Some(_) => (),
+            None => {
+                let mut graph = ffmpeg::filter::Graph::new();
+
+                // Fix deprecated formats
+                let in_format = match frame_in.format() {
+                    ffmpeg::format::Pixel::YUVJ420P => ffmpeg::format::Pixel::YUV420P,
+                    ffmpeg::format::Pixel::YUVJ422P => ffmpeg::format::Pixel::YUV422P,
+                    ffmpeg::format::Pixel::YUVJ444P => ffmpeg::format::Pixel::YUV444P,
+                    ffmpeg::format::Pixel::YUVJ440P => ffmpeg::format::Pixel::YUV440P,
+                    other => other,
+                };
+                frame_in.set_format(in_format);
+                let in_format_str = format!("{:?}", in_format).to_lowercase();
+                let args = format!("width={}:height={}:pix_fmt={}:time_base={}:pixel_aspect={}",
+                                   frame_in.width(), frame_in.height(), in_format_str,
+                                   time_base, frame_in.aspect_ratio());
+
+                let in_filter = ffmpeg::filter::find("buffer").unwrap();
+                match graph.add(&in_filter, "in", &args) {
+                    Ok(_) => (),
+                    Err(error) => return Err(format!("Error adding in pad: {:?}", error)),
+                }
+
+                let out_filter = ffmpeg::filter::find("buffersink").unwrap();
+                match graph.add(&out_filter, "out", "") {
+                    Ok(_) => (),
+                    Err(error) => return Err(format!("Error adding out pad: {:?}", error)),
+                }
+                {
+                    let mut out_pad = graph.get("out").unwrap();
+                    out_pad.set_pixel_format(ffmpeg::format::Pixel::RGB565LE);
+                }
+
+                {
+                    let in_parser;
+                    match graph.output("in", 0) {
+                        Ok(value) => in_parser = value,
+                        Err(error) => return Err(format!("Error getting output for in pad: {:?}", error)),
+                    }
+                    let out_parser;
+                    match in_parser.input("out", 0) {
+                        Ok(value) => out_parser = value,
+                        Err(error) => return Err(format!("Error getting input for out pad: {:?}", error)),
+                    }
+                    match out_parser.parse("copy") {
+                        Ok(_) => (),
+                        Err(error) => return Err(format!("Error parsing format: {:?}", error)),
+                    }
+                }
+
+                match graph.validate() {
+                    Ok(_) => self.graph = Some(graph),
+                    Err(error) => return Err(format!("Error validating graph: {:?}", error)),
+                }
+
+                //println!("{}", graph.dump());
+            },
         }
 
-        // Fix deprecated formats
-        let in_format = match frame_in.format() {
-            ffmpeg::format::Pixel::YUVJ420P => ffmpeg::format::Pixel::YUV420P,
-            ffmpeg::format::Pixel::YUVJ422P => ffmpeg::format::Pixel::YUV422P,
-            ffmpeg::format::Pixel::YUVJ444P => ffmpeg::format::Pixel::YUV444P,
-            ffmpeg::format::Pixel::YUVJ440P => ffmpeg::format::Pixel::YUV440P,
-            other => other,
-        };
-        frame_in.set_format(in_format);
-        let in_format_str = format!("{:?}", in_format).to_lowercase();
-        let args = format!("width={}:height={}:pix_fmt={}:time_base={}:pixel_aspect={}",
-                           frame_in.width(), frame_in.height(), in_format_str,
-                           time_base, frame_in.aspect_ratio());
-        println!("pad in args: {}", args);
-        match graph.add(&in_filter, "in", &args) {
-            Ok(_) => (),
-            Err(error) => return Err(format!("Error adding in pad: {:?}", error)),
-        }
+        Ok(true)
+    }
 
-        let out_filter;
-        match ffmpeg::filter::find("buffersink") {
-            Some(value) => out_filter = value,
-            None => return Err("Couldn't get buffersink".to_owned()),
-        }
-        match graph.add(&out_filter, "out", "") {
-            Ok(_) => (),
-            Err(error) => return Err(format!("Error adding out pad: {:?}", error)),
-        }
-        {
-            let mut out_pad = graph.get("out").unwrap();
-            out_pad.set_pixel_format(ffmpeg::format::Pixel::RGB565LE);
-        }
+    fn convert_to_rgb(&mut self, frame_in: &mut ffmpeg::frame::Video,
+                      time_base: ffmpeg::Rational) -> Result<ffmpeg::frame::Video, String> {
+        match self.build_graph(frame_in, time_base) {
+            Ok(_) => {
+                let mut graph = self.graph.as_mut().unwrap();
+                graph.get("in").unwrap().source().add(&frame_in).unwrap();
 
-        {
-            let in_parser;
-            match graph.output("in", 0) {
-                Ok(value) => in_parser = value,
-                Err(error) => return Err(format!("Error getting output for in pad: {:?}", error)),
-            }
-            let out_parser;
-            match in_parser.input("out", 0) {
-                Ok(value) => out_parser = value,
-                Err(error) => return Err(format!("Error getting input for out pad: {:?}", error)),
-            }
-            match out_parser.parse("copy") {
-                Ok(_) => (),
-                Err(error) => return Err(format!("Error parsing format: {:?}", error)),
-            }
+                let mut frame_rgb = ffmpeg::frame::Video::empty();
+                while let Ok(..) = graph.get("out").unwrap().sink().frame(&mut frame_rgb) {
+                }
+
+                Ok(frame_rgb)
+            },
+            Err(error) => Err(error),
         }
-
-        match graph.validate() {
-            Ok(_) => (),
-            Err(error) => return Err(format!("Error validating graph: {:?}", error)),
-        }
-
-        //println!("{}", graph.dump());
-
-        graph.get("in").unwrap().source().add(&frame_in).unwrap();
-
-        let mut frame_rgb = ffmpeg::frame::Video::empty();
-		while let Ok(..) = graph.get("out").unwrap().sink().frame(&mut frame_rgb) {
-        }
-
-        Ok(frame_rgb)
     }
 
     fn draw(&self, cr: &cairo::Context) {
@@ -201,6 +211,7 @@ impl DerefMut for VideoController {
 impl MediaNotifiable for VideoController {
     fn new_media(&mut self, context: &mut Context) {
         self.frame = None;
+        self.graph = None;
         self.message = match context.video_stream.as_mut() {
             Some(stream) => {
                 self.set_index(stream.index);
