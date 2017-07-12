@@ -59,7 +59,7 @@ impl VideoController {
     }
 
     fn build_graph(&mut self, frame_in: &mut ffmpeg::frame::Video,
-                 time_base: ffmpeg::Rational) -> Result<bool, String> { // TODO: check how to return Ok() only
+                   time_base: ffmpeg::Rational) -> Result<bool, String> { // TODO: check how to return Ok() only
         match self.graph {
             Some(_) => (),
             None => {
@@ -74,9 +74,9 @@ impl VideoController {
                     other => other,
                 };
                 frame_in.set_format(in_format);
-                let in_format_str = format!("{:?}", in_format).to_lowercase();
                 let args = format!("width={}:height={}:pix_fmt={}:time_base={}:pixel_aspect={}",
-                                   frame_in.width(), frame_in.height(), in_format_str,
+                                   frame_in.width(), frame_in.height(),
+                                   frame_in.format().descriptor().unwrap().name(),
                                    time_base, frame_in.aspect_ratio());
 
                 let in_filter = ffmpeg::filter::find("buffer").unwrap();
@@ -245,12 +245,14 @@ impl PacketNotifiable for VideoController {
         let decoder = stream.codec().decoder();
         match decoder.video() {
             Ok(mut video) => {
-                let mut frame = ffmpeg::frame::Video::new(video.format(), video.width(), video.height());
+                //let mut frame = ffmpeg::frame::Video::new(video.format(), video.width(), video.height());
+                let mut frame = ffmpeg::frame::Video::empty();
                 match video.decode(packet, &mut frame) {
                     Ok(result) => if result {
                             let planes = frame.planes();
+                            println!("\tdecoded video frame, found {} planes", planes);
                             if planes > 0 {
-                                println!("\tdecoded video frame, data len: {}", frame.data(0).len());
+                                println!("\tdata len: {}", frame.data(0).len());
 
                                 match self.convert_to_rgb(&mut frame, video.time_base()) {
                                     Ok(frame_rgb) => {
