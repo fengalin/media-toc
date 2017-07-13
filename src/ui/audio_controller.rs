@@ -52,8 +52,14 @@ impl AudioController {
             None => {
                 let mut graph = ffmpeg::filter::Graph::new();
 
+                // TBC: fix invalid channel layout
+                let channel_layout = match decoder.channel_layout().bits() {
+                    0 => 1,
+                    bits => bits,
+                };
+
 	            let args = format!("time_base={}:sample_rate={}:sample_fmt={}:channel_layout=0x{:x}",
-		            decoder.time_base(), decoder.rate(), decoder.format().name(), decoder.channel_layout().bits());
+		            decoder.time_base(), decoder.rate(), decoder.format().name(), channel_layout);
 
                 let in_filter = ffmpeg::filter::find("abuffer").unwrap();
                 match graph.add(&in_filter, "in", &args) {
@@ -92,8 +98,6 @@ impl AudioController {
                     Ok(_) => self.graph = Some(graph),
                     Err(error) => return Err(format!("Error validating graph: {:?}", error)),
                 }
-
-                //println!("{}", graph.dump());
             },
         }
 
@@ -181,9 +185,7 @@ impl PacketNotifiable for AudioController {
                             if planes > 0 {
                                 println!("\tdata len: {}", frame.data(0).len());
                                 match self.convert_to_pcm16(&audio, &mut frame) {
-                                    Ok(frame_pcm) => {
-                                        self.frame = Some(frame_pcm);
-                                    }
+                                    Ok(frame_pcm) => self.frame = Some(frame_pcm),
                                     Err(error) =>  println!("\tError converting to pcm: {:?}", error),
                                 }
                             }

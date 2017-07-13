@@ -106,8 +106,6 @@ impl VideoController {
                     Ok(_) => self.graph = Some(graph),
                     Err(error) => return Err(format!("Error validating graph: {:?}", error)),
                 }
-
-                //println!("{}", graph.dump());
             },
         }
 
@@ -138,16 +136,6 @@ impl VideoController {
             Some(ref frame) => {
                 let planes = frame.planes();
                 if planes > 0 {
-                    /*
-                    println!("format: {:?}, width: {}, stride: {}",
-                             frame.format(), frame.width(), frame.stride(0));
-                    let test_surface = cairo::ImageSurface::create(
-                            ffmpeg_pixel_format_to_cairo(frame.format()),
-                            frame.width() as i32, frame.height() as i32
-                        );
-                    println!("expected stride: {}", test_surface.get_stride());
-                    */
-
                     let surface = cairo::ImageSurface::create_for_data(
                             frame.data(0).to_vec().into_boxed_slice(), |_| {},
                             ffmpeg_pixel_format_to_cairo(frame.format()),
@@ -244,9 +232,7 @@ impl PacketNotifiable for VideoController {
                                 println!("\tdata len: {}", frame.data(0).len());
 
                                 match self.convert_to_rgb(&video, &mut frame) {
-                                    Ok(frame_rgb) => {
-                                        self.frame = Some(frame_rgb);
-                                    }
+                                    Ok(frame_rgb) => self.frame = Some(frame_rgb),
                                     Err(error) =>  println!("\tError converting to rgb: {:?}", error),
                                 }
                             }

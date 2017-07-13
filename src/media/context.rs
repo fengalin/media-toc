@@ -18,7 +18,7 @@ pub trait PacketNotifiable {
     }
 
     fn print_packet_content(&self, stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
-        println!("\n* Packet for stream: {}", stream.index());
+        println!("\n* Packet for {:?} stream: {}", stream.disposition(), stream.index());
         println!("\tsize: {} - duration: {}, is key: {}",
                  packet.size(), packet.duration(), packet.is_key(),
         );
