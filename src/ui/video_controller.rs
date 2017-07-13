@@ -58,26 +58,16 @@ impl VideoController {
         vc
     }
 
-    fn build_graph(&mut self, frame_in: &mut ffmpeg::frame::Video,
-                   time_base: ffmpeg::Rational) -> Result<bool, String> { // TODO: check how to return Ok() only
+    fn build_graph(&mut self, decoder: &ffmpeg::codec::decoder::Video) -> Result<bool, String> { // TODO: check how to return Ok() only
         match self.graph {
             Some(_) => (),
             None => {
                 let mut graph = ffmpeg::filter::Graph::new();
 
-                // Fix deprecated formats
-                let in_format = match frame_in.format() {
-                    ffmpeg::format::Pixel::YUVJ420P => ffmpeg::format::Pixel::YUV420P,
-                    ffmpeg::format::Pixel::YUVJ422P => ffmpeg::format::Pixel::YUV422P,
-                    ffmpeg::format::Pixel::YUVJ444P => ffmpeg::format::Pixel::YUV444P,
-                    ffmpeg::format::Pixel::YUVJ440P => ffmpeg::format::Pixel::YUV440P,
-                    other => other,
-                };
-                frame_in.set_format(in_format);
                 let args = format!("width={}:height={}:pix_fmt={}:time_base={}:pixel_aspect={}",
-                                   frame_in.width(), frame_in.height(),
-                                   frame_in.format().descriptor().unwrap().name(),
-                                   time_base, frame_in.aspect_ratio());
+                                   decoder.width(), decoder.height(),
+                                   decoder.format().descriptor().unwrap().name(),
+                                   decoder.time_base(), decoder.aspect_ratio());
 
                 let in_filter = ffmpeg::filter::find("buffer").unwrap();
                 match graph.add(&in_filter, "in", &args) {
@@ -124,9 +114,9 @@ impl VideoController {
         Ok(true)
     }
 
-    fn convert_to_rgb(&mut self, frame_in: &mut ffmpeg::frame::Video,
-                      time_base: ffmpeg::Rational) -> Result<ffmpeg::frame::Video, String> {
-        match self.build_graph(frame_in, time_base) {
+    fn convert_to_rgb(&mut self, decoder: &ffmpeg::codec::decoder::Video,
+                      frame_in: &mut ffmpeg::frame::Video) -> Result<ffmpeg::frame::Video, String> {
+        match self.build_graph(decoder) {
             Ok(_) => {
                 let mut graph = self.graph.as_mut().unwrap();
                 graph.get("in").unwrap().source().add(&frame_in).unwrap();
@@ -245,7 +235,6 @@ impl PacketNotifiable for VideoController {
         let decoder = stream.codec().decoder();
         match decoder.video() {
             Ok(mut video) => {
-                //let mut frame = ffmpeg::frame::Video::new(video.format(), video.width(), video.height());
                 let mut frame = ffmpeg::frame::Video::empty();
                 match video.decode(packet, &mut frame) {
                     Ok(result) => if result {
@@ -254,7 +243,7 @@ impl PacketNotifiable for VideoController {
                             if planes > 0 {
                                 println!("\tdata len: {}", frame.data(0).len());
 
-                                match self.convert_to_rgb(&mut frame, video.time_base()) {
+                                match self.convert_to_rgb(&video, &mut frame) {
                                     Ok(frame_rgb) => {
                                         self.frame = Some(frame_rgb);
                                     }

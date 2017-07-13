@@ -46,15 +46,14 @@ impl AudioController {
         ac
     }
 
-    fn build_graph(&mut self, frame_in: &mut ffmpeg::frame::Audio, // TODO: use decoder instead of just time_base
-                   time_base: ffmpeg::Rational) -> Result<bool, String> { // TODO: check how to return Ok() only
+    fn build_graph(&mut self, decoder: &ffmpeg::codec::decoder::Audio) -> Result<bool, String> { // TODO: check how to return Ok() only
         match self.graph {
             Some(_) => (),
             None => {
                 let mut graph = ffmpeg::filter::Graph::new();
 
 	            let args = format!("time_base={}:sample_rate={}:sample_fmt={}:channel_layout=0x{:x}",
-		            time_base, frame_in.rate(), frame_in.format().name(), frame_in.channel_layout().bits());
+		            decoder.time_base(), decoder.rate(), decoder.format().name(), decoder.channel_layout().bits());
 
                 let in_filter = ffmpeg::filter::find("abuffer").unwrap();
                 match graph.add(&in_filter, "in", &args) {
@@ -101,9 +100,9 @@ impl AudioController {
         Ok(true)
     }
 
-    fn convert_to_pcm16(&mut self, frame_in: &mut ffmpeg::frame::Audio,
-                      time_base: ffmpeg::Rational) -> Result<ffmpeg::frame::Audio, String> {
-        match self.build_graph(frame_in, time_base) {
+    fn convert_to_pcm16(&mut self, decoder: &ffmpeg::codec::decoder::Audio,
+                        frame_in: &mut ffmpeg::frame::Audio) -> Result<ffmpeg::frame::Audio, String> {
+        match self.build_graph(decoder) {
             Ok(_) => {
                 let mut graph = self.graph.as_mut().unwrap();
                 graph.get("in").unwrap().source().add(&frame_in).unwrap();
@@ -174,7 +173,6 @@ impl PacketNotifiable for AudioController {
         let decoder = stream.codec().decoder();
         match decoder.audio() {
             Ok(mut audio) => {
-                //let mut frame = ffmpeg::frame::Audio::new(audio.format(), audio.samples(), audio.layout());
                 let mut frame = ffmpeg::frame::Audio::empty();
                 match audio.decode(packet, &mut frame) {
                     Ok(result) => if result {
@@ -182,7 +180,7 @@ impl PacketNotifiable for AudioController {
                             println!("\tdecoded audio frame, found {} planes", planes);
                             if planes > 0 {
                                 println!("\tdata len: {}", frame.data(0).len());
-                                match self.convert_to_pcm16(&mut frame, audio.time_base()) {
+                                match self.convert_to_pcm16(&audio, &mut frame) {
                                     Ok(frame_pcm) => {
                                         self.frame = Some(frame_pcm);
                                     }
