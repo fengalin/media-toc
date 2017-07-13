@@ -52,14 +52,8 @@ impl AudioController {
             None => {
                 let mut graph = ffmpeg::filter::Graph::new();
 
-                // TBC: fix invalid channel layout
-                let channel_layout = match decoder.channel_layout().bits() {
-                    0 => 1,
-                    bits => bits,
-                };
-
 	            let args = format!("time_base={}:sample_rate={}:sample_fmt={}:channel_layout=0x{:x}",
-		            decoder.time_base(), decoder.rate(), decoder.format().name(), channel_layout);
+		            decoder.time_base(), decoder.rate(), decoder.format().name(), decoder.channel_layout().bits());
 
                 let in_filter = ffmpeg::filter::find("abuffer").unwrap();
                 match graph.add(&in_filter, "in", &args) {
@@ -113,6 +107,27 @@ impl AudioController {
 
                 let mut frame_pcm = ffmpeg::frame::Audio::empty();
                 while let Ok(..) = graph.get("out").unwrap().sink().frame(&mut frame_pcm) {
+                }
+
+                assert!(frame_pcm.planes() == 1); // samples converted to I16::Packed
+                {
+                    let mut samples_str = String::new();
+                    let mut sample_iter = frame_pcm.data(0).iter();
+                    // TODO: loop and handle borrowing...
+                    let mut sample: u16 = 0;
+                    {
+                        if let Some(sample_byte) = sample_iter.next() {
+                            // TODO: separate samples according to channel_layout
+                            sample = *sample_byte as u16;
+                        }
+                    }
+
+                    if let Some(sample_byte) = sample_iter.next() {
+                        // TODO: validate this
+                        sample += (*sample_byte as u16) << 8;
+                        samples_str += &format!("{:x} ", sample)[..];
+                    }
+                    println!("Samples: {}", samples_str);
                 }
 
                 Ok(frame_pcm)
@@ -183,7 +198,9 @@ impl PacketNotifiable for AudioController {
                             let planes = frame.planes();
                             println!("\tdecoded audio frame, found {} planes", planes);
                             if planes > 0 {
-                                println!("\tdata len: {}", frame.data(0).len());
+                                for plane in 0..planes {
+                                    println!("\tplane {}: data len: {}", plane, frame.data(plane).len());
+                                }
                                 match self.convert_to_pcm16(&audio, &mut frame) {
                                     Ok(frame_pcm) => self.frame = Some(frame_pcm),
                                     Err(error) =>  println!("\tError converting to pcm: {:?}", error),
