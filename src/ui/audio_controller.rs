@@ -111,23 +111,45 @@ impl AudioController {
 
                 assert!(frame_pcm.planes() == 1); // samples converted to I16::Packed
                 {
-                    let mut samples_str = String::new();
+                    let channels_nb = frame_pcm.channels() as usize;
+                    let mut channels = Vec::with_capacity(channels_nb);
+                    for index in 0..channels_nb {
+                        // TODO: reserve target capacity
+                        channels.push(Vec::new());
+                    }
+                    // FIXME: this doesn't seem rust like iteration to me
+                    let mut keep_going = true;
                     let mut sample_iter = frame_pcm.data(0).iter();
-                    // TODO: loop and handle borrowing...
-                    let mut sample: u16 = 0;
-                    {
-                        if let Some(sample_byte) = sample_iter.next() {
-                            // TODO: separate samples according to channel_layout
-                            sample = *sample_byte as u16;
+                    while keep_going {
+                        for index in 0..channels_nb {
+                            let mut sample: i16 = 0;
+                            if let Some(sample_byte) = sample_iter.next() {
+                                sample = *sample_byte as i16;
+                            }
+                            else {
+                                keep_going = false;
+                                break;
+                            }
+
+                            if let Some(sample_byte) = sample_iter.next() {
+                                // TODO: validate this
+                                channels[index].push(sample + ((*sample_byte as i16) << 8));
+                            }
+                            else {
+                                keep_going = false;
+                                break;
+                            }
                         }
                     }
 
-                    if let Some(sample_byte) = sample_iter.next() {
-                        // TODO: validate this
-                        sample += (*sample_byte as u16) << 8;
-                        samples_str += &format!("{:x} ", sample)[..];
+                    for index in 0..channels_nb {
+                        println!("\tChannel {}", index);
+                        let mut sample_str = String::new();
+                        for sample in &channels[index] {
+                            sample_str += &format!("{:4x} ", sample);
+                        }
+                        println!("\t\tsamples {}", sample_str);
                     }
-                    println!("Samples: {}", samples_str);
                 }
 
                 Ok(frame_pcm)
@@ -198,9 +220,6 @@ impl PacketNotifiable for AudioController {
                             let planes = frame.planes();
                             println!("\tdecoded audio frame, found {} planes", planes);
                             if planes > 0 {
-                                for plane in 0..planes {
-                                    println!("\tplane {}: data len: {}", plane, frame.data(plane).len());
-                                }
                                 match self.convert_to_pcm16(&audio, &mut frame) {
                                     Ok(frame_pcm) => self.frame = Some(frame_pcm),
                                     Err(error) =>  println!("\tError converting to pcm: {:?}", error),
