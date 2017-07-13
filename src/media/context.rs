@@ -127,10 +127,12 @@ impl Context {
 
         let packet_iter = self.ffmpeg_context.packets();
         for (stream, packet) in packet_iter {
-            if !packet.is_key() {
+            /*if !packet.is_key() {
                 // get a key frame
+                println!("Skipping packet not a key");
+                self.print_packet_content(&stream, &packet);
                 continue;
-            }
+            }*/
             let stream_index = stream.index();
             match self.packet_cb_map.get(&stream_index) {
                 Some(to_notify_weak) => {
@@ -153,6 +155,9 @@ impl Context {
             }
         }
     }
+}
+
+impl PacketNotifiable for Context {
 }
 
 // TODO: use lifetimes to hold ffmped stream and codec within the structure below
