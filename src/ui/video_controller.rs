@@ -32,6 +32,7 @@ pub struct VideoController {
     media_ctl: MediaController,
     drawingarea: gtk::DrawingArea,
     message: String,
+    incoming_frame: Option<ffmpeg::frame::Video>,
     frame: Option<ffmpeg::frame::Video>,
     graph: Option<ffmpeg::filter::Graph>,
 }
@@ -45,6 +46,7 @@ impl VideoController {
             media_ctl: MediaController::new(builder.get_object("video-container").unwrap()),
             drawingarea: builder.get_object("video-drawingarea").unwrap(),
             message: "video place holder".to_owned(),
+            incoming_frame: None,
             frame: None,
             graph: None,
         }));
@@ -112,12 +114,11 @@ impl VideoController {
         Ok(true)
     }
 
-    fn convert_to_rgb(&mut self, decoder: &ffmpeg::codec::decoder::Video,
-                      frame_in: &mut ffmpeg::frame::Video) -> Result<ffmpeg::frame::Video, String> {
+    fn convert_to_rgb(&mut self, decoder: &ffmpeg::codec::decoder::Video) -> Result<ffmpeg::frame::Video, String> {
         match self.build_graph(decoder) {
             Ok(_) => {
                 let mut graph = self.graph.as_mut().unwrap();
-                graph.get("in").unwrap().source().add(&frame_in).unwrap();
+                graph.get("in").unwrap().source().add(self.incoming_frame.as_mut().unwrap()).unwrap();
 
                 let mut frame_rgb = ffmpeg::frame::Video::empty();
                 while let Ok(..) = graph.get("out").unwrap().sink().frame(&mut frame_rgb) {
@@ -188,6 +189,7 @@ impl DerefMut for VideoController {
 
 impl MediaNotifiable for VideoController {
     fn new_media(&mut self, context: &mut Context) {
+        self.incoming_frame = None;
         self.frame = None;
         self.graph = None;
         self.message = match context.video_stream.as_mut() {
@@ -217,37 +219,60 @@ impl MediaNotifiable for VideoController {
 }
 
 impl PacketNotifiable for VideoController {
-    fn new_packet(&mut self, stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
+    fn new_packet(&mut self, stream: &ffmpeg::format::stream::Stream,
+                  packet: &ffmpeg::codec::packet::Packet) -> Result<bool, String> {
         self.print_packet_content(stream, packet);
+
+        let mut message = String::new();
+        let mut is_done = false;
 
         let decoder = stream.codec().decoder();
         match decoder.video() {
             Ok(mut video) => {
-                let mut frame = ffmpeg::frame::Video::empty();
-                match video.decode(packet, &mut frame) {
-                    Ok(result) => if result {
-                            let planes = frame.planes();
-                            println!("\tdecoded video frame, found {} planes", planes);
+                {
+                    let ref mut incoming_frame = match self.incoming_frame {
+                        Some(ref mut frame) => frame,
+                        None => {
+                            self.incoming_frame = Some(ffmpeg::frame::Video::empty());
+                            self.incoming_frame.as_mut().unwrap()
+                        },
+                    };
+                    match video.decode(packet, incoming_frame) {
+                        Ok(decode_result) => {
+                            is_done = decode_result;
+                            let planes = incoming_frame.planes();
+                            println!("\tdecoded video frame, found {} planes - is done: {}", planes, is_done);
                             if planes > 0 {
-                                println!("\tdata len: {}", frame.data(0).len());
-
-                                match self.convert_to_rgb(&video, &mut frame) {
-                                    Ok(frame_rgb) => self.frame = Some(frame_rgb),
-                                    Err(error) =>  println!("\tError converting to rgb: {:?}", error),
-                                }
+                                println!("\tdata len: {}", incoming_frame.data(0).len());
                             }
                             else {
-                                println!("\tno planes found in frame");
+                                message = "no planes found in frame".to_owned();
                             }
-                        }
-                        else {
-                            println!("\tfailed to decode video frame");
-                        }
-                    ,
-                    Err(error) => println!("Error decoding video: {:?}", error),
+                        },
+                        Err(error) => {
+                            message = format!("Error decoding video: {:?}", error);
+                        },
+                    }
+                }
+
+                // TODO: make a stream that allows converting frames as packets arrive
+                if is_done {
+                    match self.convert_to_rgb(&video) {
+                        Ok(frame_rgb) => self.frame = Some(frame_rgb),
+                        Err(error) =>  println!("\tError converting to rgb: {:?}", error),
+                    }
                 }
             },
-            Err(error) => println!("Error getting video decoder: {:?}", error),
+            Err(error) => {
+                message = format!("Error getting video decoder: {:?}", error);
+            },
+        }
+
+        if message.is_empty() {
+            Ok(is_done)
+        }
+        else {
+            Err(message)
         }
     }
 }

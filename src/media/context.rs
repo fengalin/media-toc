@@ -13,8 +13,10 @@ use ffmpeg::Rational;
 use ffmpeg::format::stream::Disposition;
 
 pub trait PacketNotifiable {
-    fn new_packet(&mut self, stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
+    fn new_packet(&mut self, stream: &ffmpeg::format::stream::Stream,
+            packet: &ffmpeg::codec::packet::Packet) -> Result<bool, String> {
         self.print_packet_content(stream, packet);
+        Ok(true)
     }
 
     fn print_packet_content(&self, stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
@@ -127,19 +129,21 @@ impl Context {
 
         let packet_iter = self.ffmpeg_context.packets();
         for (stream, packet) in packet_iter {
-            /*if !packet.is_key() {
-                // get a key frame
-                println!("Skipping packet not a key");
-                self.print_packet_content(&stream, &packet);
-                continue;
-            }*/
             let stream_index = stream.index();
             match self.packet_cb_map.get(&stream_index) {
                 Some(to_notify_weak) => {
                     match to_notify_weak.upgrade() {
                         Some(to_notify) => {
-                            if processed.insert(stream_index) {
-                                to_notify.borrow_mut().new_packet(&stream, &packet);
+                            if !processed.contains(&stream_index) {
+                                match to_notify.borrow_mut().new_packet(&stream, &packet) {
+                                    Ok(is_done) => {
+                                        println!("Stream {}, is done: {}", stream_index, is_done);
+                                        if is_done {
+                                            processed.insert(stream_index);
+                                        }
+                                    },
+                                    Err(error) => println!("Stream {}, error: {}", stream_index, error),
+                                }
                             }
                         },
                         None =>

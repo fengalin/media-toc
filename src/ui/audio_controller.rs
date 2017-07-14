@@ -21,6 +21,7 @@ pub struct AudioController {
     media_ctl: MediaController,
     drawingarea: gtk::DrawingArea,
     message: String,
+    incoming_frame: Option<ffmpeg::frame::Audio>,
     frame: Option<ffmpeg::frame::Audio>,
     graph: Option<ffmpeg::filter::Graph>,
 }
@@ -33,6 +34,7 @@ impl AudioController {
             media_ctl: MediaController::new(builder.get_object("audio-container").unwrap()),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
             message: "audio place holder".to_owned(),
+            incoming_frame: None,
             frame: None,
             graph: None,
         }));
@@ -98,12 +100,11 @@ impl AudioController {
         Ok(true)
     }
 
-    fn convert_to_pcm16(&mut self, decoder: &ffmpeg::codec::decoder::Audio,
-                        frame_in: &mut ffmpeg::frame::Audio) -> Result<ffmpeg::frame::Audio, String> {
+    fn convert_to_pcm16(&mut self, decoder: &ffmpeg::codec::decoder::Audio) -> Result<ffmpeg::frame::Audio, String> {
         match self.build_graph(decoder) {
             Ok(_) => {
                 let mut graph = self.graph.as_mut().unwrap();
-                graph.get("in").unwrap().source().add(&frame_in).unwrap();
+                graph.get("in").unwrap().source().add(self.incoming_frame.as_mut().unwrap()).unwrap();
 
                 let mut frame_pcm = ffmpeg::frame::Audio::empty();
                 while let Ok(..) = graph.get("out").unwrap().sink().frame(&mut frame_pcm) {
@@ -187,6 +188,7 @@ impl DerefMut for AudioController {
 
 impl MediaNotifiable for AudioController {
     fn new_media(&mut self, context: &mut Context) {
+        self.incoming_frame = None;
         self.frame = None;
         self.graph = None;
         self.message = match context.audio_stream.as_mut() {
@@ -208,35 +210,54 @@ impl MediaNotifiable for AudioController {
 }
 
 impl PacketNotifiable for AudioController {
-    fn new_packet(&mut self, stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
+    fn new_packet(&mut self, stream: &ffmpeg::format::stream::Stream,
+                  packet: &ffmpeg::codec::packet::Packet) -> Result<bool, String> {
         self.print_packet_content(stream, packet);
+
+        let mut message = String::new();
+        let mut is_done = false;
 
         let decoder = stream.codec().decoder();
         match decoder.audio() {
             Ok(mut audio) => {
-                let mut frame = ffmpeg::frame::Audio::empty();
-                match audio.decode(packet, &mut frame) {
-                    Ok(result) => if result {
-                            let planes = frame.planes();
-                            println!("\tdecoded audio frame, found {} planes", planes);
+                {
+                    let ref mut incoming_frame = match self.incoming_frame {
+                        Some(ref mut frame) => frame,
+                        None => {
+                            self.incoming_frame = Some(ffmpeg::frame::Audio::empty());
+                            self.incoming_frame.as_mut().unwrap()
+                        },
+                    };
+                    match audio.decode(packet, incoming_frame) {
+                        Ok(decode_result) =>  {
+                            is_done = decode_result;
+                            let planes = incoming_frame.planes();
+                            println!("\tdecoded audio frame, found {} planes - is done: {}", planes, is_done);
                             if planes > 0 {
-                                match self.convert_to_pcm16(&audio, &mut frame) {
-                                    Ok(frame_pcm) => self.frame = Some(frame_pcm),
-                                    Err(error) =>  println!("\tError converting to pcm: {:?}", error),
-                                }
+
                             }
                             else {
-                                println!("\tno planes found in frame");
+                                message = "no planes found in frame".to_owned();
                             }
-                        }
-                        else {
-                            println!("\tfailed to decode audio frame");
-                        }
-                    ,
-                    Err(error) => println!("Error decoding audio: {:?}", error),
+                        },
+                        Err(error) => message = format!("Error decoding audio: {:?}", error),
+                    }
+                }
+                if is_done {
+                    match self.convert_to_pcm16(&audio) {
+                        Ok(frame_pcm) => self.frame = Some(frame_pcm),
+                        Err(error) =>  println!("\tError converting to pcm: {:?}", error),
+                    }
                 }
             },
-            Err(error) => println!("Error getting audio decoder: {:?}", error),
+            Err(error) => message = format!("Error getting audio decoder: {:?}", error),
+        }
+
+        if message.is_empty() {
+            Ok(is_done)
+        }
+        else {
+            Err(message)
         }
     }
 }
