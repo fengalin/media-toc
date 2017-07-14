@@ -136,9 +136,9 @@ impl Context {
                         Some(to_notify) => {
                             if !processed.contains(&stream_index) {
                                 match to_notify.borrow_mut().new_packet(&stream, &packet) {
-                                    Ok(is_done) => {
-                                        println!("Stream {}, is done: {}", stream_index, is_done);
-                                        if is_done {
+                                    Ok(got_frame) => {
+                                        println!("Stream {}, got frame: {}", stream_index, got_frame);
+                                        if got_frame {
                                             processed.insert(stream_index);
                                         }
                                     },

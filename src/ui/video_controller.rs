@@ -224,7 +224,7 @@ impl PacketNotifiable for VideoController {
         self.print_packet_content(stream, packet);
 
         let mut message = String::new();
-        let mut is_done = false;
+        let mut got_frame = false;
 
         let decoder = stream.codec().decoder();
         match decoder.video() {
@@ -238,15 +238,12 @@ impl PacketNotifiable for VideoController {
                         },
                     };
                     match video.decode(packet, incoming_frame) {
-                        Ok(decode_result) => {
-                            is_done = decode_result;
+                        Ok(decode_got_frame) => {
+                            got_frame = decode_got_frame;
                             let planes = incoming_frame.planes();
-                            println!("\tdecoded video frame, found {} planes - is done: {}", planes, is_done);
-                            if planes > 0 {
-                                println!("\tdata len: {}", incoming_frame.data(0).len());
-                            }
-                            else {
-                                message = "no planes found in frame".to_owned();
+                            println!("\tdecoded video frame, found {} planes - got frame: {}", planes, got_frame);
+                            for index in 0..planes {
+                                println!("\tplane: {} - data len: {}", index, incoming_frame.data(index).len());
                             }
                         },
                         Err(error) => {
@@ -256,11 +253,12 @@ impl PacketNotifiable for VideoController {
                 }
 
                 // TODO: make a stream that allows converting frames as packets arrive
-                if is_done {
+                if got_frame {
                     match self.convert_to_rgb(&video) {
                         Ok(frame_rgb) => self.frame = Some(frame_rgb),
                         Err(error) =>  println!("\tError converting to rgb: {:?}", error),
                     }
+                    self.incoming_frame = None;
                 }
             },
             Err(error) => {
@@ -269,9 +267,10 @@ impl PacketNotifiable for VideoController {
         }
 
         if message.is_empty() {
-            Ok(is_done)
+            Ok(got_frame)
         }
         else {
+            self.incoming_frame = None;
             Err(message)
         }
     }

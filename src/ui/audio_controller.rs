@@ -100,11 +100,12 @@ impl AudioController {
         Ok(true)
     }
 
-    fn convert_to_pcm16(&mut self, decoder: &ffmpeg::codec::decoder::Audio) -> Result<ffmpeg::frame::Audio, String> {
+    fn convert_to_pcm16(&mut self, decoder: &ffmpeg::codec::decoder::Audio,
+                        incoming_frame: ffmpeg::frame::Audio) -> Result<ffmpeg::frame::Audio, String> {
         match self.build_graph(decoder) {
             Ok(_) => {
                 let mut graph = self.graph.as_mut().unwrap();
-                graph.get("in").unwrap().source().add(self.incoming_frame.as_mut().unwrap()).unwrap();
+                graph.get("in").unwrap().source().add(&incoming_frame).unwrap();
 
                 let mut frame_pcm = ffmpeg::frame::Audio::empty();
                 while let Ok(..) = graph.get("out").unwrap().sink().frame(&mut frame_pcm) {
@@ -215,36 +216,27 @@ impl PacketNotifiable for AudioController {
         self.print_packet_content(stream, packet);
 
         let mut message = String::new();
-        let mut is_done = false;
+        let mut got_frame = false;
 
         let decoder = stream.codec().decoder();
         match decoder.audio() {
             Ok(mut audio) => {
+                let mut incoming_frame = ffmpeg::frame::Audio::empty();
                 {
-                    let ref mut incoming_frame = match self.incoming_frame {
-                        Some(ref mut frame) => frame,
-                        None => {
-                            self.incoming_frame = Some(ffmpeg::frame::Audio::empty());
-                            self.incoming_frame.as_mut().unwrap()
-                        },
-                    };
-                    match audio.decode(packet, incoming_frame) {
-                        Ok(decode_result) =>  {
-                            is_done = decode_result;
+                    match audio.decode(packet, &mut incoming_frame) {
+                        Ok(decode_got_frame) =>  {
+                            got_frame = decode_got_frame;
                             let planes = incoming_frame.planes();
-                            println!("\tdecoded audio frame, found {} planes - is done: {}", planes, is_done);
-                            if planes > 0 {
-
-                            }
-                            else {
-                                message = "no planes found in frame".to_owned();
+                            println!("\tdecoded audio frame, found {} planes - got frame: {}", planes, got_frame);
+                            for index in 0..planes {
+                                println!("\tplane: {} - data len: {}", index, incoming_frame.data(index).len());
                             }
                         },
                         Err(error) => message = format!("Error decoding audio: {:?}", error),
                     }
                 }
-                if is_done {
-                    match self.convert_to_pcm16(&audio) {
+                if got_frame {
+                    match self.convert_to_pcm16(&audio, incoming_frame) {
                         Ok(frame_pcm) => self.frame = Some(frame_pcm),
                         Err(error) =>  println!("\tError converting to pcm: {:?}", error),
                     }
@@ -254,7 +246,7 @@ impl PacketNotifiable for AudioController {
         }
 
         if message.is_empty() {
-            Ok(is_done)
+            Ok(got_frame)
         }
         else {
             Err(message)
