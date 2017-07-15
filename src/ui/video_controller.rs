@@ -14,7 +14,7 @@ use cairo::enums::{FontSlant, FontWeight};
 use ffmpeg::format::stream::disposition::ATTACHED_PIC;
 
 use ::media::Context;
-use ::media::PacketNotifiable;
+use ::media::VideoNotifiable;
 
 use super::MediaNotifiable;
 use super::MediaController;
@@ -32,7 +32,6 @@ pub struct VideoController {
     media_ctl: MediaController,
     drawingarea: gtk::DrawingArea,
     message: String,
-    incoming_frame: Option<ffmpeg::frame::Video>,
     frame: Option<ffmpeg::frame::Video>,
     graph: Option<ffmpeg::filter::Graph>,
 }
@@ -46,7 +45,6 @@ impl VideoController {
             media_ctl: MediaController::new(builder.get_object("video-container").unwrap()),
             drawingarea: builder.get_object("video-drawingarea").unwrap(),
             message: "video place holder".to_owned(),
-            incoming_frame: None,
             frame: None,
             graph: None,
         }));
@@ -60,74 +58,62 @@ impl VideoController {
         vc
     }
 
-    fn build_graph(&mut self, decoder: &ffmpeg::codec::decoder::Video) -> Result<bool, String> { // TODO: check how to return Ok() only
-        match self.graph {
-            Some(_) => (),
-            None => {
-                let mut graph = ffmpeg::filter::Graph::new();
+    fn build_graph(&mut self, decoder: &ffmpeg::codec::decoder::Video) {
+        let mut graph = ffmpeg::filter::Graph::new();
 
-                let args = format!("width={}:height={}:pix_fmt={}:time_base={}:pixel_aspect={}",
-                                   decoder.width(), decoder.height(),
-                                   decoder.format().descriptor().unwrap().name(),
-                                   decoder.time_base(), decoder.aspect_ratio());
+        let args = format!("width={}:height={}:pix_fmt={}:time_base={}:pixel_aspect={}",
+                           decoder.width(), decoder.height(),
+                           decoder.format().descriptor().unwrap().name(),
+                           decoder.time_base(), decoder.aspect_ratio());
 
-                let in_filter = ffmpeg::filter::find("buffer").unwrap();
-                match graph.add(&in_filter, "in", &args) {
-                    Ok(_) => (),
-                    Err(error) => return Err(format!("Error adding in pad: {:?}", error)),
-                }
-
-                let out_filter = ffmpeg::filter::find("buffersink").unwrap();
-                match graph.add(&out_filter, "out", "") {
-                    Ok(_) => (),
-                    Err(error) => return Err(format!("Error adding out pad: {:?}", error)),
-                }
-                {
-                    let mut out_pad = graph.get("out").unwrap();
-                    out_pad.set_pixel_format(ffmpeg::format::Pixel::RGB565LE);
-                }
-
-                {
-                    let in_parser;
-                    match graph.output("in", 0) {
-                        Ok(value) => in_parser = value,
-                        Err(error) => return Err(format!("Error getting output for in pad: {:?}", error)),
-                    }
-                    let out_parser;
-                    match in_parser.input("out", 0) {
-                        Ok(value) => out_parser = value,
-                        Err(error) => return Err(format!("Error getting input for out pad: {:?}", error)),
-                    }
-                    match out_parser.parse("copy") {
-                        Ok(_) => (),
-                        Err(error) => return Err(format!("Error parsing format: {:?}", error)),
-                    }
-                }
-
-                match graph.validate() {
-                    Ok(_) => self.graph = Some(graph),
-                    Err(error) => return Err(format!("Error validating graph: {:?}", error)),
-                }
-            },
+        let in_filter = ffmpeg::filter::find("buffer").unwrap();
+        match graph.add(&in_filter, "in", &args) {
+            Ok(_) => (),
+            Err(error) => panic!("Error adding in pad: {:?}", error),
         }
 
-        Ok(true)
+        let out_filter = ffmpeg::filter::find("buffersink").unwrap();
+        match graph.add(&out_filter, "out", "") {
+            Ok(_) => (),
+            Err(error) => panic!("Error adding out pad: {:?}", error),
+        }
+        {
+            let mut out_pad = graph.get("out").unwrap();
+            out_pad.set_pixel_format(ffmpeg::format::Pixel::RGB565LE);
+        }
+
+        {
+            let in_parser;
+            match graph.output("in", 0) {
+                Ok(value) => in_parser = value,
+                Err(error) => panic!("Error getting output for in pad: {:?}", error),
+            }
+            let out_parser;
+            match in_parser.input("out", 0) {
+                Ok(value) => out_parser = value,
+                Err(error) => panic!("Error getting input for out pad: {:?}", error),
+            }
+            match out_parser.parse("copy") {
+                Ok(_) => (),
+                Err(error) => panic!("Error parsing format: {:?}", error),
+            }
+        }
+
+        match graph.validate() {
+            Ok(_) => self.graph = Some(graph),
+            Err(error) => panic!("Error validating graph: {:?}", error),
+        }
     }
 
-    fn convert_to_rgb(&mut self, decoder: &ffmpeg::codec::decoder::Video) -> Result<ffmpeg::frame::Video, String> {
-        match self.build_graph(decoder) {
-            Ok(_) => {
-                let mut graph = self.graph.as_mut().unwrap();
-                graph.get("in").unwrap().source().add(self.incoming_frame.as_mut().unwrap()).unwrap();
+    fn convert_to_rgb(&mut self, frame: ffmpeg::frame::Video) -> Result<ffmpeg::frame::Video, String> {
+        let mut graph = self.graph.as_mut().unwrap();
+        graph.get("in").unwrap().source().add(&frame).unwrap();
 
-                let mut frame_rgb = ffmpeg::frame::Video::empty();
-                while let Ok(..) = graph.get("out").unwrap().sink().frame(&mut frame_rgb) {
-                }
-
-                Ok(frame_rgb)
-            },
-            Err(error) => Err(error),
+        let mut frame_rgb = ffmpeg::frame::Video::empty();
+        while let Ok(..) = graph.get("out").unwrap().sink().frame(&mut frame_rgb) {
         }
+
+        Ok(frame_rgb)
     }
 
     fn draw(&self, cr: &cairo::Context) {
@@ -188,10 +174,21 @@ impl DerefMut for VideoController {
 }
 
 impl MediaNotifiable for VideoController {
-    fn new_media(&mut self, context: &mut Context) {
-        self.incoming_frame = None;
+    fn new_media(&mut self, context: &Context) {
         self.frame = None;
         self.graph = None;
+
+        match context.video_decoder {
+            Some(ref decoder) => {
+                self.build_graph(decoder);
+                self.show();
+            },
+            None => {
+                self.hide();
+            }
+        };
+
+         /*
         self.message = match context.video_stream.as_mut() {
             Some(stream) => {
                 self.set_index(stream.index);
@@ -212,66 +209,17 @@ impl MediaNotifiable for VideoController {
                 self.hide();
                 "no video stream".to_owned()
             },
-        };
+        };*/
 
         self.drawingarea.queue_draw();
     }
 }
 
-impl PacketNotifiable for VideoController {
-    fn new_packet(&mut self, stream: &ffmpeg::format::stream::Stream,
-                  packet: &ffmpeg::codec::packet::Packet) -> Result<bool, String> {
-        self.print_packet_content(stream, packet);
-
-        let mut message = String::new();
-        let mut got_frame = false;
-
-        let decoder = stream.codec().decoder();
-        match decoder.video() {
-            Ok(mut video) => {
-                {
-                    let ref mut incoming_frame = match self.incoming_frame {
-                        Some(ref mut frame) => frame,
-                        None => {
-                            self.incoming_frame = Some(ffmpeg::frame::Video::empty());
-                            self.incoming_frame.as_mut().unwrap()
-                        },
-                    };
-                    match video.decode(packet, incoming_frame) {
-                        Ok(decode_got_frame) => {
-                            got_frame = decode_got_frame;
-                            let planes = incoming_frame.planes();
-                            println!("\tdecoded video frame, found {} planes - got frame: {}", planes, got_frame);
-                            for index in 0..planes {
-                                println!("\tplane: {} - data len: {}", index, incoming_frame.data(index).len());
-                            }
-                        },
-                        Err(error) => {
-                            message = format!("Error decoding video: {:?}", error);
-                        },
-                    }
-                }
-
-                // TODO: make a stream that allows converting frames as packets arrive
-                if got_frame {
-                    match self.convert_to_rgb(&video) {
-                        Ok(frame_rgb) => self.frame = Some(frame_rgb),
-                        Err(error) =>  println!("\tError converting to rgb: {:?}", error),
-                    }
-                    self.incoming_frame = None;
-                }
-            },
-            Err(error) => {
-                message = format!("Error getting video decoder: {:?}", error);
-            },
-        }
-
-        if message.is_empty() {
-            Ok(got_frame)
-        }
-        else {
-            self.incoming_frame = None;
-            Err(message)
+impl VideoNotifiable for VideoController {
+    fn new_video_frame(&mut self, frame: ffmpeg::frame::Video) {
+        match self.convert_to_rgb(frame) {
+            Ok(frame_rgb) => self.frame = Some(frame_rgb),
+            Err(error) =>  panic!("\tError converting to rgb: {:?}", error),
         }
     }
 }

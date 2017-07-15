@@ -1,72 +1,69 @@
 extern crate ffmpeg;
 
 use std::path::Path;
-use std::ops::{Deref, DerefMut};
-use std::collections::HashMap;
-use std::collections::HashSet;
 
 use std::rc::Weak;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use ffmpeg::Rational;
-use ffmpeg::format::stream::Disposition;
-
-pub trait PacketNotifiable {
-    fn new_packet(&mut self, stream: &ffmpeg::format::stream::Stream,
-            packet: &ffmpeg::codec::packet::Packet) -> Result<bool, String> {
-        self.print_packet_content(stream, packet);
-        Ok(true)
-    }
-
-    fn print_packet_content(&self, stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
-        println!("\n* Packet for {:?} stream: {}", stream.disposition(), stream.index());
-        println!("\tsize: {} - duration: {}, is key: {}",
-                 packet.size(), packet.duration(), packet.is_key(),
-        );
-        match packet.pts() {
-            Some(pts) => println!("\tpts: {}", pts),
-            None => (),
-        }
-        match packet.dts() {
-            Some(dts) => println!("\tdts: {}", dts),
-            None => (),
-        }
-        if let Some(data) = packet.data() {
-            println!("\tfound data with len: {}", data.len());
-        }
-        let side_data_iter = stream.side_data();
-        let side_data_len = side_data_iter.size_hint().0;
-        if side_data_len > 0 {
-            println!("\tside data nb: {}", side_data_len);
-        }
-
-        let decoder = stream.codec().decoder();
-        match decoder.medium() {
-            ffmpeg::media::Type::Video => match decoder.video() {
-                Ok(video) => println!("\tvideo decoder: {:?}, width: {}, height: {}",
-                                      video.format(), video.width(), video.height()),
-                Err(_) => (),
-            },
-            ffmpeg::media::Type::Audio => match decoder.audio() {
-                Ok(audio) => println!("\taudio decoder: {:?}, channels: {}, frame count: {}",
-                                      audio.format(), audio.channels(), audio.frames()),
-                Err(_) => (),
-            },
-            _ => (),
-        }
-    }
+pub trait VideoNotifiable {
+    fn new_video_frame(&mut self, ffmpeg::frame::Video);
+}
+pub trait AudioNotifiable {
+    fn new_audio_frame(&mut self, ffmpeg::frame::Audio);
 }
 
 pub struct Context {
     pub ffmpeg_context: ffmpeg::format::context::Input,
     pub name: String,
     pub description: String,
-    pub stream_count: usize,
-    pub video_stream: Option<VideoStream>,
-    pub audio_stream: Option<AudioStream>,
-    pub packet_cb_map: HashMap<usize, Weak<RefCell<PacketNotifiable>>>,
+
+    pub video_decoder: Option<ffmpeg::codec::decoder::Video>,
+    pub video_notifiable: Option<Weak<RefCell<VideoNotifiable>>>,
+
+    pub audio_decoder: Option<ffmpeg::codec::decoder::Audio>,
+    pub audio_notifiable: Option<Weak<RefCell<AudioNotifiable>>>,
 }
+
+
+fn print_packet_content(stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
+    println!("\n* Packet for {:?} stream: {}", stream.disposition(), stream.index());
+    println!("\tsize: {} - duration: {}, is key: {}",
+             packet.size(), packet.duration(), packet.is_key(),
+    );
+    match packet.pts() {
+        Some(pts) => println!("\tpts: {}", pts),
+        None => (),
+    }
+    match packet.dts() {
+        Some(dts) => println!("\tdts: {}", dts),
+        None => (),
+    }
+    if let Some(data) = packet.data() {
+        println!("\tfound data with len: {}", data.len());
+    }
+    let side_data_iter = stream.side_data();
+    let side_data_len = side_data_iter.size_hint().0;
+    if side_data_len > 0 {
+        println!("\tside data nb: {}", side_data_len);
+    }
+
+    let decoder = stream.codec().decoder();
+    match decoder.medium() {
+        ffmpeg::media::Type::Video => match decoder.video() {
+            Ok(video) => println!("\tvideo decoder: {:?}, width: {}, height: {}",
+                                  video.format(), video.width(), video.height()),
+            Err(_) => (),
+        },
+        ffmpeg::media::Type::Audio => match decoder.audio() {
+            Ok(audio) => println!("\taudio decoder: {:?}, channels: {}, frame count: {}",
+                                  audio.format(), audio.channels(), audio.frames()),
+            Err(_) => (),
+        },
+        _ => (),
+    }
+}
+
 
 
 impl Context {
@@ -77,10 +74,10 @@ impl Context {
                     ffmpeg_context: ffmpeg_context,
                     name: String::new(),
                     description: String::new(),
-                    stream_count: 0,
-                    video_stream: None,
-                    audio_stream: None,
-                    packet_cb_map: HashMap::new(),
+                    video_decoder: None,
+                    video_notifiable: None,
+                    audio_decoder: None,
+                    audio_notifiable: None,
                 };
 
                 {
@@ -88,21 +85,19 @@ impl Context {
                     new_ctx.name = String::from(format.name());
                     new_ctx.description = String::from(format.description());
 
-                    let stream_iter = new_ctx.ffmpeg_context.streams();
-                    new_ctx.video_stream = VideoStream::new(&stream_iter);
-                    new_ctx.audio_stream = AudioStream::new(&stream_iter);
-                    new_ctx.stream_count = stream_iter.size_hint().0;
+                    new_ctx.init_video_decoder();
+                    new_ctx.init_audio_decoder();
                 }
 
                 // TODO: process metadata
 
                 // TODO: see what we should do with subtitles
 
-                println!("\n*** New media - Input: {} - {}, {} streams",
-                         &new_ctx.name, &new_ctx.description, new_ctx.stream_count
-                );
+                println!("\n*** New media - Input: {} - {}", &new_ctx.name, &new_ctx.description);
 
-                if new_ctx.video_stream.is_some() || new_ctx.audio_stream.is_some() {
+                new_ctx.preview();
+
+                if new_ctx.video_decoder.is_some() || new_ctx.audio_decoder.is_some() {
                     // TODO: also check for misdetections (detection score)
                     Ok(new_ctx)
                 }
@@ -116,220 +111,137 @@ impl Context {
         }
     }
 
-    pub fn register_packets(
-            &mut self, stream_index: usize, to_notify: Rc<RefCell<PacketNotifiable>>) {
-        self.packet_cb_map.insert(stream_index, Rc::downgrade(&to_notify));
+    pub fn init_video_decoder(&mut self) {
+        let stream = match self.ffmpeg_context.streams().best(ffmpeg::media::Type::Video) {
+            Some(best_stream) => {
+                println!("\nFound video stream with id: {}", best_stream.index());
+                best_stream
+            },
+            None => {
+                println!("No video stream");
+                return;
+            },
+        };
+
+        match stream.codec().decoder().video() {
+            Ok(mut decoder) => {
+                match decoder.set_parameters(stream.parameters()) {
+                    Ok(_) => {
+                        println!("\tinitialzed video decoder: {:?}", decoder.format());
+                    },
+                    Err(error) => panic!("Failed to set parameters for video decoder: {:?}", error),
+                }
+
+                self.video_decoder = Some(decoder);
+            },
+            Err(error) => panic!("Failed to get video decoder: {:?}", error),
+        }
     }
 
-    // TODO: check if this could be an iterator instead (managed from MainController)
+    pub fn init_audio_decoder(&mut self) {
+        let stream = match self.ffmpeg_context.streams().best(ffmpeg::media::Type::Audio) {
+            Some(best_stream) => {
+                println!("\nFound audio stream with id: {}", best_stream.index());
+                best_stream
+            },
+            None => {
+                println!("No audio stream");
+                return;
+            },
+        };
+
+        match stream.codec().decoder().audio() {
+            Ok(mut decoder) => {
+                match decoder.set_parameters(stream.parameters()) {
+                    Ok(_) => {
+                        println!("\tinitialzed audio decoder: {:?} - channels: {}", decoder.format(), decoder.channels());
+                    },
+                    Err(error) => panic!("Failed to set parameters for audio decoder: {:?}", error),
+                }
+
+                self.audio_decoder = Some(decoder);
+            },
+            Err(error) => panic!("Failed to get audio decoder: {:?}", error),
+        }
+    }
+
+    pub fn register_video_notifiable(&mut self, notifiable: Rc<RefCell<VideoNotifiable>>) {
+        self.video_notifiable = Some(Rc::downgrade(&notifiable));
+    }
+
+    pub fn register_audio_notifiable(&mut self, notifiable: Rc<RefCell<AudioNotifiable>>) {
+        self.audio_notifiable = Some(Rc::downgrade(&notifiable));
+    }
+
     pub fn preview(&mut self) {
-        let mut processed = HashSet::new();
+        let mut frames_processed = 0;
+        let mut expected_frames = 0;
+        if self.video_decoder.is_some() {
+            expected_frames += 1;
+        }
+        if self.audio_decoder.is_some() {
+            expected_frames += 1;
+        }
 
-        // FIXME: sometimes packets don't seem to contain a whole frame
-
-        let packet_iter = self.ffmpeg_context.packets();
-        for (stream, packet) in packet_iter {
-            let stream_index = stream.index();
-            match self.packet_cb_map.get(&stream_index) {
-                Some(to_notify_weak) => {
-                    match to_notify_weak.upgrade() {
-                        Some(to_notify) => {
-                            if !processed.contains(&stream_index) {
-                                match to_notify.borrow_mut().new_packet(&stream, &packet) {
-                                    Ok(got_frame) => {
-                                        println!("Stream {}, got frame: {}", stream_index, got_frame);
-                                        if got_frame {
-                                            processed.insert(stream_index);
-                                        }
-                                    },
-                                    Err(error) => println!("Stream {}, error: {}", stream_index, error),
-                                }
+        for (stream, mut packet) in self.ffmpeg_context.packets() {
+            print_packet_content(&stream, &packet);
+            let mut got_frame = false;
+            let decoder = stream.codec().decoder();
+            match decoder.medium() {
+                // TODO: check actual stream index in case there are multiple streams for the same medium
+                ffmpeg::media::Type::Video => match self.video_decoder {
+                    Some(ref mut video) => {
+                        let mut frame = ffmpeg::frame::Video::empty();
+                        {
+                            match video.decode(&packet, &mut frame) {
+                                Ok(decode_got_frame) =>  {
+                                    got_frame = decode_got_frame;
+                                    let planes = frame.planes();
+                                    println!("\tdecoded video frame, found {} planes - got frame: {}", planes, got_frame);
+                                    for index in 0..planes {
+                                        println!("\tplane: {} - data len: {}", index, frame.data(index).len());
+                                    }
+                                },
+                                Err(error) => println!("Error decoding video packet for stream {}: {:?}", stream.index(), error),
                             }
-                        },
-                        None =>
-                            panic!("Notifiable no longer available for stream {}", stream_index),
-                    }
+                        }
+                        if got_frame {
+                            frames_processed += 1;
+                            // TODO: notify video controller
+                        }
+                    },
+                    None => panic!("No video decoder"),
                 },
-                None => println!("No handler for stream {}", stream_index),
+                ffmpeg::media::Type::Audio => match self.audio_decoder {
+                    Some(ref mut audio) => {
+                        println!("Using audio decoder: {:?} - channels: {}", audio.format(), audio.channels());
+                        let mut frame = ffmpeg::frame::Audio::empty();
+                        {
+                            match audio.decode(&packet, &mut frame) {
+                                Ok(decode_got_frame) =>  {
+                                    got_frame = decode_got_frame;
+                                    let planes = frame.planes();
+                                    println!("\tdecoded audio frame, found {} planes - got frame: {}", planes, got_frame);
+                                    for index in 0..planes {
+                                        println!("\tplane: {} - data len: {}", index, frame.data(index).len());
+                                    }
+                                },
+                                Err(error) => panic!("Error decoding audio packet for stream {}: {:?}", stream.index(), error),
+                            }
+                        }
+                        if got_frame {
+                            frames_processed += 1;
+                            // TODO: notify video controller
+                        }
+                    },
+                    None => panic!("No audio decoder"),
+                },
+                _ => (),
             }
 
-            if processed.len() == 2 {
-                // both streams processed
+            if frames_processed == expected_frames {
                 break;
             }
         }
     }
-}
-
-impl PacketNotifiable for Context {
-}
-
-// TODO: use lifetimes to hold ffmped stream and codec within the structure below
-
-#[derive(Debug)]
-pub struct Stream {
-    pub index: usize,
-    pub time_base: Rational,
-    pub start_time: i64,
-    pub duration: i64,
-    pub frames: i64,
-    pub disposition: Disposition,
-    pub rate: Rational,
-    pub discard: ffmpeg::Discard,
-    pub avg_frame_rate: Rational,
-    pub codec_medium: ffmpeg::media::Type,
-    pub codec_id: ffmpeg::codec::Id,
-}
-
-impl Stream {
-    pub fn new(stream: ffmpeg::format::stream::Stream) -> Stream {
-        let codec = stream.codec();
-        Stream {
-            index: stream.index(),
-            time_base: stream.time_base(),
-            start_time: stream.start_time(),
-            duration: stream.duration(),
-            frames: stream.frames(),
-            disposition: stream.disposition(),
-            discard: stream.discard(),
-            rate: stream.rate(),
-            avg_frame_rate: stream.avg_frame_rate(),
-            codec_medium: codec.medium(),
-            codec_id: codec.id(),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct VideoStream {
-    pub stream: Stream,
-	pub bit_rate: usize,
-	pub max_bit_rate: usize,
-	pub delay: usize,
-    width: u32,
-    height: u32,
-    format: ffmpeg::format::Pixel,
-    has_b_frames: bool,
-    aspect_ratio: ffmpeg::Rational,
-    color_space: ffmpeg::color::Space,
-    color_range: ffmpeg::color::Range,
-    color_primaries: ffmpeg::color::Primaries,
-    color_transfer_characteristic: ffmpeg::color::TransferCharacteristic,
-    chroma_location: ffmpeg::chroma::Location,
-    references: usize,
-    intra_dc_precision: u8,
-}
-
-impl VideoStream {
-    pub fn new(stream_iter: &ffmpeg::format::context::common::StreamIter) -> Option<VideoStream> {
-        match stream_iter.best(ffmpeg::media::Type::Video) {
-            Some(video_stream) => {
-                match video_stream.codec().decoder().video() {
-                    Ok(video) => {
-                        Some(VideoStream{
-                            bit_rate: video.bit_rate(),
-                            max_bit_rate: video.max_bit_rate(),
-                            delay: video.delay(),
-                            width: video.width(),
-                            height: video.height(),
-                            format: video.format(),
-                            has_b_frames: video.has_b_frames(),
-                            aspect_ratio: video.aspect_ratio(),
-                            color_space: video.color_space(),
-                            color_range: video.color_range(),
-                            color_primaries: video.color_primaries(),
-                            color_transfer_characteristic: video.color_transfer_characteristic(),
-                            chroma_location: video.chroma_location(),
-                            references: video.references(),
-                            intra_dc_precision: video.intra_dc_precision(),
-                            stream: Stream::new(video_stream),
-                        })
-                    },
-                    Err(error) => {
-                        println!("video stream: {:?}", error);
-                        // TODO: should probably panic here
-                        None
-                    }
-                }
-            },
-            None => None,
-        }
-    }
-}
-
-impl Deref for VideoStream {
-	type Target = Stream;
-
-	fn deref(&self) -> &Self::Target {
-		&self.stream
-	}
-}
-
-impl DerefMut for VideoStream {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.stream
-	}
-}
-
-
-
-#[derive(Debug)]
-pub struct AudioStream {
-    pub stream: Stream,
-	pub bit_rate: usize,
-	pub max_bit_rate: usize,
-	pub delay: usize,
-	pub rate: u32,
-	pub channels: u16,
-	pub format: ffmpeg::format::Sample,
-	pub frames: usize,
-	pub align: usize,
-	pub channel_layout: ffmpeg::ChannelLayout,
-    pub frame_start: Option<usize>,
-}
-
-impl AudioStream {
-    pub fn new(stream_iter: &ffmpeg::format::context::common::StreamIter) -> Option<AudioStream> {
-        match stream_iter.best(ffmpeg::media::Type::Audio) {
-            Some(audio_stream) => {
-                match audio_stream.codec().decoder().audio() {
-                    Ok(audio) => {
-                        Some(AudioStream{
-                            bit_rate: audio.bit_rate(),
-                            max_bit_rate: audio.max_bit_rate(),
-                            delay: audio.delay(),
-                            rate: audio.rate(),
-                            channels: audio.channels(),
-                            format: audio.format(),
-                            frames: audio.frames(),
-                            align: audio.align(),
-                            channel_layout: audio.channel_layout(),
-                            frame_start: audio.frame_start(),
-                            stream: Stream::new(audio_stream),
-                        })
-                    },
-                    Err(error) => {
-                        println!("audio stream: {:?}", error);
-                        // TODO: should probably panic here
-                        None
-                    }
-                }
-            },
-            None => None,
-        }
-   }
-}
-
-impl Deref for AudioStream {
-	type Target = Stream;
-
-	fn deref(&self) -> &Self::Target {
-		&self.stream
-	}
-}
-
-impl DerefMut for AudioStream {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.stream
-	}
 }

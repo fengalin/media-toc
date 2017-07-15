@@ -12,7 +12,7 @@ use gtk::prelude::*;
 use cairo::enums::{FontSlant, FontWeight};
 
 use ::media::Context;
-use ::media::PacketNotifiable;
+use ::media::AudioNotifiable;
 
 use super::MediaNotifiable;
 use super::MediaController;
@@ -21,9 +21,8 @@ pub struct AudioController {
     media_ctl: MediaController,
     drawingarea: gtk::DrawingArea,
     message: String,
-    incoming_frame: Option<ffmpeg::frame::Audio>,
-    frame: Option<ffmpeg::frame::Audio>,
     graph: Option<ffmpeg::filter::Graph>,
+    frame: Option<ffmpeg::frame::Audio>,
 }
 
 impl AudioController {
@@ -34,9 +33,8 @@ impl AudioController {
             media_ctl: MediaController::new(builder.get_object("audio-container").unwrap()),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
             message: "audio place holder".to_owned(),
-            incoming_frame: None,
-            frame: None,
             graph: None,
+            frame: None,
         }));
 
         let ac_for_cb = ac.clone();
@@ -48,116 +46,103 @@ impl AudioController {
         ac
     }
 
-    fn build_graph(&mut self, decoder: &ffmpeg::codec::decoder::Audio) -> Result<bool, String> { // TODO: check how to return Ok() only
-        match self.graph {
-            Some(_) => (),
-            None => {
-                let mut graph = ffmpeg::filter::Graph::new();
+    fn build_graph(&mut self, decoder: &ffmpeg::codec::decoder::Audio) {
+        let mut graph = ffmpeg::filter::Graph::new();
 
-	            let args = format!("time_base={}:sample_rate={}:sample_fmt={}:channel_layout=0x{:x}",
-		            decoder.time_base(), decoder.rate(), decoder.format().name(), decoder.channel_layout().bits());
+        let args = format!("time_base={}:sample_rate={}:sample_fmt={}:channel_layout=0x{:x}",
+            decoder.time_base(), decoder.rate(), decoder.format().name(), decoder.channel_layout().bits());
 
-                let in_filter = ffmpeg::filter::find("abuffer").unwrap();
-                match graph.add(&in_filter, "in", &args) {
-                    Ok(_) => (),
-                    Err(error) => return Err(format!("Error adding in pad: {:?}", error)),
-                }
-
-                let out_filter = ffmpeg::filter::find("abuffersink").unwrap();
-                match graph.add(&out_filter, "out", "") {
-                    Ok(_) => (),
-                    Err(error) => return Err(format!("Error adding out pad: {:?}", error)),
-                }
-                {
-                    let mut out_pad = graph.get("out").unwrap();
-                    out_pad.set_sample_format(ffmpeg::format::Sample::I16(ffmpeg::format::sample::Type::Packed));
-                }
-
-                {
-                    let in_parser;
-                    match graph.output("in", 0) {
-                        Ok(value) => in_parser = value,
-                        Err(error) => return Err(format!("Error getting output for in pad: {:?}", error)),
-                    }
-                    let out_parser;
-                    match in_parser.input("out", 0) {
-                        Ok(value) => out_parser = value,
-                        Err(error) => return Err(format!("Error getting input for out pad: {:?}", error)),
-                    }
-                    match out_parser.parse("anull") {
-                        Ok(_) => (),
-                        Err(error) => return Err(format!("Error parsing format: {:?}", error)),
-                    }
-                }
-
-                match graph.validate() {
-                    Ok(_) => self.graph = Some(graph),
-                    Err(error) => return Err(format!("Error validating graph: {:?}", error)),
-                }
-            },
+        let in_filter = ffmpeg::filter::find("abuffer").unwrap();
+        match graph.add(&in_filter, "in", &args) {
+            Ok(_) => (),
+            Err(error) => panic!("Error adding in pad: {:?}", error),
         }
 
-        Ok(true)
+        let out_filter = ffmpeg::filter::find("abuffersink").unwrap();
+        match graph.add(&out_filter, "out", "") {
+            Ok(_) => (),
+            Err(error) => panic!("Error adding out pad: {:?}", error),
+        }
+        {
+            let mut out_pad = graph.get("out").unwrap();
+            out_pad.set_sample_format(ffmpeg::format::Sample::I16(ffmpeg::format::sample::Type::Packed));
+        }
+
+        {
+            let in_parser;
+            match graph.output("in", 0) {
+                Ok(value) => in_parser = value,
+                Err(error) => panic!("Error getting output for in pad: {:?}", error),
+            }
+            let out_parser;
+            match in_parser.input("out", 0) {
+                Ok(value) => out_parser = value,
+                Err(error) => panic!("Error getting input for out pad: {:?}", error),
+            }
+            match out_parser.parse("anull") {
+                Ok(_) => (),
+                Err(error) => panic!("Error parsing format: {:?}", error),
+            }
+        }
+
+        match graph.validate() {
+            Ok(_) => self.graph = Some(graph),
+            Err(error) => panic!("Error validating graph: {:?}", error),
+        }
     }
 
-    fn convert_to_pcm16(&mut self, decoder: &ffmpeg::codec::decoder::Audio,
-                        incoming_frame: ffmpeg::frame::Audio) -> Result<ffmpeg::frame::Audio, String> {
-        match self.build_graph(decoder) {
-            Ok(_) => {
-                let mut graph = self.graph.as_mut().unwrap();
-                graph.get("in").unwrap().source().add(&incoming_frame).unwrap();
+    fn convert_to_pcm16(&mut self, frame: ffmpeg::frame::Audio) -> Result<ffmpeg::frame::Audio, String> {
+        let mut graph = self.graph.as_mut().unwrap();
+        graph.get("in").unwrap().source().add(&frame).unwrap();
 
-                let mut frame_pcm = ffmpeg::frame::Audio::empty();
-                while let Ok(..) = graph.get("out").unwrap().sink().frame(&mut frame_pcm) {
-                }
-
-                assert!(frame_pcm.planes() == 1); // samples converted to I16::Packed
-                {
-                    let channels_nb = frame_pcm.channels() as usize;
-                    let mut channels = Vec::with_capacity(channels_nb);
-                    for index in 0..channels_nb {
-                        // TODO: reserve target capacity
-                        channels.push(Vec::new());
-                    }
-                    // FIXME: this doesn't seem rust like iteration to me
-                    let mut keep_going = true;
-                    let mut sample_iter = frame_pcm.data(0).iter();
-                    while keep_going {
-                        for index in 0..channels_nb {
-                            let mut sample: i16 = 0;
-                            if let Some(sample_byte) = sample_iter.next() {
-                                sample = *sample_byte as i16;
-                            }
-                            else {
-                                keep_going = false;
-                                break;
-                            }
-
-                            if let Some(sample_byte) = sample_iter.next() {
-                                // TODO: validate this
-                                channels[index].push(sample + ((*sample_byte as i16) << 8));
-                            }
-                            else {
-                                keep_going = false;
-                                break;
-                            }
-                        }
-                    }
-
-                    for index in 0..channels_nb {
-                        println!("\tChannel {}", index);
-                        let mut sample_str = String::new();
-                        for sample in &channels[index] {
-                            sample_str += &format!("{:4x} ", sample);
-                        }
-                        println!("\t\tsamples {}", sample_str);
-                    }
-                }
-
-                Ok(frame_pcm)
-            },
-            Err(error) => Err(error),
+        let mut frame_pcm = ffmpeg::frame::Audio::empty();
+        while let Ok(..) = graph.get("out").unwrap().sink().frame(&mut frame_pcm) {
         }
+
+        assert!(frame_pcm.planes() == 1); // samples converted to I16::Packed
+        {
+            let channels_nb = frame_pcm.channels() as usize;
+            let mut channels = Vec::with_capacity(channels_nb);
+            for index in 0..channels_nb {
+                // TODO: reserve target capacity
+                channels.push(Vec::new());
+            }
+            // FIXME: this doesn't seem rust like iteration to me
+            let mut keep_going = true;
+            let mut sample_iter = frame_pcm.data(0).iter();
+            while keep_going {
+                for index in 0..channels_nb {
+                    let mut sample: i16 = 0;
+                    if let Some(sample_byte) = sample_iter.next() {
+                        sample = *sample_byte as i16;
+                    }
+                    else {
+                        keep_going = false;
+                        break;
+                    }
+
+                    if let Some(sample_byte) = sample_iter.next() {
+                        // TODO: validate this
+                        channels[index].push(sample + ((*sample_byte as i16) << 8));
+                    }
+                    else {
+                        keep_going = false;
+                        break;
+                    }
+                }
+            }
+
+            for index in 0..channels_nb {
+                println!("\tChannel {}", index);
+                let mut sample_str = String::new();
+                for sample in &channels[index] {
+                    sample_str += &format!("{:4x} ", sample);
+                }
+                println!("\t\tsamples {}", sample_str);
+            }
+        }
+
+        Ok(frame_pcm)
     }
 
     fn draw(&self, cr: &cairo::Context) {
@@ -188,68 +173,29 @@ impl DerefMut for AudioController {
 }
 
 impl MediaNotifiable for AudioController {
-    fn new_media(&mut self, context: &mut Context) {
-        self.incoming_frame = None;
-        self.frame = None;
+    fn new_media(&mut self, context: &Context) {
         self.graph = None;
-        self.message = match context.audio_stream.as_mut() {
-            Some(stream) => {
-                self.set_index(stream.index);
+        self.frame = None;
 
+        match context.audio_decoder {
+            Some(ref decoder) => {
+                self.build_graph(decoder);
                 self.show();
-                println!("\n** Audio stream\n{:?}", &stream);
-                format!("audio stream {}", self.stream_index().unwrap())
             },
             None => {
                 self.hide();
-                "no audio stream".to_owned()
-            },
+            }
         };
 
         self.drawingarea.queue_draw();
     }
 }
 
-impl PacketNotifiable for AudioController {
-    fn new_packet(&mut self, stream: &ffmpeg::format::stream::Stream,
-                  packet: &ffmpeg::codec::packet::Packet) -> Result<bool, String> {
-        self.print_packet_content(stream, packet);
-
-        let mut message = String::new();
-        let mut got_frame = false;
-
-        let decoder = stream.codec().decoder();
-        match decoder.audio() {
-            Ok(mut audio) => {
-                let mut incoming_frame = ffmpeg::frame::Audio::empty();
-                {
-                    match audio.decode(packet, &mut incoming_frame) {
-                        Ok(decode_got_frame) =>  {
-                            got_frame = decode_got_frame;
-                            let planes = incoming_frame.planes();
-                            println!("\tdecoded audio frame, found {} planes - got frame: {}", planes, got_frame);
-                            for index in 0..planes {
-                                println!("\tplane: {} - data len: {}", index, incoming_frame.data(index).len());
-                            }
-                        },
-                        Err(error) => message = format!("Error decoding audio: {:?}", error),
-                    }
-                }
-                if got_frame {
-                    match self.convert_to_pcm16(&audio, incoming_frame) {
-                        Ok(frame_pcm) => self.frame = Some(frame_pcm),
-                        Err(error) =>  println!("\tError converting to pcm: {:?}", error),
-                    }
-                }
-            },
-            Err(error) => message = format!("Error getting audio decoder: {:?}", error),
-        }
-
-        if message.is_empty() {
-            Ok(got_frame)
-        }
-        else {
-            Err(message)
+impl AudioNotifiable for AudioController {
+    fn new_audio_frame(&mut self, frame: ffmpeg::frame::Audio) {
+        match self.convert_to_pcm16(frame) {
+            Ok(frame_pcm) => self.frame = Some(frame_pcm),
+            Err(error) =>  panic!("\tError converting to pcm: {:?}", error),
         }
     }
 }
