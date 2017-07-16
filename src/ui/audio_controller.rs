@@ -177,8 +177,8 @@ impl MediaNotifiable for AudioController {
         self.graph = None;
         self.frame = None;
 
-        match context.audio_decoder {
-            Some((stream_index, ref decoder)) => {
+        match context.audio_decoder.as_ref() {
+            Some(decoder) => {
                 self.build_graph(decoder);
                 self.show();
             },

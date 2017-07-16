@@ -178,8 +178,8 @@ impl MediaNotifiable for VideoController {
         self.frame = None;
         self.graph = None;
 
-        match context.video_decoder {
-            Some((stream_index, ref decoder)) => {
+        match context.video_decoder.as_ref() {
+            Some(decoder) => {
                 self.build_graph(decoder);
                 self.show();
             },

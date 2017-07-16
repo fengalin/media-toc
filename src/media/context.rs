@@ -18,10 +18,12 @@ pub struct Context {
     pub name: String,
     pub description: String,
 
-    pub video_decoder: Option<(usize, ffmpeg::codec::decoder::Video)>,
+    pub video_stream: Option<usize>,
+    pub video_decoder: Option<ffmpeg::codec::decoder::Video>,
     pub video_notifiable: Option<Weak<RefCell<VideoNotifiable>>>,
 
-    pub audio_decoder: Option<(usize, ffmpeg::codec::decoder::Audio)>,
+    pub audio_stream: Option<usize>,
+    pub audio_decoder: Option<ffmpeg::codec::decoder::Audio>,
     pub audio_notifiable: Option<Weak<RefCell<AudioNotifiable>>>,
 }
 
@@ -74,8 +76,12 @@ impl Context {
                     ffmpeg_context: ffmpeg_context,
                     name: String::new(),
                     description: String::new(),
+
+                    video_stream: None,
                     video_decoder: None,
                     video_notifiable: None,
+
+                    audio_stream: None,
                     audio_decoder: None,
                     audio_notifiable: None,
                 };
@@ -95,9 +101,9 @@ impl Context {
 
                 println!("\n*** New media - Input: {} - {}", &new_ctx.name, &new_ctx.description);
 
-                new_ctx.preview();
+                //new_ctx.preview();
 
-                if new_ctx.video_decoder.is_some() || new_ctx.audio_decoder.is_some() {
+                if new_ctx.video_stream.is_some() || new_ctx.audio_stream.is_some() {
                     // TODO: also check for misdetections (detection score)
                     Ok(new_ctx)
                 }
@@ -132,7 +138,8 @@ impl Context {
                     Err(error) => panic!("Failed to set parameters for video decoder: {:?}", error),
                 }
 
-                self.video_decoder = Some((stream.index(), decoder));
+                self.video_stream = Some(stream.index());
+                self.video_decoder = Some(decoder);
             },
             Err(error) => panic!("Failed to get video decoder: {:?}", error),
         }
@@ -159,7 +166,8 @@ impl Context {
                     Err(error) => panic!("Failed to set parameters for audio decoder: {:?}", error),
                 }
 
-                self.audio_decoder = Some((stream.index(), decoder));
+                self.audio_stream = Some(stream.index());
+                self.audio_decoder = Some(decoder);
             },
             Err(error) => panic!("Failed to get audio decoder: {:?}", error),
         }
@@ -176,10 +184,10 @@ impl Context {
     pub fn preview(&mut self) {
         let mut frames_processed = 0;
         let mut expected_frames = 0;
-        if self.video_decoder.is_some() {
+        if self.video_stream.is_some() {
             expected_frames += 1;
         }
-        if self.audio_decoder.is_some() {
+        if self.audio_stream.is_some() {
             expected_frames += 1;
         }
 
@@ -191,9 +199,19 @@ impl Context {
             let mut got_frame = false;
             let decoder = stream.codec().decoder();
             match decoder.medium() {
-                ffmpeg::media::Type::Video => match self.video_decoder {
-                    Some((stream_index, ref mut video)) => {
+                ffmpeg::media::Type::Video => match self.video_stream {
+                    Some(stream_index) => {
                         if stream_index == stream.index() {
+                            let mut video = match stream.codec().decoder().video() {
+                                Ok(decoder) => decoder,
+                                Err(error) => panic!("Error getting video decoder for stream {}: {:?}", stream_index, error),
+                            };
+                            /*
+                            let mut video = match self.video_decoder {
+                                Some(ref mut decoder) => decoder,
+                                None => panic!("Error getting video decoder for stream {}", stream_index),
+                            };
+                            */
                             match video.decode(&packet, &mut video_frame) {
                                 Ok(decode_got_frame) =>  {
                                     got_frame = decode_got_frame;
@@ -203,11 +221,22 @@ impl Context {
                                         println!("\tplane: {} - data len: {}", index, video_frame.data(index).len());
                                     }
                                 },
-                                Err(error) => println!("Error decoding video packet for stream {}: {:?}", stream.index(), error),
+                                Err(error) => println!("Error decoding video packet for stream {}: {:?}", stream_index, error),
                             }
                             if got_frame {
                                 frames_processed += 1;
-                                // TODO: notify video controller
+                                match self.video_notifiable.as_ref() {
+                                    Some(notifiable_weak) => {
+                                        match notifiable_weak.upgrade() {
+                                            Some(notifiable) => {
+                                                notifiable.borrow_mut().new_video_frame(video_frame);
+                                                video_frame = ffmpeg::frame::Video::empty();
+                                            },
+                                            None => (),
+                                        }
+                                    },
+                                    None => (),
+                                }
                             }
                         }
                         else {
@@ -216,10 +245,19 @@ impl Context {
                     },
                     None => panic!("No video decoder"),
                 },
-                ffmpeg::media::Type::Audio => match self.audio_decoder {
-                    Some((stream_index, ref mut audio)) => {
+                ffmpeg::media::Type::Audio => match self.audio_stream {
+                    Some(stream_index) => {
                         if stream_index == stream.index() {
-                            println!("Using audio decoder: {:?} - channels: {}", audio.format(), audio.channels());
+                            let mut audio = match stream.codec().decoder().audio() {
+                                Ok(decoder) => decoder,
+                                Err(error) => panic!("Error getting audio decoder for stream {}: {:?}", stream_index, error),
+                            };
+                            /*
+                            let mut audio = match self.audio_decoder {
+                                Some(ref mut decoder) => decoder,
+                                None => panic!("Error getting audio decoder for stream {}", stream_index),
+                            };
+                            */
                             match audio.decode(&packet, &mut audio_frame) {
                                 Ok(decode_got_frame) =>  {
                                     got_frame = decode_got_frame;
@@ -229,11 +267,22 @@ impl Context {
                                         println!("\tplane: {} - data len: {}", index, audio_frame.data(index).len());
                                     }
                                 },
-                                Err(error) => panic!("Error decoding audio packet for stream {}: {:?}", stream.index(), error),
+                                Err(error) => panic!("Error decoding audio packet for stream {}: {:?}", stream_index, error),
                             }
                             if got_frame {
                                 frames_processed += 1;
-                                // TODO: notify video controller
+                                match self.audio_notifiable.as_ref() {
+                                    Some(notifiable_weak) => {
+                                        match notifiable_weak.upgrade() {
+                                            Some(notifiable) => {
+                                                notifiable.borrow_mut().new_audio_frame(audio_frame);
+                                                audio_frame = ffmpeg::frame::Audio::empty();
+                                            },
+                                            None => (),
+                                        }
+                                    },
+                                    None => (),
+                                }
                             }
                         }
                         else {

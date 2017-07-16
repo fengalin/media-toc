@@ -89,22 +89,20 @@ impl MainController {
         let message = match ::media::Context::new(&self.filepath.as_path()) {
             Ok(context) => {
                 self.context = Some(context);
-                // TODO: reactivate new media notif and preview
-                /*
+
                 let context = self.context.as_mut().unwrap();
 
                 self.video_ctrl.borrow_mut().new_media(context);
-                if context.video_decoder.is_some() {
+                if context.video_stream.is_some() {
                     context.register_video_notifiable(self.video_ctrl.clone());
                 }
 
                 self.audio_ctrl.borrow_mut().new_media(context);
-                if context.audio_decoder.is_some() {
+                if context.audio_stream.is_some() {
                     context.register_audio_notifiable(self.audio_ctrl.clone());
                 }
 
                 context.preview();
-                */
 
                 format!("Opened media {:?}", path_str)
             },
