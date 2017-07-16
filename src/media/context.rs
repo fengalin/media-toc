@@ -15,6 +15,7 @@ pub trait AudioNotifiable {
 
 pub struct Context {
     pub ffmpeg_context: ffmpeg::format::context::Input,
+    pub path: String,
     pub name: String,
     pub description: String,
 
@@ -74,6 +75,7 @@ impl Context {
             Ok(ffmpeg_context) => {
                 let mut new_ctx = Context{
                     ffmpeg_context: ffmpeg_context,
+                    path: String::from(path.to_str().unwrap()),
                     name: String::new(),
                     description: String::new(),
 
@@ -182,6 +184,7 @@ impl Context {
     }
 
     pub fn preview(&mut self) {
+        // TODO: better trace streams processed (use a HashSet as before)
         let mut frames_processed = 0;
         let mut expected_frames = 0;
         if self.video_stream.is_some() {
@@ -195,23 +198,17 @@ impl Context {
         let mut audio_frame = ffmpeg::frame::Audio::empty();
 
         for (stream, packet) in self.ffmpeg_context.packets() {
-            print_packet_content(&stream, &packet);
+            //print_packet_content(&stream, &packet); // TODO: fix this function which corrupts the decoder
             let mut got_frame = false;
             let decoder = stream.codec().decoder();
             match decoder.medium() {
                 ffmpeg::media::Type::Video => match self.video_stream {
                     Some(stream_index) => {
                         if stream_index == stream.index() {
-                            let mut video = match stream.codec().decoder().video() {
-                                Ok(decoder) => decoder,
-                                Err(error) => panic!("Error getting video decoder for stream {}: {:?}", stream_index, error),
-                            };
-                            /*
                             let mut video = match self.video_decoder {
                                 Some(ref mut decoder) => decoder,
                                 None => panic!("Error getting video decoder for stream {}", stream_index),
                             };
-                            */
                             match video.decode(&packet, &mut video_frame) {
                                 Ok(decode_got_frame) =>  {
                                     got_frame = decode_got_frame;
@@ -248,16 +245,10 @@ impl Context {
                 ffmpeg::media::Type::Audio => match self.audio_stream {
                     Some(stream_index) => {
                         if stream_index == stream.index() {
-                            let mut audio = match stream.codec().decoder().audio() {
-                                Ok(decoder) => decoder,
-                                Err(error) => panic!("Error getting audio decoder for stream {}: {:?}", stream_index, error),
-                            };
-                            /*
-                            let mut audio = match self.audio_decoder {
-                                Some(ref mut decoder) => decoder,
+                            let ref mut audio = match self.audio_decoder.as_mut() {
+                                Some(decoder) => decoder,
                                 None => panic!("Error getting audio decoder for stream {}", stream_index),
                             };
-                            */
                             match audio.decode(&packet, &mut audio_frame) {
                                 Ok(decode_got_frame) =>  {
                                     got_frame = decode_got_frame;
