@@ -42,28 +42,13 @@ fn print_packet_content(stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg
         Some(dts) => println!("\tdts: {}", dts),
         None => (),
     }
-    if let Some(data) = packet.data() {
+    if let Some(ref data) = packet.data() {
         println!("\tfound data with len: {}", data.len());
     }
     let side_data_iter = stream.side_data();
     let side_data_len = side_data_iter.size_hint().0;
     if side_data_len > 0 {
         println!("\tside data nb: {}", side_data_len);
-    }
-
-    let decoder = stream.codec().decoder();
-    match decoder.medium() {
-        ffmpeg::media::Type::Video => match decoder.video() {
-            Ok(video) => println!("\tvideo decoder: {:?}, width: {}, height: {}",
-                                  video.format(), video.width(), video.height()),
-            Err(_) => (),
-        },
-        ffmpeg::media::Type::Audio => match decoder.audio() {
-            Ok(audio) => println!("\taudio decoder: {:?}, channels: {}, frame count: {}",
-                                  audio.format(), audio.channels(), audio.frames()),
-            Err(_) => (),
-        },
-        _ => (),
     }
 }
 
@@ -120,9 +105,11 @@ impl Context {
     }
 
     pub fn init_video_decoder(&mut self) {
+        let stream_index;
         let stream = match self.ffmpeg_context.streams().best(ffmpeg::media::Type::Video) {
             Some(best_stream) => {
-                println!("\nFound video stream with id: {}", best_stream.index());
+                stream_index = best_stream.index();
+                println!("\nFound video stream with id: {}", stream_index);
                 best_stream
             },
             None => {
@@ -140,7 +127,9 @@ impl Context {
                     Err(error) => panic!("Failed to set parameters for video decoder: {:?}", error),
                 }
 
-                self.video_stream = Some(stream.index());
+                println!("\tvideo decoder: {:?}, width: {}, height: {}",
+                         decoder.format(), decoder.width(), decoder.height());
+                self.video_stream = Some(stream_index);
                 self.video_decoder = Some(decoder);
             },
             Err(error) => panic!("Failed to get video decoder: {:?}", error),
@@ -148,9 +137,11 @@ impl Context {
     }
 
     pub fn init_audio_decoder(&mut self) {
+        let stream_index;
         let stream = match self.ffmpeg_context.streams().best(ffmpeg::media::Type::Audio) {
             Some(best_stream) => {
-                println!("\nFound audio stream with id: {}", best_stream.index());
+                stream_index = best_stream.index();
+                println!("\nFound audio stream with id: {}", stream_index);
                 best_stream
             },
             None => {
@@ -167,8 +158,9 @@ impl Context {
                     },
                     Err(error) => panic!("Failed to set parameters for audio decoder: {:?}", error),
                 }
-
-                self.audio_stream = Some(stream.index());
+                println!("\taudio decoder: {:?}, channels: {}, frame count: {}",
+                         decoder.format(), decoder.channels(), decoder.frames());
+                self.audio_stream = Some(stream_index);
                 self.audio_decoder = Some(decoder);
             },
             Err(error) => panic!("Failed to get audio decoder: {:?}", error),
@@ -198,7 +190,7 @@ impl Context {
         let mut audio_frame = ffmpeg::frame::Audio::empty();
 
         for (stream, packet) in self.ffmpeg_context.packets() {
-            //print_packet_content(&stream, &packet); // TODO: fix this function which corrupts the decoder
+            print_packet_content(&stream, &packet);
             let mut got_frame = false;
             let decoder = stream.codec().decoder();
             match decoder.medium() {
