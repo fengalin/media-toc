@@ -2,6 +2,8 @@ extern crate ffmpeg;
 
 use std::path::Path;
 
+use std::collections::HashSet;
+
 use std::rc::Weak;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -176,8 +178,7 @@ impl Context {
     }
 
     pub fn preview(&mut self) {
-        // TODO: better trace streams processed (use a HashSet as before)
-        let mut frames_processed = 0;
+        let mut stream_processed = HashSet::new();
         let mut expected_frames = 0;
         if self.video_stream.is_some() {
             expected_frames += 1;
@@ -201,6 +202,10 @@ impl Context {
                                 Some(ref mut decoder) => decoder,
                                 None => panic!("Error getting video decoder for stream {}", stream_index),
                             };
+                            if stream_processed.contains(&stream_index) {
+                                // stream already processed
+                                continue;
+                            }
                             match video.decode(&packet, &mut video_frame) {
                                 Ok(decode_got_frame) =>  {
                                     got_frame = decode_got_frame;
@@ -213,7 +218,7 @@ impl Context {
                                 Err(error) => println!("Error decoding video packet for stream {}: {:?}", stream_index, error),
                             }
                             if got_frame {
-                                frames_processed += 1;
+                                stream_processed.insert(stream_index);
                                 match self.video_notifiable.as_ref() {
                                     Some(notifiable_weak) => {
                                         match notifiable_weak.upgrade() {
@@ -241,6 +246,10 @@ impl Context {
                                 Some(decoder) => decoder,
                                 None => panic!("Error getting audio decoder for stream {}", stream_index),
                             };
+                            if stream_processed.contains(&stream_index) {
+                                // stream already processed
+                                continue;
+                            }
                             match audio.decode(&packet, &mut audio_frame) {
                                 Ok(decode_got_frame) =>  {
                                     got_frame = decode_got_frame;
@@ -253,7 +262,7 @@ impl Context {
                                 Err(error) => panic!("Error decoding audio packet for stream {}: {:?}", stream_index, error),
                             }
                             if got_frame {
-                                frames_processed += 1;
+                                stream_processed.insert(stream_index);
                                 match self.audio_notifiable.as_ref() {
                                     Some(notifiable_weak) => {
                                         match notifiable_weak.upgrade() {
@@ -277,7 +286,7 @@ impl Context {
                 _ => (),
             }
 
-            if frames_processed == expected_frames {
+            if stream_processed.len() == expected_frames {
                 break;
             }
         }
