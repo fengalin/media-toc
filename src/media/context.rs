@@ -18,10 +18,10 @@ pub struct Context {
     pub name: String,
     pub description: String,
 
-    pub video_decoder: Option<ffmpeg::codec::decoder::Video>,
+    pub video_decoder: Option<(usize, ffmpeg::codec::decoder::Video)>,
     pub video_notifiable: Option<Weak<RefCell<VideoNotifiable>>>,
 
-    pub audio_decoder: Option<ffmpeg::codec::decoder::Audio>,
+    pub audio_decoder: Option<(usize, ffmpeg::codec::decoder::Audio)>,
     pub audio_notifiable: Option<Weak<RefCell<AudioNotifiable>>>,
 }
 
@@ -132,7 +132,7 @@ impl Context {
                     Err(error) => panic!("Failed to set parameters for video decoder: {:?}", error),
                 }
 
-                self.video_decoder = Some(decoder);
+                self.video_decoder = Some((stream.index(), decoder));
             },
             Err(error) => panic!("Failed to get video decoder: {:?}", error),
         }
@@ -159,7 +159,7 @@ impl Context {
                     Err(error) => panic!("Failed to set parameters for audio decoder: {:?}", error),
                 }
 
-                self.audio_decoder = Some(decoder);
+                self.audio_decoder = Some((stream.index(), decoder));
             },
             Err(error) => panic!("Failed to get audio decoder: {:?}", error),
         }
@@ -183,55 +183,61 @@ impl Context {
             expected_frames += 1;
         }
 
-        for (stream, mut packet) in self.ffmpeg_context.packets() {
+        let mut video_frame = ffmpeg::frame::Video::empty();
+        let mut audio_frame = ffmpeg::frame::Audio::empty();
+
+        for (stream, packet) in self.ffmpeg_context.packets() {
             print_packet_content(&stream, &packet);
             let mut got_frame = false;
             let decoder = stream.codec().decoder();
             match decoder.medium() {
-                // TODO: check actual stream index in case there are multiple streams for the same medium
                 ffmpeg::media::Type::Video => match self.video_decoder {
-                    Some(ref mut video) => {
-                        let mut frame = ffmpeg::frame::Video::empty();
-                        {
-                            match video.decode(&packet, &mut frame) {
+                    Some((stream_index, ref mut video)) => {
+                        if stream_index == stream.index() {
+                            match video.decode(&packet, &mut video_frame) {
                                 Ok(decode_got_frame) =>  {
                                     got_frame = decode_got_frame;
-                                    let planes = frame.planes();
+                                    let planes = video_frame.planes();
                                     println!("\tdecoded video frame, found {} planes - got frame: {}", planes, got_frame);
                                     for index in 0..planes {
-                                        println!("\tplane: {} - data len: {}", index, frame.data(index).len());
+                                        println!("\tplane: {} - data len: {}", index, video_frame.data(index).len());
                                     }
                                 },
                                 Err(error) => println!("Error decoding video packet for stream {}: {:?}", stream.index(), error),
                             }
+                            if got_frame {
+                                frames_processed += 1;
+                                // TODO: notify video controller
+                            }
                         }
-                        if got_frame {
-                            frames_processed += 1;
-                            // TODO: notify video controller
+                        else {
+                            println!("Skipping stream {}", stream.index());
                         }
                     },
                     None => panic!("No video decoder"),
                 },
                 ffmpeg::media::Type::Audio => match self.audio_decoder {
-                    Some(ref mut audio) => {
-                        println!("Using audio decoder: {:?} - channels: {}", audio.format(), audio.channels());
-                        let mut frame = ffmpeg::frame::Audio::empty();
-                        {
-                            match audio.decode(&packet, &mut frame) {
+                    Some((stream_index, ref mut audio)) => {
+                        if stream_index == stream.index() {
+                            println!("Using audio decoder: {:?} - channels: {}", audio.format(), audio.channels());
+                            match audio.decode(&packet, &mut audio_frame) {
                                 Ok(decode_got_frame) =>  {
                                     got_frame = decode_got_frame;
-                                    let planes = frame.planes();
+                                    let planes = audio_frame.planes();
                                     println!("\tdecoded audio frame, found {} planes - got frame: {}", planes, got_frame);
                                     for index in 0..planes {
-                                        println!("\tplane: {} - data len: {}", index, frame.data(index).len());
+                                        println!("\tplane: {} - data len: {}", index, audio_frame.data(index).len());
                                     }
                                 },
                                 Err(error) => panic!("Error decoding audio packet for stream {}: {:?}", stream.index(), error),
                             }
+                            if got_frame {
+                                frames_processed += 1;
+                                // TODO: notify video controller
+                            }
                         }
-                        if got_frame {
-                            frames_processed += 1;
-                            // TODO: notify video controller
+                        else {
+                            println!("Skipping stream {}", stream.index());
                         }
                     },
                     None => panic!("No audio decoder"),
