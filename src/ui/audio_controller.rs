@@ -49,8 +49,17 @@ impl AudioController {
     fn build_graph(&mut self, decoder: &ffmpeg::codec::decoder::Audio) {
         let mut graph = ffmpeg::filter::Graph::new();
 
+        // Fix broken channel layouts
+        let channel_layout = match decoder.channel_layout().bits() {
+            0 => match decoder.channels() {
+                1 => ffmpeg::channel_layout::MONO,
+                2 => ffmpeg::channel_layout::FRONT_LEFT | ffmpeg::channel_layout::FRONT_RIGHT | ffmpeg::channel_layout::STEREO,
+                _ => panic!("Unknown channel layout"),
+            },
+            _ => decoder.channel_layout(),
+        };
         let args = format!("time_base={}:sample_rate={}:sample_fmt={}:channel_layout=0x{:x}",
-            decoder.time_base(), decoder.rate(), decoder.format().name(), decoder.channel_layout().bits());
+            decoder.time_base(), decoder.rate(), decoder.format().name(), channel_layout.bits());
 
         let in_filter = ffmpeg::filter::find("abuffer").unwrap();
         match graph.add(&in_filter, "in", &args) {
@@ -65,7 +74,7 @@ impl AudioController {
         }
         {
             let mut out_pad = graph.get("out").unwrap();
-            out_pad.set_sample_format(ffmpeg::format::Sample::I16(ffmpeg::format::sample::Type::Packed));
+            out_pad.set_sample_format(ffmpeg::format::Sample::I16(ffmpeg::format::sample::Type::Planar));
         }
 
         {
@@ -99,47 +108,20 @@ impl AudioController {
         while let Ok(..) = graph.get("out").unwrap().sink().frame(&mut frame_pcm) {
         }
 
-        assert!(frame_pcm.planes() == 1); // samples converted to I16::Packed
-        {
-            let channels_nb = frame_pcm.channels() as usize;
-            let mut channels = Vec::with_capacity(channels_nb);
-            for index in 0..channels_nb {
-                // TODO: reserve target capacity
-                channels.push(Vec::new());
-            }
-            // FIXME: this doesn't seem rust like iteration to me
-            let mut keep_going = true;
-            let mut sample_iter = frame_pcm.data(0).iter();
-            while keep_going {
-                for index in 0..channels_nb {
-                    let mut sample: i16 = 0;
-                    if let Some(sample_byte) = sample_iter.next() {
-                        sample = *sample_byte as i16;
-                    }
-                    else {
-                        keep_going = false;
-                        break;
-                    }
-
-                    if let Some(sample_byte) = sample_iter.next() {
-                        // TODO: validate this
-                        channels[index].push(sample + ((*sample_byte as i16) << 8));
-                    }
-                    else {
-                        keep_going = false;
-                        break;
-                    }
-                }
-            }
-
-            for index in 0..channels_nb {
-                println!("\tChannel {}", index);
-                let mut sample_str = String::new();
-                for sample in &channels[index] {
-                    sample_str += &format!("{:4x} ", sample);
-                }
-                println!("\t\tsamples {}", sample_str);
-            }
+        let planes_nb = frame_pcm.planes();
+        println!("Converted frame: {} planes - {} samples - {} channels - is key: {} - is corrupt: {} - quality: {}",
+                 frame_pcm.planes(), frame_pcm.samples(), frame_pcm.channels(),
+                 frame_pcm.is_key(), frame_pcm.is_corrupt(), frame_pcm.quality());
+        match frame_pcm.pts() {
+            Some(pts) => println!("\tpts {}", pts),
+            None => (),
+        }
+        match frame_pcm.timestamp() {
+            Some(timestamp) => println!("\ttimestamp {}", timestamp),
+            None => (),
+        }
+        for index in 0..planes_nb {
+            println!("\tplane {} - len: {}", index, frame_pcm.plane::<i16>(index).len());
         }
 
         Ok(frame_pcm)
@@ -147,13 +129,58 @@ impl AudioController {
 
     fn draw(&self, cr: &cairo::Context) {
         let allocation = self.drawingarea.get_allocation();
-        cr.scale(allocation.width as f64, allocation.height as f64);
 
-        cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
-        cr.set_font_size(0.07);
+        match self.frame {
+            Some(ref frame) => {
+                let offset = (::std::i16::MAX / 2) as i32;
+                cr.scale(
+                    allocation.width as f64 / frame.samples() as f64,
+                    allocation.height as f64 / 2f64 / offset as f64,
+                );
+                cr.set_line_width(1f64);
 
-        cr.move_to(0.1, 0.53);
-        cr.show_text(&self.message);
+                let mut ymin = offset as f64;
+                let mut ymax = 0f64;
+                let planes_nb = frame.planes();
+                for index in 0..planes_nb {
+                    let colors = vec![(0.8f64, 0.8f64, 0.8f64), (0.8f64, 0f64, 0f64)][index];
+                    cr.set_source_rgb(colors.0, colors.1, colors.2);
+
+                    let mut is_first = true;
+                    let mut x = 0f64;
+                    for sample in frame.plane::<i16>(index) {
+                        let y = (offset - *sample as i32) as f64;
+                        match is_first {
+                            true => {
+                                cr.move_to(x, y);
+                                is_first = false;
+                            },
+                            false => {
+                                cr.line_to(x, y);
+                            },
+                        }
+                        x += 1f64;
+
+                        if y < ymin {
+                            ymin = y;
+                        }
+                        if y > ymax {
+                            ymax = y;
+                        }
+                    }
+                    cr.stroke();
+                }
+            },
+            None => {
+                cr.scale(allocation.width as f64, allocation.height as f64);
+
+                cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
+                cr.set_font_size(0.07);
+
+                cr.move_to(0.1, 0.53);
+                cr.show_text(&self.message);
+            },
+        }
     }
 }
 
