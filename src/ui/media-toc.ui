@@ -419,7 +419,7 @@ audio-volume-medium-symbolic</property>
                     <property name="can_focus">False</property>
                     <property name="hexpand">True</property>
                     <property name="vexpand">True</property>
-                    <property name="row_spacing">2</property>
+                    <property name="row_spacing">5</property>
                     <property name="column_spacing">5</property>
                     <child>
                       <object class="GtkLabel" id="title-caption">
@@ -439,6 +439,7 @@ audio-volume-medium-symbolic</property>
                         <property name="can_focus">False</property>
                         <property name="hexpand">True</property>
                         <property name="wrap">True</property>
+                        <property name="selectable">True</property>
                         <property name="width_chars">0</property>
                         <property name="max_width_chars">0</property>
                       </object>
@@ -465,6 +466,7 @@ audio-volume-medium-symbolic</property>
                         <property name="can_focus">False</property>
                         <property name="hexpand">True</property>
                         <property name="wrap">True</property>
+                        <property name="selectable">True</property>
                         <property name="width_chars">0</property>
                         <property name="max_width_chars">0</property>
                       </object>
@@ -503,6 +505,7 @@ audio-volume-medium-symbolic</property>
                         <property name="can_focus">False</property>
                         <property name="hexpand">True</property>
                         <property name="wrap">True</property>
+                        <property name="selectable">True</property>
                         <property name="width_chars">0</property>
                         <property name="max_width_chars">0</property>
                       </object>
@@ -517,6 +520,7 @@ audio-volume-medium-symbolic</property>
                         <property name="can_focus">False</property>
                         <property name="hexpand">True</property>
                         <property name="wrap">True</property>
+                        <property name="selectable">True</property>
                         <property name="width_chars">0</property>
                         <property name="max_width_chars">0</property>
                       </object>

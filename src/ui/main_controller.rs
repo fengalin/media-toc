@@ -84,27 +84,30 @@ impl MainController {
 
         let path_str = String::from(self.filepath.to_str().unwrap());
         let message = match ::media::Context::new(&self.filepath) {
-            Ok(context) => {
-                self.context = Some(context);
+            Ok(mut context) => {
+                {
+                    let name: &str = &context.name;
+                    self.header_bar.set_subtitle(Some(name));
+                }
 
-                let context = self.context.as_mut().unwrap();
-
-                self.video_ctrl.borrow_mut().new_media(context);
+                self.video_ctrl.borrow_mut().new_media(&context);
                 if context.video_stream.is_some() {
                     context.register_video_notifiable(self.video_ctrl.clone());
                 }
 
-                self.audio_ctrl.borrow_mut().new_media(context);
+                self.audio_ctrl.borrow_mut().new_media(&context);
                 if context.audio_stream.is_some() {
                     context.register_audio_notifiable(self.audio_ctrl.clone());
                 }
 
-                self.info_ctrl.borrow_mut().new_media(context);
+                self.info_ctrl.borrow_mut().new_media(&context);
                 if context.video_stream.is_some() {
                     context.register_video_notifiable(self.info_ctrl.clone());
                 }
 
                 context.preview();
+
+                self.context = Some(context);
 
                 format!("Opened media {:?}", path_str)
             },

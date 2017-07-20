@@ -187,7 +187,8 @@ impl MediaNotifiable for InfoController {
                 self.build_graph(decoder);
                 self.thumbnail_area.show();
 
-                self.title_lbl.set_label(&context.name);
+                self.title_lbl.set_label(&context.title);
+                self.artist_lbl.set_label(&context.artist);
                 self.description_lbl.set_label(&context.description);
                 self.duration_lbl.set_label(&format!("{:.2} s", context.duration));
             },

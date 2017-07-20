@@ -23,6 +23,8 @@ pub trait AudioNotifiable {
 pub struct Context {
     pub ffmpeg_context: ffmpeg::format::context::Input,
     pub name: String,
+    pub artist: String,
+    pub title: String,
     pub duration: f64,
     pub description: String,
 
@@ -37,37 +39,16 @@ pub struct Context {
 }
 
 
-fn print_packet_content(stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
-    println!("\n* Packet for {:?} stream: {}", stream.disposition(), stream.index());
-    println!("\tsize: {} - duration: {}, is key: {}",
-             packet.size(), packet.duration(), packet.is_key(),
-    );
-    match packet.pts() {
-        Some(pts) => println!("\tpts: {}", pts),
-        None => (),
-    }
-    match packet.dts() {
-        Some(dts) => println!("\tdts: {}", dts),
-        None => (),
-    }
-    if let Some(ref data) = packet.data() {
-        println!("\tfound data with len: {}", data.len());
-    }
-    let side_data_iter = stream.side_data();
-    let side_data_len = side_data_iter.size_hint().0;
-    if side_data_len > 0 {
-        println!("\tside data nb: {}", side_data_len);
-    }
-}
-
-
-
 impl Context {
     pub fn new(path: &PathBuf) -> Result<Context, String> {
+        println!("\n*** Attempting to open {:?}", path);
+
         match ffmpeg::format::input(&path.as_path()) {
             Ok(ffmpeg_context) => {
                 let mut new_ctx = Context{
-                    name: String::from(path.file_stem().unwrap().to_str().unwrap()),
+                    name: String::from(path.file_name().unwrap().to_str().unwrap()),
+                    artist: String::new(),
+                    title: String::new(),
                     duration: ffmpeg_context.duration() as f64 / ffmpeg::ffi::AV_TIME_BASE as f64,
                     description: String::new(),
 
@@ -90,11 +71,21 @@ impl Context {
                     new_ctx.init_audio_decoder();
                 }
 
-                // TODO: process metadata
+                // TODO: store metadata
+			    for (k, v) in new_ctx.ffmpeg_context.metadata().iter() {
+			        if k.to_lowercase() == "artist" {
+			            new_ctx.artist = v.to_owned();
+			        }
+			        else if k.to_lowercase() == "title" {
+			            new_ctx.title = v.to_owned();
+			        }
+			    }
+
+			    if new_ctx.title.is_empty() {
+		            new_ctx.title = String::from(path.file_stem().unwrap().to_str().unwrap());
+			    }
 
                 // TODO: see what we should do with subtitles
-
-                println!("\n*** New media - Input: {} - {}", &new_ctx.name, &new_ctx.description);
 
                 if new_ctx.video_stream.is_some() || new_ctx.audio_stream.is_some() {
                     // TODO: also check for misdetections (detection score)
@@ -297,5 +288,29 @@ impl Context {
                 break;
             }
         }
+    }
+}
+
+
+fn print_packet_content(stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
+    println!("\n* Packet for {:?} stream: {}", stream.disposition(), stream.index());
+    println!("\tsize: {} - duration: {}, is key: {}",
+             packet.size(), packet.duration(), packet.is_key(),
+    );
+    match packet.pts() {
+        Some(pts) => println!("\tpts: {}", pts),
+        None => (),
+    }
+    match packet.dts() {
+        Some(dts) => println!("\tdts: {}", dts),
+        None => (),
+    }
+    if let Some(ref data) = packet.data() {
+        println!("\tfound data with len: {}", data.len());
+    }
+    let side_data_iter = stream.side_data();
+    let side_data_len = side_data_iter.size_hint().0;
+    if side_data_len > 0 {
+        println!("\tside data nb: {}", side_data_len);
     }
 }
