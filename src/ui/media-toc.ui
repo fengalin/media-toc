@@ -417,6 +417,8 @@ audio-volume-medium-symbolic</property>
                   <object class="GtkGrid" id="metadata-container">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
+                    <property name="row_spacing">2</property>
+                    <property name="column_spacing">2</property>
                     <child>
                       <object class="GtkLabel" id="title-caption">
                         <property name="visible">True</property>
@@ -432,7 +434,9 @@ audio-volume-medium-symbolic</property>
                       <object class="GtkLabel" id="title-lbl">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="width_chars">15</property>
+                        <property name="wrap">True</property>
+                        <property name="width_chars">20</property>
+                        <property name="max_width_chars">20</property>
                       </object>
                       <packing>
                         <property name="left_attach">1</property>
@@ -454,7 +458,9 @@ audio-volume-medium-symbolic</property>
                       <object class="GtkLabel" id="artist-lbl">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="width_chars">15</property>
+                        <property name="wrap">True</property>
+                        <property name="width_chars">20</property>
+                        <property name="max_width_chars">20</property>
                       </object>
                       <packing>
                         <property name="left_attach">1</property>
@@ -462,10 +468,52 @@ audio-volume-medium-symbolic</property>
                       </packing>
                     </child>
                     <child>
-                      <placeholder/>
+                      <object class="GtkLabel" id="description-caption">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="label" translatable="yes">Description</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">2</property>
+                      </packing>
                     </child>
                     <child>
-                      <placeholder/>
+                      <object class="GtkLabel" id="duration-caption">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="label" translatable="yes">Duration</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">3</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="description-lbl">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="wrap">True</property>
+                        <property name="width_chars">20</property>
+                        <property name="max_width_chars">20</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">2</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="duration-lbl">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="wrap">True</property>
+                        <property name="width_chars">20</property>
+                        <property name="max_width_chars">20</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">3</property>
+                      </packing>
                     </child>
                   </object>
                   <packing>

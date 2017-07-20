@@ -8,6 +8,8 @@ use std::rc::Weak;
 use std::rc::Rc;
 use std::cell::RefCell;
 
+use std::path::PathBuf;
+
 use ffmpeg::format::stream::disposition::ATTACHED_PIC;
 
 
@@ -20,8 +22,8 @@ pub trait AudioNotifiable {
 
 pub struct Context {
     pub ffmpeg_context: ffmpeg::format::context::Input,
-    pub path: String,
     pub name: String,
+    pub duration: f64,
     pub description: String,
 
     pub video_stream: Option<usize>,
@@ -61,13 +63,12 @@ fn print_packet_content(stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg
 
 
 impl Context {
-    pub fn new(path: &Path) -> Result<Context, String> {
-        match ffmpeg::format::input(&path) {
+    pub fn new(path: &PathBuf) -> Result<Context, String> {
+        match ffmpeg::format::input(&path.as_path()) {
             Ok(ffmpeg_context) => {
                 let mut new_ctx = Context{
-                    ffmpeg_context: ffmpeg_context,
-                    path: String::from(path.to_str().unwrap()),
-                    name: String::new(),
+                    name: String::from(path.file_stem().unwrap().to_str().unwrap()),
+                    duration: ffmpeg_context.duration() as f64 / ffmpeg::ffi::AV_TIME_BASE as f64,
                     description: String::new(),
 
                     video_stream: None,
@@ -78,11 +79,11 @@ impl Context {
                     audio_stream: None,
                     audio_decoder: None,
                     audio_notifiables: Vec::new(),
+                    ffmpeg_context: ffmpeg_context,
                 };
 
                 {
                     let format = new_ctx.ffmpeg_context.format();
-                    new_ctx.name = String::from(format.name());
                     new_ctx.description = String::from(format.description());
 
                     new_ctx.init_video_decoder();

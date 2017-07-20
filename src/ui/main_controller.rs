@@ -83,7 +83,7 @@ impl MainController {
         self.filepath = filepath;
 
         let path_str = String::from(self.filepath.to_str().unwrap());
-        match ::media::Context::new(&self.filepath.as_path()) {
+        let message = match ::media::Context::new(&self.filepath) {
             Ok(context) => {
                 self.context = Some(context);
 
@@ -110,5 +110,7 @@ impl MainController {
             },
             Err(error) => format!("Error opening media {}, {}", path_str, error),
         };
+
+        println!("{}", message);
     }
 }

@@ -22,6 +22,10 @@ pub struct InfoController {
     thumbnail_area: gtk::DrawingArea,
     thumbnail_frame: Option<ffmpeg::frame::Video>,
     graph: Option<ffmpeg::filter::Graph>,
+    title_lbl: gtk::Label,
+    artist_lbl: gtk::Label,
+    description_lbl: gtk::Label,
+    duration_lbl: gtk::Label,
 }
 
 impl InfoController {
@@ -33,6 +37,10 @@ impl InfoController {
             thumbnail_area: builder.get_object("thumbnail-drawingarea").unwrap(),
             thumbnail_frame: None,
             graph: None,
+            title_lbl: builder.get_object("title-lbl").unwrap(),
+            artist_lbl: builder.get_object("artist-lbl").unwrap(),
+            description_lbl: builder.get_object("description-lbl").unwrap(),
+            duration_lbl: builder.get_object("duration-lbl").unwrap(),
         }));
 
         let ic_for_cb = ic.clone();
@@ -178,6 +186,10 @@ impl MediaNotifiable for InfoController {
             Some(decoder) => {
                 self.build_graph(decoder);
                 self.thumbnail_area.show();
+
+                self.title_lbl.set_label(&context.name);
+                self.description_lbl.set_label(&context.description);
+                self.duration_lbl.set_label(&format!("{:.2} s", context.duration));
             },
             None => self.thumbnail_area.hide(),
         };
