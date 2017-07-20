@@ -22,6 +22,7 @@ pub trait AudioNotifiable {
 
 pub struct Context {
     pub ffmpeg_context: ffmpeg::format::context::Input,
+    pub file_name: String,
     pub name: String,
     pub artist: String,
     pub title: String,
@@ -46,7 +47,8 @@ impl Context {
         match ffmpeg::format::input(&path.as_path()) {
             Ok(ffmpeg_context) => {
                 let mut new_ctx = Context{
-                    name: String::from(path.file_name().unwrap().to_str().unwrap()),
+                    file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
+                    name: String::from(path.file_stem().unwrap().to_str().unwrap()),
                     artist: String::new(),
                     title: String::new(),
                     duration: ffmpeg_context.duration() as f64 / ffmpeg::ffi::AV_TIME_BASE as f64,
@@ -69,21 +71,8 @@ impl Context {
 
                     new_ctx.init_video_decoder();
                     new_ctx.init_audio_decoder();
+                    new_ctx.get_metadata();
                 }
-
-                // TODO: store metadata
-			    for (k, v) in new_ctx.ffmpeg_context.metadata().iter() {
-			        if k.to_lowercase() == "artist" {
-			            new_ctx.artist = v.to_owned();
-			        }
-			        else if k.to_lowercase() == "title" {
-			            new_ctx.title = v.to_owned();
-			        }
-			    }
-
-			    if new_ctx.title.is_empty() {
-		            new_ctx.title = String::from(path.file_stem().unwrap().to_str().unwrap());
-			    }
 
                 // TODO: see what we should do with subtitles
 
@@ -171,6 +160,23 @@ impl Context {
         }
     }
 
+
+    pub fn get_metadata(&mut self) {
+	    for (k, v) in self.ffmpeg_context.metadata().iter() {
+	        if k.to_lowercase() == "artist" {
+	            self.artist = v.to_owned();
+	        }
+	        else if k.to_lowercase() == "title" {
+	            self.title = v.to_owned();
+	        }
+	    }
+	    if self.title.is_empty() {
+            self.title = self.name.clone();
+	    }
+
+        // TODO: get chapters
+    }
+
     pub fn register_video_notifiable(&mut self, notifiable: Rc<RefCell<VideoNotifiable>>) {
         self.video_notifiables.push(Rc::downgrade(&notifiable));
     }
@@ -212,10 +218,7 @@ impl Context {
                                 Ok(decode_got_frame) =>  {
                                     got_frame = decode_got_frame;
                                     let planes = video_frame.planes();
-                                    println!("\tdecoded video frame, found {} planes - got frame: {}", planes, got_frame);
-                                    for index in 0..planes {
-                                        println!("\tplane: {} - data len: {}", index, video_frame.data(index).len());
-                                    }
+                                    println!("\tdecoded video frame, got frame: {}", got_frame);
                                 },
                                 Err(error) => println!("Error decoding video packet for stream {}: {:?}", stream_index, error),
                             }
@@ -254,10 +257,7 @@ impl Context {
                                 Ok(decode_got_frame) =>  {
                                     got_frame = decode_got_frame;
                                     let planes = audio_frame.planes();
-                                    println!("\tdecoded audio frame, found {} planes - got frame: {}", planes, got_frame);
-                                    for index in 0..planes {
-                                        println!("\tplane: {} - data len: {}", index, audio_frame.data(index).len());
-                                    }
+                                    println!("\tdecoded audio frame, got frame: {}", got_frame);
                                 },
                                 Err(error) => panic!("Error decoding audio packet for stream {}: {:?}", stream_index, error),
                             }

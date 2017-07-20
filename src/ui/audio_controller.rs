@@ -20,7 +20,6 @@ use super::MediaController;
 pub struct AudioController {
     media_ctl: MediaController,
     drawingarea: gtk::DrawingArea,
-    message: String,
     graph: Option<ffmpeg::filter::Graph>,
     frame: Option<ffmpeg::frame::Audio>,
 }
@@ -32,7 +31,6 @@ impl AudioController {
         let ac = Rc::new(RefCell::new(AudioController {
             media_ctl: MediaController::new(builder.get_object("audio-container").unwrap()),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
-            message: "audio place holder".to_owned(),
             graph: None,
             frame: None,
         }));
@@ -108,30 +106,22 @@ impl AudioController {
         while let Ok(..) = graph.get("out").unwrap().sink().frame(&mut frame_pcm) {
         }
 
-        let planes_nb = frame_pcm.planes();
-        println!("Converted frame: {} planes - {} samples - {} channels - is key: {} - is corrupt: {} - quality: {}",
-                 frame_pcm.planes(), frame_pcm.samples(), frame_pcm.channels(),
-                 frame_pcm.is_key(), frame_pcm.is_corrupt(), frame_pcm.quality());
         match frame_pcm.pts() {
-            Some(pts) => println!("\tpts {}", pts),
+            Some(pts) => println!("\t\tpts {}", pts),
             None => (),
         }
         match frame_pcm.timestamp() {
-            Some(timestamp) => println!("\ttimestamp {}", timestamp),
+            Some(timestamp) => println!("\t\ttimestamp {}", timestamp),
             None => (),
-        }
-        for index in 0..planes_nb {
-            println!("\tplane {} - len: {}", index, frame_pcm.plane::<i16>(index).len());
         }
 
         Ok(frame_pcm)
     }
 
     fn draw(&self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) {
-        let allocation = drawing_area.get_allocation();
-
         match self.frame {
             Some(ref frame) => {
+                let allocation = drawing_area.get_allocation();
                 let offset = (::std::i16::MAX / 2) as i32;
                 cr.scale(
                     allocation.width as f64 / frame.samples() as f64,
@@ -171,15 +161,7 @@ impl AudioController {
                     cr.stroke();
                 }
             },
-            None => {
-                cr.scale(allocation.width as f64, allocation.height as f64);
-
-                cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
-                cr.set_font_size(0.07);
-
-                cr.move_to(0.1, 0.53);
-                cr.show_text(&self.message);
-            },
+            None => (),
         }
     }
 }

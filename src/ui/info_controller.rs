@@ -113,50 +113,39 @@ impl InfoController {
     }
 
     fn draw(&self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) {
-        let allocation = drawing_area.get_allocation();
-
         match self.thumbnail_frame {
             Some(ref frame) => {
-                let planes = frame.planes();
-                if planes > 0 {
-                    let pixel_format = match frame.format() {
-                        ffmpeg::format::Pixel::ARGB => cairo::Format::ARgb32,
-                        ffmpeg::format::Pixel::RGB24 => cairo::Format::Rgb24,
-                        ffmpeg::format::Pixel::RGB565LE => cairo::Format::Rgb16_565,
-                        _ => cairo::Format::Invalid,
-                    };
+                let allocation = drawing_area.get_allocation();
+                let pixel_format = match frame.format() {
+                    ffmpeg::format::Pixel::ARGB => cairo::Format::ARgb32,
+                    ffmpeg::format::Pixel::RGB24 => cairo::Format::Rgb24,
+                    ffmpeg::format::Pixel::RGB565LE => cairo::Format::Rgb16_565,
+                    _ => cairo::Format::Invalid,
+                };
 
-                    let surface = cairo::ImageSurface::create_for_data(
-                            frame.data(0).to_vec().into_boxed_slice(), |_| {},
-                            pixel_format,
-                            frame.width() as i32, frame.height() as i32,
-                            frame.stride(0) as i32
-                        );
+                let surface = cairo::ImageSurface::create_for_data(
+                        frame.data(0).to_vec().into_boxed_slice(), |_| {},
+                        pixel_format,
+                        frame.width() as i32, frame.height() as i32,
+                        frame.stride(0) as i32
+                    );
 
-                    let scale;
-                    let alloc_ratio = allocation.width as f64 / allocation.height as f64;
-                    let surface_ratio = surface.get_width() as f64 / surface.get_height() as f64;
-                    if surface_ratio < alloc_ratio {
-                        scale = allocation.height as f64 / surface.get_height() as f64;
-                    }
-                    else {
-                        scale = allocation.width as f64 / surface.get_width() as f64;
-                    }
-                    let x = (allocation.width as f64 / scale - surface.get_width() as f64).abs() / 2f64;
-
-                    cr.scale(scale, scale);
-                    cr.set_source_surface(&surface, x, 0f64);
-                    cr.paint();
+                let scale;
+                let alloc_ratio = allocation.width as f64 / allocation.height as f64;
+                let surface_ratio = surface.get_width() as f64 / surface.get_height() as f64;
+                if surface_ratio < alloc_ratio {
+                    scale = allocation.height as f64 / surface.get_height() as f64;
                 }
-            },
-            None => {
-                cr.scale(allocation.width as f64, allocation.height as f64);
-                cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
-                cr.set_font_size(0.07);
+                else {
+                    scale = allocation.width as f64 / surface.get_width() as f64;
+                }
+                let x = (allocation.width as f64 / scale - surface.get_width() as f64).abs() / 2f64;
 
-                cr.move_to(0.1, 0.53);
-                cr.show_text("thumbnail placeholder");
+                cr.scale(scale, scale);
+                cr.set_source_surface(&surface, x, 0f64);
+                cr.paint();
             },
+            None => (),
         }
     }
 }
@@ -180,17 +169,15 @@ impl MediaNotifiable for InfoController {
         self.thumbnail_frame = None;
         self.graph = None;
 
-        // TODO: display metadata
+        self.title_lbl.set_label(&context.title);
+        self.artist_lbl.set_label(&context.artist);
+        self.description_lbl.set_label(&context.description);
+        self.duration_lbl.set_label(&format!("{:.2} s", context.duration));
 
         match context.video_decoder.as_ref() {
             Some(decoder) => {
                 self.build_graph(decoder);
                 self.thumbnail_area.show();
-
-                self.title_lbl.set_label(&context.title);
-                self.artist_lbl.set_label(&context.artist);
-                self.description_lbl.set_label(&context.description);
-                self.duration_lbl.set_label(&format!("{:.2} s", context.duration));
             },
             None => self.thumbnail_area.hide(),
         };

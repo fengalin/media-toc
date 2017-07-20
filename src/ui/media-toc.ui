@@ -411,14 +411,12 @@ audio-volume-medium-symbolic</property>
                 <property name="margin_top">5</property>
                 <property name="margin_bottom">5</property>
                 <property name="hexpand">True</property>
-                <property name="vexpand">True</property>
                 <property name="spacing">5</property>
                 <child>
                   <object class="GtkGrid" id="metadata-container">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="hexpand">True</property>
-                    <property name="vexpand">True</property>
                     <property name="row_spacing">5</property>
                     <property name="column_spacing">5</property>
                     <child>
@@ -552,7 +550,7 @@ audio-volume-medium-symbolic</property>
                 </child>
               </object>
               <packing>
-                <property name="expand">True</property>
+                <property name="expand">False</property>
                 <property name="fill">True</property>
                 <property name="position">0</property>
               </packing>
@@ -572,7 +570,7 @@ audio-volume-medium-symbolic</property>
                 </child>
               </object>
               <packing>
-                <property name="expand">False</property>
+                <property name="expand">True</property>
                 <property name="fill">True</property>
                 <property name="position">1</property>
               </packing>

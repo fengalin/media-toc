@@ -86,8 +86,8 @@ impl MainController {
         let message = match ::media::Context::new(&self.filepath) {
             Ok(mut context) => {
                 {
-                    let name: &str = &context.name;
-                    self.header_bar.set_subtitle(Some(name));
+                    let file_name: &str = &context.file_name;
+                    self.header_bar.set_subtitle(Some(file_name));
                 }
 
                 self.video_ctrl.borrow_mut().new_media(&context);
