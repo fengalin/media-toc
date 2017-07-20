@@ -135,10 +135,9 @@ impl InfoController {
                         scale = allocation.width as f64 / surface.get_width() as f64;
                     }
                     let x = (allocation.width as f64 / scale - surface.get_width() as f64).abs() / 2f64;
-                    let y = (allocation.height as f64 / scale - surface.get_height() as f64).abs() / 2f64;
 
                     cr.scale(scale, scale);
-                    cr.set_source_surface(&surface, x, y);
+                    cr.set_source_surface(&surface, x, 0f64);
                     cr.paint();
                 }
             },

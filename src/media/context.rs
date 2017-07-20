@@ -201,7 +201,7 @@ impl Context {
         let mut audio_frame = ffmpeg::frame::Audio::empty();
 
         for (stream, packet) in self.ffmpeg_context.packets() {
-            print_packet_content(&stream, &packet);
+            //print_packet_content(&stream, &packet);
             let mut got_frame = false;
             let decoder = stream.codec().decoder();
             match decoder.medium() {

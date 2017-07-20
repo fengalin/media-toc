@@ -160,7 +160,7 @@ audio-volume-medium-symbolic</property>
     </data>
   </object>
   <object class="GtkApplicationWindow" id="application-window">
-    <property name="width_request">1024</property>
+    <property name="width_request">1200</property>
     <property name="height_request">900</property>
     <property name="can_focus">False</property>
     <property name="icon_name">emblem-documents</property>
@@ -187,10 +187,12 @@ audio-volume-medium-symbolic</property>
                   <object class="GtkGrid" id="video-container">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
+                    <property name="hexpand">True</property>
+                    <property name="vexpand">True</property>
                     <child>
                       <object class="GtkDrawingArea" id="video-drawingarea">
                         <property name="name">video</property>
-                        <property name="height_request">500</property>
+                        <property name="height_request">100</property>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="hexpand">True</property>
@@ -203,7 +205,7 @@ audio-volume-medium-symbolic</property>
                     </child>
                   </object>
                   <packing>
-                    <property name="resize">False</property>
+                    <property name="resize">True</property>
                     <property name="shrink">True</property>
                   </packing>
                 </child>
@@ -211,6 +213,8 @@ audio-volume-medium-symbolic</property>
                   <object class="GtkGrid" id="audio-container">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
+                    <property name="hexpand">True</property>
+                    <property name="vexpand">True</property>
                     <child>
                       <object class="GtkDrawingArea" id="audio-drawingarea">
                         <property name="name">audio</property>
@@ -272,7 +276,7 @@ audio-volume-medium-symbolic</property>
                 </child>
               </object>
               <packing>
-                <property name="expand">False</property>
+                <property name="expand">True</property>
                 <property name="fill">True</property>
                 <property name="position">0</property>
               </packing>
@@ -393,41 +397,69 @@ audio-volume-medium-symbolic</property>
         </child>
         <child>
           <object class="GtkBox" id="info-box">
-            <property name="width_request">200</property>
+            <property name="width_request">400</property>
             <property name="visible">True</property>
             <property name="can_focus">False</property>
             <property name="vexpand">True</property>
             <property name="orientation">vertical</property>
             <child>
-              <object class="GtkBox">
+              <object class="GtkBox" id="metadata-thumbnail-container">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
+                <property name="margin_left">5</property>
+                <property name="margin_right">5</property>
+                <property name="margin_top">5</property>
+                <property name="margin_bottom">5</property>
                 <property name="hexpand">True</property>
                 <property name="vexpand">True</property>
+                <property name="spacing">5</property>
                 <child>
-                  <object class="GtkGrid">
+                  <object class="GtkGrid" id="metadata-container">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <child>
-                      <placeholder/>
+                      <object class="GtkLabel" id="title-caption">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="label" translatable="yes">Title</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">0</property>
+                      </packing>
                     </child>
                     <child>
-                      <placeholder/>
+                      <object class="GtkLabel" id="title-lbl">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="width_chars">15</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">0</property>
+                      </packing>
                     </child>
                     <child>
-                      <placeholder/>
+                      <object class="GtkLabel" id="artist-caption">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="label" translatable="yes">Artist</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">1</property>
+                      </packing>
                     </child>
                     <child>
-                      <placeholder/>
-                    </child>
-                    <child>
-                      <placeholder/>
-                    </child>
-                    <child>
-                      <placeholder/>
-                    </child>
-                    <child>
-                      <placeholder/>
+                      <object class="GtkLabel" id="artist-lbl">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="width_chars">15</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">1</property>
+                      </packing>
                     </child>
                     <child>
                       <placeholder/>
@@ -437,17 +469,18 @@ audio-volume-medium-symbolic</property>
                     </child>
                   </object>
                   <packing>
-                    <property name="expand">False</property>
+                    <property name="expand">True</property>
                     <property name="fill">True</property>
                     <property name="position">0</property>
                   </packing>
                 </child>
                 <child>
                   <object class="GtkDrawingArea" id="thumbnail-drawingarea">
+                    <property name="width_request">200</property>
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="hexpand">True</property>
-                    <property name="vexpand">True</property>
+                    <property name="halign">baseline</property>
+                    <property name="valign">baseline</property>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -457,7 +490,7 @@ audio-volume-medium-symbolic</property>
                 </child>
               </object>
               <packing>
-                <property name="expand">False</property>
+                <property name="expand">True</property>
                 <property name="fill">True</property>
                 <property name="position">0</property>
               </packing>
