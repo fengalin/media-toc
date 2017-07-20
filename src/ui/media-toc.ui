@@ -417,12 +417,15 @@ audio-volume-medium-symbolic</property>
                   <object class="GtkGrid" id="metadata-container">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
+                    <property name="hexpand">True</property>
+                    <property name="vexpand">True</property>
                     <property name="row_spacing">2</property>
-                    <property name="column_spacing">2</property>
+                    <property name="column_spacing">5</property>
                     <child>
                       <object class="GtkLabel" id="title-caption">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
+                        <property name="halign">end</property>
                         <property name="label" translatable="yes">Title</property>
                       </object>
                       <packing>
@@ -434,9 +437,10 @@ audio-volume-medium-symbolic</property>
                       <object class="GtkLabel" id="title-lbl">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
+                        <property name="hexpand">True</property>
                         <property name="wrap">True</property>
-                        <property name="width_chars">20</property>
-                        <property name="max_width_chars">20</property>
+                        <property name="width_chars">0</property>
+                        <property name="max_width_chars">0</property>
                       </object>
                       <packing>
                         <property name="left_attach">1</property>
@@ -447,6 +451,7 @@ audio-volume-medium-symbolic</property>
                       <object class="GtkLabel" id="artist-caption">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
+                        <property name="halign">end</property>
                         <property name="label" translatable="yes">Artist</property>
                       </object>
                       <packing>
@@ -458,9 +463,10 @@ audio-volume-medium-symbolic</property>
                       <object class="GtkLabel" id="artist-lbl">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
+                        <property name="hexpand">True</property>
                         <property name="wrap">True</property>
-                        <property name="width_chars">20</property>
-                        <property name="max_width_chars">20</property>
+                        <property name="width_chars">0</property>
+                        <property name="max_width_chars">0</property>
                       </object>
                       <packing>
                         <property name="left_attach">1</property>
@@ -471,6 +477,7 @@ audio-volume-medium-symbolic</property>
                       <object class="GtkLabel" id="description-caption">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
+                        <property name="halign">end</property>
                         <property name="label" translatable="yes">Description</property>
                       </object>
                       <packing>
@@ -482,6 +489,7 @@ audio-volume-medium-symbolic</property>
                       <object class="GtkLabel" id="duration-caption">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
+                        <property name="halign">end</property>
                         <property name="label" translatable="yes">Duration</property>
                       </object>
                       <packing>
@@ -493,9 +501,10 @@ audio-volume-medium-symbolic</property>
                       <object class="GtkLabel" id="description-lbl">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
+                        <property name="hexpand">True</property>
                         <property name="wrap">True</property>
-                        <property name="width_chars">20</property>
-                        <property name="max_width_chars">20</property>
+                        <property name="width_chars">0</property>
+                        <property name="max_width_chars">0</property>
                       </object>
                       <packing>
                         <property name="left_attach">1</property>
@@ -506,9 +515,10 @@ audio-volume-medium-symbolic</property>
                       <object class="GtkLabel" id="duration-lbl">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
+                        <property name="hexpand">True</property>
                         <property name="wrap">True</property>
-                        <property name="width_chars">20</property>
-                        <property name="max_width_chars">20</property>
+                        <property name="width_chars">0</property>
+                        <property name="max_width_chars">0</property>
                       </object>
                       <packing>
                         <property name="left_attach">1</property>
