@@ -11,3 +11,6 @@ use self::video_controller::VideoController;
 
 mod audio_controller;
 use self::audio_controller::AudioController;
+
+mod info_controller;
+use self::info_controller::InfoController;

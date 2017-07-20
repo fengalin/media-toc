@@ -1,16 +1,15 @@
 extern crate gtk;
-extern crate ffmpeg;
 
 use gtk::WidgetExt;
 
 use ::media::Context;
 
 pub struct MediaController {
-    container: gtk::Grid,
+    container: gtk::Widget,
 }
 
 impl MediaController {
-    pub fn new(container: gtk::Grid) -> MediaController {
+    pub fn new(container: gtk::Widget) -> MediaController {
         MediaController{ container: container }
     }
 

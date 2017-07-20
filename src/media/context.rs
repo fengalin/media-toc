@@ -8,11 +8,14 @@ use std::rc::Weak;
 use std::rc::Rc;
 use std::cell::RefCell;
 
+use ffmpeg::format::stream::disposition::ATTACHED_PIC;
+
+
 pub trait VideoNotifiable {
-    fn new_video_frame(&mut self, ffmpeg::frame::Video);
+    fn new_video_frame(&mut self, &ffmpeg::frame::Video);
 }
 pub trait AudioNotifiable {
-    fn new_audio_frame(&mut self, ffmpeg::frame::Audio);
+    fn new_audio_frame(&mut self, &ffmpeg::frame::Audio);
 }
 
 pub struct Context {
@@ -23,11 +26,12 @@ pub struct Context {
 
     pub video_stream: Option<usize>,
     pub video_decoder: Option<ffmpeg::codec::decoder::Video>,
-    pub video_notifiable: Option<Weak<RefCell<VideoNotifiable>>>,
+    pub video_notifiables: Vec<Weak<RefCell<VideoNotifiable>>>,
+    pub video_is_thumbnail: bool,
 
     pub audio_stream: Option<usize>,
     pub audio_decoder: Option<ffmpeg::codec::decoder::Audio>,
-    pub audio_notifiable: Option<Weak<RefCell<AudioNotifiable>>>,
+    pub audio_notifiables: Vec<Weak<RefCell<AudioNotifiable>>>,
 }
 
 
@@ -68,11 +72,12 @@ impl Context {
 
                     video_stream: None,
                     video_decoder: None,
-                    video_notifiable: None,
+                    video_notifiables: Vec::new(),
+                    video_is_thumbnail: false,
 
                     audio_stream: None,
                     audio_decoder: None,
-                    audio_notifiable: None,
+                    audio_notifiables: Vec::new(),
                 };
 
                 {
@@ -89,8 +94,6 @@ impl Context {
                 // TODO: see what we should do with subtitles
 
                 println!("\n*** New media - Input: {} - {}", &new_ctx.name, &new_ctx.description);
-
-                //new_ctx.preview();
 
                 if new_ctx.video_stream.is_some() || new_ctx.audio_stream.is_some() {
                     // TODO: also check for misdetections (detection score)
@@ -111,7 +114,14 @@ impl Context {
         let stream = match self.ffmpeg_context.streams().best(ffmpeg::media::Type::Video) {
             Some(best_stream) => {
                 stream_index = best_stream.index();
-                println!("\nFound video stream with id: {}", stream_index);
+                if best_stream.disposition() & ATTACHED_PIC == ATTACHED_PIC {
+                    self.video_is_thumbnail = true;
+                    println!("\nFound thumbnail in stream with id: {}", stream_index);
+                }
+                else {
+                    self.video_is_thumbnail = false;
+                    println!("\nFound video stream with id: {}", stream_index);
+                }
                 best_stream
             },
             None => {
@@ -170,11 +180,11 @@ impl Context {
     }
 
     pub fn register_video_notifiable(&mut self, notifiable: Rc<RefCell<VideoNotifiable>>) {
-        self.video_notifiable = Some(Rc::downgrade(&notifiable));
+        self.video_notifiables.push(Rc::downgrade(&notifiable));
     }
 
     pub fn register_audio_notifiable(&mut self, notifiable: Rc<RefCell<AudioNotifiable>>) {
-        self.audio_notifiable = Some(Rc::downgrade(&notifiable));
+        self.audio_notifiables.push(Rc::downgrade(&notifiable));
     }
 
     pub fn preview(&mut self) {
@@ -219,18 +229,16 @@ impl Context {
                             }
                             if got_frame {
                                 stream_processed.insert(stream_index);
-                                match self.video_notifiable.as_ref() {
-                                    Some(notifiable_weak) => {
-                                        match notifiable_weak.upgrade() {
-                                            Some(notifiable) => {
-                                                notifiable.borrow_mut().new_video_frame(video_frame);
-                                                video_frame = ffmpeg::frame::Video::empty();
-                                            },
-                                            None => (),
-                                        }
-                                    },
-                                    None => (),
+                                for notifiable_weak in self.video_notifiables.iter() {
+                                    match notifiable_weak.upgrade() {
+                                        Some(notifiable) => {
+                                            notifiable.borrow_mut().new_video_frame(&video_frame);
+                                        },
+                                        None => (),
+                                    };
                                 }
+
+                                video_frame = ffmpeg::frame::Video::empty();
                             }
                         }
                         else {
@@ -263,18 +271,16 @@ impl Context {
                             }
                             if got_frame {
                                 stream_processed.insert(stream_index);
-                                match self.audio_notifiable.as_ref() {
-                                    Some(notifiable_weak) => {
-                                        match notifiable_weak.upgrade() {
-                                            Some(notifiable) => {
-                                                notifiable.borrow_mut().new_audio_frame(audio_frame);
-                                                audio_frame = ffmpeg::frame::Audio::empty();
-                                            },
-                                            None => (),
-                                        }
-                                    },
-                                    None => (),
+                                for notifiable_weak in self.audio_notifiables.iter() {
+                                    match notifiable_weak.upgrade() {
+                                        Some(notifiable) => {
+                                            notifiable.borrow_mut().new_audio_frame(&audio_frame);
+                                        },
+                                        None => (),
+                                    };
                                 }
+
+                                audio_frame = ffmpeg::frame::Audio::empty();
                             }
                         }
                         else {

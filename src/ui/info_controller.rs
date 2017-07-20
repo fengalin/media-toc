@@ -17,39 +17,35 @@ use ::media::VideoNotifiable;
 use super::MediaNotifiable;
 use super::MediaController;
 
-
-pub struct VideoController {
+pub struct InfoController {
     media_ctl: MediaController,
-    video_area: gtk::DrawingArea,
-    is_thumbnail_only: bool,
-    message: String,
-    frame: Option<ffmpeg::frame::Video>,
+    thumbnail_area: gtk::DrawingArea,
+    thumbnail_frame: Option<ffmpeg::frame::Video>,
     graph: Option<ffmpeg::filter::Graph>,
 }
 
-
-impl VideoController {
-    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<VideoController>> {
-        // need a RefCell because the callbacks will use immutable versions of vc
+impl InfoController {
+    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<InfoController>> {
+        // need a RefCell because the callbacks will use immutable versions of ac
         // when the UI controllers will get a mutable version from time to time
-        let vc = Rc::new(RefCell::new(VideoController {
-            media_ctl: MediaController::new(builder.get_object("video-container").unwrap()),
-            video_area: builder.get_object("video-drawingarea").unwrap(),
-            is_thumbnail_only: false,
-            message: "video place holder".to_owned(),
-            frame: None,
+        let ic = Rc::new(RefCell::new(InfoController {
+            media_ctl: MediaController::new(builder.get_object("info-box").unwrap()),
+            thumbnail_area: builder.get_object("thumbnail-drawingarea").unwrap(),
+            thumbnail_frame: None,
             graph: None,
         }));
 
-        let vc_for_cb = vc.clone();
-        vc.borrow().video_area.connect_draw(move |ref drawing_area, ref cairo_ctx| {
-            vc_for_cb.borrow().draw(drawing_area, cairo_ctx);
+        let ic_for_cb = ic.clone();
+        ic.borrow().thumbnail_area.connect_draw(move |ref drawing_area, ref cairo_ctx| {
+            ic_for_cb.borrow().draw(drawing_area, cairo_ctx);
             Inhibit(false)
         });
 
-        vc
+        ic
     }
 
+    // TODO: find a way to factorize with VideoController
+    // build_graph, convert_to_rgb and draw
     fn build_graph(&mut self, decoder: &ffmpeg::codec::decoder::Video) {
         let mut graph = ffmpeg::filter::Graph::new();
 
@@ -111,7 +107,7 @@ impl VideoController {
     fn draw(&self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) {
         let allocation = drawing_area.get_allocation();
 
-        match self.frame {
+        match self.thumbnail_frame {
             Some(ref frame) => {
                 let planes = frame.planes();
                 if planes > 0 {
@@ -152,13 +148,13 @@ impl VideoController {
                 cr.set_font_size(0.07);
 
                 cr.move_to(0.1, 0.53);
-                cr.show_text(&self.message);
+                cr.show_text("thumbnail placeholder");
             },
         }
     }
 }
 
-impl Deref for VideoController {
+impl Deref for InfoController {
 	type Target = MediaController;
 
 	fn deref(&self) -> &Self::Target {
@@ -166,45 +162,44 @@ impl Deref for VideoController {
 	}
 }
 
-impl DerefMut for VideoController {
+impl DerefMut for InfoController {
 	fn deref_mut(&mut self) -> &mut Self::Target {
 		&mut self.media_ctl
 	}
 }
 
-impl MediaNotifiable for VideoController {
+impl MediaNotifiable for InfoController {
     fn new_media(&mut self, context: &Context) {
-        self.frame = None;
+        self.thumbnail_frame = None;
         self.graph = None;
+
+        // TODO: display metadata
 
         match context.video_decoder.as_ref() {
             Some(decoder) => {
                 self.build_graph(decoder);
-                self.is_thumbnail_only = context.video_is_thumbnail;
-                if !self.is_thumbnail_only {
-                    self.show();
-                }
-                else {
-                    self.hide();
-                }
+                self.thumbnail_area.show();
             },
-            None => {
-                self.hide();
-            }
+            None => self.thumbnail_area.hide(),
         };
+
+        self.show();
     }
 }
 
-impl VideoNotifiable for VideoController {
+impl VideoNotifiable for InfoController {
     fn new_video_frame(&mut self, frame: &ffmpeg::frame::Video) {
-        match self.convert_to_rgb(frame) {
-            Ok(frame_rgb) => {
-                if !self.is_thumbnail_only {
-                    self.frame = Some(frame_rgb);
-                    self.video_area.queue_draw();
+        match self.thumbnail_frame {
+            Some(_) => (),
+            None => {
+                match self.convert_to_rgb(frame) {
+                    Ok(frame_rgb) => {
+                        self.thumbnail_frame = Some(frame_rgb);
+                        self.thumbnail_area.queue_draw();
+                    },
+                    Err(error) =>  panic!("\tError converting to rgb: {:?}", error),
                 }
             },
-            Err(error) =>  panic!("\tError converting to rgb: {:?}", error),
-        }
+        };
     }
 }

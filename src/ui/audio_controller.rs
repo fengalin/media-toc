@@ -38,8 +38,8 @@ impl AudioController {
         }));
 
         let ac_for_cb = ac.clone();
-        ac.borrow().drawingarea.connect_draw(move |_, cairo_ctx| {
-            ac_for_cb.borrow().draw(&cairo_ctx);
+        ac.borrow().drawingarea.connect_draw(move |ref drawing_area, ref cairo_ctx| {
+            ac_for_cb.borrow().draw(drawing_area, cairo_ctx);
             Inhibit(false)
         });
 
@@ -100,7 +100,7 @@ impl AudioController {
         }
     }
 
-    fn convert_to_pcm16(&mut self, frame: ffmpeg::frame::Audio) -> Result<ffmpeg::frame::Audio, String> {
+    fn convert_to_pcm16(&mut self, frame: &ffmpeg::frame::Audio) -> Result<ffmpeg::frame::Audio, String> {
         let mut graph = self.graph.as_mut().unwrap();
         graph.get("in").unwrap().source().add(&frame).unwrap();
 
@@ -127,8 +127,8 @@ impl AudioController {
         Ok(frame_pcm)
     }
 
-    fn draw(&self, cr: &cairo::Context) {
-        let allocation = self.drawingarea.get_allocation();
+    fn draw(&self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) {
+        let allocation = drawing_area.get_allocation();
 
         match self.frame {
             Some(ref frame) => {
@@ -219,7 +219,7 @@ impl MediaNotifiable for AudioController {
 }
 
 impl AudioNotifiable for AudioController {
-    fn new_audio_frame(&mut self, frame: ffmpeg::frame::Audio) {
+    fn new_audio_frame(&mut self, frame: &ffmpeg::frame::Audio) {
         match self.convert_to_pcm16(frame) {
             Ok(frame_pcm) => self.frame = Some(frame_pcm),
             Err(error) =>  panic!("\tError converting to pcm: {:?}", error),

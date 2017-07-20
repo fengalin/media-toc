@@ -8,19 +8,20 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 
 use gtk::prelude::*;
-use gtk::{ApplicationWindow, HeaderBar, Statusbar, Button,
+use gtk::{ApplicationWindow, HeaderBar, Button,
           FileChooserDialog, ResponseType, FileChooserAction};
 
 use super::MediaNotifiable;
 use super::VideoController;
 use super::AudioController;
+use super::InfoController;
 
 pub struct MainController {
     window: ApplicationWindow,
     header_bar: HeaderBar,
-    status_bar: Statusbar,
     video_ctrl: Rc<RefCell<VideoController>>,
     audio_ctrl: Rc<RefCell<AudioController>>,
+    info_ctrl: Rc<RefCell<InfoController>>,
 
     filepath: PathBuf,
     context: Option<::media::context::Context>,
@@ -31,9 +32,9 @@ impl MainController {
         let mc = Rc::new(RefCell::new(MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
-            status_bar: builder.get_object("status-bar").unwrap(),
             video_ctrl: VideoController::new(&builder),
             audio_ctrl: AudioController::new(&builder),
+            info_ctrl: InfoController::new(&builder),
             filepath: PathBuf::new(),
             context: None,
         }));
@@ -59,10 +60,6 @@ impl MainController {
     }
 
 
-    fn display_message(&self, context: &str, message: &str) {
-        self.status_bar.push(self.status_bar.get_context_id(context), message);
-    }
-
     fn select_media(&mut self) {
         let file_dlg = FileChooserDialog::new(Some("Open a media file"),
                                               Some(&self.window),
@@ -86,7 +83,7 @@ impl MainController {
         self.filepath = filepath;
 
         let path_str = String::from(self.filepath.to_str().unwrap());
-        let message = match ::media::Context::new(&self.filepath.as_path()) {
+        match ::media::Context::new(&self.filepath.as_path()) {
             Ok(context) => {
                 self.context = Some(context);
 
@@ -102,13 +99,16 @@ impl MainController {
                     context.register_audio_notifiable(self.audio_ctrl.clone());
                 }
 
+                self.info_ctrl.borrow_mut().new_media(context);
+                if context.video_stream.is_some() {
+                    context.register_video_notifiable(self.info_ctrl.clone());
+                }
+
                 context.preview();
 
                 format!("Opened media {:?}", path_str)
             },
             Err(error) => format!("Error opening media {}, {}", path_str, error),
         };
-
-        self.display_message("open media", &message);
     }
 }
