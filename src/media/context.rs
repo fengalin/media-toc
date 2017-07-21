@@ -106,6 +106,9 @@ impl Context {
 	            for (k, v) in best_stream.metadata().iter() {
 	                println!("\tmetadata {}: {}", k, v);
 	            }
+                for side_data in best_stream.side_data() {
+                    println!("\tside data {:?}, len: {}", side_data.kind(), side_data.data().len());
+                }
                 best_stream
             },
             None => {
@@ -149,6 +152,9 @@ impl Context {
 	                }
 	                println!("\tmetadata {}: {}", k, v);
 	            }
+                for side_data in best_stream.side_data() {
+                    println!("\tside data {:?}, len: {}", side_data.kind(), side_data.data().len());
+                }
                 best_stream
             },
             None => {
