@@ -1,7 +1,5 @@
 extern crate ffmpeg;
 
-use std::path::Path;
-
 use std::collections::HashSet;
 
 use std::rc::Weak;
@@ -97,12 +95,17 @@ impl Context {
                 stream_index = best_stream.index();
                 if best_stream.disposition() & ATTACHED_PIC == ATTACHED_PIC {
                     self.video_is_thumbnail = true;
-                    println!("\nFound thumbnail in stream with id: {}", stream_index);
+                    println!("\nFound thumbnail in stream with id: {}, start time: {}",
+                        stream_index, best_stream.start_time()
+                    );
                 }
                 else {
                     self.video_is_thumbnail = false;
                     println!("\nFound video stream with id: {}", stream_index);
                 }
+	            for (k, v) in best_stream.metadata().iter() {
+	                println!("\tmetadata {}: {}", k, v);
+	            }
                 best_stream
             },
             None => {
@@ -114,14 +117,14 @@ impl Context {
         match stream.codec().decoder().video() {
             Ok(mut decoder) => {
                 match decoder.set_parameters(stream.parameters()) {
-                    Ok(_) => {
-                        println!("\tinitialzed video decoder: {:?}", decoder.format());
-                    },
+                    Ok(_) => (),
                     Err(error) => panic!("Failed to set parameters for video decoder: {:?}", error),
                 }
 
-                println!("\tvideo decoder: {:?}, width: {}, height: {}",
-                         decoder.format(), decoder.width(), decoder.height());
+                println!("\tvideo decoder: {:?}, time base {}, delay: {}, width: {}, height: {}",
+                         decoder.format(), decoder.time_base(), decoder.delay(),
+                         decoder.width(), decoder.height()
+                 );
                 self.video_stream = Some(stream_index);
                 self.video_decoder = Some(decoder);
             },
@@ -134,7 +137,18 @@ impl Context {
         let stream = match self.ffmpeg_context.streams().best(ffmpeg::media::Type::Audio) {
             Some(best_stream) => {
                 stream_index = best_stream.index();
-                println!("\nFound audio stream with id: {}", stream_index);
+                println!("\nFound audio stream with id: {}, start time: {}",
+                         stream_index, best_stream.start_time()
+                );
+	            for (k, v) in best_stream.metadata().iter() {
+	                if k.to_lowercase() == "artist" {
+	                    self.artist = v.to_owned();
+	                }
+	                else if k.to_lowercase() == "title" {
+	                    self.title = v.to_owned();
+	                }
+	                println!("\tmetadata {}: {}", k, v);
+	            }
                 best_stream
             },
             None => {
@@ -146,13 +160,12 @@ impl Context {
         match stream.codec().decoder().audio() {
             Ok(mut decoder) => {
                 match decoder.set_parameters(stream.parameters()) {
-                    Ok(_) => {
-                        println!("\tinitialzed audio decoder: {:?} - channels: {}", decoder.format(), decoder.channels());
-                    },
+                    Ok(_) => (),
                     Err(error) => panic!("Failed to set parameters for audio decoder: {:?}", error),
                 }
-                println!("\taudio decoder: {:?}, channels: {}, frame count: {}",
-                         decoder.format(), decoder.channels(), decoder.frames());
+                println!("\taudio decoder: {:?}, time base {}, delay: {}, channels: {}, frame count: {}",
+                         decoder.format(), decoder.time_base(),
+                         decoder.delay(), decoder.channels(), decoder.frames());
                 self.audio_stream = Some(stream_index);
                 self.audio_decoder = Some(decoder);
             },
@@ -199,7 +212,7 @@ impl Context {
         let mut audio_frame = ffmpeg::frame::Audio::empty();
 
         for (stream, packet) in self.ffmpeg_context.packets() {
-            //print_packet_content(&stream, &packet);
+            print_packet_content(&stream, &packet);
             let mut got_frame = false;
             let decoder = stream.codec().decoder();
             match decoder.medium() {
@@ -217,7 +230,6 @@ impl Context {
                             match video.decode(&packet, &mut video_frame) {
                                 Ok(decode_got_frame) =>  {
                                     got_frame = decode_got_frame;
-                                    let planes = video_frame.planes();
                                     println!("\tdecoded video frame, got frame: {}", got_frame);
                                 },
                                 Err(error) => println!("Error decoding video packet for stream {}: {:?}", stream_index, error),
@@ -256,7 +268,6 @@ impl Context {
                             match audio.decode(&packet, &mut audio_frame) {
                                 Ok(decode_got_frame) =>  {
                                     got_frame = decode_got_frame;
-                                    let planes = audio_frame.planes();
                                     println!("\tdecoded audio frame, got frame: {}", got_frame);
                                 },
                                 Err(error) => panic!("Error decoding audio packet for stream {}: {:?}", stream_index, error),
@@ -293,24 +304,20 @@ impl Context {
 
 
 fn print_packet_content(stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
-    println!("\n* Packet for {:?} stream: {}", stream.disposition(), stream.index());
-    println!("\tsize: {} - duration: {}, is key: {}",
+    print!("\n* Packet for {:?} stream: {}", stream.disposition(), stream.index());
+    print!(" size: {} - duration: {}, is key: {}",
              packet.size(), packet.duration(), packet.is_key(),
     );
     match packet.pts() {
-        Some(pts) => println!("\tpts: {}", pts),
+        Some(pts) => print!(" pts: {}", pts),
         None => (),
     }
     match packet.dts() {
-        Some(dts) => println!("\tdts: {}", dts),
+        Some(dts) => print!(" dts: {}", dts),
         None => (),
     }
-    if let Some(ref data) = packet.data() {
-        println!("\tfound data with len: {}", data.len());
-    }
-    let side_data_iter = stream.side_data();
-    let side_data_len = side_data_iter.size_hint().0;
-    if side_data_len > 0 {
-        println!("\tside data nb: {}", side_data_len);
+    println!();
+    for side_data in stream.side_data() {
+        println!("\tside data {:?}, len: {}", side_data.kind(), side_data.data().len());
     }
 }

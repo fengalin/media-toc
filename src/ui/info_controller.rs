@@ -9,7 +9,6 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 use gtk::prelude::*;
-use cairo::enums::{FontSlant, FontWeight};
 
 use ::media::Context;
 use ::media::VideoNotifiable;
