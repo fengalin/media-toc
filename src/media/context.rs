@@ -31,12 +31,12 @@ pub struct Context {
 
     pub video_stream: Option<usize>,
     pub video_decoder: Option<ffmpeg::codec::decoder::Video>,
-    pub video_notifiables: Vec<Weak<RefCell<VideoNotifiable>>>,
+    video_notifiables: Vec<Weak<RefCell<VideoNotifiable>>>,
     pub video_is_thumbnail: bool,
 
     pub audio_stream: Option<usize>,
     pub audio_decoder: Option<ffmpeg::codec::decoder::Audio>,
-    pub audio_notifiables: Vec<Weak<RefCell<AudioNotifiable>>>,
+    audio_notifiables: Vec<Weak<RefCell<AudioNotifiable>>>,
 }
 
 
@@ -71,7 +71,7 @@ impl Context {
 
                     new_ctx.init_video_decoder();
                     new_ctx.init_audio_decoder();
-                    new_ctx.get_metadata();
+                    new_ctx.init_metadata();
                 }
 
                 // TODO: see what we should do with subtitles
@@ -90,7 +90,7 @@ impl Context {
         }
     }
 
-    pub fn init_video_decoder(&mut self) {
+    fn init_video_decoder(&mut self) {
         let stream_index;
         let stream = match self.ffmpeg_context.streams().best(ffmpeg::media::Type::Video) {
             Some(best_stream) => {
@@ -129,7 +129,7 @@ impl Context {
         }
     }
 
-    pub fn init_audio_decoder(&mut self) {
+    fn init_audio_decoder(&mut self) {
         let stream_index;
         let stream = match self.ffmpeg_context.streams().best(ffmpeg::media::Type::Audio) {
             Some(best_stream) => {
@@ -161,7 +161,7 @@ impl Context {
     }
 
 
-    pub fn get_metadata(&mut self) {
+    fn init_metadata(&mut self) {
 	    for (k, v) in self.ffmpeg_context.metadata().iter() {
 	        if k.to_lowercase() == "artist" {
 	            self.artist = v.to_owned();
