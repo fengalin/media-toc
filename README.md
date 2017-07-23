@@ -2,7 +2,7 @@
 Media-TOC is an application to build a table of contents from of a media file or
 to split a media file into chapters.
 
-**Important**: Media-TOC is in an² early stage of development. Don't expect
+**Important**: Media-TOC is in an early stage of development. Don't expect
 anything usable soon. Of course, you can [contribute](#contribute) to the project
 if you find it interesting.
 
@@ -25,8 +25,8 @@ At the moment, Media-TOC can:
 - Display metadata from the media.
 - Display chapters' data.
 
-## <a name='ui'></a>UI prototype
-![Media TOC UI prototype](assets/media-toc.png)
+## <a name='ui'></a>Screenshot
+![Media-TOC UI](assets/media-toc.png)
 
 # <a name='contribute'></a>How to contribute
 Contributions are welcomed.
@@ -38,7 +38,7 @@ Contributions are welcomed.
 ## Toolchain
 You can install Rust via your package manager or using Rustup which allows
 installing the compiler for your user only and which will fetch the latest
-versions (stable or nightly, depending on your preferences).
+versions (stable or nightly, depending on your preference).
 
 ### Using the distribution's package manager
 Example on Fedora:
@@ -55,6 +55,8 @@ See the full documentation [here](https://github.com/rust-lang-nursery/rustup.rs
 ## Dependencies
 Dependencies are handled by [Cargo](http://doc.crates.io/). You will need the
 following packages installed on your OS:
+
+A workaround is needed at the moment, take a look at the comment in [Cago.toml](https://github.com/fengalin/media-toc/blob/master/Cargo.toml).
 
 ### Fedora
 ```
@@ -79,6 +81,3 @@ Use Cargo (from the root of the project directory):
 ```
 $ cargo run
 ```
-
-# References
-TBD

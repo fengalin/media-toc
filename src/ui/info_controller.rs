@@ -204,10 +204,14 @@ impl MediaNotifiable for InfoController {
         self.duration_lbl.set_label(&format!("{:.2} s", context.duration));
 
         self.chapter_store.clear();
+        // FIX for sample video: generate ids (TODO: remove)
+        let mut id = 0;
         for chapter in context.chapters.iter() {
+            id += 1;
             self.chapter_store.insert_with_values(
                 None, &[0, 1, 2, 3],
-                &[&chapter.id, &chapter.title(), &chapter.start, &chapter.end],
+                &[&id, &chapter.title(), &chapter.start, &chapter.end],
+                //&[&chapter.id, &chapter.title(), &chapter.start, &chapter.end],
             );
         }
 
