@@ -18,13 +18,18 @@ use super::MediaController;
 
 pub struct InfoController {
     media_ctl: MediaController,
+
     thumbnail_area: gtk::DrawingArea,
     thumbnail_frame: Option<ffmpeg::frame::Video>,
     graph: Option<ffmpeg::filter::Graph>,
+
     title_lbl: gtk::Label,
     artist_lbl: gtk::Label,
     description_lbl: gtk::Label,
     duration_lbl: gtk::Label,
+
+    chapter_treeview: gtk::TreeView,
+    chapter_store: gtk::ListStore,
 }
 
 impl InfoController {
@@ -33,14 +38,30 @@ impl InfoController {
         // when the UI controllers will get a mutable version from time to time
         let ic = Rc::new(RefCell::new(InfoController {
             media_ctl: MediaController::new(builder.get_object("info-box").unwrap()),
+
             thumbnail_area: builder.get_object("thumbnail-drawingarea").unwrap(),
             thumbnail_frame: None,
             graph: None,
+
             title_lbl: builder.get_object("title-lbl").unwrap(),
             artist_lbl: builder.get_object("artist-lbl").unwrap(),
             description_lbl: builder.get_object("description-lbl").unwrap(),
             duration_lbl: builder.get_object("duration-lbl").unwrap(),
+
+            chapter_treeview: builder.get_object("chapter-treeview").unwrap(),
+            // columns: Id, Title, Start, End
+            chapter_store: gtk::ListStore::new(&[gtk::Type::I32, gtk::Type::String, gtk::Type::F64, gtk::Type::F64]),
+            //chapter_store: gtk::ListStore::new(&[i32::static_type(), String::static_type(), f64::static_type(), f64::static_type()]),
         }));
+
+        {
+            let ic_bor = ic.borrow();
+            ic_bor.chapter_treeview.set_model(Some(&ic_bor.chapter_store));
+            ic_bor.add_chapter_column(&"Id", 0);
+            ic_bor.add_chapter_column(&"Title", 1);
+            ic_bor.add_chapter_column(&"Start", 2);
+            ic_bor.add_chapter_column(&"End", 3);
+        }
 
         let ic_for_cb = ic.clone();
         ic.borrow().thumbnail_area.connect_draw(move |ref drawing_area, ref cairo_ctx| {
@@ -49,6 +70,15 @@ impl InfoController {
         });
 
         ic
+    }
+
+    fn add_chapter_column(&self, title: &str, col_id: i32) {
+        let col = gtk::TreeViewColumn::new();
+        col.set_title(title);
+        let renderer = gtk::CellRendererText::new();
+        col.pack_start(&renderer, true);
+        col.add_attribute(&renderer, "text", col_id);
+        self.chapter_treeview.append_column(&col);
     }
 
     // TODO: find a way to factorize with VideoController
@@ -172,6 +202,14 @@ impl MediaNotifiable for InfoController {
         self.artist_lbl.set_label(&context.artist);
         self.description_lbl.set_label(&context.description);
         self.duration_lbl.set_label(&format!("{:.2} s", context.duration));
+
+        self.chapter_store.clear();
+        for chapter in context.chapters.iter() {
+            self.chapter_store.insert_with_values(
+                None, &[0, 1, 2, 3],
+                &[&chapter.id, &chapter.title(), &chapter.start, &chapter.end],
+            );
+        }
 
         match context.video_decoder.as_ref() {
             Some(decoder) => {

@@ -1,6 +1,7 @@
 extern crate ffmpeg;
 
 use std::collections::HashSet;
+use std::collections::HashMap;
 
 use std::rc::Weak;
 use std::rc::Rc;
@@ -18,14 +19,39 @@ pub trait AudioNotifiable {
     fn new_audio_frame(&mut self, &ffmpeg::frame::Audio);
 }
 
+#[derive(Debug)]
+pub struct Chapter {
+    pub id: i32,
+    pub start: f64,
+    pub end: f64,
+    pub metadata: HashMap<String, String>,
+}
+
+impl Chapter {
+    pub fn new() -> Chapter {
+        Chapter{
+            id: 0, start: 0f64, end: 0f64, metadata: HashMap::new(),
+        }
+    }
+
+    pub fn title(&self) -> &str {
+        match self.metadata.get("title") {
+            Some(title) => &title,
+            None => "",
+        }
+    }
+}
+
 pub struct Context {
     pub ffmpeg_context: ffmpeg::format::context::Input,
     pub file_name: String,
     pub name: String,
+
     pub artist: String,
     pub title: String,
     pub duration: f64,
     pub description: String,
+    pub chapters: Vec<Chapter>,
 
     pub video_stream: Option<usize>,
     pub video_decoder: Option<ffmpeg::codec::decoder::Video>,
@@ -47,10 +73,12 @@ impl Context {
                 let mut new_ctx = Context{
                     file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
                     name: String::from(path.file_stem().unwrap().to_str().unwrap()),
+
                     artist: String::new(),
                     title: String::new(),
                     duration: ffmpeg_context.duration() as f64 / ffmpeg::ffi::AV_TIME_BASE as f64,
                     description: String::new(),
+                    chapters: Vec::new(),
 
                     video_stream: None,
                     video_decoder: None,
@@ -193,7 +221,18 @@ impl Context {
             self.title = self.name.clone();
 	    }
 
-        // TODO: get chapters
+        for avchapter in self.ffmpeg_context.chapters() {
+            let mut chapter = Chapter::new();
+            chapter.id = avchapter.id();
+            let time_base = avchapter.time_base();
+            let time_factor = time_base.numerator() as f64 / time_base.denominator() as f64;
+            chapter.start = avchapter.start() as f64 * time_factor;
+            chapter.end = avchapter.end() as f64 * time_factor;
+		    for (k, v) in avchapter.metadata().iter() {
+			    chapter.metadata.insert(k.to_lowercase(), v.to_owned());
+		    }
+            self.chapters.push(chapter);
+        }
     }
 
     pub fn register_video_notifiable(&mut self, notifiable: Rc<RefCell<VideoNotifiable>>) {

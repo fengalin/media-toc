@@ -9,4 +9,9 @@ features = ["v3_18"]
 
 [dependencies]
 cairo-rs = "0.1.3"
-ffmpeg = { git = "https://github.com/suntorvic/rust-ffmpeg.git" }
+# Need a workaround on rust-ffmpeg's Cargo.toml in order to use master git for rust-ffmpeg-sys
+# instead of the version declared.
+# I will update my repo when the [Chapters PR](https://github.com/meh/rust-ffmpeg/pull/92) is merged.
+# For the moment, use a local repo with the workaround
+ffmpeg = { path = "../rust-ffmpeg" }
+#ffmpeg = { git = "https://github.com/fengalin/rust-ffmpeg.git" }

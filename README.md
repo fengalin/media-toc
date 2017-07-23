@@ -2,20 +2,28 @@
 Media-TOC is an application to build a table of contents from of a media file or
 to split a media file into chapters.
 
-**Important**: Media-TOC is in a very early stage of development. Don't expect
-anything usable anytime soon. Of course, you can [contribute](#contribute) to the project
+**Important**: Media-TOC is in an² early stage of development. Don't expect
+anything usable soon. Of course, you can [contribute](#contribute) to the project
 if you find it interesting.
 
 # Design
 ## Technologies
 Media-TOC is developped in Rust. This is my first project using this language.
-Current design is merely a [UI prototype](#ui) and a set of technologies:
+Current design relies on the following technologies:
 - **GTK-3** ([official documentation](https://developer.gnome.org/gtk3/stable/),
 [Rust binding](https://crates.io/crates/gtk)) and [Glade](https://glade.gnome.org/).
 - **Cairo** ([official documentation](https://www.cairographics.org/documentation/),
 [Rust binding](https://crates.io/crates/cairo-rs)).
 - **FFMPEG** ([official documentation](https://ffmpeg.org/documentation.html),
 [Rust binding](https://crates.io/crates/ffmpeg)).
+
+## Status
+At the moment, Media-TOC can:
+- Open a media file (audio, video - and image but that doesn't make much sense).
+- Display the first video frame or cover image.
+- Display the first frame's wave form.
+- Display metadata from the media.
+- Display chapters' data.
 
 ## <a name='ui'></a>UI prototype
 ![Media TOC UI prototype](assets/media-toc.png)
@@ -51,7 +59,7 @@ following packages installed on your OS:
 ### Fedora
 ```
 $ sudo dnf install gtk3-devel glib2-devel ffmpeg-devel
-$ export C_INCLUDE_PATH=$C_INCLUDE_PATH:/usr/include/ffmpeg/
+$ export C_INCLUDE_PATH=$C_INCLUDE_PATH:/usr/lib/gcc/x86_64-redhat-linux/7/include/
 ```
 
 ### Debian & Unbuntu
