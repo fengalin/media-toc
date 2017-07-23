@@ -56,8 +56,6 @@ See the full documentation [here](https://github.com/rust-lang-nursery/rustup.rs
 Dependencies are handled by [Cargo](http://doc.crates.io/). You will need the
 following packages installed on your OS:
 
-A workaround is needed at the moment, take a look at the comment in [Cago.toml](https://github.com/fengalin/media-toc/blob/master/Cargo.toml).
-
 ### Fedora
 ```
 $ sudo dnf install gtk3-devel glib2-devel ffmpeg-devel
