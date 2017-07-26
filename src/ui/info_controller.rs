@@ -50,17 +50,16 @@ impl InfoController {
 
             chapter_treeview: builder.get_object("chapter-treeview").unwrap(),
             // columns: Id, Title, Start, End
-            chapter_store: gtk::ListStore::new(&[gtk::Type::I32, gtk::Type::String, gtk::Type::F64, gtk::Type::F64]),
-            //chapter_store: gtk::ListStore::new(&[i32::static_type(), String::static_type(), f64::static_type(), f64::static_type()]),
+            chapter_store: gtk::ListStore::new(&[gtk::Type::I32, gtk::Type::String, gtk::Type::String, gtk::Type::String]),
         }));
 
         {
             let ic_bor = ic.borrow();
             ic_bor.chapter_treeview.set_model(Some(&ic_bor.chapter_store));
-            ic_bor.add_chapter_column(&"Id", 0);
-            ic_bor.add_chapter_column(&"Title", 1);
-            ic_bor.add_chapter_column(&"Start", 2);
-            ic_bor.add_chapter_column(&"End", 3);
+            ic_bor.add_chapter_column(&"Id", 0, false);
+            ic_bor.add_chapter_column(&"Title", 1, true);
+            ic_bor.add_chapter_column(&"Start", 2, false);
+            ic_bor.add_chapter_column(&"End", 3, false);
         }
 
         let ic_for_cb = ic.clone();
@@ -72,12 +71,13 @@ impl InfoController {
         ic
     }
 
-    fn add_chapter_column(&self, title: &str, col_id: i32) {
+    fn add_chapter_column(&self, title: &str, col_id: i32, can_expand: bool) {
         let col = gtk::TreeViewColumn::new();
         col.set_title(title);
         let renderer = gtk::CellRendererText::new();
         col.pack_start(&renderer, true);
         col.add_attribute(&renderer, "text", col_id);
+        col.set_expand(can_expand);
         self.chapter_treeview.append_column(&col);
     }
 
@@ -201,7 +201,7 @@ impl MediaNotifiable for InfoController {
         self.title_lbl.set_label(&context.title);
         self.artist_lbl.set_label(&context.artist);
         self.description_lbl.set_label(&context.description);
-        self.duration_lbl.set_label(&format!("{:.2} s", context.duration));
+        self.duration_lbl.set_label(&format!("{}", context.duration));
 
         self.chapter_store.clear();
         // FIX for sample video: generate ids (TODO: remove)
@@ -210,7 +210,7 @@ impl MediaNotifiable for InfoController {
             id += 1;
             self.chapter_store.insert_with_values(
                 None, &[0, 1, 2, 3],
-                &[&id, &chapter.title(), &chapter.start, &chapter.end],
+                &[&id, &chapter.title(), &format!("{}", &chapter.start), &format!("{}", chapter.end)],
                 //&[&chapter.id, &chapter.title(), &chapter.start, &chapter.end],
             );
         }

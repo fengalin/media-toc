@@ -1,6 +1,7 @@
 extern crate gtk;
 extern crate cairo;
 extern crate ffmpeg;
+extern crate chrono;
 
 use gtk::Builder;
 

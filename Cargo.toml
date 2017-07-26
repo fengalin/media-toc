@@ -10,3 +10,4 @@ features = ["v3_18"]
 [dependencies]
 cairo-rs = "0.1"
 ffmpeg = { git = "https://github.com/fengalin/rust-ffmpeg.git", branch = "dep_workaround" }
+chrono = "^0"
