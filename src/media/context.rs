@@ -1,9 +1,6 @@
 extern crate ffmpeg;
 
-extern crate chrono;
-
 use std::collections::HashSet;
-use std::collections::HashMap;
 
 use std::rc::Weak;
 use std::rc::Rc;
@@ -11,12 +8,10 @@ use std::cell::RefCell;
 
 use std::path::PathBuf;
 
-use std::fmt;
-
-use chrono::NaiveTime;
-
 use ffmpeg::format::stream::disposition::ATTACHED_PIC;
 
+use super::Timestamp;
+use super::Chapter;
 
 pub trait VideoNotifiable {
     fn new_video_frame(&mut self, &ffmpeg::frame::Video);
@@ -25,79 +20,6 @@ pub trait AudioNotifiable {
     fn new_audio_frame(&mut self, &ffmpeg::frame::Audio);
 }
 
-
-pub struct Timestamp {
-    timestamp: NaiveTime,
-    is_positive: bool,
-}
-
-impl Timestamp {
-    pub fn new() -> Timestamp {
-        Timestamp {
-            timestamp: NaiveTime::from_num_seconds_from_midnight(0, 0),
-            is_positive: true,
-        }
-    }
-
-    pub fn from_sec_time_factor(sec: i64, time_factor: f64) -> Timestamp {
-        println!("from_sec_time_factor: {}, {}", sec, time_factor);
-        let sec_f = sec.abs() as f64 * time_factor;
-        Timestamp {
-            timestamp: NaiveTime::from_num_seconds_from_midnight(
-                sec_f.trunc() as u32,
-                (sec_f.fract() * 1_000_000f64) as u32
-            ),
-            is_positive: if sec >= 0 { true } else { false },
-        }
-    }
-}
-
-impl fmt::Display for Timestamp {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}{}",
-            if self.is_positive { "".to_owned() } else  { "-".to_owned() },
-            self.timestamp.format("%H:%M:%S%.3f").to_string()
-        )
-    }
-}
-
-pub struct Chapter {
-    pub id: i32,
-    pub start: Timestamp,
-    pub end: Timestamp,
-    pub metadata: HashMap<String, String>,
-}
-
-impl Chapter {
-    pub fn new() -> Chapter {
-        Chapter{
-            id: 0,
-            start: Timestamp::new(),
-            end: Timestamp::new(),
-            metadata: HashMap::new(),
-        }
-    }
-
-    pub fn set_id(&mut self, id: i32) {
-        self.id = id;
-    }
-
-    pub fn set_start(&mut self, sec: i64, time_factor: f64) {
-        self.start = Timestamp::from_sec_time_factor(sec, time_factor);
-    }
-
-
-    pub fn set_end(&mut self, sec: i64, time_factor: f64) {
-        self.end = Timestamp::from_sec_time_factor(sec, time_factor);
-    }
-
-    pub fn title(&self) -> &str {
-        match self.metadata.get("title") {
-            Some(title) => &title,
-            None => "",
-        }
-    }
-}
 
 pub struct Context {
     pub ffmpeg_context: ffmpeg::format::context::Input,
