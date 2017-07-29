@@ -2,6 +2,8 @@ extern crate gtk;
 extern crate cairo;
 
 extern crate gstreamer;
+extern crate glib;
+
 extern crate chrono;
 
 use gtk::Builder;

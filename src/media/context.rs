@@ -1,4 +1,9 @@
-extern crate gstreamer;
+extern crate gstreamer as gst;
+use gstreamer::*;
+
+extern crate glib;
+use glib::ObjectExt;
+
 
 use std::collections::HashSet;
 
@@ -20,7 +25,7 @@ pub trait AudioNotifiable {
 
 
 pub struct Context {
-    //pub ffmpeg_context: ffmpeg::format::context::Input,
+    pub pipeline: gst::Pipeline,
     pub file_name: String,
     pub name: String,
 
@@ -45,7 +50,18 @@ impl Context {
     pub fn new(path: &PathBuf) -> Result<Context, String> {
         println!("\n*** Attempting to open {:?}", path);
 
-        Ok(Context{
+        let pipeline = gst::Pipeline::new(None);
+        let src = gst::ElementFactory::make("filesrc", None).unwrap();
+        let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
+
+        src.set_property("location", &gst::Value::from(&path.as_path().to_str().unwrap())).unwrap();
+
+        pipeline.add_many(&[&src, &decodebin]).unwrap();
+        gst::Element::link_many(&[&src, &decodebin]).unwrap();
+
+
+        let mut new_ctx = Context{
+            pipeline: pipeline,
             file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
             name: String::from(path.file_stem().unwrap().to_str().unwrap()),
 
@@ -64,57 +80,104 @@ impl Context {
             //audio_decoder: None,
             audio_notifiables: Vec::new(),
             //ffmpeg_context: ffmpeg_context,
-        })
-        /*
-        match ffmpeg::format::input(&path.as_path()) {
-            Ok(ffmpeg_context) => {
-                let mut new_ctx = Context{
-                    file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
-                    name: String::from(path.file_stem().unwrap().to_str().unwrap()),
+        };
 
-                    artist: String::new(),
-                    title: String::new(),
-                    duration: Timestamp::from_sec_time_factor(
-                        ffmpeg_context.duration(),
-                        1f64 / ffmpeg::ffi::AV_TIME_BASE as f64
-                    ),
-                    description: String::new(),
-                    chapters: Vec::new(),
+        let pipeline_clone = new_ctx.pipeline.clone();
+        // TODO: move initialization to a method
+        decodebin.connect_pad_added(move |_, src_pad| {
+            let ref pipeline = pipeline_clone;
 
-                    video_stream: None,
-                    video_decoder: None,
-                    video_notifiables: Vec::new(),
-                    video_is_thumbnail: false,
+            let (is_audio, is_video) = {
+                let caps = src_pad.get_current_caps().unwrap();
+                let structure = caps.get_structure(0).unwrap();
+                let name = structure.get_name();
 
-                    audio_stream: None,
-                    audio_decoder: None,
-                    audio_notifiables: Vec::new(),
-                    ffmpeg_context: ffmpeg_context,
-                };
+                (name.starts_with("audio/"), name.starts_with("video/"))
+            };
 
-                {
-                    let format = new_ctx.ffmpeg_context.format();
-                    new_ctx.description = String::from(format.description());
+            // TODO: select best streams
 
-                    new_ctx.init_video_decoder();
-                    new_ctx.init_audio_decoder();
-                    new_ctx.init_metadata();
+            if is_audio {
+                // TODO: we will need 2 pipeline branches (there must be another
+                // name for this) for audio:
+                // 1- will go to the AudioController draw method
+                // 2- will go to the audiosink
+                // TODO: find out how to name the audio sink so that the name
+                // of the application appears in DE audio mix application
+                let queue = gst::ElementFactory::make("queue", None).unwrap();
+                let convert = gst::ElementFactory::make("audioconvert", None).unwrap();
+                let resample = gst::ElementFactory::make("audioresample", None).unwrap();
+                let sink = gst::ElementFactory::make("autoaudiosink", None).unwrap();
+
+                let elements = &[&queue, &convert, &resample, &sink];
+                pipeline.add_many(elements).unwrap();
+                gst::Element::link_many(elements).unwrap();
+
+                for e in elements {
+                    e.sync_state_with_parent().unwrap();
                 }
 
-                // TODO: see what we should do with subtitles
+                let sink_pad = queue.get_static_pad("sink").unwrap();
+                assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
+            } else if is_video {
+                let queue = gst::ElementFactory::make("queue", None).unwrap();
+                let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
+                let scale = gst::ElementFactory::make("videoscale", None).unwrap();
+                let sink = gst::ElementFactory::make("autovideosink", None).unwrap();
 
-                if new_ctx.video_stream.is_some() || new_ctx.audio_stream.is_some() {
-                    // TODO: also check for misdetections (detection score)
-                    Ok(new_ctx)
+                let elements = &[&queue, &convert, &scale, &sink];
+                pipeline.add_many(elements).unwrap();
+                gst::Element::link_many(elements).unwrap();
+
+                for e in elements {
+                    e.sync_state_with_parent().unwrap();
                 }
-                else {
-                    Err("Couldn't find any video or audio stream".to_owned())
+
+                let sink_pad = queue.get_static_pad("sink").unwrap();
+                assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
+            }
+            // TODO: how do we get the metadata and chapters?
+        });
+
+        assert_ne!(
+            new_ctx.pipeline.set_state(gst::State::Playing),
+            gst::StateChangeReturn::Failure
+        );
+
+
+        let bus = new_ctx.pipeline.get_bus().unwrap();
+
+        loop {
+            let msg = match bus.timed_pop(::std::u64::MAX) {
+                None => break,
+                Some(msg) => msg,
+            };
+
+            match msg.view() {
+                gst::MessageView::Eos => break,
+                gst::MessageView::Error(err) => {
+                    println!(
+                        "Error from {}: {} ({:?})",
+                        msg.get_src().get_path_string(),
+                        err.get_error(),
+                        err.get_debug()
+                    );
+                    break;
                 }
-            },
-            Err(error) => {
-                Err(format!("{:?}", error))
-            },
-        } */
+                gst::MessageView::StateChanged(s) => {
+                    println!(
+                        "State changed from {}: {:?} -> {:?} ({:?})",
+                        msg.get_src().get_path_string(),
+                        s.get_old(),
+                        s.get_current(),
+                        s.get_pending()
+                    );
+                }
+                _ => (),
+            }
+        }
+
+        Ok(new_ctx)
     }
 
     fn init_video_decoder(&mut self) {
