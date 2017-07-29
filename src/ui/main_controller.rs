@@ -1,5 +1,3 @@
-extern crate ffmpeg;
-
 extern crate gtk;
 
 use std::rc::Rc;

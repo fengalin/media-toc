@@ -1,7 +1,7 @@
 extern crate gtk;
 extern crate cairo;
 
-extern crate ffmpeg;
+extern crate gstreamer;
 
 use std::ops::{Deref, DerefMut};
 
@@ -19,8 +19,8 @@ use super::MediaController;
 pub struct AudioController {
     media_ctl: MediaController,
     drawingarea: gtk::DrawingArea,
-    graph: Option<ffmpeg::filter::Graph>,
-    frame: Option<ffmpeg::frame::Audio>,
+     /*graph: Option<ffmpeg::filter::Graph>,
+    frame: Option<ffmpeg::frame::Audio>, */
 }
 
 impl AudioController {
@@ -30,8 +30,8 @@ impl AudioController {
         let ac = Rc::new(RefCell::new(AudioController {
             media_ctl: MediaController::new(builder.get_object("audio-container").unwrap()),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
-            graph: None,
-            frame: None,
+            /*graph: None,
+            frame: None,*/
         }));
 
         let ac_for_cb = ac.clone();
@@ -43,6 +43,7 @@ impl AudioController {
         ac
     }
 
+    /*
     fn build_graph(&mut self, decoder: &ffmpeg::codec::decoder::Audio) {
         let mut graph = ffmpeg::filter::Graph::new();
 
@@ -96,7 +97,9 @@ impl AudioController {
             Err(error) => panic!("Error validating graph: {:?}", error),
         }
     }
+    */
 
+    /*
     fn convert_to_pcm16(&mut self, frame: &ffmpeg::frame::Audio) -> Result<ffmpeg::frame::Audio, String> {
         let mut graph = self.graph.as_mut().unwrap();
         graph.get("in").unwrap().source().add(&frame).unwrap();
@@ -116,8 +119,10 @@ impl AudioController {
 
         Ok(frame_pcm)
     }
+    */
 
     fn draw(&self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) {
+        /*
         match self.frame {
             Some(ref frame) => {
                 let allocation = drawing_area.get_allocation();
@@ -161,7 +166,7 @@ impl AudioController {
                 }
             },
             None => (),
-        }
+        } */
     }
 }
 
@@ -182,6 +187,7 @@ impl DerefMut for AudioController {
 
 impl MediaNotifiable for AudioController {
     fn new_media(&mut self, context: &Context) {
+        /*
         self.graph = None;
         self.frame = None;
 
@@ -194,16 +200,19 @@ impl MediaNotifiable for AudioController {
                 self.hide();
             }
         };
+        */
 
         self.drawingarea.queue_draw();
     }
 }
 
 impl AudioNotifiable for AudioController {
+    /*
     fn new_audio_frame(&mut self, frame: &ffmpeg::frame::Audio) {
         match self.convert_to_pcm16(frame) {
             Ok(frame_pcm) => self.frame = Some(frame_pcm),
             Err(error) =>  panic!("\tError converting to pcm: {:?}", error),
         }
     }
+    */
 }

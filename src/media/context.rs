@@ -1,4 +1,4 @@
-extern crate ffmpeg;
+extern crate gstreamer;
 
 use std::collections::HashSet;
 
@@ -8,21 +8,19 @@ use std::cell::RefCell;
 
 use std::path::PathBuf;
 
-use ffmpeg::format::stream::disposition::ATTACHED_PIC;
-
 use super::Timestamp;
 use super::Chapter;
 
 pub trait VideoNotifiable {
-    fn new_video_frame(&mut self, &ffmpeg::frame::Video);
+    //fn new_video_frame(&mut self, &ffmpeg::frame::Video);
 }
 pub trait AudioNotifiable {
-    fn new_audio_frame(&mut self, &ffmpeg::frame::Audio);
+    //fn new_audio_frame(&mut self, &ffmpeg::frame::Audio);
 }
 
 
 pub struct Context {
-    pub ffmpeg_context: ffmpeg::format::context::Input,
+    //pub ffmpeg_context: ffmpeg::format::context::Input,
     pub file_name: String,
     pub name: String,
 
@@ -33,12 +31,12 @@ pub struct Context {
     pub chapters: Vec<Chapter>,
 
     pub video_stream: Option<usize>,
-    pub video_decoder: Option<ffmpeg::codec::decoder::Video>,
+    //pub video_decoder: Option<ffmpeg::codec::decoder::Video>,
     video_notifiables: Vec<Weak<RefCell<VideoNotifiable>>>,
     pub video_is_thumbnail: bool,
 
     pub audio_stream: Option<usize>,
-    pub audio_decoder: Option<ffmpeg::codec::decoder::Audio>,
+    //pub audio_decoder: Option<ffmpeg::codec::decoder::Audio>,
     audio_notifiables: Vec<Weak<RefCell<AudioNotifiable>>>,
 }
 
@@ -47,6 +45,27 @@ impl Context {
     pub fn new(path: &PathBuf) -> Result<Context, String> {
         println!("\n*** Attempting to open {:?}", path);
 
+        Ok(Context{
+            file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
+            name: String::from(path.file_stem().unwrap().to_str().unwrap()),
+
+            artist: String::new(),
+            title: String::new(),
+            duration: Timestamp::new(),
+            description: String::new(),
+            chapters: Vec::new(),
+
+            video_stream: None,
+            //video_decoder: None,
+            video_notifiables: Vec::new(),
+            video_is_thumbnail: false,
+
+            audio_stream: None,
+            //audio_decoder: None,
+            audio_notifiables: Vec::new(),
+            //ffmpeg_context: ffmpeg_context,
+        })
+        /*
         match ffmpeg::format::input(&path.as_path()) {
             Ok(ffmpeg_context) => {
                 let mut new_ctx = Context{
@@ -95,10 +114,11 @@ impl Context {
             Err(error) => {
                 Err(format!("{:?}", error))
             },
-        }
+        } */
     }
 
     fn init_video_decoder(&mut self) {
+        /*
         let stream_index;
         let stream = match self.ffmpeg_context.streams().best(ffmpeg::media::Type::Video) {
             Some(best_stream) => {
@@ -143,9 +163,11 @@ impl Context {
             },
             Err(error) => panic!("Failed to get video decoder: {:?}", error),
         }
+        */
     }
 
     fn init_audio_decoder(&mut self) {
+        /*
         let stream_index;
         let stream = match self.ffmpeg_context.streams().best(ffmpeg::media::Type::Audio) {
             Some(best_stream) => {
@@ -187,10 +209,12 @@ impl Context {
             },
             Err(error) => panic!("Failed to get audio decoder: {:?}", error),
         }
+        */
     }
 
 
     fn init_metadata(&mut self) {
+        /*
 	    for (k, v) in self.ffmpeg_context.metadata().iter() {
 	        if k.to_lowercase() == "artist" {
 	            self.artist = v.to_owned();
@@ -215,6 +239,7 @@ impl Context {
 		    }
             self.chapters.push(chapter);
         }
+        */
     }
 
     pub fn register_video_notifiable(&mut self, notifiable: Rc<RefCell<VideoNotifiable>>) {
@@ -226,6 +251,7 @@ impl Context {
     }
 
     pub fn preview(&mut self) {
+        /*
         let mut stream_processed = HashSet::new();
         let mut expected_frames = 0;
         if self.video_stream.is_some() {
@@ -325,11 +351,11 @@ impl Context {
             if stream_processed.len() == expected_frames {
                 break;
             }
-        }
+        }*/
     }
 }
 
-
+/*
 fn print_packet_content(stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
     print!("\n* Packet for {:?} stream: {}", stream.disposition(), stream.index());
     print!(" size: {} - duration: {}, is key: {}",
@@ -347,4 +373,4 @@ fn print_packet_content(stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg
     for side_data in stream.side_data() {
         println!("\tside data {:?}, len: {}", side_data.kind(), side_data.data().len());
     }
-}
+}*/

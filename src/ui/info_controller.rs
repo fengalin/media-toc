@@ -1,8 +1,6 @@
 extern crate gtk;
 extern crate cairo;
 
-extern crate ffmpeg;
-
 use std::ops::{Deref, DerefMut};
 
 use std::rc::Rc;
@@ -20,8 +18,8 @@ pub struct InfoController {
     media_ctl: MediaController,
 
     thumbnail_area: gtk::DrawingArea,
-    thumbnail_frame: Option<ffmpeg::frame::Video>,
-    graph: Option<ffmpeg::filter::Graph>,
+    /*thumbnail_frame: Option<ffmpeg::frame::Video>,
+    graph: Option<ffmpeg::filter::Graph>,*/
 
     title_lbl: gtk::Label,
     artist_lbl: gtk::Label,
@@ -40,8 +38,8 @@ impl InfoController {
             media_ctl: MediaController::new(builder.get_object("info-box").unwrap()),
 
             thumbnail_area: builder.get_object("thumbnail-drawingarea").unwrap(),
-            thumbnail_frame: None,
-            graph: None,
+            /*thumbnail_frame: None,
+            graph: None,*/
 
             title_lbl: builder.get_object("title-lbl").unwrap(),
             artist_lbl: builder.get_object("artist-lbl").unwrap(),
@@ -83,6 +81,7 @@ impl InfoController {
 
     // TODO: find a way to factorize with VideoController
     // build_graph, convert_to_rgb and draw
+    /*
     fn build_graph(&mut self, decoder: &ffmpeg::codec::decoder::Video) {
         let mut graph = ffmpeg::filter::Graph::new();
 
@@ -129,7 +128,8 @@ impl InfoController {
             Err(error) => panic!("Error validating graph: {:?}", error),
         }
     }
-
+    */
+    /*
     fn convert_to_rgb(&mut self, frame: &ffmpeg::frame::Video) -> Result<ffmpeg::frame::Video, String> {
         let mut graph = self.graph.as_mut().unwrap();
         graph.get("in").unwrap().source().add(&frame).unwrap();
@@ -139,9 +139,10 @@ impl InfoController {
         }
 
         Ok(frame_rgb)
-    }
+    }*/
 
     fn draw(&self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) {
+        /*
         match self.thumbnail_frame {
             Some(ref frame) => {
                 let allocation = drawing_area.get_allocation();
@@ -175,7 +176,7 @@ impl InfoController {
                 cr.paint();
             },
             None => (),
-        }
+        }*/
     }
 }
 
@@ -195,8 +196,8 @@ impl DerefMut for InfoController {
 
 impl MediaNotifiable for InfoController {
     fn new_media(&mut self, context: &Context) {
-        self.thumbnail_frame = None;
-        self.graph = None;
+        /*self.thumbnail_frame = None;
+        self.graph = None;*/
 
         self.title_lbl.set_label(&context.title);
         self.artist_lbl.set_label(&context.artist);
@@ -211,23 +212,24 @@ impl MediaNotifiable for InfoController {
             self.chapter_store.insert_with_values(
                 None, &[0, 1, 2, 3],
                 &[&id, &chapter.title(), &format!("{}", &chapter.start), &format!("{}", chapter.end)],
-                //&[&chapter.id, &chapter.title(), &chapter.start, &chapter.end],
             );
         }
 
+        /*
         match context.video_decoder.as_ref() {
             Some(decoder) => {
                 self.build_graph(decoder);
                 self.thumbnail_area.show();
             },
             None => self.thumbnail_area.hide(),
-        };
+        };*/
 
         self.show();
     }
 }
 
 impl VideoNotifiable for InfoController {
+    /*
     fn new_video_frame(&mut self, frame: &ffmpeg::frame::Video) {
         match self.thumbnail_frame {
             Some(_) => (),
@@ -242,4 +244,5 @@ impl VideoNotifiable for InfoController {
             },
         };
     }
+    */
 }

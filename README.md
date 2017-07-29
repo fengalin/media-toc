@@ -9,21 +9,16 @@ if you find it interesting.
 # Design
 ## Technologies
 Media-TOC is developped in Rust. This is my first project using this language.
-Current design relies on the following technologies:
+This branch relies on the following technologies:
 - **GTK-3** ([official documentation](https://developer.gnome.org/gtk3/stable/),
 [Rust binding](https://crates.io/crates/gtk)) and [Glade](https://glade.gnome.org/).
 - **Cairo** ([official documentation](https://www.cairographics.org/documentation/),
 [Rust binding](https://crates.io/crates/cairo-rs)).
-- **FFMPEG** ([official documentation](https://ffmpeg.org/documentation.html),
-[Rust binding](https://crates.io/crates/ffmpeg)).
+- **GStreamer** ([official documentation](https://gstreamer.freedesktop.org/documentation/),
+[Rust binding](https://github.com/sdroege/gstreamer-rs)).
 
 ## Status
-At the moment, Media-TOC can:
-- Open a media file (audio, video - and image but that doesn't make much sense).
-- Display the first video frame or cover image.
-- Display the first frame's wave form.
-- Display metadata from the media.
-- Display chapters' data.
+Catching up with [master](https://github.com/fengalin/media-toc) branch...
 
 ## <a name='ui'></a>Screenshot
 ![Media-TOC UI](assets/media-toc.png)
@@ -43,12 +38,12 @@ versions (stable or nightly, depending on your preference).
 ### Using the distribution's package manager
 Example on Fedora:
 ```
-sudo dnf install rust cargo
+$ sudo dnf install rust cargo
 ```
 
 ### Using rustup
 ```
-curl https://sh.rustup.rs -sSf | sh
+$ curl https://sh.rustup.rs -sSf | sh
 ```
 See the full documentation [here](https://github.com/rust-lang-nursery/rustup.rs#installation).
 
@@ -58,20 +53,19 @@ following packages installed on your OS:
 
 ### Fedora
 ```
-$ sudo dnf install gtk3-devel glib2-devel ffmpeg-devel
-$ export C_INCLUDE_PATH=$C_INCLUDE_PATH:/usr/lib/gcc/x86_64-redhat-linux/7/include/
+$ sudo dnf install gtk3-devel glib2-devel gstreamer1-devel
 ```
 
 ### Debian & Unbuntu
 **Needs confirmation**
 ```
-$ sudo apt-get install libgtk-3-dev libavutil-dev libavformat-dev libavcodec-dev libswscale-dev
+$ sudo apt-get install libgtk-3-dev libgstreamer1.0-dev
 ```
 
 ### OS X
 **Needs confirmation**
 ```
-$ brew install gtk+3 ffmpeg
+$ brew install gtk+3 gstreamer-1.0-devel
 ```
 
 # Build and run

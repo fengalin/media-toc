@@ -1,6 +1,7 @@
 extern crate gtk;
 extern crate cairo;
-extern crate ffmpeg;
+
+extern crate gstreamer;
 extern crate chrono;
 
 use gtk::Builder;
@@ -15,7 +16,7 @@ fn main() {
         panic!("Failed to initialize GTK.");
     }
 
-    ffmpeg::init().unwrap();
+    gstreamer::init().unwrap();
 
     let builder = Builder::new_from_string(include_str!("ui/media-toc.ui"));
     let main_ctrl = MainController::new(builder);

@@ -1,7 +1,7 @@
 extern crate gtk;
 extern crate cairo;
 
-extern crate ffmpeg;
+extern crate gstreamer;
 
 use std::ops::{Deref, DerefMut};
 
@@ -21,8 +21,8 @@ pub struct VideoController {
     media_ctl: MediaController,
     video_area: gtk::DrawingArea,
     is_thumbnail_only: bool,
-    frame: Option<ffmpeg::frame::Video>,
-    graph: Option<ffmpeg::filter::Graph>,
+    /*frame: Option<ffmpeg::frame::Video>,
+    graph: Option<ffmpeg::filter::Graph>, */
 }
 
 
@@ -34,8 +34,8 @@ impl VideoController {
             media_ctl: MediaController::new(builder.get_object("video-container").unwrap()),
             video_area: builder.get_object("video-drawingarea").unwrap(),
             is_thumbnail_only: false,
-            frame: None,
-            graph: None,
+            /*frame: None,
+            graph: None, */
         }));
 
         let vc_for_cb = vc.clone();
@@ -47,6 +47,7 @@ impl VideoController {
         vc
     }
 
+    /*
     fn build_graph(&mut self, decoder: &ffmpeg::codec::decoder::Video) {
         let mut graph = ffmpeg::filter::Graph::new();
 
@@ -93,7 +94,9 @@ impl VideoController {
             Err(error) => panic!("Error validating graph: {:?}", error),
         }
     }
+    */
 
+    /*
     fn convert_to_rgb(&mut self, frame: &ffmpeg::frame::Video) -> Result<ffmpeg::frame::Video, String> {
         let mut graph = self.graph.as_mut().unwrap();
         graph.get("in").unwrap().source().add(&frame).unwrap();
@@ -104,8 +107,10 @@ impl VideoController {
 
         Ok(frame_rgb)
     }
+    */
 
     fn draw(&self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) {
+        /*
         match self.frame {
             Some(ref frame) => {
                 let allocation = drawing_area.get_allocation();
@@ -141,6 +146,7 @@ impl VideoController {
             },
             None => (),
         }
+        */
     }
 }
 
@@ -160,6 +166,7 @@ impl DerefMut for VideoController {
 
 impl MediaNotifiable for VideoController {
     fn new_media(&mut self, context: &Context) {
+        /*
         self.frame = None;
         self.graph = None;
 
@@ -178,10 +185,12 @@ impl MediaNotifiable for VideoController {
                 self.hide();
             }
         };
+        */
     }
 }
 
 impl VideoNotifiable for VideoController {
+    /*
     fn new_video_frame(&mut self, frame: &ffmpeg::frame::Video) {
         match self.convert_to_rgb(frame) {
             Ok(frame_rgb) => {
@@ -193,4 +202,5 @@ impl VideoNotifiable for VideoController {
             Err(error) =>  panic!("\tError converting to rgb: {:?}", error),
         }
     }
+    */
 }
