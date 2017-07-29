@@ -2,7 +2,7 @@ extern crate chrono;
 
 use std::fmt;
 
-use chrono::NaiveTime;
+use chrono::{NaiveTime, Timelike};
 
 pub struct Timestamp {
     timestamp: NaiveTime,
@@ -32,9 +32,15 @@ impl Timestamp {
 
 impl fmt::Display for Timestamp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut format = String::new();
+        if self.timestamp.hour() > 0 {
+            format = "%H:".to_owned();
+        }
+        format += "%M:%S%.3f";
+
         write!(f, "{}{}",
             if self.is_positive { "".to_owned() } else  { "-".to_owned() },
-            self.timestamp.format("%H:%M:%S%.3f").to_string()
+            self.timestamp.format(&format).to_string()
         )
     }
 }
