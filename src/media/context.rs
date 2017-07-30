@@ -3,6 +3,10 @@ use gstreamer::*;
 
 extern crate glib;
 use glib::ObjectExt;
+use glib::value::FromValueOptional;
+
+extern crate url;
+use url::Url;
 
 
 use std::collections::HashSet;
@@ -16,14 +20,21 @@ use std::path::PathBuf;
 use super::Timestamp;
 use super::Chapter;
 
-pub trait VideoNotifiable {
-    //fn new_video_frame(&mut self, &ffmpeg::frame::Video);
-}
-pub trait AudioNotifiable {
-    //fn new_audio_frame(&mut self, &ffmpeg::frame::Audio);
+
+pub trait MediaHandler {
+    fn new_media(&mut self, &Context);
 }
 
+pub trait VideoHandler: MediaHandler {
+    fn new_video_stream(&mut self, &mut Context);
+    fn new_video_frame(&mut self, &Context);
+}
+pub trait AudioHandler: MediaHandler {
+    fn new_audio_stream(&mut self, &mut Context);
+    fn new_audio_frame(&mut self, &Context);
+}
 
+// TODO: set lifetimes and use references instead of Weak pointers
 pub struct Context {
     pub pipeline: gst::Pipeline,
     pub file_name: String,
@@ -35,30 +46,36 @@ pub struct Context {
     pub description: String,
     pub chapters: Vec<Chapter>,
 
+    pub thumbnail: Option<Vec<u8>>,
+
+    // TODO: use HashMaps for video_stream and audio_stream
+    // TODO: distinguish video_handler and info_handler,
     pub video_stream: Option<usize>,
+    pub video_codec: String,
     //pub video_decoder: Option<ffmpeg::codec::decoder::Video>,
-    video_notifiables: Vec<Weak<RefCell<VideoNotifiable>>>,
-    pub video_is_thumbnail: bool,
+    video_handlers: Vec<Weak<RefCell<VideoHandler>>>,
 
     pub audio_stream: Option<usize>,
+    pub audio_codec: String,
     //pub audio_decoder: Option<ffmpeg::codec::decoder::Audio>,
-    audio_notifiables: Vec<Weak<RefCell<AudioNotifiable>>>,
+    audio_handlers: Vec<Weak<RefCell<AudioHandler>>>,
 }
 
 
 impl Context {
-    pub fn new(path: &PathBuf) -> Result<Context, String> {
+    pub fn new(path: &PathBuf,
+               video_handlers: Vec<Weak<RefCell<VideoHandler>>>,
+               audio_handlers: Vec<Weak<RefCell<AudioHandler>>>) -> Result<Context, String> {
         println!("\n*** Attempting to open {:?}", path);
 
         let pipeline = gst::Pipeline::new(None);
-        let src = gst::ElementFactory::make("filesrc", None).unwrap();
-        let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
-
-        src.set_property("location", &gst::Value::from(&path.as_path().to_str().unwrap())).unwrap();
-
-        pipeline.add_many(&[&src, &decodebin]).unwrap();
-        gst::Element::link_many(&[&src, &decodebin]).unwrap();
-
+        let dec = gst::ElementFactory::make("uridecodebin", "input").unwrap();
+        let url = match Url::from_file_path(path.as_path()) {
+            Ok(url) => url.into_string(),
+            Err(_) => "Failed to convert path into URL".to_owned(),
+        };
+        dec.set_property("uri", &gst::Value::from(&url)).unwrap();
+        pipeline.add(&dec).unwrap();
 
         let mut new_ctx = Context{
             pipeline: pipeline,
@@ -72,78 +89,43 @@ impl Context {
             chapters: Vec::new(),
 
             video_stream: None,
+            video_codec: String::new(),
             //video_decoder: None,
-            video_notifiables: Vec::new(),
-            video_is_thumbnail: false,
+            video_handlers: video_handlers,
 
             audio_stream: None,
+            audio_codec: String::new(),
             //audio_decoder: None,
-            audio_notifiables: Vec::new(),
-            //ffmpeg_context: ffmpeg_context,
+            audio_handlers: audio_handlers,
+
+            thumbnail: None,
         };
 
         let pipeline_clone = new_ctx.pipeline.clone();
-        // TODO: move initialization to a method
-        decodebin.connect_pad_added(move |_, src_pad| {
-            let ref pipeline = pipeline_clone;
-
-            let (is_audio, is_video) = {
-                let caps = src_pad.get_current_caps().unwrap();
-                let structure = caps.get_structure(0).unwrap();
-                let name = structure.get_name();
-
-                (name.starts_with("audio/"), name.starts_with("video/"))
-            };
-
-            // TODO: select best streams
-
-            if is_audio {
-                // TODO: we will need 2 pipeline branches (there must be another
-                // name for this) for audio:
-                // 1- will go to the AudioController draw method
-                // 2- will go to the audiosink
-                // TODO: find out how to name the audio sink so that the name
-                // of the application appears in DE audio mix application
+        dec.connect_pad_added(move |dec_arg, src_pad| {
+            if !src_pad.is_linked() {
+                // TODO: build actual queues for audio and video with named elements
+                // TODO: See if the drawingareas could be set after the initiatlization
+                // TODO: See how to notify the context of a new audio / video stream
+                // in a thread sage way
                 let queue = gst::ElementFactory::make("queue", None).unwrap();
-                let convert = gst::ElementFactory::make("audioconvert", None).unwrap();
-                let resample = gst::ElementFactory::make("audioresample", None).unwrap();
-                let sink = gst::ElementFactory::make("autoaudiosink", None).unwrap();
-
-                let elements = &[&queue, &convert, &resample, &sink];
-                pipeline.add_many(elements).unwrap();
+                let sink = gst::ElementFactory::make("fakesink", None).unwrap();
+                let elements = &[&queue, &sink];
+                pipeline_clone.add_many(elements).unwrap();
                 gst::Element::link_many(elements).unwrap();
-
                 for e in elements {
                     e.sync_state_with_parent().unwrap();
                 }
-
-                let sink_pad = queue.get_static_pad("sink").unwrap();
-                assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
-            } else if is_video {
-                let queue = gst::ElementFactory::make("queue", None).unwrap();
-                let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
-                let scale = gst::ElementFactory::make("videoscale", None).unwrap();
-                let sink = gst::ElementFactory::make("autovideosink", None).unwrap();
-
-                let elements = &[&queue, &convert, &scale, &sink];
-                pipeline.add_many(elements).unwrap();
-                gst::Element::link_many(elements).unwrap();
-
-                for e in elements {
-                    e.sync_state_with_parent().unwrap();
-                }
-
                 let sink_pad = queue.get_static_pad("sink").unwrap();
                 assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
             }
-            // TODO: how do we get the metadata and chapters?
+            println!("Pad added");
         });
 
         assert_ne!(
             new_ctx.pipeline.set_state(gst::State::Playing),
             gst::StateChangeReturn::Failure
         );
-
 
         let bus = new_ctx.pipeline.get_bus().unwrap();
 
@@ -154,286 +136,164 @@ impl Context {
             };
 
             match msg.view() {
-                gst::MessageView::Eos => break,
-                gst::MessageView::Error(err) => {
+                MessageView::Eos(_) => break,
+                MessageView::Error(err) => {
                     println!(
-                        "Error from {}: {} ({:?})",
+                        "\n** Error from {}: {} ({:?})",
                         msg.get_src().get_path_string(),
                         err.get_error(),
                         err.get_debug()
                     );
                     break;
-                }
-                gst::MessageView::StateChanged(s) => {
-                    println!(
-                        "State changed from {}: {:?} -> {:?} ({:?})",
-                        msg.get_src().get_path_string(),
-                        s.get_old(),
-                        s.get_current(),
-                        s.get_pending()
-                    );
-                }
+                },
+                MessageView::Tag(msg_tag) => {
+                    let tags = msg_tag.get_tags();
+                    // TODO: use a macro (and avoid overwritting if value is already defined)
+                    let prev_val = glib::Value::from(&new_ctx.title).downcast::<&str>().unwrap();
+                    new_ctx.title = tags.get::<Title>().unwrap_or(prev_val).get().unwrap().to_owned();
+
+                    let prev_val = glib::Value::from(&new_ctx.artist).downcast::<&str>().unwrap();
+                    new_ctx.artist = tags.get::<Artist>().unwrap_or(prev_val).get().unwrap().to_owned();
+                    let prev_val = glib::Value::from(&new_ctx.artist).downcast::<&str>().unwrap();
+                    new_ctx.artist = tags.get::<AlbumArtist>().unwrap_or(prev_val).get().unwrap().to_owned();
+
+                    let prev_val = glib::Value::from(&new_ctx.video_codec).downcast::<&str>().unwrap();
+                    new_ctx.video_codec = tags.get::<VideoCodec>().unwrap_or(prev_val).get().unwrap().to_owned();
+
+                    let prev_val = glib::Value::from(&new_ctx.audio_codec).downcast::<&str>().unwrap();
+                    new_ctx.audio_codec = tags.get::<AudioCodec>().unwrap_or(prev_val).get().unwrap().to_owned();
+
+                    match tags.get::<Image>() {
+                        Some(image_tag) => {
+                            match image_tag.get() {
+                                Some(sample) => match sample.get_buffer() {
+                                    Some(buffer) => (), // TODO: how do we get the buffer?
+                                    None => (),
+                                },
+                                None => (),
+                            };
+                        },
+                        None => (),
+                    };
+                },
+                MessageView::StreamStatus(status) => {
+                    let name = msg.get_src().get_name();
+                    let status = status.get();
+                    let (status_type, element) = (status.0, status.1.unwrap());
+                    println!("\nStream status: {:?} - {}", status_type, name);
+                    // TODO: see who to handle multithreading in pad_added and
+                    // make a decision about this (remove or use it to update ctx)
+                    if true { // status_type == gst::StreamStatusType::Enter {
+                        if true { //name.starts_with("src") {
+                            println!("src pads");
+                            match element.iterate_src_pads() {
+                                Some(ref mut pad_iter) => {
+                                    loop {
+                                        match pad_iter.next() {
+                                            Ok(pad) => {
+                                                let pad: gst::Pad = pad.get().unwrap();
+                                                match pad.get_stream_id() {
+                                                    Some(id) => {
+                                                        println!("\tstream id: {}", &id);
+                                                    },
+                                                    None => println!("\tno stream id"),
+                                                }
+
+                                                match pad.get_stream() {
+                                                    Some(stream) => println!("\tstream: {:?}", &stream),
+                                                    None => (),
+                                                }
+
+                                                match pad.get_current_caps() {
+                                                    Some(caps) => {
+                                                        println!("\tcaps: {:?}", caps);
+
+                                                        for structure in caps.iter() {
+                                                            let name = structure.get_name();
+                                                            println!("\t\tstructure: {} - {:?}", name, structure);
+                                                        }
+                                                    },
+                                                    None => println!("\tno caps"),
+                                                };
+                                            },
+                                            Err(_) => break,
+                                        }
+                                    }
+                                },
+                                None => println!("\tempty pad iterator"),
+                            };
+
+                            println!("sink pads");
+                            match element.iterate_sink_pads() {
+                                Some(ref mut pad_iter) => {
+                                    loop {
+                                        match pad_iter.next() {
+                                            Ok(pad) => {
+                                                let pad: gst::Pad = pad.get().unwrap();
+                                                match pad.get_stream_id() {
+                                                    Some(id) => {
+                                                        println!("\tstream id: {}", &id);
+                                                    },
+                                                    None => println!("\tno stream id"),
+                                                }
+
+                                                match pad.get_stream() {
+                                                    Some(stream) => println!("\tstream: {:?}", &stream),
+                                                    None => (),
+                                                }
+
+                                                match pad.get_current_caps() {
+                                                    Some(caps) => {
+                                                        println!("\tcaps: {:?}", caps);
+
+                                                        for structure in caps.iter() {
+                                                            let name = structure.get_name();
+                                                            println!("\t\tstructure: {} - {:?}", name, structure);
+                                                        }
+                                                    },
+                                                    None => println!("\tno caps"),
+                                                };
+                                            },
+                                            Err(_) => break,
+                                        }
+                                    }
+                                },
+                                None => println!("\tempty pad iterator"),
+                            };
+
+                            if name == "src" {
+                                match element.query_duration(gst::Format::Time) {
+                                    Some(duration) => {
+                                        new_ctx.duration = Timestamp::from_sec_time_factor(
+                                            duration, 1f64 / 1_000_000_000f64
+                                        );
+                                    },
+                                    None => (),
+                                };
+                            }
+                        }
+                    }
+                },
+                MessageView::AsyncDone(_) => break,
                 _ => (),
             }
+        }
+
+        assert_ne!(
+            new_ctx.pipeline.set_state(gst::State::Null),
+            gst::StateChangeReturn::Failure
+        );
+
+        // Temporary: notify video handlers to display the info
+        for handler_weak in new_ctx.video_handlers.iter() {
+            match handler_weak.upgrade() {
+                Some(handler) => {
+                    handler.borrow_mut().new_media(&new_ctx);
+                },
+                None => (),
+            };
         }
 
         Ok(new_ctx)
     }
-
-    fn init_video_decoder(&mut self) {
-        /*
-        let stream_index;
-        let stream = match self.ffmpeg_context.streams().best(ffmpeg::media::Type::Video) {
-            Some(best_stream) => {
-                stream_index = best_stream.index();
-                if best_stream.disposition() & ATTACHED_PIC == ATTACHED_PIC {
-                    self.video_is_thumbnail = true;
-                    println!("\nFound thumbnail in stream with id: {}, start time: {}",
-                        stream_index, best_stream.start_time()
-                    );
-                }
-                else {
-                    self.video_is_thumbnail = false;
-                    println!("\nFound video stream with id: {}", stream_index);
-                }
-	            for (k, v) in best_stream.metadata().iter() {
-	                println!("\tmetadata {}: {}", k, v);
-	            }
-                for side_data in best_stream.side_data() {
-                    println!("\tside data {:?}, len: {}", side_data.kind(), side_data.data().len());
-                }
-                best_stream
-            },
-            None => {
-                println!("No video stream");
-                return;
-            },
-        };
-
-        match stream.codec().decoder().video() {
-            Ok(mut decoder) => {
-                match decoder.set_parameters(stream.parameters()) {
-                    Ok(_) => (),
-                    Err(error) => panic!("Failed to set parameters for video decoder: {:?}", error),
-                }
-
-                println!("\tvideo decoder: {:?}, time base {}, delay: {}, width: {}, height: {}",
-                         decoder.format(), decoder.time_base(), decoder.delay(),
-                         decoder.width(), decoder.height()
-                 );
-                self.video_stream = Some(stream_index);
-                self.video_decoder = Some(decoder);
-            },
-            Err(error) => panic!("Failed to get video decoder: {:?}", error),
-        }
-        */
-    }
-
-    fn init_audio_decoder(&mut self) {
-        /*
-        let stream_index;
-        let stream = match self.ffmpeg_context.streams().best(ffmpeg::media::Type::Audio) {
-            Some(best_stream) => {
-                stream_index = best_stream.index();
-                println!("\nFound audio stream with id: {}, start time: {}",
-                         stream_index, best_stream.start_time()
-                );
-	            for (k, v) in best_stream.metadata().iter() {
-	                if k.to_lowercase() == "artist" {
-	                    self.artist = v.to_owned();
-	                }
-	                else if k.to_lowercase() == "title" {
-	                    self.title = v.to_owned();
-	                }
-	                println!("\tmetadata {}: {}", k, v);
-	            }
-                for side_data in best_stream.side_data() {
-                    println!("\tside data {:?}, len: {}", side_data.kind(), side_data.data().len());
-                }
-                best_stream
-            },
-            None => {
-                println!("No audio stream");
-                return;
-            },
-        };
-
-        match stream.codec().decoder().audio() {
-            Ok(mut decoder) => {
-                match decoder.set_parameters(stream.parameters()) {
-                    Ok(_) => (),
-                    Err(error) => panic!("Failed to set parameters for audio decoder: {:?}", error),
-                }
-                println!("\taudio decoder: {:?}, time base {}, delay: {}, channels: {}, frame count: {}",
-                         decoder.format(), decoder.time_base(),
-                         decoder.delay(), decoder.channels(), decoder.frames());
-                self.audio_stream = Some(stream_index);
-                self.audio_decoder = Some(decoder);
-            },
-            Err(error) => panic!("Failed to get audio decoder: {:?}", error),
-        }
-        */
-    }
-
-
-    fn init_metadata(&mut self) {
-        /*
-	    for (k, v) in self.ffmpeg_context.metadata().iter() {
-	        if k.to_lowercase() == "artist" {
-	            self.artist = v.to_owned();
-	        }
-	        else if k.to_lowercase() == "title" {
-	            self.title = v.to_owned();
-	        }
-	    }
-	    if self.title.is_empty() {
-            self.title = self.name.clone();
-	    }
-
-        for avchapter in self.ffmpeg_context.chapters() {
-            let mut chapter = Chapter::new();
-            chapter.set_id(avchapter.id());
-            let time_base = avchapter.time_base();
-            let time_factor = time_base.numerator() as f64 / time_base.denominator() as f64;
-            chapter.set_start(avchapter.start(), time_factor);
-            chapter.set_end(avchapter.end(), time_factor);
-		    for (k, v) in avchapter.metadata().iter() {
-			    chapter.metadata.insert(k.to_lowercase(), v.to_owned());
-		    }
-            self.chapters.push(chapter);
-        }
-        */
-    }
-
-    pub fn register_video_notifiable(&mut self, notifiable: Rc<RefCell<VideoNotifiable>>) {
-        self.video_notifiables.push(Rc::downgrade(&notifiable));
-    }
-
-    pub fn register_audio_notifiable(&mut self, notifiable: Rc<RefCell<AudioNotifiable>>) {
-        self.audio_notifiables.push(Rc::downgrade(&notifiable));
-    }
-
-    pub fn preview(&mut self) {
-        /*
-        let mut stream_processed = HashSet::new();
-        let mut expected_frames = 0;
-        if self.video_stream.is_some() {
-            expected_frames += 1;
-        }
-        if self.audio_stream.is_some() {
-            expected_frames += 1;
-        }
-
-        let mut video_frame = ffmpeg::frame::Video::empty();
-        let mut audio_frame = ffmpeg::frame::Audio::empty();
-
-        for (stream, packet) in self.ffmpeg_context.packets() {
-            print_packet_content(&stream, &packet);
-            let mut got_frame = false;
-            let decoder = stream.codec().decoder();
-            match decoder.medium() {
-                ffmpeg::media::Type::Video => match self.video_stream {
-                    Some(stream_index) => {
-                        if stream_index == stream.index() {
-                            let mut video = match self.video_decoder {
-                                Some(ref mut decoder) => decoder,
-                                None => panic!("Error getting video decoder for stream {}", stream_index),
-                            };
-                            if stream_processed.contains(&stream_index) {
-                                // stream already processed
-                                continue;
-                            }
-                            match video.decode(&packet, &mut video_frame) {
-                                Ok(decode_got_frame) =>  {
-                                    got_frame = decode_got_frame;
-                                    println!("\tdecoded video frame, got frame: {}", got_frame);
-                                },
-                                Err(error) => println!("Error decoding video packet for stream {}: {:?}", stream_index, error),
-                            }
-                            if got_frame {
-                                stream_processed.insert(stream_index);
-                                for notifiable_weak in self.video_notifiables.iter() {
-                                    match notifiable_weak.upgrade() {
-                                        Some(notifiable) => {
-                                            notifiable.borrow_mut().new_video_frame(&video_frame);
-                                        },
-                                        None => (),
-                                    };
-                                }
-
-                                video_frame = ffmpeg::frame::Video::empty();
-                            }
-                        }
-                        else {
-                            println!("Skipping stream {}", stream.index());
-                        }
-                    },
-                    None => panic!("No video decoder"),
-                },
-                ffmpeg::media::Type::Audio => match self.audio_stream {
-                    Some(stream_index) => {
-                        if stream_index == stream.index() {
-                            let ref mut audio = match self.audio_decoder.as_mut() {
-                                Some(decoder) => decoder,
-                                None => panic!("Error getting audio decoder for stream {}", stream_index),
-                            };
-                            if stream_processed.contains(&stream_index) {
-                                // stream already processed
-                                continue;
-                            }
-                            match audio.decode(&packet, &mut audio_frame) {
-                                Ok(decode_got_frame) =>  {
-                                    got_frame = decode_got_frame;
-                                    println!("\tdecoded audio frame, got frame: {}", got_frame);
-                                },
-                                Err(error) => panic!("Error decoding audio packet for stream {}: {:?}", stream_index, error),
-                            }
-                            if got_frame {
-                                stream_processed.insert(stream_index);
-                                for notifiable_weak in self.audio_notifiables.iter() {
-                                    match notifiable_weak.upgrade() {
-                                        Some(notifiable) => {
-                                            notifiable.borrow_mut().new_audio_frame(&audio_frame);
-                                        },
-                                        None => (),
-                                    };
-                                }
-
-                                audio_frame = ffmpeg::frame::Audio::empty();
-                            }
-                        }
-                        else {
-                            println!("Skipping stream {}", stream.index());
-                        }
-                    },
-                    None => panic!("No audio decoder"),
-                },
-                _ => (),
-            }
-
-            if stream_processed.len() == expected_frames {
-                break;
-            }
-        }*/
-    }
 }
-
-/*
-fn print_packet_content(stream: &ffmpeg::format::stream::Stream, packet: &ffmpeg::codec::packet::Packet) {
-    print!("\n* Packet for {:?} stream: {}", stream.disposition(), stream.index());
-    print!(" size: {} - duration: {}, is key: {}",
-             packet.size(), packet.duration(), packet.is_key(),
-    );
-    match packet.pts() {
-        Some(pts) => print!(" pts: {}", pts),
-        None => (),
-    }
-    match packet.dts() {
-        Some(dts) => print!(" dts: {}", dts),
-        None => (),
-    }
-    println!();
-    for side_data in stream.side_data() {
-        println!("\tside data {:?}, len: {}", side_data.kind(), side_data.data().len());
-    }
-}*/

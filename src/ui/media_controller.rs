@@ -6,11 +6,15 @@ use ::media::Context;
 
 pub struct MediaController {
     container: gtk::Widget,
+    pub drawingarea: gtk::DrawingArea,
 }
 
 impl MediaController {
-    pub fn new(container: gtk::Widget) -> MediaController {
-        MediaController{ container: container }
+    pub fn new(container: gtk::Widget, drawingarea: gtk::DrawingArea) -> MediaController {
+        MediaController{
+            container: container,
+            drawingarea: drawingarea,
+        }
     }
 
     pub fn show(&self) {
@@ -20,8 +24,4 @@ impl MediaController {
     pub fn hide(&self) {
         self.container.hide();
     }
-}
-
-pub trait MediaNotifiable {
-    fn new_media(&mut self, &Context);
 }

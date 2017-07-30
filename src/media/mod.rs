@@ -1,8 +1,5 @@
 pub mod context;
-
-pub use self::context::Context;
-pub use self::context::VideoNotifiable;
-pub use self::context::AudioNotifiable;
+pub use self::context::{Context, MediaHandler, VideoHandler, AudioHandler};
 
 pub mod chapter;
 pub use self::chapter::Chapter;

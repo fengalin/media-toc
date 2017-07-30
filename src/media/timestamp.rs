@@ -18,12 +18,11 @@ impl Timestamp {
     }
 
     pub fn from_sec_time_factor(sec: i64, time_factor: f64) -> Timestamp {
-        println!("from_sec_time_factor: {}, {}", sec, time_factor);
         let sec_f = sec.abs() as f64 * time_factor;
         Timestamp {
             timestamp: NaiveTime::from_num_seconds_from_midnight(
                 sec_f.trunc() as u32,
-                (sec_f.fract() * 1_000_000f64) as u32
+                (sec_f.fract() * 1_000_000_000f64) as u32
             ),
             is_positive: if sec >= 0 { true } else { false },
         }

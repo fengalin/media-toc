@@ -9,10 +9,9 @@ use gtk::prelude::*;
 use gtk::{ApplicationWindow, HeaderBar, Button,
           FileChooserDialog, ResponseType, FileChooserAction};
 
-use super::MediaNotifiable;
-use super::VideoController;
-use super::AudioController;
-use super::InfoController;
+use ::media::{MediaHandler, VideoHandler, AudioHandler};
+
+use super::{VideoController, AudioController, InfoController};
 
 pub struct MainController {
     window: ApplicationWindow,
@@ -72,7 +71,9 @@ impl MainController {
         if result == ResponseType::Ok.into() {
             self.open_media(file_dlg.get_filename().unwrap());
         }
-        // else: cancelled => do nothing TODO: I think there is a Rust way to express this
+        else {
+            ()
+        }
 
         file_dlg.close();
     }
@@ -81,29 +82,21 @@ impl MainController {
         self.filepath = filepath;
 
         let path_str = String::from(self.filepath.to_str().unwrap());
-        let message = match ::media::Context::new(&self.filepath) {
+        let message = match ::media::Context::new
+        (
+                &self.filepath,
+                vec![
+                    Rc::downgrade(&(self.video_ctrl.clone() as Rc<RefCell<VideoHandler>>)),
+                    Rc::downgrade(&(self.info_ctrl.clone() as Rc<RefCell<VideoHandler>>))
+                ],
+                vec![Rc::downgrade(&(self.audio_ctrl.clone() as Rc<RefCell<AudioHandler>>))],
+        )
+        {
             Ok(mut context) => {
                 {
                     let file_name: &str = &context.file_name;
                     self.header_bar.set_subtitle(Some(file_name));
                 }
-
-                self.video_ctrl.borrow_mut().new_media(&context);
-                if context.video_stream.is_some() {
-                    context.register_video_notifiable(self.video_ctrl.clone());
-                }
-
-                self.audio_ctrl.borrow_mut().new_media(&context);
-                if context.audio_stream.is_some() {
-                    context.register_audio_notifiable(self.audio_ctrl.clone());
-                }
-
-                self.info_ctrl.borrow_mut().new_media(&context);
-                if context.video_stream.is_some() {
-                    context.register_video_notifiable(self.info_ctrl.clone());
-                }
-
-                context.preview();
 
                 self.context = Some(context);
 

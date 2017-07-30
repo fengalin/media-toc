@@ -5,6 +5,7 @@ extern crate gstreamer;
 extern crate glib;
 
 extern crate chrono;
+extern crate url;
 
 use gtk::Builder;
 
