@@ -1,5 +1,5 @@
 pub mod context;
-pub use self::context::{Context, MediaHandler, VideoHandler, AudioHandler};
+pub use self::context::{Context, ContextMessage};
 
 pub mod chapter;
 pub use self::chapter::Chapter;

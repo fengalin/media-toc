@@ -12,5 +12,4 @@ url = "^1"
 
 [dependencies.gstreamer]
 git = "https://github.com/fengalin/gstreamer-rs.git"
-branch = "more_tags"
 features = ["v1_10"]

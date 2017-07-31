@@ -1,6 +1,9 @@
 extern crate gstreamer as gst;
 use gstreamer::*;
 
+extern crate gtk;
+use gtk::DrawingArea;
+
 extern crate glib;
 use glib::ObjectExt;
 use glib::value::FromValueOptional;
@@ -8,12 +11,9 @@ use glib::value::FromValueOptional;
 extern crate url;
 use url::Url;
 
+use std::sync::mpsc::Sender;
 
 use std::collections::HashSet;
-
-use std::rc::Weak;
-use std::rc::Rc;
-use std::cell::RefCell;
 
 use std::path::PathBuf;
 
@@ -21,21 +21,14 @@ use super::Timestamp;
 use super::Chapter;
 
 
-pub trait MediaHandler {
-    fn new_media(&mut self, &Context);
+pub enum ContextMessage {
+    VideoFrame,
+    AudioFrame,
 }
 
-pub trait VideoHandler: MediaHandler {
-    fn new_video_stream(&mut self, &mut Context);
-    fn new_video_frame(&mut self, &Context);
-}
-pub trait AudioHandler: MediaHandler {
-    fn new_audio_stream(&mut self, &mut Context);
-    fn new_audio_frame(&mut self, &Context);
-}
-
-// TODO: set lifetimes and use references instead of Weak pointers
 pub struct Context {
+    ctx_tx: Sender<ContextMessage>,
+
     pub pipeline: gst::Pipeline,
     pub file_name: String,
     pub name: String,
@@ -49,23 +42,35 @@ pub struct Context {
     pub thumbnail: Option<Vec<u8>>,
 
     // TODO: use HashMaps for video_stream and audio_stream
-    // TODO: distinguish video_handler and info_handler,
     pub video_stream: Option<usize>,
     pub video_codec: String,
     //pub video_decoder: Option<ffmpeg::codec::decoder::Video>,
-    video_handlers: Vec<Weak<RefCell<VideoHandler>>>,
 
     pub audio_stream: Option<usize>,
     pub audio_codec: String,
     //pub audio_decoder: Option<ffmpeg::codec::decoder::Audio>,
-    audio_handlers: Vec<Weak<RefCell<AudioHandler>>>,
 }
 
 
+macro_rules! assign_str_tag(
+    ($target:expr, $tags:expr, $TagType:ty) => {
+        if $target.is_empty() {
+            match $tags.get::<$TagType>() {
+                Some(tag) => $target = tag.get().unwrap().to_owned(),
+                None => (),
+            };
+        }
+    };
+);
+
+
 impl Context {
-    pub fn new(path: &PathBuf,
-               video_handlers: Vec<Weak<RefCell<VideoHandler>>>,
-               audio_handlers: Vec<Weak<RefCell<AudioHandler>>>) -> Result<Context, String> {
+    pub fn new(
+        path: &PathBuf,
+        ctx_tx: Sender<ContextMessage>,
+        video_area: &DrawingArea
+    ) -> Result<Context, String>
+    {
         println!("\n*** Attempting to open {:?}", path);
 
         let pipeline = gst::Pipeline::new(None);
@@ -78,6 +83,7 @@ impl Context {
         pipeline.add(&dec).unwrap();
 
         let mut new_ctx = Context{
+            ctx_tx: ctx_tx,
             pipeline: pipeline,
             file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
             name: String::from(path.file_stem().unwrap().to_str().unwrap()),
@@ -88,17 +94,15 @@ impl Context {
             description: String::new(),
             chapters: Vec::new(),
 
+            thumbnail: None,
+
             video_stream: None,
             video_codec: String::new(),
             //video_decoder: None,
-            video_handlers: video_handlers,
 
             audio_stream: None,
             audio_codec: String::new(),
             //audio_decoder: None,
-            audio_handlers: audio_handlers,
-
-            thumbnail: None,
         };
 
         let pipeline_clone = new_ctx.pipeline.clone();
@@ -148,22 +152,20 @@ impl Context {
                 },
                 MessageView::Tag(msg_tag) => {
                     let tags = msg_tag.get_tags();
-                    // TODO: use a macro (and avoid overwritting if value is already defined)
-                    let prev_val = glib::Value::from(&new_ctx.title).downcast::<&str>().unwrap();
-                    new_ctx.title = tags.get::<Title>().unwrap_or(prev_val).get().unwrap().to_owned();
+                    assign_str_tag!(new_ctx.title, tags, Title);
+                    assign_str_tag!(new_ctx.artist, tags, Artist);
+                    assign_str_tag!(new_ctx.artist, tags, AlbumArtist);
+                    assign_str_tag!(new_ctx.video_codec, tags, VideoCodec);
+                    assign_str_tag!(new_ctx.audio_codec, tags, AudioCodec);
 
-                    let prev_val = glib::Value::from(&new_ctx.artist).downcast::<&str>().unwrap();
-                    new_ctx.artist = tags.get::<Artist>().unwrap_or(prev_val).get().unwrap().to_owned();
-                    let prev_val = glib::Value::from(&new_ctx.artist).downcast::<&str>().unwrap();
-                    new_ctx.artist = tags.get::<AlbumArtist>().unwrap_or(prev_val).get().unwrap().to_owned();
-
-                    let prev_val = glib::Value::from(&new_ctx.video_codec).downcast::<&str>().unwrap();
-                    new_ctx.video_codec = tags.get::<VideoCodec>().unwrap_or(prev_val).get().unwrap().to_owned();
-
-                    let prev_val = glib::Value::from(&new_ctx.audio_codec).downcast::<&str>().unwrap();
-                    new_ctx.audio_codec = tags.get::<AudioCodec>().unwrap_or(prev_val).get().unwrap().to_owned();
+                    /*match tags.get::<PreviewImage>() {
+                        // TODO: check if that happens, that would be handy for videos
+                        Some(preview_tag) => println!("Found a PreviewImage tag"),
+                        None => (),
+                    };*/
 
                     match tags.get::<Image>() {
+                        // TODO: distinguish front/back cover (take the first one?)
                         Some(image_tag) => {
                             match image_tag.get() {
                                 Some(sample) => match sample.get_buffer() {
@@ -261,6 +263,9 @@ impl Context {
                                 None => println!("\tempty pad iterator"),
                             };
 
+                            // TODO: fix duration determination
+                            // there must be some better way
+                            // Note: how is the info encoded for a multiple chapter media?
                             if name == "src" {
                                 match element.query_duration(gst::Format::Time) {
                                     Some(duration) => {
@@ -283,16 +288,6 @@ impl Context {
             new_ctx.pipeline.set_state(gst::State::Null),
             gst::StateChangeReturn::Failure
         );
-
-        // Temporary: notify video handlers to display the info
-        for handler_weak in new_ctx.video_handlers.iter() {
-            match handler_weak.upgrade() {
-                Some(handler) => {
-                    handler.borrow_mut().new_media(&new_ctx);
-                },
-                None => (),
-            };
-        }
 
         Ok(new_ctx)
     }

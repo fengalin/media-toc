@@ -4,6 +4,10 @@ use gtk::WidgetExt;
 
 use ::media::Context;
 
+pub trait MediaHandler {
+    fn new_media(&mut self, context: &Context);
+}
+
 pub struct MediaController {
     container: gtk::Widget,
     pub drawingarea: gtk::DrawingArea,

@@ -3,7 +3,7 @@ pub use self::main_controller::MainController;
 
 
 mod media_controller;
-use self::media_controller::MediaController;
+use self::media_controller::{MediaController, MediaHandler};
 
 mod video_controller;
 use self::video_controller::VideoController;
