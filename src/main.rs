@@ -6,6 +6,7 @@ extern crate glib;
 
 extern crate chrono;
 extern crate url;
+extern crate image;
 
 use gtk::Builder;
 

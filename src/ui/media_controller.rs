@@ -11,6 +11,7 @@ pub trait MediaHandler {
 pub struct MediaController {
     container: gtk::Widget,
     pub drawingarea: gtk::DrawingArea,
+    pub draw_handler: u64,
 }
 
 impl MediaController {
@@ -18,6 +19,7 @@ impl MediaController {
         MediaController{
             container: container,
             drawingarea: drawingarea,
+            draw_handler: 0,
         }
     }
 

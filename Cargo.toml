@@ -9,6 +9,7 @@ gtk = { git = "https://github.com/gtk-rs/gtk.git", features = ["v3_18"] }
 glib = { git = "https://github.com/gtk-rs/glib.git" }
 chrono = "^0"
 url = "^1"
+image = "^0"
 
 [dependencies.gstreamer]
 git = "https://github.com/fengalin/gstreamer-rs.git"

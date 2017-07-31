@@ -1,9 +1,11 @@
 extern crate gtk;
+use gtk::prelude::*;
+
 extern crate cairo;
 
-use std::ops::{Deref, DerefMut};
+extern crate image;
 
-use gtk::prelude::*;
+use std::ops::{Deref, DerefMut};
 
 use ::media::Context;
 
@@ -81,6 +83,72 @@ impl MediaHandler for InfoController {
         self.artist_lbl.set_label(&context.artist);
         self.description_lbl.set_label(&context.description);
         self.duration_lbl.set_label(&format!("{}", context.duration));
+
+        // TODO: move the image decoding in the context
+        // so that we can also build an image preview from a video frame
+        let mut has_image = false;
+        if let Some(thumbnail) = context.thumbnail.as_ref() {
+            if let Ok(image) = image::load_from_memory(thumbnail.as_slice()) {
+                if let Some(rgb_image) = image.as_rgb8().as_mut() {
+                    has_image = true;
+
+                    // Fix stride: there must be a better way...
+                    // Cairo uses 4 bytes per pixel, image uses 3 in different order
+                    let format = cairo::Format::Rgb24;
+                    let width = rgb_image.width() as i32;
+                    let height = rgb_image.height() as i32;
+                    let stride = width * 4;
+
+                    // TODO: optimize
+                    let buffer = rgb_image.to_vec();
+                    let mut strided_image: Vec<u8> = Vec::with_capacity((height * stride) as usize);
+                    let mut index: usize = 0;
+                    for _ in 0..height {
+                        for _ in 0..width {
+                            strided_image.push(*buffer.get(index+2).unwrap());
+                            strided_image.push(*buffer.get(index+1).unwrap());
+                            strided_image.push(*buffer.get(index).unwrap());
+                            strided_image.push(0);
+                            index += 3;
+                        }
+                    }
+
+                    let surface = cairo::ImageSurface::create_for_data(
+                        strided_image.into_boxed_slice(), |_| {}, format,
+                        width, height, stride
+                    );
+
+                    // TODO: find a way to disconnect previous handler, otherwise
+                    // they stack on each other...
+                    self.draw_handler = self.drawingarea.connect_draw(move |ref drawing_area, ref cairo_ctx| {
+                        let allocation = drawing_area.get_allocation();
+                        let alloc_ratio = allocation.width as f64 / allocation.height as f64;
+                        let surface_ratio = surface.get_width() as f64 / surface.get_height() as f64;
+                        let scale = if surface_ratio < alloc_ratio {
+                            allocation.height as f64 / surface.get_height() as f64
+                        }
+                        else {
+                            allocation.width as f64 / surface.get_width() as f64
+                        };
+                        let x = (allocation.width as f64 / scale - surface.get_width() as f64).abs() / 2f64;
+                        let y = (allocation.height as f64 / scale - surface.get_height() as f64).abs() / 2f64;
+
+                        cairo_ctx.scale(scale, scale);
+                        cairo_ctx.set_source_surface(&surface, x, y);
+                        cairo_ctx.paint();
+                        Inhibit(false)
+                    });
+                }
+            }
+        };
+
+        if has_image {
+            self.drawingarea.show();
+            self.drawingarea.queue_draw();
+        }
+        else {
+            self.drawingarea.hide();
+        }
 
         self.chapter_store.clear();
         // FIX for sample.mkv video: generate ids (TODO: remove)

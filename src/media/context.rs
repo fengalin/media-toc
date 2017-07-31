@@ -55,10 +55,9 @@ pub struct Context {
 macro_rules! assign_str_tag(
     ($target:expr, $tags:expr, $TagType:ty) => {
         if $target.is_empty() {
-            match $tags.get::<$TagType>() {
-                Some(tag) => $target = tag.get().unwrap().to_owned(),
-                None => (),
-            };
+            if let Some(tag) = $tags.get::<$TagType>() {
+                $target = tag.get().unwrap().to_owned();
+            }
         }
     };
 );
@@ -164,19 +163,18 @@ impl Context {
                         None => (),
                     };*/
 
-                    match tags.get::<Image>() {
-                        // TODO: distinguish front/back cover (take the first one?)
-                        Some(image_tag) => {
-                            match image_tag.get() {
-                                Some(sample) => match sample.get_buffer() {
-                                    Some(buffer) => (), // TODO: how do we get the buffer?
-                                    None => (),
-                                },
-                                None => (),
-                            };
-                        },
-                        None => (),
-                    };
+                    // TODO: distinguish front/back cover (take the first one?)
+                    if let Some(image_tag) = tags.get::<Image>() {
+                        if let Some(sample) = image_tag.get() {
+                            if let Some(buffer) = sample.get_buffer() {
+                                if let Some(map) = buffer.map_read() {
+                                    let mut thumbnail = Vec::with_capacity(map.get_size());
+                                    thumbnail.extend_from_slice(map.as_slice());
+                                    new_ctx.thumbnail = Some(thumbnail);
+                                }
+                            }
+                        }
+                    }
                 },
                 MessageView::StreamStatus(status) => {
                     let name = msg.get_src().get_name();
