@@ -68,7 +68,7 @@ impl Context {
         path: &PathBuf,
         ctx_tx: Sender<ContextMessage>,
         video_area: &DrawingArea
-    ) -> Result<Context, String>
+    ) -> Result<Self, String>
     {
         println!("\n*** Attempting to open {:?}", path);
 

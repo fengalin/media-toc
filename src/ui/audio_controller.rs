@@ -17,7 +17,7 @@ pub struct AudioController {
 }
 
 impl AudioController {
-    pub fn new(builder: &gtk::Builder) -> AudioController {
+    pub fn new(builder: &gtk::Builder) -> Self {
         AudioController {
             media_ctl: MediaController::new(
                 builder.get_object("audio-container").unwrap(),

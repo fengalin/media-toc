@@ -24,7 +24,7 @@ pub struct InfoController {
 }
 
 impl InfoController {
-    pub fn new(builder: &gtk::Builder) -> InfoController {
+    pub fn new(builder: &gtk::Builder) -> Self {
         // need a RefCell because the callbacks will use immutable versions of ac
         // when the UI controllers will get a mutable version from time to time
         let ic = InfoController {

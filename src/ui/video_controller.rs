@@ -20,7 +20,7 @@ pub struct VideoController {
 
 
 impl VideoController {
-    pub fn new(builder: &gtk::Builder) -> VideoController {
+    pub fn new(builder: &gtk::Builder) -> Self {
         VideoController {
             media_ctl: MediaController::new(
                 builder.get_object("video-container").unwrap(),

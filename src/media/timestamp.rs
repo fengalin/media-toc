@@ -10,14 +10,14 @@ pub struct Timestamp {
 }
 
 impl Timestamp {
-    pub fn new() -> Timestamp {
+    pub fn new() -> Self {
         Timestamp {
             timestamp: NaiveTime::from_num_seconds_from_midnight(0, 0),
             is_positive: true,
         }
     }
 
-    pub fn from_sec_time_factor(sec: i64, time_factor: f64) -> Timestamp {
+    pub fn from_sec_time_factor(sec: i64, time_factor: f64) -> Self {
         let sec_f = sec.abs() as f64 * time_factor;
         Timestamp {
             timestamp: NaiveTime::from_num_seconds_from_midnight(

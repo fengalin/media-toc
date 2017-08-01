@@ -15,7 +15,7 @@ pub struct MediaController {
 }
 
 impl MediaController {
-    pub fn new(container: gtk::Widget, drawingarea: gtk::DrawingArea) -> MediaController {
+    pub fn new(container: gtk::Widget, drawingarea: gtk::DrawingArea) -> Self {
         MediaController{
             container: container,
             drawingarea: drawingarea,

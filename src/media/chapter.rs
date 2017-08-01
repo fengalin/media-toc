@@ -10,7 +10,7 @@ pub struct Chapter {
 }
 
 impl Chapter {
-    pub fn new() -> Chapter {
+    pub fn new() -> Self {
         Chapter{
             id: 0,
             start: Timestamp::new(),

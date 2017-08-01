@@ -30,7 +30,7 @@ pub struct MainController {
 }
 
 impl MainController {
-    pub fn new(builder: gtk::Builder) -> Rc<RefCell<MainController>> {
+    pub fn new(builder: gtk::Builder) -> Rc<RefCell<Self>> {
         let (ctx_tx, ctx_rx) = channel::<ContextMessage>();
 
         let mc = Rc::new(RefCell::new(MainController {
