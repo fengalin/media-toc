@@ -13,3 +13,6 @@ use self::audio_controller::AudioController;
 
 mod info_controller;
 use self::info_controller::InfoController;
+
+mod image_surface;
+use self::image_surface::ImageSurface;
