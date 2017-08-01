@@ -77,12 +77,6 @@ impl InfoController {
                     cairo_ctx.set_source_surface(surface, x, y);
                     cairo_ctx.paint();
                 }
-                else {
-                    println!("No thumbnail");
-                }
-            }
-            else {
-                println!("Couldn't upgrade");
             }
 
             Inhibit(false)
