@@ -1,7 +1,10 @@
 extern crate gtk;
+extern crate glib;
 
 use std::rc::Rc;
 use std::cell::RefCell;
+
+use std::thread;
 
 use std::path::PathBuf;
 
@@ -12,6 +15,7 @@ use gtk::{ApplicationWindow, HeaderBar, Button,
           FileChooserDialog, ResponseType, FileChooserAction};
 
 use ::media::{Context, ContextMessage};
+use ::media::ContextMessage::*;
 
 use super::{AudioController, InfoController, MediaHandler, VideoController};
 
@@ -26,7 +30,6 @@ pub struct MainController {
     context: Option<Context>,
 
     ctx_tx: Sender<ContextMessage>,
-    ctx_rx: Receiver<ContextMessage>,
 }
 
 impl MainController {
@@ -42,7 +45,6 @@ impl MainController {
             filepath: PathBuf::new(),
             context: None,
             ctx_tx: ctx_tx,
-            ctx_rx: ctx_rx,
         }));
 
         {
@@ -58,10 +60,42 @@ impl MainController {
         let mc_weak = Rc::downgrade(&mc);
         open_btn.connect_clicked(move |_|
             match mc_weak.upgrade() {
-                Some(main_controller) => main_controller.borrow_mut().select_media(),
+                Some(mc) => mc.borrow_mut().select_media(),
                 None => panic!("Main controller is no longer available for select_media"),
             }
         );
+
+
+        // See this: https://developer.gnome.org/glib/stable/glib-The-Main-Event-Loop.html
+        // for a description of glib main loops features
+        // see also https://github.com/gtk-rs/gtk/blob/master/src/signal.rs
+        // for a `timeout_add` which allows executing a closure on a regular basis
+        // and mention `idle_add` to be used when no other event is executed.
+
+        // FIXME: this is not enough: the closure is executed once since
+        // we return glib::Continue(false). If we return true, the closure is executed
+        // in a loop and consumes CPU
+        // FIXME: another issue is that the closure uses a weak on mc which
+        // can only be accessed from a code which sees the RcRefCell. It can't
+        // be defined in a function from MainController
+        // This is definitively not the definitive solution
+        let mc_weak = Rc::downgrade(&mc);
+        gtk::idle_add(move || {
+            let mut keep_polling = true;
+            match ctx_rx.try_recv() {
+                Ok(message) => match mc_weak.upgrade() {
+                    Some(mc) => {
+                        mc.borrow_mut().process_message(message);
+                        keep_polling = false;
+                    },
+                    None => (),
+                },
+                // TODO: handle cases (Empty, Error...)
+                Err(error) => println!("ctx_rx: {:?}", error),
+            };
+
+            glib::Continue(keep_polling)
+        });
 
         mc
     }
@@ -70,6 +104,22 @@ impl MainController {
         self.window.show_all();
     }
 
+    fn process_message(&mut self, message: ContextMessage) {
+        println!("Processing message");
+        match message {
+            OpenedMedia(context) => {
+                self.header_bar.set_subtitle(Some(context.file_name.as_str()));
+
+                self.info_ctrl.new_media(&context);
+                self.video_ctrl.new_media(&context);
+                self.audio_ctrl.new_media(&context);
+
+                self.context = Some(context);
+            },
+            FailedToOpenMedia => println!("ERROR: failed to open media"),
+            _ => (),
+        };
+    }
 
     fn select_media(&mut self) {
         let file_dlg = FileChooserDialog::new(Some("Open a media file"),
@@ -93,33 +143,9 @@ impl MainController {
     }
 
     fn open_media(&mut self, filepath: PathBuf) {
-        self.filepath = filepath;
-
-        let path_str = String::from(self.filepath.to_str().unwrap());
-        // TODO: restore hanlders arguments (and manage lifetimes)
-        let message = match Context::new(
-            &self.filepath,
-            self.ctx_tx.clone(),
-            &self.video_ctrl.drawingarea
-        )
-        {
-            Ok(mut context) => {
-                {
-                    let file_name: &str = &context.file_name;
-                    self.header_bar.set_subtitle(Some(file_name));
-                }
-
-                self.info_ctrl.new_media(&context);
-                self.video_ctrl.new_media(&context);
-                self.audio_ctrl.new_media(&context);
-
-                self.context = Some(context);
-
-                format!("Opened media {:?}", path_str)
-            },
-            Err(error) => format!("Error opening media {}, {}", path_str, error),
-        };
-
-        println!("{}", message);
+        let ctx_tx = self.ctx_tx.clone();
+        thread::spawn(move || {
+            Context::open_media_path_thread(filepath, ctx_tx);
+        });
     }
 }

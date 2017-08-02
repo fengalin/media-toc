@@ -47,6 +47,13 @@ impl DerefMut for VideoController {
 
 impl MediaHandler for VideoController {
     fn new_media(&mut self, context: &Context) {
+        // TODO: show or hide depending on the presence of a video stream in the context
         self.media_ctl.hide();
+
+        /*if let Some(video_sink) = new_ctx.pipeline.get_by_name("video_sink") {
+            video_sink.set_property("widget", &glib::Value::from(video_area));
+        }*/
+
+        // else: no video sink for media
     }
 }

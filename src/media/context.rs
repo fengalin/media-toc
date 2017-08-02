@@ -13,23 +13,23 @@ use url::Url;
 
 use std::sync::mpsc::Sender;
 
-use std::collections::HashSet;
-
 use std::path::PathBuf;
 
-use super::Timestamp;
-use super::Chapter;
+use std::collections::HashMap;
 
+use super::{Chapter, Timestamp};
 
 pub enum ContextMessage {
+    OpenedMedia(Context),
+    FailedToOpenMedia,
     VideoFrame,
     AudioFrame,
 }
 
 pub struct Context {
-    ctx_tx: Sender<ContextMessage>,
-
+    tx: Sender<ContextMessage>,
     pub pipeline: gst::Pipeline,
+
     pub file_name: String,
     pub name: String,
 
@@ -41,16 +41,14 @@ pub struct Context {
 
     pub thumbnail: Option<Vec<u8>>,
 
-    // TODO: use HashMaps for video_stream and audio_stream
-    pub video_stream: Option<usize>,
+    pub video_streams: HashMap<String, gst::Caps>,
+    pub video_best: Option<String>,
     pub video_codec: String,
-    //pub video_decoder: Option<ffmpeg::codec::decoder::Video>,
 
-    pub audio_stream: Option<usize>,
+    pub audio_streams: HashMap<String, gst::Caps>,
+    pub audio_best: Option<String>,
     pub audio_codec: String,
-    //pub audio_decoder: Option<ffmpeg::codec::decoder::Audio>,
 }
-
 
 macro_rules! assign_str_tag(
     ($target:expr, $tags:expr, $TagType:ty) => {
@@ -64,28 +62,13 @@ macro_rules! assign_str_tag(
 
 
 impl Context {
-    pub fn new(
-        path: &PathBuf,
-        ctx_tx: Sender<ContextMessage>,
-        video_area: &DrawingArea
-    ) -> Result<Self, String>
-    {
-        println!("\n*** Attempting to open {:?}", path);
+    fn new(ctx_tx: Sender<ContextMessage>) -> Context {
+        Context{
+            tx: ctx_tx,
+            pipeline: gst::Pipeline::new(None),
 
-        let pipeline = gst::Pipeline::new(None);
-        let dec = gst::ElementFactory::make("uridecodebin", "input").unwrap();
-        let url = match Url::from_file_path(path.as_path()) {
-            Ok(url) => url.into_string(),
-            Err(_) => "Failed to convert path into URL".to_owned(),
-        };
-        dec.set_property("uri", &gst::Value::from(&url)).unwrap();
-        pipeline.add(&dec).unwrap();
-
-        let mut new_ctx = Context{
-            ctx_tx: ctx_tx,
-            pipeline: pipeline,
-            file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
-            name: String::from(path.file_stem().unwrap().to_str().unwrap()),
+            file_name: String::new(),
+            name: String::new(),
 
             artist: String::new(),
             title: String::new(),
@@ -95,42 +78,98 @@ impl Context {
 
             thumbnail: None,
 
-            video_stream: None,
+            video_streams: HashMap::new(),
+            video_best: None,
             video_codec: String::new(),
-            //video_decoder: None,
 
-            audio_stream: None,
+            audio_streams: HashMap::new(),
+            audio_best: None,
             audio_codec: String::new(),
-            //audio_decoder: None,
-        };
+        }
+    }
 
-        let pipeline_clone = new_ctx.pipeline.clone();
+    // result will be transmitted through ctx_tx
+    pub fn open_media_path_thread(path: PathBuf, ctx_tx: Sender<ContextMessage>) {
+        let mut ctx = Context::new(ctx_tx.clone());
+        ctx.file_name = String::from(path.file_name().unwrap().to_str().unwrap());
+        ctx.name = String::from(path.file_stem().unwrap().to_str().unwrap());
+
+        println!("\n*** Attempting to open {:?}", path);
+
+        let dec = gst::ElementFactory::make("uridecodebin", "input").unwrap();
+        let url = match Url::from_file_path(path.as_path()) {
+            Ok(url) => url.into_string(),
+            Err(_) => "Failed to convert path into URL".to_owned(),
+        };
+        dec.set_property("uri", &gst::Value::from(&url)).unwrap();
+        ctx.pipeline.add(&dec).unwrap();
+
+        // TODO: use a channel to send the channels names and listen to it in the message loop below
+        // or use an Arc + mutex?
+        let pipeline_clone = ctx.pipeline.clone();
         dec.connect_pad_added(move |dec_arg, src_pad| {
-            if !src_pad.is_linked() {
-                // TODO: build actual queues for audio and video with named elements
-                // TODO: See if the drawingareas could be set after the initiatlization
-                // TODO: See how to notify the context of a new audio / video stream
-                // in a thread sage way
+            let ref pipeline = pipeline_clone;
+
+            let caps = src_pad.get_current_caps().unwrap();
+            let structure = caps.get_structure(0).unwrap();
+            let name = structure.get_name();
+
+            let (is_audio, is_video) = {
+                (name.starts_with("audio/"), name.starts_with("video/"))
+            };
+
+            // TODO: build only one queue by stream type (audio / video)
+            if is_audio {
+                // TODO: add a probe to send audio frames through the ctx channel
                 let queue = gst::ElementFactory::make("queue", None).unwrap();
-                let sink = gst::ElementFactory::make("fakesink", None).unwrap();
-                let elements = &[&queue, &sink];
-                pipeline_clone.add_many(elements).unwrap();
+                let convert = gst::ElementFactory::make("audioconvert", None).unwrap();
+                let resample = gst::ElementFactory::make("audioresample", None).unwrap();
+                let sink = gst::ElementFactory::make("autoaudiosink", "audio_sink").unwrap();
+
+                let elements = &[&queue, &convert, &resample, &sink];
+                pipeline.add_many(elements).unwrap();
                 gst::Element::link_many(elements).unwrap();
+
                 for e in elements {
                     e.sync_state_with_parent().unwrap();
                 }
+
+                let sink_pad = queue.get_static_pad("sink").unwrap();
+                assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
+            } else if is_video {
+                let queue = gst::ElementFactory::make("queue", None).unwrap();
+                let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
+                let scale = gst::ElementFactory::make("videoscale", None).unwrap();
+                let sink = if let Some(gtkglsink) = ElementFactory::make("gtkglsink", None) {
+                    let glsinkbin = ElementFactory::make("glsinkbin", "video_sink").unwrap();
+                    glsinkbin
+                        .set_property("sink", &gtkglsink.to_value())
+                        .unwrap();
+                    glsinkbin
+                } else {
+                    let sink = ElementFactory::make("gtksink", "video_sink").unwrap();
+                    sink
+                };
+
+                let elements = &[&queue, &convert, &scale, &sink];
+                pipeline.add_many(elements).unwrap();
+                gst::Element::link_many(elements).unwrap();
+
+                for e in elements {
+                    e.sync_state_with_parent().unwrap();
+                }
+
                 let sink_pad = queue.get_static_pad("sink").unwrap();
                 assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
             }
-            println!("Pad added");
         });
 
-        assert_ne!(
-            new_ctx.pipeline.set_state(gst::State::Playing),
-            gst::StateChangeReturn::Failure
-        );
+        if ctx.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
+            ctx_tx.send(ContextMessage::FailedToOpenMedia);
+            return;
+        }
 
-        let bus = new_ctx.pipeline.get_bus().unwrap();
+        let bus = ctx.pipeline.get_bus().unwrap();
 
         loop {
             let msg = match bus.timed_pop(::std::u64::MAX) {
@@ -151,11 +190,11 @@ impl Context {
                 },
                 MessageView::Tag(msg_tag) => {
                     let tags = msg_tag.get_tags();
-                    assign_str_tag!(new_ctx.title, tags, Title);
-                    assign_str_tag!(new_ctx.artist, tags, Artist);
-                    assign_str_tag!(new_ctx.artist, tags, AlbumArtist);
-                    assign_str_tag!(new_ctx.video_codec, tags, VideoCodec);
-                    assign_str_tag!(new_ctx.audio_codec, tags, AudioCodec);
+                    assign_str_tag!(ctx.title, tags, Title);
+                    assign_str_tag!(ctx.artist, tags, Artist);
+                    assign_str_tag!(ctx.artist, tags, AlbumArtist);
+                    assign_str_tag!(ctx.video_codec, tags, VideoCodec);
+                    assign_str_tag!(ctx.audio_codec, tags, AudioCodec);
 
                     /*match tags.get::<PreviewImage>() {
                         // TODO: check if that happens, that would be handy for videos
@@ -168,9 +207,13 @@ impl Context {
                         if let Some(sample) = image_tag.get() {
                             if let Some(buffer) = sample.get_buffer() {
                                 if let Some(map) = buffer.map_read() {
+                                    // TODO: build an aligned_image directly
+                                    // so that we can save one copy
+                                    // and implement a wrapper on an aligned_image
+                                    // in image_surface
                                     let mut thumbnail = Vec::with_capacity(map.get_size());
                                     thumbnail.extend_from_slice(map.as_slice());
-                                    new_ctx.thumbnail = Some(thumbnail);
+                                    ctx.thumbnail = Some(thumbnail);
                                 }
                             }
                         }
@@ -210,7 +253,8 @@ impl Context {
 
                                                         for structure in caps.iter() {
                                                             let name = structure.get_name();
-                                                            println!("\t\tstructure: {} - {:?}", name, structure);
+                                                            println!("\t\tstructure: {}", name);
+                                                            //println!("\t\tstructure: {} - {:?}", name, structure);
                                                         }
                                                     },
                                                     None => println!("\tno caps"),
@@ -267,7 +311,7 @@ impl Context {
                             if name == "src" {
                                 match element.query_duration(gst::Format::Time) {
                                     Some(duration) => {
-                                        new_ctx.duration = Timestamp::from_sec_time_factor(
+                                        ctx.duration = Timestamp::from_sec_time_factor(
                                             duration, 1f64 / 1_000_000_000f64
                                         );
                                     },
@@ -282,11 +326,12 @@ impl Context {
             }
         }
 
-        assert_ne!(
-            new_ctx.pipeline.set_state(gst::State::Null),
-            gst::StateChangeReturn::Failure
-        );
+        // TODO: be more precise in order to distinguish with error playing
+        if ctx.pipeline.set_state(gst::State::Null) == gst::StateChangeReturn::Failure {
+            ctx_tx.send(ContextMessage::FailedToOpenMedia);
+            return;
+        }
 
-        Ok(new_ctx)
+        ctx_tx.send(ContextMessage::OpenedMedia(ctx));
     }
 }

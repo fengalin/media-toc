@@ -22,6 +22,9 @@ fn main() {
 
     gstreamer::init().unwrap();
 
+    // TODO: there's a `Settings` struct in GTK:
+    // https://github.com/gtk-rs/gtk/blob/master/src/auto/settings.rs
+
     let builder = Builder::new_from_string(include_str!("ui/media-toc.ui"));
     let main_ctrl = MainController::new(builder);
     main_ctrl.borrow().show_all();
