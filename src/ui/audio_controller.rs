@@ -1,10 +1,8 @@
 extern crate gtk;
-use gtk::prelude::*;
 
 extern crate cairo;
 
 extern crate gstreamer as gst;
-use gstreamer::*;
 use gstreamer::BinExt;
 
 use std::ops::{Deref, DerefMut};

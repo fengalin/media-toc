@@ -5,8 +5,6 @@ pub struct AlignedImage {
     width: usize,
     height: usize,
     stride: usize,
-    bytes_per_pixels: usize,
-    align_bytes: usize,
 }
 
 impl AlignedImage {
@@ -27,8 +25,6 @@ impl AlignedImage {
                         width: width,
                         height: height,
                         stride: stride,
-                        bytes_per_pixels: bytes_per_pixels,
-                        align_bytes: 1,
                     };
 
                     let mut pixel = [0; 4];

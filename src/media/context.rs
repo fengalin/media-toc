@@ -2,11 +2,9 @@ extern crate gstreamer as gst;
 use gstreamer::*;
 
 extern crate gtk;
-use gtk::DrawingArea;
 
 extern crate glib;
 use glib::ObjectExt;
-use glib::value::FromValueOptional;
 
 extern crate url;
 use url::Url;
@@ -107,7 +105,7 @@ impl Context {
         // TODO: use a channel to send the channels names and listen to it in the message loop below
         // or use an Arc + mutex?
         let pipeline_clone = ctx.pipeline.clone();
-        dec.connect_pad_added(move |dec_arg, src_pad| {
+        dec.connect_pad_added(move |_, src_pad| {
             let ref pipeline = pipeline_clone;
 
             let caps = src_pad.get_current_caps().unwrap();

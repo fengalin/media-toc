@@ -1,10 +1,8 @@
 extern crate gtk;
-use gtk::prelude::*;
 
 extern crate cairo;
 
 extern crate gstreamer as gst;
-use gstreamer::*;
 use gstreamer::BinExt;
 
 use std::ops::{Deref, DerefMut};
@@ -16,7 +14,6 @@ use super::{MediaController, MediaHandler};
 
 pub struct VideoController {
     media_ctl: MediaController,
-    is_thumbnail_only: bool,
 }
 
 
@@ -27,7 +24,6 @@ impl VideoController {
                 builder.get_object("video-container").unwrap(),
                 builder.get_object("video-drawingarea").unwrap()
             ),
-            is_thumbnail_only: false,
         }
     }
 }
