@@ -5,6 +5,7 @@ extern crate cairo;
 
 extern crate gstreamer as gst;
 use gstreamer::*;
+use gstreamer::BinExt;
 
 use std::ops::{Deref, DerefMut};
 
@@ -43,7 +44,11 @@ impl DerefMut for AudioController {
 
 impl MediaHandler for AudioController {
     fn new_media(&mut self, context: &Context) {
-        self.media_ctl.hide();
-        // TODO: set an Option to indicate that no stream is initialized
+        if let Some(audio_sink) = context.pipeline.get_by_name("audio_sink") {
+            self.media_ctl.show();
+        }
+        else {
+            self.media_ctl.hide();
+        }
     }
 }
