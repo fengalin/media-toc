@@ -8,7 +8,7 @@ use std::thread;
 
 use std::path::PathBuf;
 
-use std::sync::mpsc::{channel, Sender, TryRecvError};
+use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
 use gtk::prelude::*;
 use gtk::{ApplicationWindow, HeaderBar, Button,
@@ -109,16 +109,11 @@ impl MainController {
         file_dlg.close();
     }
 
-    fn open_media(&mut self, filepath: PathBuf) {
-        let (ctx_tx, ctx_rx) = channel::<ContextMessage>();
-
-        thread::spawn(move || {
-            Context::open_media_path_thread(filepath, ctx_tx);
-        });
-
+    fn register_listener(&self, ctx_rx: Receiver<ContextMessage>, timeout: u32) {
         if let Some(ref self_weak) = self.self_weak {
             let self_weak = self_weak.clone();
-            gtk::timeout_add(100, move || {
+
+            gtk::timeout_add(timeout, move || {
                 let mut must_go_on = false;
                 match ctx_rx.try_recv() {
                     Ok(message) => match self_weak.upgrade() {
@@ -134,5 +129,16 @@ impl MainController {
                 glib::Continue(must_go_on)
             });
         }
+        // FIXME: else use proper expression to panic! in
+    }
+
+    fn open_media(&mut self, filepath: PathBuf) {
+        let (ctx_tx, ctx_rx) = channel::<ContextMessage>();
+
+        self.register_listener(ctx_rx, 100);
+
+        thread::spawn(move || {
+            Context::open_media_path_thread(filepath, ctx_tx);
+        });
     }
 }
