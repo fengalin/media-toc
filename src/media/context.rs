@@ -140,16 +140,7 @@ impl Context {
                 let queue = gst::ElementFactory::make("queue", None).unwrap();
                 let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
                 let scale = gst::ElementFactory::make("videoscale", None).unwrap();
-                let sink = if let Some(gtkglsink) = ElementFactory::make("gtkglsink", None) {
-                    let glsinkbin = ElementFactory::make("glsinkbin", "video_sink").unwrap();
-                    glsinkbin
-                        .set_property("sink", &gtkglsink.to_value())
-                        .unwrap();
-                    glsinkbin
-                } else {
-                    let sink = ElementFactory::make("gtksink", "video_sink").unwrap();
-                    sink
-                };
+                let sink = ElementFactory::make("fakesink", "video_sink").unwrap();
 
                 let elements = &[&queue, &convert, &scale, &sink];
                 pipeline.add_many(elements).unwrap();

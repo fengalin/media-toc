@@ -2,7 +2,7 @@ extern crate gtk;
 extern crate glib;
 
 use std::rc::Rc;
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 
 use std::thread;
 
@@ -65,36 +65,20 @@ impl MainController {
             }
         );
 
-
-        // See this: https://developer.gnome.org/glib/stable/glib-The-Main-Event-Loop.html
-        // for a description of glib main loops features
-        // see also https://github.com/gtk-rs/gtk/blob/master/src/signal.rs
-        // for a `timeout_add` which allows executing a closure on a regular basis
-        // and mention `idle_add` to be used when no other event is executed.
-
-        // FIXME: this is not enough: the closure is executed once since
-        // we return glib::Continue(false). If we return true, the closure is executed
-        // in a loop and consumes CPU
-        // FIXME: another issue is that the closure uses a weak on mc which
-        // can only be accessed from a code which sees the RcRefCell. It can't
-        // be defined in a function from MainController
-        // This is definitively not the definitive solution
         let mc_weak = Rc::downgrade(&mc);
-        gtk::idle_add(move || {
-            let mut keep_polling = true;
+        gtk::timeout_add(200, move || {
             match ctx_rx.try_recv() {
                 Ok(message) => match mc_weak.upgrade() {
-                    Some(mc) => {
-                        mc.borrow_mut().process_message(message);
-                        keep_polling = false;
-                    },
-                    None => (),
+                    Some(mc) => mc.borrow_mut().process_message(message),
+                    None => panic!("Main controller is no longer available for ctx channel listener"),
                 },
-                // TODO: handle cases (Empty, Error...)
-                Err(error) => println!("ctx_rx: {:?}", error),
+                Err(error) => match error {
+                    Empty => (),
+                    error => println!("Error listening to ctx channel: {:?}", error),
+                },
             };
 
-            glib::Continue(keep_polling)
+            glib::Continue(true)
         });
 
         mc
@@ -147,5 +131,14 @@ impl MainController {
         thread::spawn(move || {
             Context::open_media_path_thread(filepath, ctx_tx);
         });
+
+        // FIXME: this hangs pipeline's pad_added gtksink creation
+        // has it blocks the GTK thread
+        // for the moment, let's use an ugly timeout_add defined at main controller's creation
+        /*match ctx_rx.recv() {
+            Ok(message) => self.process_message(message),
+            // TODO: handle cases (Empty, Error...)
+            Err(error) => println!("ctx_rx: {:?}", error),
+        };*/
     }
 }

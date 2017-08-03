@@ -5,6 +5,7 @@ extern crate cairo;
 
 extern crate gstreamer as gst;
 use gstreamer::*;
+use gstreamer::BinExt;
 
 use std::ops::{Deref, DerefMut};
 
@@ -47,13 +48,22 @@ impl DerefMut for VideoController {
 
 impl MediaHandler for VideoController {
     fn new_media(&mut self, context: &Context) {
-        // TODO: show or hide depending on the presence of a video stream in the context
-        self.media_ctl.hide();
-
-        /*if let Some(video_sink) = new_ctx.pipeline.get_by_name("video_sink") {
-            video_sink.set_property("widget", &glib::Value::from(video_area));
-        }*/
-
-        // else: no video sink for media
+        if let Some(video_sink) = context.pipeline.get_by_name("video_sink") {
+            // TODO: replace "video_sink" with something like this:
+            /*let sink = if let Some(gtkglsink) = ElementFactory::make("gtkglsink", None) {
+                let glsinkbin = ElementFactory::make("glsinkbin", "video_sink").unwrap();
+                glsinkbin
+                    .set_property("sink", &gtkglsink.to_value())
+                    .unwrap();
+                glsinkbin
+            } else {
+                let sink = ElementFactory::make("gtksink", "video_sink").unwrap();
+                sink
+            };*/
+            self.media_ctl.show();
+        }
+        else {
+            self.media_ctl.hide();
+        }
     }
 }
