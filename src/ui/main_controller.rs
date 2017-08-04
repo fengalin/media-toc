@@ -72,34 +72,42 @@ impl MainController {
         self.window.show_all();
     }
 
-    fn process_message(&mut self, message: ContextMessage) -> bool
+    fn process_message(&mut self,
+        ui_tx: Option<&Sender<ContextMessage>>,
+        message: ContextMessage
+    ) -> bool
     {
-        let wait_for_more = match message {
+        let keep_going = match message {
             OpenedMedia => {
                 println!("Processing OpenedMedia");
 
-                let context = self.pending_ctx.take()
-                    .expect("Received OpenedMedia, but new context is not available");
+                let ref context = self.ctx.as_ref()
+                    .expect("Received OpenedMedia, but context is not available");
 
-                self.info_ctrl.new_media(&context);
-                self.video_ctrl.new_media(&context);
-                self.audio_ctrl.new_media(&context);
+                self.info_ctrl.new_media(context);
+                self.video_ctrl.new_media(context);
+                self.audio_ctrl.new_media(context);
 
                 self.header_bar.set_subtitle(Some(context.file_name.as_str()));
-
-                self.ctx = Some(context);
-
+                context.stop();
                 false
             },
             FailedToOpenMedia => {
                 println!("ERROR: failed to open media");
-                self.pending_ctx = None;
+                self.ctx = None;
+                // TODO: clear UI
                 false
+            },
+            HaveVideoWidget(video_widget) => {
+                let ref ui_tx = ui_tx.expect("Received HaveVideoWidget, but no ui_tx is defined");
+                self.video_ctrl.have_widget(video_widget);
+                ui_tx.send(GotVideoWidget);
+                true
             },
             _ => false,
         };
 
-        wait_for_more
+        keep_going
     }
 
     fn select_media(&mut self) {
@@ -124,6 +132,7 @@ impl MainController {
     }
 
     fn register_listener(&self,
+        ui_tx: Option<Sender<ContextMessage>>,
         ui_rx: Receiver<ContextMessage>,
         timeout: u32
     )
@@ -132,34 +141,33 @@ impl MainController {
             let self_weak = self_weak.clone();
 
             gtk::timeout_add(timeout, move || {
-                let mut wait_for_more = false;
+                let mut keep_going = false;
                 match ui_rx.try_recv() {
                     Ok(message) => match self_weak.upgrade() {
-                        Some(mc) => wait_for_more = mc.borrow_mut().process_message(message),
+                        Some(mc) => keep_going = mc.borrow_mut().process_message(ui_tx.as_ref(), message),
                         None => panic!("Main controller is no longer available for ctx channel listener"),
                     },
                     Err(error) => match error {
-                        TryRecvError::Empty => wait_for_more = true,
+                        TryRecvError::Empty => keep_going = true,
                         error => println!("Error listening to ctx channel: {:?}", error),
                     },
                 };
 
-                glib::Continue(wait_for_more)
+                glib::Continue(keep_going)
             });
         }
-        // FIXME: else use proper expression to panic! in
+        // FIXME: else use proper expression to panic!
     }
 
     fn open_media(&mut self, filepath: PathBuf) {
         let (ctx_tx, ui_rx) = channel();
+        let (ui_tx, ctx_rx) = channel();
 
-        self.register_listener(ui_rx, 100);
+        self.register_listener(Some(ui_tx), ui_rx, 100);
 
-        match Context::open_media_path(filepath, &self.video_ctrl.video_box, ctx_tx) {
+        match Context::open_media_path(filepath, ctx_tx, ctx_rx) {
             Ok(ctx) => {
-                self.pending_ctx = Some(ctx);
-                let ref ctx = self.pending_ctx.as_ref().unwrap();
-                ctx.play();
+                self.ctx = Some(ctx);
             },
             Err(error) => println!("Error opening media: {}", error),
         };

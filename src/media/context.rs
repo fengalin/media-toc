@@ -1,9 +1,6 @@
 extern crate gstreamer as gst;
 use gstreamer::*;
 
-extern crate gtk;
-use gtk::{BoxExt, ContainerExt, WidgetExt};
-
 extern crate glib;
 use glib::ObjectExt;
 
@@ -14,7 +11,7 @@ use std::collections::HashMap;
 
 use std::path::PathBuf;
 
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
 use std::thread;
@@ -22,10 +19,12 @@ use std::thread;
 use super::{Chapter, Timestamp};
 
 pub enum ContextMessage {
-    OpenedMedia,
     FailedToOpenMedia,
-    VideoFrame,
-    AudioFrame,
+    GotVideoWidget,
+    //HaveAudioFrame,
+    //HaveVideoFrame,
+    HaveVideoWidget(glib::Value),
+    OpenedMedia,
 }
 
 pub struct Context {
@@ -88,38 +87,10 @@ impl Context {
         }
     }
 
-    // will add a GstGtkWidget to the video_box
-    fn prepare_video_sink(&self, video_box: &gtk::Box) -> gst::Element {
-        let (sink, widget_val) = if let Some(gtkglsink) = ElementFactory::make("gtkglsink", None) {
-            let glsinkbin = ElementFactory::make("glsinkbin", None).unwrap();
-            glsinkbin
-                .set_property("sink", &gtkglsink.to_value())
-                .unwrap();
-
-            let widget_val = gtkglsink.get_property("widget").unwrap();
-            (glsinkbin, widget_val)
-        } else {
-            let sink = ElementFactory::make("gtksink", None).unwrap();
-            let widget_val = sink.get_property("widget").unwrap();
-            (sink, widget_val)
-        };
-
-        for child in video_box.get_children() {
-            video_box.remove(&child);
-        }
-
-        let widget = widget_val.get::<gtk::Widget>().unwrap();
-        video_box.pack_start(&widget, true, true, 0);
-
-        video_box.show_all();
-
-        sink
-    }
-
     pub fn open_media_path(
         path: PathBuf,
-        video_box: &gtk::Box,
         ctx_tx: Sender<ContextMessage>,
+        ui_rx: Receiver<ContextMessage>,
     ) -> Result<Context, String>
     {
         let mut ctx = Context::new();
@@ -136,10 +107,11 @@ impl Context {
         dec.set_property("uri", &gst::Value::from(&url)).unwrap();
         ctx.pipeline.add(&dec).unwrap();
 
-        // prepare the video sink while we are in the main (GTK) thread
-        let video_sink = ctx.prepare_video_sink(video_box);
-
         let pipeline_clone = ctx.pipeline.clone();
+        // Need an Arc Mutex on ctx_tx because Rust consider this method
+        // as a candidate for being called by multiple threads
+        let ctx_tx_arc_mtx = Arc::new(Mutex::new(ctx_tx.clone()));
+        let ui_rx_arc_mtx = Arc::new(Mutex::new(ui_rx));
         dec.connect_pad_added(move |_, src_pad| {
             let ref pipeline = pipeline_clone;
 
@@ -173,7 +145,37 @@ impl Context {
                 let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
                 let scale = gst::ElementFactory::make("videoscale", None).unwrap();
 
-                let elements = &[&queue, &convert, &scale, &video_sink];
+                let (sink, widget_val) = if let Some(gtkglsink) = ElementFactory::make("gtkglsink", None) {
+                    let glsinkbin = ElementFactory::make("glsinkbin", "video_sink").unwrap();
+                    glsinkbin
+                        .set_property("sink", &gtkglsink.to_value())
+                        .unwrap();
+
+                    let widget_val = gtkglsink.get_property("widget").unwrap();
+                    (glsinkbin, widget_val)
+                } else {
+                    let sink = ElementFactory::make("gtksink", "video_sink").unwrap();
+                    let widget_val = sink.get_property("widget").unwrap();
+                    (sink, widget_val)
+                };
+
+                // Pass the video_sink for integration in the UI
+                ctx_tx_arc_mtx.lock()
+                    .expect("Failed to lock ctx_tx mutex, while building the video queue")
+                    .send(ContextMessage::HaveVideoWidget(widget_val));
+                // Wait for the widget to be included, otherwise the pipeline
+                // embeds it in a default window
+                match ui_rx_arc_mtx.lock()
+                    .expect("Failed to lock ui_rx mutex, while building the video queue")
+                    .recv() {
+                        Ok(message) => match message {
+                            ContextMessage::GotVideoWidget => (),
+                            _ => panic!("Unexpected message while waiting for GotVideoWidget"),
+                        },
+                        Err(error) => panic!("Error while waiting for GotVideoWidget: {:?}", error),
+                    };
+
+                let elements = &[&queue, &convert, &scale, &sink];
                 pipeline.add_many(elements).unwrap();
                 gst::Element::link_many(elements).unwrap();
 
@@ -186,8 +188,8 @@ impl Context {
             }
         });
 
+        // TODO: restore media info processing
         let bus = ctx.pipeline.get_bus().unwrap();
-
         bus.add_watch(move |_, msg| {
             let mut keep_going = true;
 
@@ -208,7 +210,7 @@ impl Context {
                 },
                 MessageView::AsyncDone(_) => {
                     ctx_tx.send(ContextMessage::OpenedMedia);
-                    keep_going = true;
+                    keep_going = false;
                 },
                 _ => (),
             };
@@ -216,16 +218,18 @@ impl Context {
             glib::Continue(keep_going)
         });
 
-        Ok(ctx)
+        match ctx.play() {
+            Ok(_) => Ok(ctx),
+            Err(error) => Err(error),
+        }
     }
 
-    pub fn play(&self) {
+    pub fn play(&self) -> Result<(), String> {
         let ret = self.pipeline.set_state(gst::State::Playing);
         if ret == gst::StateChangeReturn::Failure {
-            println!("could not set media in palying state");
-            //return Err("could not set media in palying state".into());
+            return Err("could not set media in palying state".into());
         }
-        println!("Playing...");
+        Ok(())
     }
 
     pub fn stop(&self) {

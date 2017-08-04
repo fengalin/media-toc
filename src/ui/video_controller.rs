@@ -1,5 +1,7 @@
 extern crate cairo;
 
+extern crate glib;
+
 extern crate gstreamer as gst;
 use gstreamer::BinExt;
 
@@ -29,6 +31,17 @@ impl VideoController {
             video_box: builder.get_object("video-box").unwrap(),
         }
     }
+
+    pub fn have_widget(&self, widget_val: glib::Value) {
+        for child in self.video_box.get_children() {
+            self.video_box.remove(&child);
+        }
+
+        let widget = widget_val.get::<gtk::Widget>().unwrap();
+        self.video_box.pack_start(&widget, true, true, 0);
+
+        self.video_box.show_all();
+    }
 }
 
 impl Deref for VideoController {
@@ -51,7 +64,7 @@ impl MediaHandler for VideoController {
             self.media_ctl.show();
         }
         else {
-            //self.media_ctl.hide();
+            self.media_ctl.hide();
         }
     }
 }
