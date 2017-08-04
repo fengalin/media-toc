@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
-use super::MediaInfo;
+use super::{MediaInfo, Timestamp};
 
 pub enum ContextMessage {
     AsyncDone,
@@ -48,7 +48,7 @@ macro_rules! assign_str_tag(
 impl Context {
     fn new(path: PathBuf) -> Self {
         Context{
-            pipeline: gst::Pipeline::new(None),
+            pipeline: gst::Pipeline::new("pipeline"),
 
             file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
             name: String::from(path.file_stem().unwrap().to_str().unwrap()),
@@ -73,6 +73,15 @@ impl Context {
         match ctx.pause() {
             Ok(_) => Ok(ctx),
             Err(error) => Err(error),
+        }
+    }
+
+    pub fn get_duration(&self) -> Timestamp {
+        match self.pipeline.query_duration(gst::Format::Time) {
+            Some(duration) => Timestamp::from_sec_time_factor(
+                    duration, 1f64 / 1_000_000_000f64
+            ),
+            None => Timestamp::new(),
         }
     }
 

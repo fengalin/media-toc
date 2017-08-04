@@ -6,6 +6,8 @@ extern crate cairo;
 use std::rc::Rc;
 use std::cell::RefCell;
 
+use std::fmt::Display;
+
 use std::ops::{Deref, DerefMut};
 
 use ::media::Context;
@@ -118,7 +120,7 @@ impl MediaHandler for InfoController {
         self.title_lbl.set_label(&info.title);
         self.artist_lbl.set_label(&info.artist);
         self.description_lbl.set_label(&info.description);
-        self.duration_lbl.set_label(&format!("{}", info.duration));
+        self.duration_lbl.set_label(&format!("{}", ctx.get_duration()));
 
         let mut has_image = false;
         if let Some(thumbnail) = info.thumbnail.as_ref() {

@@ -4,12 +4,11 @@ use std::clone::Clone;
 
 use std::collections::HashMap;
 
-use super::{Chapter, Timestamp};
+use super::Chapter;
 
 pub struct MediaInfo {
     pub artist: String,
     pub title: String,
-    pub duration: Timestamp,
     pub description: String,
     pub chapters: Vec<Chapter>,
 
@@ -29,7 +28,6 @@ impl MediaInfo {
         MediaInfo{
             artist: String::new(),
             title: String::new(),
-            duration: Timestamp::new(),
             description: String::new(),
             chapters: Vec::new(),
 
@@ -52,7 +50,6 @@ impl Clone for MediaInfo {
         MediaInfo {
             artist: self.artist.clone(),
             title: self.title.clone(),
-            duration: self.duration.clone(),
             description: self.description.clone(),
             chapters: self.chapters.clone(),// TODO: find a way to avoid the copy
 
