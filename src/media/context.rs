@@ -15,21 +15,24 @@ use std::sync::{Arc, Mutex};
 use super::MediaInfo;
 
 pub enum ContextMessage {
+    AsyncDone,
     Eos,
     FailedToOpenMedia,
     GotVideoWidget,
     //HaveAudioFrame,
     //HaveVideoFrame,
     HaveVideoWidget(glib::Value),
-    OpenedMedia(MediaInfo),
 }
 
 pub struct Context {
     pub pipeline: gst::Pipeline,
+    pub state_req: gst::State,
 
     pub path: PathBuf,
     pub file_name: String,
     pub name: String,
+
+    pub info: Arc<Mutex<MediaInfo>>,
 }
 
 macro_rules! assign_str_tag(
@@ -47,10 +50,13 @@ impl Context {
     fn new(path: PathBuf) -> Self {
         Context{
             pipeline: gst::Pipeline::new(None),
+            state_req: gst::State::Null,
 
             file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
             name: String::from(path.file_stem().unwrap().to_str().unwrap()),
             path: path,
+
+            info: Arc::new(Mutex::new(MediaInfo::new())),
         }
     }
 
@@ -62,7 +68,7 @@ impl Context {
     {
         println!("\nAttempting to open {:?}", path);
 
-        let ctx = Context::new(path);
+        let mut ctx = Context::new(path);
         ctx.build_pipeline(&ctx_tx, ui_rx);
         ctx.register_bus_inspector(ctx_tx);
 
@@ -72,28 +78,31 @@ impl Context {
         }
     }
 
-    pub fn play(&self) -> Result<(), String> {
+    pub fn play(&mut self) -> Result<(), String> {
         let ret = self.pipeline.set_state(gst::State::Playing);
         if ret == gst::StateChangeReturn::Failure {
             return Err("could not set media in palying state".into());
         }
+        self.state_req = gst::State::Playing;
         Ok(())
     }
 
-    pub fn pause(&self) {
+    pub fn pause(&mut self) {
         let ret = self.pipeline.set_state(gst::State::Paused);
         if ret == gst::StateChangeReturn::Failure {
             println!("could not set media in Paused state");
             //return Err("could not set media in Paused state".into());
         }
+        self.state_req = gst::State::Paused;
     }
 
-    pub fn stop(&self) {
+    pub fn stop(&mut self) {
         let ret = self.pipeline.set_state(gst::State::Null);
         if ret == gst::StateChangeReturn::Failure {
             println!("could not set media in Null state");
             //return Err("could not set media in Null state".into());
         }
+        self.state_req = gst::State::Null;
     }
 
     // TODO: handle errors
@@ -192,7 +201,7 @@ impl Context {
 
     // Uses ctx_tx to notify the UI controllers about the inspection process
     fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
-        let mut info = MediaInfo::new();
+        let info_arc_mtx = self.info.clone();
         let bus = self.pipeline.get_bus().unwrap();
         bus.add_watch(move |_, msg| {
             let mut keep_going = true;
@@ -215,12 +224,14 @@ impl Context {
                     keep_going = false;
                 },
                 MessageView::AsyncDone(_) => {
-                    ctx_tx.send(ContextMessage::OpenedMedia(info.clone())) // TODO: test a solution based on an Arc on Context
+                    ctx_tx.send(ContextMessage::AsyncDone)
                         .expect("Failed to notify UI");
                     //keep_going = false;
                 },
                 MessageView::Tag(msg_tag) => {
                     let tags = msg_tag.get_tags();
+                    let ref mut info = info_arc_mtx.lock()
+                        .expect("Failed to lock media info while reading tag data");
                     assign_str_tag!(info.title, tags, Title);
                     assign_str_tag!(info.artist, tags, Artist);
                     assign_str_tag!(info.artist, tags, AlbumArtist);

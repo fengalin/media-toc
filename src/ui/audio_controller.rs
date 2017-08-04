@@ -7,7 +7,7 @@ use gstreamer::BinExt;
 
 use std::ops::{Deref, DerefMut};
 
-use ::media::{Context, MediaInfo};
+use ::media::Context;
 
 use super::{MediaController, MediaHandler};
 
@@ -42,9 +42,9 @@ impl DerefMut for AudioController {
 }
 
 impl MediaHandler for AudioController {
-    fn new_media(&mut self, context: &Context, info: &MediaInfo) {
+    fn new_media(&mut self, ctx: &Context) {
         // TODO: test info in order to avoid checking pipeline directly
-        if let Some(_) = context.pipeline.get_by_name("audio_sink") {
+        if let Some(_) = ctx.pipeline.get_by_name("audio_sink") {
             self.media_ctl.show();
         }
         else {

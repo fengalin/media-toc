@@ -8,7 +8,7 @@ use std::cell::RefCell;
 
 use std::ops::{Deref, DerefMut};
 
-use ::media::{Context, MediaInfo};
+use ::media::Context;
 
 use super::{ImageSurface, MediaController, MediaHandler};
 
@@ -112,7 +112,9 @@ impl DerefMut for InfoController {
 }
 
 impl MediaHandler for InfoController {
-    fn new_media(&mut self, context: &Context, info: &MediaInfo) {
+    fn new_media(&mut self, ctx: &Context) {
+        let ref info = ctx.info.lock()
+            .expect("Failed to lock media info in InfoController");
         self.title_lbl.set_label(&info.title);
         self.artist_lbl.set_label(&info.artist);
         self.description_lbl.set_label(&info.description);

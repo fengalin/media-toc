@@ -2,10 +2,10 @@ extern crate gtk;
 
 use gtk::WidgetExt;
 
-use ::media::{Context, MediaInfo};
+use ::media::Context;
 
 pub trait MediaHandler {
-    fn new_media(&mut self, context: &Context, info: &MediaInfo);
+    fn new_media(&mut self, context: &Context);
 }
 
 pub struct MediaController {

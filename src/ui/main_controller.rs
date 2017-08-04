@@ -76,11 +76,25 @@ impl MainController {
     ) -> bool
     {
         let keep_going = match message {
+            AsyncDone => {
+                println!("Received AsyncDone");
+
+                let ref context = self.ctx.as_ref()
+                    .expect("Received AsyncDone, but context is not available");
+
+                self.info_ctrl.new_media(context);
+                self.video_ctrl.new_media(context);
+                self.audio_ctrl.new_media(context);
+
+                self.header_bar.set_subtitle(Some(context.file_name.as_str()));
+                //context.pause();
+                true
+            },
             Eos => {
                 println!("Received Eos");
-                self.ctx.as_ref()
+                /*self.ctx.as_mut()
                     .expect("Received Eos, but context is not available")
-                    .stop();
+                    .stop();*/
                 true
             },
             FailedToOpenMedia => {
@@ -88,20 +102,6 @@ impl MainController {
                 self.ctx = None;
                 // TODO: clear UI
                 false
-            },
-            OpenedMedia(info) => {
-                println!("Received OpenedMedia");
-
-                let ref context = self.ctx.as_ref()
-                    .expect("Received OpenedMedia, but context is not available");
-
-                self.info_ctrl.new_media(context, &info);
-                self.video_ctrl.new_media(context, &info);
-                self.audio_ctrl.new_media(context, &info);
-
-                self.header_bar.set_subtitle(Some(context.file_name.as_str()));
-                //context.pause();
-                true
             },
             HaveVideoWidget(video_widget) => {
                 let ui_tx = ui_tx.as_ref()
@@ -118,6 +118,10 @@ impl MainController {
     }
 
     fn select_media(&mut self) {
+        if let Some(context) = self.ctx.as_mut() {
+            context.stop();
+        }
+
         let file_dlg = FileChooserDialog::new(Some("Open a media file"),
                                               Some(&self.window),
                                               FileChooserAction::Open,
@@ -167,10 +171,6 @@ impl MainController {
     }
 
     fn open_media(&mut self, filepath: PathBuf) {
-        if let Some(context) = self.ctx.as_ref() {
-            context.stop();
-        }
-
         let (ctx_tx, ui_rx) = channel();
         let (ui_tx, ctx_rx) = channel();
 

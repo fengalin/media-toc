@@ -10,7 +10,7 @@ use gtk::{BoxExt, ContainerExt, WidgetExt};
 
 use std::ops::{Deref, DerefMut};
 
-use ::media::{Context, MediaInfo};
+use ::media::Context;
 
 use super::{MediaController, MediaHandler};
 
@@ -57,9 +57,9 @@ impl DerefMut for VideoController {
 }
 
 impl MediaHandler for VideoController {
-    fn new_media(&mut self, context: &Context, info: &MediaInfo) {
+    fn new_media(&mut self, ctx: &Context) {
         // TODO: test info in order to avoid checking pipeline directly
-        if let Some(_) = context.pipeline.get_by_name("video_sink") {
+        if let Some(_) = ctx.pipeline.get_by_name("video_sink") {
             self.media_ctl.show();
         }
         else {
