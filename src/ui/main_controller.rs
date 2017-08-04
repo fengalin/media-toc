@@ -24,7 +24,8 @@ pub struct MainController {
     video_ctrl: VideoController,
     audio_ctrl: AudioController,
 
-    context: Option<Context>,
+    ctx: Option<Context>,
+    pending_ctx: Option<Context>,
 
     self_weak: Option<Weak<RefCell<MainController>>>,
 }
@@ -37,11 +38,13 @@ impl MainController {
             info_ctrl: InfoController::new(&builder),
             video_ctrl: VideoController::new(&builder),
             audio_ctrl: AudioController::new(&builder),
-            context: None,
+            ctx: None,
+            pending_ctx: None,
             self_weak: None,
         }));
 
         {
+            // TODO: stop any playing context or pending_ctx
             let mut mc_mut = mc.borrow_mut();
             mc_mut.window.connect_delete_event(|_, _| {
                 gtk::main_quit();
@@ -72,20 +75,25 @@ impl MainController {
     fn process_message(&mut self, message: ContextMessage) -> bool
     {
         let wait_for_more = match message {
-            OpenedMedia(context) => {
+            OpenedMedia => {
                 println!("Processing OpenedMedia");
-                self.header_bar.set_subtitle(Some(context.file_name.as_str()));
+
+                let context = self.pending_ctx.take()
+                    .expect("Received OpenedMedia, but new context is not available");
 
                 self.info_ctrl.new_media(&context);
                 self.video_ctrl.new_media(&context);
                 self.audio_ctrl.new_media(&context);
 
-                self.context = Some(context);
+                self.header_bar.set_subtitle(Some(context.file_name.as_str()));
+
+                self.ctx = Some(context);
 
                 false
             },
             FailedToOpenMedia => {
                 println!("ERROR: failed to open media");
+                self.pending_ctx = None;
                 false
             },
             _ => false,
@@ -147,6 +155,13 @@ impl MainController {
 
         self.register_listener(ui_rx, 100);
 
-        Context::open_media_path_thread(filepath, &self.video_ctrl.video_box, ctx_tx);
+        match Context::open_media_path(filepath, &self.video_ctrl.video_box, ctx_tx) {
+            Ok(ctx) => {
+                self.pending_ctx = Some(ctx);
+                let ref ctx = self.pending_ctx.as_ref().unwrap();
+                ctx.play();
+            },
+            Err(error) => println!("Error opening media: {}", error),
+        };
     }
 }

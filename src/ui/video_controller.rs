@@ -4,6 +4,7 @@ extern crate gstreamer as gst;
 use gstreamer::BinExt;
 
 extern crate gtk;
+use gtk::{BoxExt, ContainerExt, WidgetExt};
 
 use std::ops::{Deref, DerefMut};
 
@@ -50,7 +51,7 @@ impl MediaHandler for VideoController {
             self.media_ctl.show();
         }
         else {
-            self.media_ctl.hide();
+            //self.media_ctl.hide();
         }
     }
 }

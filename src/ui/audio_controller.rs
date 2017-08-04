@@ -47,7 +47,7 @@ impl MediaHandler for AudioController {
             self.media_ctl.show();
         }
         else {
-            self.media_ctl.hide();
+            //self.media_ctl.hide();
         }
     }
 }

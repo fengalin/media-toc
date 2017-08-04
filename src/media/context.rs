@@ -2,15 +2,13 @@ extern crate gstreamer as gst;
 use gstreamer::*;
 
 extern crate gtk;
-use gtk::BoxExt;
+use gtk::{BoxExt, ContainerExt, WidgetExt};
 
 extern crate glib;
 use glib::ObjectExt;
 
 extern crate url;
 use url::Url;
-
-use std::clone::Clone;
 
 use std::collections::HashMap;
 
@@ -24,7 +22,7 @@ use std::thread;
 use super::{Chapter, Timestamp};
 
 pub enum ContextMessage {
-    OpenedMedia(Context),
+    OpenedMedia,
     FailedToOpenMedia,
     VideoFrame,
     AudioFrame,
@@ -64,34 +62,6 @@ macro_rules! assign_str_tag(
 );
 
 
-impl Clone for Context {
-    fn clone(&self) -> Self {
-        // FIXME: there must be a better way
-        Context {
-            pipeline: self.pipeline.clone(),
-
-            file_name: self.file_name.clone(),
-            name: self.name.clone(),
-
-            artist: self.artist.clone(),
-            title: self.title.clone(),
-            duration: self.duration.clone(),
-            description: self.description.clone(),
-            chapters: self.chapters.clone(),
-
-            thumbnail: self.thumbnail.clone(),
-
-            video_streams: self.video_streams.clone(),
-            video_best: self.video_best.clone(),
-            video_codec: self.video_codec.clone(),
-
-            audio_streams: self.audio_streams.clone(),
-            audio_best: self.audio_best.clone(),
-            audio_codec: self.audio_codec.clone(),
-        }
-    }
-}
-
 impl Context {
     fn new() -> Self {
         Context{
@@ -120,33 +90,37 @@ impl Context {
 
     // will add a GstGtkWidget to the video_box
     fn prepare_video_sink(&self, video_box: &gtk::Box) -> gst::Element {
-        let (gtk_sink, is_gl) = if let Some(gtkglsink) = ElementFactory::make("gtkglsink", None) {
-            (gtkglsink, true)
+        let (sink, widget_val) = if let Some(gtkglsink) = ElementFactory::make("gtkglsink", None) {
+            let glsinkbin = ElementFactory::make("glsinkbin", None).unwrap();
+            glsinkbin
+                .set_property("sink", &gtkglsink.to_value())
+                .unwrap();
+
+            let widget_val = gtkglsink.get_property("widget").unwrap();
+            (glsinkbin, widget_val)
         } else {
-            let sink = ElementFactory::make("gtksink", "video_sink").unwrap();
-            (sink, false)
+            let sink = ElementFactory::make("gtksink", None).unwrap();
+            let widget_val = sink.get_property("widget").unwrap();
+            (sink, widget_val)
         };
 
-        let widget = gtk_sink.get_property("widget").unwrap()
-            .get::<gtk::Widget>().unwrap();
-        // FIXME: clean the box first
+        for child in video_box.get_children() {
+            video_box.remove(&child);
+        }
+
+        let widget = widget_val.get::<gtk::Widget>().unwrap();
         video_box.pack_start(&widget, true, true, 0);
 
-        if is_gl {
-            let glsinkbin = ElementFactory::make("glsinkbin", "video_sink").unwrap();
-            glsinkbin.set_property("sink", &gtk_sink.to_value()).unwrap();
-            glsinkbin
-        } else {
-            gtk_sink
-        }
+        video_box.show_all();
+
+        sink
     }
 
-    // result will be transmitted through ctx_tx
-    pub fn open_media_path_thread(
+    pub fn open_media_path(
         path: PathBuf,
         video_box: &gtk::Box,
         ctx_tx: Sender<ContextMessage>,
-    )
+    ) -> Result<Context, String>
     {
         let mut ctx = Context::new();
         ctx.file_name = String::from(path.file_name().unwrap().to_str().unwrap());
@@ -179,7 +153,6 @@ impl Context {
 
             // TODO: build only one queue by stream type (audio / video)
             if is_audio {
-                // TODO: add a probe to send audio frames through the ctx channel
                 let queue = gst::ElementFactory::make("queue", None).unwrap();
                 let convert = gst::ElementFactory::make("audioconvert", None).unwrap();
                 let resample = gst::ElementFactory::make("audioresample", None).unwrap();
@@ -213,12 +186,15 @@ impl Context {
             }
         });
 
-        let pipeline = ctx.pipeline.clone();
         let bus = ctx.pipeline.get_bus().unwrap();
+
         bus.add_watch(move |_, msg| {
+            let mut keep_going = true;
+
             match msg.view() {
                 MessageView::Eos(..) => {
-                    ctx_tx.send(ContextMessage::OpenedMedia(ctx.clone()));
+                    ctx_tx.send(ContextMessage::OpenedMedia);
+                    keep_going = false;
                 },
                 MessageView::Error(err) => {
                     println!(
@@ -228,152 +204,35 @@ impl Context {
                         err.get_debug()
                     );
                     ctx_tx.send(ContextMessage::FailedToOpenMedia);
-                }
-                MessageView::Tag(msg_tag) => {
-                    let tags = msg_tag.get_tags();
-                    assign_str_tag!(ctx.title, tags, Title);
-                    assign_str_tag!(ctx.artist, tags, Artist);
-                    assign_str_tag!(ctx.artist, tags, AlbumArtist);
-                    assign_str_tag!(ctx.video_codec, tags, VideoCodec);
-                    assign_str_tag!(ctx.audio_codec, tags, AudioCodec);
-
-                    /*match tags.get::<PreviewImage>() {
-                        // TODO: check if that happens, that would be handy for videos
-                        Some(preview_tag) => println!("Found a PreviewImage tag"),
-                        None => (),
-                    };*/
-
-                    // TODO: distinguish front/back cover (take the first one?)
-                    if let Some(image_tag) = tags.get::<Image>() {
-                        if let Some(sample) = image_tag.get() {
-                            if let Some(buffer) = sample.get_buffer() {
-                                if let Some(map) = buffer.map_read() {
-                                    // TODO: build an aligned_image directly
-                                    // so that we can save one copy
-                                    // and implement a wrapper on an aligned_image
-                                    // in image_surface
-                                    let mut thumbnail = Vec::with_capacity(map.get_size());
-                                    thumbnail.extend_from_slice(map.as_slice());
-                                    ctx.thumbnail = Some(thumbnail);
-                                }
-                            }
-                        }
-                    }
-                },
-                MessageView::StreamStatus(status) => {
-                    let name = msg.get_src().get_name();
-                    let status = status.get();
-                    let (status_type, element) = (status.0, status.1.unwrap());
-                    println!("\nStream status: {:?} - {}", status_type, name);
-                    // TODO: see who to handle multithreading in pad_added and
-                    // make a decision about this (remove or use it to update ctx)
-                    if true { // status_type == gst::StreamStatusType::Enter {
-                        if true { //name.starts_with("src") {
-                            println!("src pads");
-                            match element.iterate_src_pads() {
-                                Some(ref mut pad_iter) => {
-                                    loop {
-                                        match pad_iter.next() {
-                                            Ok(pad) => {
-                                                let pad: gst::Pad = pad.get().unwrap();
-                                                match pad.get_stream_id() {
-                                                    Some(id) => {
-                                                        println!("\tstream id: {}", &id);
-                                                    },
-                                                    None => println!("\tno stream id"),
-                                                }
-
-                                                match pad.get_stream() {
-                                                    Some(stream) => println!("\tstream: {:?}", &stream),
-                                                    None => (),
-                                                }
-
-                                                match pad.get_current_caps() {
-                                                    Some(caps) => {
-                                                        println!("\tcaps: {:?}", caps);
-
-                                                        for structure in caps.iter() {
-                                                            let name = structure.get_name();
-                                                            println!("\t\tstructure: {}", name);
-                                                            //println!("\t\tstructure: {} - {:?}", name, structure);
-                                                        }
-                                                    },
-                                                    None => println!("\tno caps"),
-                                                };
-                                            },
-                                            Err(_) => break,
-                                        }
-                                    }
-                                },
-                                None => println!("\tempty pad iterator"),
-                            };
-
-                            println!("sink pads");
-                            match element.iterate_sink_pads() {
-                                Some(ref mut pad_iter) => {
-                                    loop {
-                                        match pad_iter.next() {
-                                            Ok(pad) => {
-                                                let pad: gst::Pad = pad.get().unwrap();
-                                                match pad.get_stream_id() {
-                                                    Some(id) => {
-                                                        println!("\tstream id: {}", &id);
-                                                    },
-                                                    None => println!("\tno stream id"),
-                                                }
-
-                                                match pad.get_stream() {
-                                                    Some(stream) => println!("\tstream: {:?}", &stream),
-                                                    None => (),
-                                                }
-
-                                                match pad.get_current_caps() {
-                                                    Some(caps) => {
-                                                        println!("\tcaps: {:?}", caps);
-
-                                                        for structure in caps.iter() {
-                                                            let name = structure.get_name();
-                                                            println!("\t\tstructure: {} - {:?}", name, structure);
-                                                        }
-                                                    },
-                                                    None => println!("\tno caps"),
-                                                };
-                                            },
-                                            Err(_) => break,
-                                        }
-                                    }
-                                },
-                                None => println!("\tempty pad iterator"),
-                            };
-
-                            // TODO: fix duration determination
-                            // there must be some better way
-                            // Note: how is the info encoded for a multiple chapter media?
-                            if name == "src" {
-                                match element.query_duration(gst::Format::Time) {
-                                    Some(duration) => {
-                                        ctx.duration = Timestamp::from_sec_time_factor(
-                                            duration, 1f64 / 1_000_000_000f64
-                                        );
-                                    },
-                                    None => (),
-                                };
-                            }
-                        }
-                    }
+                    keep_going = false;
                 },
                 MessageView::AsyncDone(_) => {
-                    ctx_tx.send(ContextMessage::OpenedMedia(ctx.clone()));
+                    ctx_tx.send(ContextMessage::OpenedMedia);
+                    keep_going = true;
                 },
                 _ => (),
             };
 
-            glib::Continue(true)
+            glib::Continue(keep_going)
         });
 
-        let ret = pipeline.set_state(gst::State::Playing);
-        assert_ne!(ret, gst::StateChangeReturn::Failure);
+        Ok(ctx)
+    }
 
-        // TODO: reset pipeline when done (from the main controller)
+    pub fn play(&self) {
+        let ret = self.pipeline.set_state(gst::State::Playing);
+        if ret == gst::StateChangeReturn::Failure {
+            println!("could not set media in palying state");
+            //return Err("could not set media in palying state".into());
+        }
+        println!("Playing...");
+    }
+
+    pub fn stop(&self) {
+        let ret = self.pipeline.set_state(gst::State::Null);
+        if ret == gst::StateChangeReturn::Failure {
+            println!("could not set media in Null state");
+            //return Err("could not set media in Null state".into());
+        }
     }
 }
