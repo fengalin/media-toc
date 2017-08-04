@@ -2,6 +2,7 @@ extern crate gstreamer as gst;
 use gstreamer::*;
 
 extern crate gtk;
+use gtk::BoxExt;
 
 extern crate glib;
 use glib::ObjectExt;
@@ -9,11 +10,16 @@ use glib::ObjectExt;
 extern crate url;
 use url::Url;
 
-use std::sync::mpsc::Sender;
+use std::clone::Clone;
+
+use std::collections::HashMap;
 
 use std::path::PathBuf;
 
-use std::collections::HashMap;
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::{Arc, Mutex};
+
+use std::thread;
 
 use super::{Chapter, Timestamp};
 
@@ -25,7 +31,6 @@ pub enum ContextMessage {
 }
 
 pub struct Context {
-    tx: Sender<ContextMessage>,
     pub pipeline: gst::Pipeline,
 
     pub file_name: String,
@@ -59,10 +64,37 @@ macro_rules! assign_str_tag(
 );
 
 
+impl Clone for Context {
+    fn clone(&self) -> Self {
+        // FIXME: there must be a better way
+        Context {
+            pipeline: self.pipeline.clone(),
+
+            file_name: self.file_name.clone(),
+            name: self.name.clone(),
+
+            artist: self.artist.clone(),
+            title: self.title.clone(),
+            duration: self.duration.clone(),
+            description: self.description.clone(),
+            chapters: self.chapters.clone(),
+
+            thumbnail: self.thumbnail.clone(),
+
+            video_streams: self.video_streams.clone(),
+            video_best: self.video_best.clone(),
+            video_codec: self.video_codec.clone(),
+
+            audio_streams: self.audio_streams.clone(),
+            audio_best: self.audio_best.clone(),
+            audio_codec: self.audio_codec.clone(),
+        }
+    }
+}
+
 impl Context {
-    fn new(ctx_tx: Sender<ContextMessage>) -> Context {
+    fn new() -> Self {
         Context{
-            tx: ctx_tx,
             pipeline: gst::Pipeline::new(None),
 
             file_name: String::new(),
@@ -86,14 +118,42 @@ impl Context {
         }
     }
 
+    // will add a GstGtkWidget to the video_box
+    fn prepare_video_sink(&self, video_box: &gtk::Box) -> gst::Element {
+        let (gtk_sink, is_gl) = if let Some(gtkglsink) = ElementFactory::make("gtkglsink", None) {
+            (gtkglsink, true)
+        } else {
+            let sink = ElementFactory::make("gtksink", "video_sink").unwrap();
+            (sink, false)
+        };
+
+        let widget = gtk_sink.get_property("widget").unwrap()
+            .get::<gtk::Widget>().unwrap();
+        // FIXME: clean the box first
+        video_box.pack_start(&widget, true, true, 0);
+
+        if is_gl {
+            let glsinkbin = ElementFactory::make("glsinkbin", "video_sink").unwrap();
+            glsinkbin.set_property("sink", &gtk_sink.to_value()).unwrap();
+            glsinkbin
+        } else {
+            gtk_sink
+        }
+    }
+
     // result will be transmitted through ctx_tx
-    pub fn open_media_path_thread(path: PathBuf, ctx_tx: Sender<ContextMessage>) {
-        let mut ctx = Context::new(ctx_tx.clone());
+    pub fn open_media_path_thread(
+        path: PathBuf,
+        video_box: &gtk::Box,
+        ctx_tx: Sender<ContextMessage>,
+    )
+    {
+        let mut ctx = Context::new();
         ctx.file_name = String::from(path.file_name().unwrap().to_str().unwrap());
         ctx.name = String::from(path.file_stem().unwrap().to_str().unwrap());
 
         println!("\n*** Attempting to open {:?}", path);
-
+        // prepare pipeline
         let dec = gst::ElementFactory::make("uridecodebin", "input").unwrap();
         let url = match Url::from_file_path(path.as_path()) {
             Ok(url) => url.into_string(),
@@ -102,8 +162,9 @@ impl Context {
         dec.set_property("uri", &gst::Value::from(&url)).unwrap();
         ctx.pipeline.add(&dec).unwrap();
 
-        // TODO: use a channel to send the channels names and listen to it in the message loop below
-        // or use an Arc + mutex?
+        // prepare the video sink while we are in the main (GTK) thread
+        let video_sink = ctx.prepare_video_sink(video_box);
+
         let pipeline_clone = ctx.pipeline.clone();
         dec.connect_pad_added(move |_, src_pad| {
             let ref pipeline = pipeline_clone;
@@ -138,9 +199,8 @@ impl Context {
                 let queue = gst::ElementFactory::make("queue", None).unwrap();
                 let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
                 let scale = gst::ElementFactory::make("videoscale", None).unwrap();
-                let sink = ElementFactory::make("fakesink", "video_sink").unwrap();
 
-                let elements = &[&queue, &convert, &scale, &sink];
+                let elements = &[&queue, &convert, &scale, &video_sink];
                 pipeline.add_many(elements).unwrap();
                 gst::Element::link_many(elements).unwrap();
 
@@ -153,30 +213,22 @@ impl Context {
             }
         });
 
-        if ctx.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
-            ctx_tx.send(ContextMessage::FailedToOpenMedia);
-            return;
-        }
-
+        let pipeline = ctx.pipeline.clone();
         let bus = ctx.pipeline.get_bus().unwrap();
-
-        loop {
-            let msg = match bus.timed_pop(::std::u64::MAX) {
-                None => break,
-                Some(msg) => msg,
-            };
-
+        bus.add_watch(move |_, msg| {
             match msg.view() {
-                MessageView::Eos(_) => break,
+                MessageView::Eos(..) => {
+                    ctx_tx.send(ContextMessage::OpenedMedia(ctx.clone()));
+                },
                 MessageView::Error(err) => {
                     println!(
-                        "\n** Error from {}: {} ({:?})",
+                        "Error from {}: {} ({:?})",
                         msg.get_src().get_path_string(),
                         err.get_error(),
                         err.get_debug()
                     );
-                    break;
-                },
+                    ctx_tx.send(ContextMessage::FailedToOpenMedia);
+                }
                 MessageView::Tag(msg_tag) => {
                     let tags = msg_tag.get_tags();
                     assign_str_tag!(ctx.title, tags, Title);
@@ -310,17 +362,18 @@ impl Context {
                         }
                     }
                 },
-                MessageView::AsyncDone(_) => break,
+                MessageView::AsyncDone(_) => {
+                    ctx_tx.send(ContextMessage::OpenedMedia(ctx.clone()));
+                },
                 _ => (),
-            }
-        }
+            };
 
-        // TODO: be more precise in order to distinguish with error playing
-        if ctx.pipeline.set_state(gst::State::Null) == gst::StateChangeReturn::Failure {
-            ctx_tx.send(ContextMessage::FailedToOpenMedia);
-            return;
-        }
+            glib::Continue(true)
+        });
 
-        ctx_tx.send(ContextMessage::OpenedMedia(ctx));
+        let ret = pipeline.set_state(gst::State::Playing);
+        assert_ne!(ret, gst::StateChangeReturn::Failure);
+
+        // TODO: reset pipeline when done (from the main controller)
     }
 }

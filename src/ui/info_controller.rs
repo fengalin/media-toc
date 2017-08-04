@@ -14,6 +14,7 @@ use super::{ImageSurface, MediaController, MediaHandler};
 
 pub struct InfoController {
     media_ctl: MediaController,
+    drawingarea: gtk::DrawingArea,
 
     title_lbl: gtk::Label,
     artist_lbl: gtk::Label,
@@ -33,8 +34,8 @@ impl InfoController {
         let mut ic = InfoController {
             media_ctl: MediaController::new(
                 builder.get_object("info-box").unwrap(),
-                builder.get_object("thumbnail-drawingarea").unwrap()
             ),
+            drawingarea: builder.get_object("thumbnail-drawingarea").unwrap(),
 
             title_lbl: builder.get_object("title-lbl").unwrap(),
             artist_lbl: builder.get_object("artist-lbl").unwrap(),
@@ -55,7 +56,7 @@ impl InfoController {
         ic.add_chapter_column(&"End", 3, false);
 
         let thumbnail_weak = Rc::downgrade(&ic.thumbnail);
-        ic.draw_handler = ic.drawingarea.connect_draw(move |ref drawing_area, ref cairo_ctx| {
+        ic.drawingarea.connect_draw(move |ref drawing_area, ref cairo_ctx| {
             if let Some(thumbnail_rc) = thumbnail_weak.upgrade() {
                 let thumbnail_ref = thumbnail_rc.borrow();
                 if let Some(ref thumbnail) = *thumbnail_ref {

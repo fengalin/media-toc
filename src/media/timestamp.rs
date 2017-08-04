@@ -1,9 +1,12 @@
 extern crate chrono;
 
+use std::clone::Clone;
+
 use std::fmt;
 
 use chrono::{NaiveTime, Timelike};
 
+#[derive(Copy)]
 pub struct Timestamp {
     timestamp: NaiveTime,
     is_positive: bool,
@@ -27,6 +30,10 @@ impl Timestamp {
             is_positive: if sec >= 0 { true } else { false },
         }
     }
+}
+
+impl Clone for Timestamp {
+    fn clone(&self) -> Self { *self }
 }
 
 impl fmt::Display for Timestamp {

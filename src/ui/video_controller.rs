@@ -1,11 +1,13 @@
-extern crate gtk;
-
 extern crate cairo;
 
 extern crate gstreamer as gst;
 use gstreamer::BinExt;
 
+extern crate gtk;
+
 use std::ops::{Deref, DerefMut};
+
+use std::sync::mpsc::Sender;
 
 use ::media::Context;
 
@@ -14,16 +16,16 @@ use super::{MediaController, MediaHandler};
 
 pub struct VideoController {
     media_ctl: MediaController,
+    pub video_box: gtk::Box,
 }
-
 
 impl VideoController {
     pub fn new(builder: &gtk::Builder) -> Self {
         VideoController {
             media_ctl: MediaController::new(
                 builder.get_object("video-container").unwrap(),
-                builder.get_object("video-drawingarea").unwrap()
             ),
+            video_box: builder.get_object("video-box").unwrap(),
         }
     }
 }
@@ -44,18 +46,7 @@ impl DerefMut for VideoController {
 
 impl MediaHandler for VideoController {
     fn new_media(&mut self, context: &Context) {
-        if let Some(video_sink) = context.pipeline.get_by_name("video_sink") {
-            // TODO: replace "video_sink" with something like this:
-            /*let sink = if let Some(gtkglsink) = ElementFactory::make("gtkglsink", None) {
-                let glsinkbin = ElementFactory::make("glsinkbin", "video_sink").unwrap();
-                glsinkbin
-                    .set_property("sink", &gtkglsink.to_value())
-                    .unwrap();
-                glsinkbin
-            } else {
-                let sink = ElementFactory::make("gtksink", "video_sink").unwrap();
-                sink
-            };*/
+        if let Some(_) = context.pipeline.get_by_name("video_sink") {
             self.media_ctl.show();
         }
         else {

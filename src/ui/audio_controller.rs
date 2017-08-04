@@ -13,6 +13,7 @@ use super::{MediaController, MediaHandler};
 
 pub struct AudioController {
     media_ctl: MediaController,
+    drawingarea: gtk::DrawingArea,
 }
 
 impl AudioController {
@@ -20,8 +21,8 @@ impl AudioController {
         AudioController {
             media_ctl: MediaController::new(
                 builder.get_object("audio-container").unwrap(),
-                builder.get_object("audio-drawingarea").unwrap()
             ),
+            drawingarea: builder.get_object("audio-drawingarea").unwrap(),
         }
     }
 }
@@ -42,7 +43,7 @@ impl DerefMut for AudioController {
 
 impl MediaHandler for AudioController {
     fn new_media(&mut self, context: &Context) {
-        if let Some(audio_sink) = context.pipeline.get_by_name("audio_sink") {
+        if let Some(_) = context.pipeline.get_by_name("audio_sink") {
             self.media_ctl.show();
         }
         else {

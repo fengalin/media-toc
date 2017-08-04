@@ -4,8 +4,6 @@ extern crate glib;
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
-use std::thread;
-
 use std::path::PathBuf;
 
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
@@ -71,10 +69,11 @@ impl MainController {
         self.window.show_all();
     }
 
-    fn process_message(&mut self, message: ContextMessage) {
-        println!("Processing message");
-        match message {
+    fn process_message(&mut self, message: ContextMessage) -> bool
+    {
+        let wait_for_more = match message {
             OpenedMedia(context) => {
+                println!("Processing OpenedMedia");
                 self.header_bar.set_subtitle(Some(context.file_name.as_str()));
 
                 self.info_ctrl.new_media(&context);
@@ -82,10 +81,17 @@ impl MainController {
                 self.audio_ctrl.new_media(&context);
 
                 self.context = Some(context);
+
+                false
             },
-            FailedToOpenMedia => println!("ERROR: failed to open media"),
-            _ => (),
+            FailedToOpenMedia => {
+                println!("ERROR: failed to open media");
+                false
+            },
+            _ => false,
         };
+
+        wait_for_more
     }
 
     fn select_media(&mut self) {
@@ -109,36 +115,38 @@ impl MainController {
         file_dlg.close();
     }
 
-    fn register_listener(&self, ctx_rx: Receiver<ContextMessage>, timeout: u32) {
+    fn register_listener(&self,
+        ui_rx: Receiver<ContextMessage>,
+        timeout: u32
+    )
+    {
         if let Some(ref self_weak) = self.self_weak {
             let self_weak = self_weak.clone();
 
             gtk::timeout_add(timeout, move || {
-                let mut must_go_on = false;
-                match ctx_rx.try_recv() {
+                let mut wait_for_more = false;
+                match ui_rx.try_recv() {
                     Ok(message) => match self_weak.upgrade() {
-                        Some(mc) => mc.borrow_mut().process_message(message),
+                        Some(mc) => wait_for_more = mc.borrow_mut().process_message(message),
                         None => panic!("Main controller is no longer available for ctx channel listener"),
                     },
                     Err(error) => match error {
-                        TryRecvError::Empty => must_go_on = true,
+                        TryRecvError::Empty => wait_for_more = true,
                         error => println!("Error listening to ctx channel: {:?}", error),
                     },
                 };
 
-                glib::Continue(must_go_on)
+                glib::Continue(wait_for_more)
             });
         }
         // FIXME: else use proper expression to panic! in
     }
 
     fn open_media(&mut self, filepath: PathBuf) {
-        let (ctx_tx, ctx_rx) = channel::<ContextMessage>();
+        let (ctx_tx, ui_rx) = channel();
 
-        self.register_listener(ctx_rx, 100);
+        self.register_listener(ui_rx, 100);
 
-        thread::spawn(move || {
-            Context::open_media_path_thread(filepath, ctx_tx);
-        });
+        Context::open_media_path_thread(filepath, &self.video_ctrl.video_box, ctx_tx);
     }
 }

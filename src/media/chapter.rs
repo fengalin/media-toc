@@ -1,5 +1,7 @@
 use super::Timestamp;
 
+use std::clone::Clone;
+
 use std::collections::HashMap;
 
 pub struct Chapter {
@@ -36,6 +38,17 @@ impl Chapter {
         match self.metadata.get("title") {
             Some(title) => &title,
             None => "",
+        }
+    }
+}
+
+impl Clone for Chapter {
+    fn clone(&self) -> Self {
+        Chapter {
+            id: self.id.clone(),
+            start: self.start.clone(),
+            end: self.end.clone(),
+            metadata: self.metadata.clone(),
         }
     }
 }
