@@ -25,6 +25,7 @@ pub struct MainController {
     audio_ctrl: AudioController,
 
     ctx: Option<Context>,
+    has_init: bool,
 
     self_weak: Option<Weak<RefCell<MainController>>>,
 }
@@ -38,6 +39,7 @@ impl MainController {
             video_ctrl: VideoController::new(&builder),
             audio_ctrl: AudioController::new(&builder),
             ctx: None,
+            has_init: false,
             self_weak: None,
         }));
 
@@ -79,20 +81,23 @@ impl MainController {
             AsyncDone => {
                 println!("Received AsyncDone");
 
-                let ref context = self.ctx.as_ref()
+                if !self.has_init {
+                    let ref context = self.ctx.as_ref()
                     .expect("Received AsyncDone, but context is not available");
 
-                self.info_ctrl.new_media(context);
-                self.video_ctrl.new_media(context);
-                self.audio_ctrl.new_media(context);
+                    self.info_ctrl.new_media(context);
+                    self.video_ctrl.new_media(context);
+                    self.audio_ctrl.new_media(context);
 
-                self.header_bar.set_subtitle(Some(context.file_name.as_str()));
-                //context.pause();
+                    self.header_bar.set_subtitle(Some(context.file_name.as_str()));
+
+                    self.has_init = true;
+                }
                 true
             },
             Eos => {
                 println!("Received Eos");
-                /*self.ctx.as_mut()
+                /*self.ctx.as_ref()
                     .expect("Received Eos, but context is not available")
                     .stop();*/
                 true
@@ -118,7 +123,7 @@ impl MainController {
     }
 
     fn select_media(&mut self) {
-        if let Some(context) = self.ctx.as_mut() {
+        if let Some(context) = self.ctx.as_ref() {
             context.stop();
         }
 
@@ -178,6 +183,7 @@ impl MainController {
 
         match Context::open_media_path(filepath, ctx_tx, ctx_rx) {
             Ok(ctx) => {
+                self.has_init = false;
                 self.ctx = Some(ctx);
             },
             Err(error) => println!("Error opening media: {}", error),

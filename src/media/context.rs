@@ -26,7 +26,6 @@ pub enum ContextMessage {
 
 pub struct Context {
     pub pipeline: gst::Pipeline,
-    pub state_req: gst::State,
 
     pub path: PathBuf,
     pub file_name: String,
@@ -50,7 +49,6 @@ impl Context {
     fn new(path: PathBuf) -> Self {
         Context{
             pipeline: gst::Pipeline::new(None),
-            state_req: gst::State::Null,
 
             file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
             name: String::from(path.file_stem().unwrap().to_str().unwrap()),
@@ -68,41 +66,39 @@ impl Context {
     {
         println!("\nAttempting to open {:?}", path);
 
-        let mut ctx = Context::new(path);
+        let ctx = Context::new(path);
         ctx.build_pipeline(&ctx_tx, ui_rx);
         ctx.register_bus_inspector(ctx_tx);
 
-        match ctx.play() {
+        match ctx.pause() {
             Ok(_) => Ok(ctx),
             Err(error) => Err(error),
         }
     }
 
-    pub fn play(&mut self) -> Result<(), String> {
+    pub fn play(&self) -> Result<(), String> {
         let ret = self.pipeline.set_state(gst::State::Playing);
         if ret == gst::StateChangeReturn::Failure {
-            return Err("could not set media in palying state".into());
+            return Err("Could not set media in palying state".into());
         }
-        self.state_req = gst::State::Playing;
         Ok(())
     }
 
-    pub fn pause(&mut self) {
+    pub fn pause(&self) -> Result<(), String> {
         let ret = self.pipeline.set_state(gst::State::Paused);
         if ret == gst::StateChangeReturn::Failure {
             println!("could not set media in Paused state");
-            //return Err("could not set media in Paused state".into());
+            return Err("Could not set media in Paused state".into());
         }
-        self.state_req = gst::State::Paused;
+        Ok(())
     }
 
-    pub fn stop(&mut self) {
+    pub fn stop(&self) {
         let ret = self.pipeline.set_state(gst::State::Null);
         if ret == gst::StateChangeReturn::Failure {
-            println!("could not set media in Null state");
+            println!("Could not set media in Null state");
             //return Err("could not set media in Null state".into());
         }
-        self.state_req = gst::State::Null;
     }
 
     // TODO: handle errors
@@ -224,9 +220,9 @@ impl Context {
                     keep_going = false;
                 },
                 MessageView::AsyncDone(_) => {
+                    keep_going = false;
                     ctx_tx.send(ContextMessage::AsyncDone)
                         .expect("Failed to notify UI");
-                    //keep_going = false;
                 },
                 MessageView::Tag(msg_tag) => {
                     let tags = msg_tag.get_tags();
