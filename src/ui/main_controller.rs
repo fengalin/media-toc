@@ -76,19 +76,12 @@ impl MainController {
     ) -> bool
     {
         let keep_going = match message {
-            OpenedMedia => {
-                println!("Received OpenedMedia");
-
-                let ref context = self.ctx.as_ref()
-                    .expect("Received OpenedMedia, but context is not available");
-
-                self.info_ctrl.new_media(context);
-                self.video_ctrl.new_media(context);
-                self.audio_ctrl.new_media(context);
-
-                self.header_bar.set_subtitle(Some(context.file_name.as_str()));
-                context.stop();
-                false
+            Eos => {
+                println!("Received Eos");
+                self.ctx.as_ref()
+                    .expect("Received Eos, but context is not available")
+                    .stop();
+                true
             },
             FailedToOpenMedia => {
                 println!("ERROR: failed to open media");
@@ -96,8 +89,23 @@ impl MainController {
                 // TODO: clear UI
                 false
             },
+            OpenedMedia(info) => {
+                println!("Received OpenedMedia");
+
+                let ref context = self.ctx.as_ref()
+                    .expect("Received OpenedMedia, but context is not available");
+
+                self.info_ctrl.new_media(context, &info);
+                self.video_ctrl.new_media(context, &info);
+                self.audio_ctrl.new_media(context, &info);
+
+                self.header_bar.set_subtitle(Some(context.file_name.as_str()));
+                //context.pause();
+                true
+            },
             HaveVideoWidget(video_widget) => {
-                let ref ui_tx = ui_tx.expect("Received HaveVideoWidget, but no ui_tx is defined");
+                let ui_tx = ui_tx.as_ref()
+                    .expect("Received HaveVideoWidget, but no ui_tx is defined");
                 self.video_ctrl.have_widget(video_widget);
                 ui_tx.send(GotVideoWidget)
                     .expect("Failed to send GotVideoWidget to context");
@@ -159,6 +167,10 @@ impl MainController {
     }
 
     fn open_media(&mut self, filepath: PathBuf) {
+        if let Some(context) = self.ctx.as_ref() {
+            context.stop();
+        }
+
         let (ctx_tx, ui_rx) = channel();
         let (ui_tx, ctx_rx) = channel();
 

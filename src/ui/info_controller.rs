@@ -8,7 +8,7 @@ use std::cell::RefCell;
 
 use std::ops::{Deref, DerefMut};
 
-use ::media::Context;
+use ::media::{Context, MediaInfo};
 
 use super::{ImageSurface, MediaController, MediaHandler};
 
@@ -112,14 +112,14 @@ impl DerefMut for InfoController {
 }
 
 impl MediaHandler for InfoController {
-    fn new_media(&mut self, context: &Context) {
-        self.title_lbl.set_label(&context.title);
-        self.artist_lbl.set_label(&context.artist);
-        self.description_lbl.set_label(&context.description);
-        self.duration_lbl.set_label(&format!("{}", context.duration));
+    fn new_media(&mut self, context: &Context, info: &MediaInfo) {
+        self.title_lbl.set_label(&info.title);
+        self.artist_lbl.set_label(&info.artist);
+        self.description_lbl.set_label(&info.description);
+        self.duration_lbl.set_label(&format!("{}", info.duration));
 
         let mut has_image = false;
-        if let Some(thumbnail) = context.thumbnail.as_ref() {
+        if let Some(thumbnail) = info.thumbnail.as_ref() {
             if let Ok(image) = ImageSurface::from_uknown_buffer(thumbnail.as_slice()) {
                 let mut thumbnail_ref = self.thumbnail.borrow_mut();
                 *thumbnail_ref = Some(image);
@@ -138,7 +138,7 @@ impl MediaHandler for InfoController {
         self.chapter_store.clear();
         // FIX for sample.mkv video: generate ids (TODO: remove)
         let mut id = 0;
-        for chapter in context.chapters.iter() {
+        for chapter in info.chapters.iter() {
             id += 1;
             self.chapter_store.insert_with_values(
                 None, &[0, 1, 2, 3],

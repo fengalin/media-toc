@@ -7,22 +7,21 @@ use glib::ObjectExt;
 extern crate url;
 use url::Url;
 
-use std::collections::HashMap;
-
 use std::path::PathBuf;
 
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
-use super::{Chapter, Timestamp};
+use super::MediaInfo;
 
 pub enum ContextMessage {
+    Eos,
     FailedToOpenMedia,
     GotVideoWidget,
     //HaveAudioFrame,
     //HaveVideoFrame,
     HaveVideoWidget(glib::Value),
-    OpenedMedia,
+    OpenedMedia(MediaInfo),
 }
 
 pub struct Context {
@@ -31,22 +30,6 @@ pub struct Context {
     pub path: PathBuf,
     pub file_name: String,
     pub name: String,
-
-    pub artist: String,
-    pub title: String,
-    pub duration: Timestamp,
-    pub description: String,
-    pub chapters: Vec<Chapter>,
-
-    pub thumbnail: Option<Vec<u8>>,
-
-    pub video_streams: HashMap<String, gst::Caps>,
-    pub video_best: Option<String>,
-    pub video_codec: String,
-
-    pub audio_streams: HashMap<String, gst::Caps>,
-    pub audio_best: Option<String>,
-    pub audio_codec: String,
 }
 
 macro_rules! assign_str_tag(
@@ -68,22 +51,6 @@ impl Context {
             file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
             name: String::from(path.file_stem().unwrap().to_str().unwrap()),
             path: path,
-
-            artist: String::new(),
-            title: String::new(),
-            duration: Timestamp::new(),
-            description: String::new(),
-            chapters: Vec::new(),
-
-            thumbnail: None,
-
-            video_streams: HashMap::new(),
-            video_best: None,
-            video_codec: String::new(),
-
-            audio_streams: HashMap::new(),
-            audio_best: None,
-            audio_codec: String::new(),
         }
     }
 
@@ -111,6 +78,14 @@ impl Context {
             return Err("could not set media in palying state".into());
         }
         Ok(())
+    }
+
+    pub fn pause(&self) {
+        let ret = self.pipeline.set_state(gst::State::Paused);
+        if ret == gst::StateChangeReturn::Failure {
+            println!("could not set media in Paused state");
+            //return Err("could not set media in Paused state".into());
+        }
     }
 
     pub fn stop(&self) {
@@ -217,14 +192,14 @@ impl Context {
 
     // Uses ctx_tx to notify the UI controllers about the inspection process
     fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
-        // TODO: restore media info processing
+        let mut info = MediaInfo::new();
         let bus = self.pipeline.get_bus().unwrap();
         bus.add_watch(move |_, msg| {
             let mut keep_going = true;
 
             match msg.view() {
                 MessageView::Eos(..) => {
-                    ctx_tx.send(ContextMessage::OpenedMedia)
+                    ctx_tx.send(ContextMessage::Eos)
                         .expect("Failed to notify UI");
                     keep_going = false;
                 },
@@ -240,9 +215,40 @@ impl Context {
                     keep_going = false;
                 },
                 MessageView::AsyncDone(_) => {
-                    ctx_tx.send(ContextMessage::OpenedMedia)
+                    ctx_tx.send(ContextMessage::OpenedMedia(info.clone())) // TODO: test a solution based on an Arc on Context
                         .expect("Failed to notify UI");
-                    keep_going = false;
+                    //keep_going = false;
+                },
+                MessageView::Tag(msg_tag) => {
+                    let tags = msg_tag.get_tags();
+                    assign_str_tag!(info.title, tags, Title);
+                    assign_str_tag!(info.artist, tags, Artist);
+                    assign_str_tag!(info.artist, tags, AlbumArtist);
+                    assign_str_tag!(info.video_codec, tags, VideoCodec);
+                    assign_str_tag!(info.audio_codec, tags, AudioCodec);
+
+                    /*match tags.get::<PreviewImage>() {
+                        // TODO: check if that happens, that would be handy for videos
+                        Some(preview_tag) => println!("Found a PreviewImage tag"),
+                        None => (),
+                    };*/
+
+                    // TODO: distinguish front/back cover (take the first one?)
+                    if let Some(image_tag) = tags.get::<Image>() {
+                        if let Some(sample) = image_tag.get() {
+                            if let Some(buffer) = sample.get_buffer() {
+                                if let Some(map) = buffer.map_read() {
+                                    // TODO: build an aligned_image directly
+                                    // so that we can save one copy
+                                    // and implement a wrapper on an aligned_image
+                                    // in image_surface
+                                    let mut thumbnail = Vec::with_capacity(map.get_size());
+                                    thumbnail.extend_from_slice(map.as_slice());
+                                    info.thumbnail = Some(thumbnail);
+                                }
+                            }
+                        }
+                    }
                 },
                 _ => (),
             };
