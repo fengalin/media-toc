@@ -25,7 +25,6 @@ pub struct MainController {
     audio_ctrl: AudioController,
 
     ctx: Option<Context>,
-    pending_ctx: Option<Context>,
 
     self_weak: Option<Weak<RefCell<MainController>>>,
 }
@@ -39,7 +38,6 @@ impl MainController {
             video_ctrl: VideoController::new(&builder),
             audio_ctrl: AudioController::new(&builder),
             ctx: None,
-            pending_ctx: None,
             self_weak: None,
         }));
 
@@ -79,7 +77,7 @@ impl MainController {
     {
         let keep_going = match message {
             OpenedMedia => {
-                println!("Processing OpenedMedia");
+                println!("Received OpenedMedia");
 
                 let ref context = self.ctx.as_ref()
                     .expect("Received OpenedMedia, but context is not available");
@@ -101,7 +99,8 @@ impl MainController {
             HaveVideoWidget(video_widget) => {
                 let ref ui_tx = ui_tx.expect("Received HaveVideoWidget, but no ui_tx is defined");
                 self.video_ctrl.have_widget(video_widget);
-                ui_tx.send(GotVideoWidget);
+                ui_tx.send(GotVideoWidget)
+                    .expect("Failed to send GotVideoWidget to context");
                 true
             },
             _ => false,

@@ -10,8 +10,6 @@ use gtk::{BoxExt, ContainerExt, WidgetExt};
 
 use std::ops::{Deref, DerefMut};
 
-use std::sync::mpsc::Sender;
-
 use ::media::Context;
 
 use super::{MediaController, MediaHandler};

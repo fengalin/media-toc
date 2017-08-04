@@ -31,7 +31,7 @@ impl InfoController {
     pub fn new(builder: &gtk::Builder) -> Self {
         // need a RefCell because the callbacks will use immutable versions of ac
         // when the UI controllers will get a mutable version from time to time
-        let mut ic = InfoController {
+        let ic = InfoController {
             media_ctl: MediaController::new(
                 builder.get_object("info-box").unwrap(),
             ),

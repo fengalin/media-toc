@@ -14,8 +14,6 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
-use std::thread;
-
 use super::{Chapter, Timestamp};
 
 pub enum ContextMessage {
@@ -30,6 +28,7 @@ pub enum ContextMessage {
 pub struct Context {
     pub pipeline: gst::Pipeline,
 
+    pub path: PathBuf,
     pub file_name: String,
     pub name: String,
 
@@ -62,12 +61,13 @@ macro_rules! assign_str_tag(
 
 
 impl Context {
-    fn new() -> Self {
+    fn new(path: PathBuf) -> Self {
         Context{
             pipeline: gst::Pipeline::new(None),
 
-            file_name: String::new(),
-            name: String::new(),
+            file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
+            name: String::from(path.file_stem().unwrap().to_str().unwrap()),
+            path: path,
 
             artist: String::new(),
             title: String::new(),
@@ -93,21 +93,50 @@ impl Context {
         ui_rx: Receiver<ContextMessage>,
     ) -> Result<Context, String>
     {
-        let mut ctx = Context::new();
-        ctx.file_name = String::from(path.file_name().unwrap().to_str().unwrap());
-        ctx.name = String::from(path.file_stem().unwrap().to_str().unwrap());
+        println!("\nAttempting to open {:?}", path);
 
-        println!("\n*** Attempting to open {:?}", path);
-        // prepare pipeline
+        let ctx = Context::new(path);
+        ctx.build_pipeline(&ctx_tx, ui_rx);
+        ctx.register_bus_inspector(ctx_tx);
+
+        match ctx.play() {
+            Ok(_) => Ok(ctx),
+            Err(error) => Err(error),
+        }
+    }
+
+    pub fn play(&self) -> Result<(), String> {
+        let ret = self.pipeline.set_state(gst::State::Playing);
+        if ret == gst::StateChangeReturn::Failure {
+            return Err("could not set media in palying state".into());
+        }
+        Ok(())
+    }
+
+    pub fn stop(&self) {
+        let ret = self.pipeline.set_state(gst::State::Null);
+        if ret == gst::StateChangeReturn::Failure {
+            println!("could not set media in Null state");
+            //return Err("could not set media in Null state".into());
+        }
+    }
+
+    // TODO: handle errors
+    // Uses ctx_tx & ui_rx to allow the UI integrate the GstGtkWidget
+    fn build_pipeline(&self,
+        ctx_tx: &Sender<ContextMessage>,
+        ui_rx: Receiver<ContextMessage>
+    )
+    {
         let dec = gst::ElementFactory::make("uridecodebin", "input").unwrap();
-        let url = match Url::from_file_path(path.as_path()) {
+        let url = match Url::from_file_path(self.path.as_path()) {
             Ok(url) => url.into_string(),
-            Err(_) => "Failed to convert path into URL".to_owned(),
+            Err(_) => "Failed to convert path to URL".to_owned(),
         };
         dec.set_property("uri", &gst::Value::from(&url)).unwrap();
-        ctx.pipeline.add(&dec).unwrap();
+        self.pipeline.add(&dec).unwrap();
 
-        let pipeline_clone = ctx.pipeline.clone();
+        let pipeline_clone = self.pipeline.clone();
         // Need an Arc Mutex on ctx_tx because Rust consider this method
         // as a candidate for being called by multiple threads
         let ctx_tx_arc_mtx = Arc::new(Mutex::new(ctx_tx.clone()));
@@ -119,12 +148,8 @@ impl Context {
             let structure = caps.get_structure(0).unwrap();
             let name = structure.get_name();
 
-            let (is_audio, is_video) = {
-                (name.starts_with("audio/"), name.starts_with("video/"))
-            };
-
             // TODO: build only one queue by stream type (audio / video)
-            if is_audio {
+            if name.starts_with("audio/") {
                 let queue = gst::ElementFactory::make("queue", None).unwrap();
                 let convert = gst::ElementFactory::make("audioconvert", None).unwrap();
                 let resample = gst::ElementFactory::make("audioresample", None).unwrap();
@@ -140,7 +165,7 @@ impl Context {
 
                 let sink_pad = queue.get_static_pad("sink").unwrap();
                 assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
-            } else if is_video {
+            } else if name.starts_with("video/") {
                 let queue = gst::ElementFactory::make("queue", None).unwrap();
                 let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
                 let scale = gst::ElementFactory::make("videoscale", None).unwrap();
@@ -162,7 +187,8 @@ impl Context {
                 // Pass the video_sink for integration in the UI
                 ctx_tx_arc_mtx.lock()
                     .expect("Failed to lock ctx_tx mutex, while building the video queue")
-                    .send(ContextMessage::HaveVideoWidget(widget_val));
+                    .send(ContextMessage::HaveVideoWidget(widget_val))
+                    .expect("Failed to notify UI, while building the video queue");
                 // Wait for the widget to be included, otherwise the pipeline
                 // embeds it in a default window
                 match ui_rx_arc_mtx.lock()
@@ -187,15 +213,19 @@ impl Context {
                 assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
             }
         });
+    }
 
+    // Uses ctx_tx to notify the UI controllers about the inspection process
+    fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
         // TODO: restore media info processing
-        let bus = ctx.pipeline.get_bus().unwrap();
+        let bus = self.pipeline.get_bus().unwrap();
         bus.add_watch(move |_, msg| {
             let mut keep_going = true;
 
             match msg.view() {
                 MessageView::Eos(..) => {
-                    ctx_tx.send(ContextMessage::OpenedMedia);
+                    ctx_tx.send(ContextMessage::OpenedMedia)
+                        .expect("Failed to notify UI");
                     keep_going = false;
                 },
                 MessageView::Error(err) => {
@@ -205,11 +235,13 @@ impl Context {
                         err.get_error(),
                         err.get_debug()
                     );
-                    ctx_tx.send(ContextMessage::FailedToOpenMedia);
+                    ctx_tx.send(ContextMessage::FailedToOpenMedia)
+                        .expect("Failed to notify UI");
                     keep_going = false;
                 },
                 MessageView::AsyncDone(_) => {
-                    ctx_tx.send(ContextMessage::OpenedMedia);
+                    ctx_tx.send(ContextMessage::OpenedMedia)
+                        .expect("Failed to notify UI");
                     keep_going = false;
                 },
                 _ => (),
@@ -217,26 +249,5 @@ impl Context {
 
             glib::Continue(keep_going)
         });
-
-        match ctx.play() {
-            Ok(_) => Ok(ctx),
-            Err(error) => Err(error),
-        }
-    }
-
-    pub fn play(&self) -> Result<(), String> {
-        let ret = self.pipeline.set_state(gst::State::Playing);
-        if ret == gst::StateChangeReturn::Failure {
-            return Err("could not set media in palying state".into());
-        }
-        Ok(())
-    }
-
-    pub fn stop(&self) {
-        let ret = self.pipeline.set_state(gst::State::Null);
-        if ret == gst::StateChangeReturn::Failure {
-            println!("could not set media in Null state");
-            //return Err("could not set media in Null state".into());
-        }
     }
 }
