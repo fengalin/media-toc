@@ -18,7 +18,13 @@ This branch relies on the following technologies:
 [Rust binding](https://github.com/sdroege/gstreamer-rs)).
 
 ## Status
-Catching up with [master](https://github.com/fengalin/media-toc) branch...
+At the moment, Media-TOC can:
+- Open a media file (audio, video - and image but that doesn't make much sense).
+- Display the first video frame
+- Display the cover image if available.
+- Display metadata from the media.
+- Display the first frame's wave form (ffmpeg version only ATM).
+- Display chapters' data (ffmpeg version only ATM).
 
 ## <a name='ui'></a>Screenshot
 ![Media-TOC UI](assets/media-toc.png)
