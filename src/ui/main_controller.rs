@@ -28,6 +28,7 @@ pub struct MainController {
     has_init: bool,
 
     self_weak: Option<Weak<RefCell<MainController>>>,
+    listener_src: Option<glib::SourceId>
 }
 
 impl MainController {
@@ -41,6 +42,7 @@ impl MainController {
             ctx: None,
             has_init: false,
             self_weak: None,
+            listener_src: None,
         }));
 
         {
@@ -60,7 +62,10 @@ impl MainController {
         let mc_weak = Rc::downgrade(&mc);
         open_btn.connect_clicked(move |_|
             match mc_weak.upgrade() {
-                Some(mc) => mc.borrow_mut().select_media(),
+                Some(mc) => {
+                    mc.borrow().stop();
+                    mc.borrow_mut().select_media();
+                },
                 None => panic!("Main controller is no longer available for select_media"),
             }
         );
@@ -72,12 +77,23 @@ impl MainController {
         self.window.show_all();
     }
 
+    pub fn stop(&self) {
+        if let Some(context) = self.ctx.as_ref() {
+            context.stop();
+            if let Some(source_id) = self.listener_src {
+                // remove listerner in order to avoid conflict on borrowing of self
+                glib::source_remove(source_id);
+            }
+        }
+    }
+
     fn process_message(&mut self,
-        ui_tx: Option<&Sender<ContextMessage>>,
-        message: ContextMessage
+        message: ContextMessage,
+        ui_tx_opt: Option<&Sender<ContextMessage>>
     ) -> bool
     {
-        let keep_going = match message {
+        let mut keep_going = true;
+        match message {
             AsyncDone => {
                 println!("Received AsyncDone");
 
@@ -93,37 +109,46 @@ impl MainController {
 
                     self.has_init = true;
                 }
-                true
             },
             Eos => {
                 println!("Received Eos");
-                true
+                keep_going = false;
             },
             FailedToOpenMedia => {
-                println!("ERROR: failed to open media");
+                eprintln!("ERROR: failed to open media");
                 self.ctx = None;
                 // TODO: clear UI
-                false
+                keep_going = false;
+            },
+            HaveAudioBuffer(buffer) => {
+                println!("Received HaveAudioBuffer");
+                /*println!("Received AudioBuffer with offset: {}, pts: {:?}, dts: {:?}, duration: {:?}",
+                    buffer.get_offset(), buffer.get_pts(),
+                    buffer.get_dts(), buffer.get_duration()
+                );*/
             },
             HaveVideoWidget(video_widget) => {
-                let ui_tx = ui_tx.as_ref()
+                println!("Received HaveVideoWidget");
+                let ui_tx = ui_tx_opt.as_ref()
                     .expect("Received HaveVideoWidget, but no ui_tx is defined");
                 self.video_ctrl.have_widget(video_widget);
                 ui_tx.send(GotVideoWidget)
                     .expect("Failed to send GotVideoWidget to context");
-                true
             },
-            _ => false,
+            _ => {
+                eprintln!("Received an unexpected message => will quit listner");
+                keep_going = false;
+            },
         };
+
+        if !keep_going {
+            self.listener_src = None;
+        }
 
         keep_going
     }
 
     fn select_media(&mut self) {
-        if let Some(context) = self.ctx.as_ref() {
-            context.stop();
-        }
-
         let file_dlg = FileChooserDialog::new(Some("Open a media file"),
                                               Some(&self.window),
                                               FileChooserAction::Open,
@@ -144,30 +169,45 @@ impl MainController {
         file_dlg.close();
     }
 
-    fn register_listener(&self,
-        ui_tx: Option<Sender<ContextMessage>>,
+    fn register_listener(&mut self,
         ui_rx: Receiver<ContextMessage>,
-        timeout: u32
+        timeout: u32,
+        ui_tx_opt: Option<Sender<ContextMessage>>,
     )
     {
         if let Some(ref self_weak) = self.self_weak {
             let self_weak = self_weak.clone();
 
-            gtk::timeout_add(timeout, move || {
-                let mut keep_going = false;
-                match ui_rx.try_recv() {
-                    Ok(message) => match self_weak.upgrade() {
-                        Some(mc) => keep_going = mc.borrow_mut().process_message(ui_tx.as_ref(), message),
-                        None => panic!("Main controller is no longer available for ctx channel listener"),
+            let source_id = gtk::timeout_add(timeout, move || {
+                let mut keep_going = true;
+                let mut msg_iter = ui_rx.try_iter();
+                let first_msg_opt = msg_iter.next();
+                match first_msg_opt {
+                    Some(first_msg) => {
+                        // only get mc as mut if a message is received
+                        match self_weak.upgrade() {
+                            Some(mc) => {
+                                let mut mc_mut = mc.borrow_mut();
+                                keep_going = mc_mut.process_message(first_msg, ui_tx_opt.as_ref());
+                                if keep_going {
+                                    // process remaining messages
+                                    for msg in msg_iter {
+                                        keep_going = mc_mut.process_message(msg, ui_tx_opt.as_ref());
+                                        if !keep_going { break; }
+                                    }
+                                }
+                            },
+                            None => panic!("Main controller is no longer available for ctx channel listener"),
+                        };
                     },
-                    Err(error) => match error {
-                        TryRecvError::Empty => keep_going = true,
-                        error => println!("Error listening to ctx channel: {:?}", error),
-                    },
+                    None => (),
                 };
 
+                if !keep_going { println!("Exiting listener"); }
                 glib::Continue(keep_going)
             });
+
+            self.listener_src =Some(source_id);
         }
         // FIXME: else use proper expression to panic!
     }
@@ -176,7 +216,7 @@ impl MainController {
         let (ctx_tx, ui_rx) = channel();
         let (ui_tx, ctx_rx) = channel();
 
-        self.register_listener(Some(ui_tx), ui_rx, 100);
+        self.register_listener(ui_rx, 100, Some(ui_tx));
 
         match Context::open_media_path(filepath, ctx_tx, ctx_rx) {
             Ok(ctx) => {

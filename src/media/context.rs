@@ -19,8 +19,7 @@ pub enum ContextMessage {
     Eos,
     FailedToOpenMedia,
     GotVideoWidget,
-    //HaveAudioFrame,
-    //HaveVideoFrame,
+    HaveAudioBuffer(gst::Buffer),
     HaveVideoWidget(glib::Value),
 }
 
@@ -86,16 +85,14 @@ impl Context {
     }
 
     pub fn play(&self) -> Result<(), String> {
-        let ret = self.pipeline.set_state(gst::State::Playing);
-        if ret == gst::StateChangeReturn::Failure {
+        if self.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
             return Err("Could not set media in palying state".into());
         }
         Ok(())
     }
 
     pub fn pause(&self) -> Result<(), String> {
-        let ret = self.pipeline.set_state(gst::State::Paused);
-        if ret == gst::StateChangeReturn::Failure {
+        if self.pipeline.set_state(gst::State::Paused) == gst::StateChangeReturn::Failure {
             println!("could not set media in Paused state");
             return Err("Could not set media in Paused state".into());
         }
@@ -103,8 +100,7 @@ impl Context {
     }
 
     pub fn stop(&self) {
-        let ret = self.pipeline.set_state(gst::State::Null);
-        if ret == gst::StateChangeReturn::Failure {
+        if self.pipeline.set_state(gst::State::Null) == gst::StateChangeReturn::Failure {
             println!("Could not set media in Null state");
             //return Err("could not set media in Null state".into());
         }
@@ -154,6 +150,24 @@ impl Context {
 
                 let sink_pad = queue.get_static_pad("sink").unwrap();
                 assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
+
+                let ctx_tx_arc_mtx_clone = ctx_tx_arc_mtx.clone();
+                sink_pad.add_probe(PAD_PROBE_TYPE_BUFFER, move |_, probe_info| {
+                    match probe_info.data {
+                        Some(PadProbeData::Buffer(ref buffer)) => {
+                            // TODO: use a dedicated wrapper to convert in place
+                            // and avoid as many copy as possible
+                            // (couldn't find a way to avoid the clone below)
+                            ctx_tx_arc_mtx_clone.lock()
+                                .expect("Failed to lock ctx_tx mutex, while transmitting audio buffer")
+                                .send(ContextMessage::HaveAudioBuffer(buffer.clone()))
+                                    .expect("Failed to transmit audio buffer");
+                        },
+                        _ => (),
+                    };
+
+                    PadProbeReturn::Ok
+                });
             } else if name.starts_with("video/") {
                 let queue = gst::ElementFactory::make("queue", None).unwrap();
                 let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
@@ -177,7 +191,7 @@ impl Context {
                 ctx_tx_arc_mtx.lock()
                     .expect("Failed to lock ctx_tx mutex, while building the video queue")
                     .send(ContextMessage::HaveVideoWidget(widget_val))
-                    .expect("Failed to notify UI, while building the video queue");
+                    .expect("Failed to transmit GstGtkWidget");
                 // Wait for the widget to be included, otherwise the pipeline
                 // embeds it in a default window
                 match ui_rx_arc_mtx.lock()
@@ -218,7 +232,7 @@ impl Context {
                     keep_going = false;
                 },
                 MessageView::Error(err) => {
-                    println!(
+                    eprintln!(
                         "Error from {}: {} ({:?})",
                         msg.get_src().get_path_string(),
                         err.get_error(),
