@@ -121,6 +121,7 @@ impl MainController {
                 keep_going = false;
             },
             HaveAudioBuffer(buffer) => {
+                self.audio_ctrl.have_buffer(buffer);
                 //println!("Received HaveAudioBuffer");
                 /*println!("Received AudioBuffer with offset: {}, pts: {:?}, dts: {:?}, duration: {:?}",
                     buffer.get_offset(), buffer.get_pts(),
@@ -215,6 +216,8 @@ impl MainController {
     }
 
     fn open_media(&mut self, filepath: PathBuf) {
+        self.audio_ctrl.clear();
+
         let (ctx_tx, ui_rx) = channel();
         let (ui_tx, ctx_rx) = channel();
 

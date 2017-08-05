@@ -3,7 +3,7 @@ extern crate cairo;
 extern crate glib;
 
 extern crate gstreamer as gst;
-use gstreamer::BinExt;
+use gstreamer::{BinExt, ElementExt, PadExt};
 
 extern crate gtk;
 use gtk::{BoxExt, ContainerExt, WidgetExt};
@@ -59,7 +59,11 @@ impl DerefMut for VideoController {
 impl MediaHandler for VideoController {
     fn new_media(&mut self, ctx: &Context) {
         // TODO: test info in order to avoid checking pipeline directly
-        if let Some(_) = ctx.pipeline.get_by_name("video_sink") {
+        if let Some(video_sink) = ctx.pipeline.get_by_name("video_sink") {
+            println!("\nVideo sink caps:");
+            for cap in video_sink.get_static_pad("sink").unwrap().get_current_caps().unwrap().iter() {
+                println!("\t{:?}", cap);
+            }
             self.media_ctl.show();
         }
         else {
