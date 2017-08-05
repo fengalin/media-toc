@@ -32,10 +32,6 @@ impl AudioController {
         }
     }
 
-    pub fn have_caps(&self, caps: gst::Caps) {
-        println!("Audio caps: {:?}", caps);
-    }
-
     pub fn clear(&mut self) {
         self.circ_buffer.clear();
     }

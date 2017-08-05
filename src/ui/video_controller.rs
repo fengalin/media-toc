@@ -35,9 +35,9 @@ impl VideoController {
             self.video_box.remove(&child);
         }
 
-        let widget = widget_val.get::<gtk::Widget>().unwrap();
+        let widget = widget_val.get::<gtk::Widget>()
+            .expect("Failed to get GstGtkWidget glib::Value as gtk::Widget");
         self.video_box.pack_start(&widget, true, true, 0);
-
         self.video_box.show_all();
     }
 }

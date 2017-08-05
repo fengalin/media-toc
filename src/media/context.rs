@@ -142,9 +142,7 @@ impl Context {
                 pipeline.add_many(elements).unwrap();
                 gst::Element::link_many(elements).unwrap();
 
-                for e in elements {
-                    e.sync_state_with_parent().unwrap();
-                }
+                for e in elements { e.sync_state_with_parent().unwrap(); }
 
                 let sink_pad = queue.get_static_pad("sink").unwrap();
                 assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
@@ -173,10 +171,7 @@ impl Context {
 
                 let (sink, widget_val) = if let Some(gtkglsink) = ElementFactory::make("gtkglsink", None) {
                     let glsinkbin = ElementFactory::make("glsinkbin", "video_sink").unwrap();
-                    glsinkbin
-                        .set_property("sink", &gtkglsink.to_value())
-                        .unwrap();
-
+                    glsinkbin.set_property("sink", &gtkglsink.to_value()).unwrap();
                     let widget_val = gtkglsink.get_property("widget").unwrap();
                     (glsinkbin, widget_val)
                 } else {
@@ -189,8 +184,8 @@ impl Context {
                 ctx_tx_arc_mtx.lock()
                     .expect("Failed to lock ctx_tx mutex, while building the video queue")
                     .send(ContextMessage::HaveVideoWidget(widget_val))
-                    .expect("Failed to transmit GstGtkWidget");
-                // Wait for the widget to be included, otherwise the pipeline
+                        .expect("Failed to transmit GstGtkWidget");
+                // Wait for the widget to be added to the UI, otherwise the pipeline
                 // embeds it in a default window
                 match ui_rx_arc_mtx.lock()
                     .expect("Failed to lock ui_rx mutex, while building the video queue")
@@ -206,9 +201,7 @@ impl Context {
                 pipeline.add_many(elements).unwrap();
                 gst::Element::link_many(elements).unwrap();
 
-                for e in elements {
-                    e.sync_state_with_parent().unwrap();
-                }
+                for e in elements { e.sync_state_with_parent().unwrap(); }
 
                 let sink_pad = queue.get_static_pad("sink").unwrap();
                 assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
@@ -230,20 +223,18 @@ impl Context {
                     keep_going = false;
                 },
                 MessageView::Error(err) => {
-                    eprintln!(
-                        "Error from {}: {} ({:?})",
+                    eprintln!("Error from {}: {} ({:?})",
                         msg.get_src().get_path_string(),
-                        err.get_error(),
-                        err.get_debug()
+                        err.get_error(), err.get_debug()
                     );
                     ctx_tx.send(ContextMessage::FailedToOpenMedia)
                         .expect("Failed to notify UI");
                     keep_going = false;
                 },
                 MessageView::AsyncDone(_) => {
-                    keep_going = false;
                     ctx_tx.send(ContextMessage::AsyncDone)
                         .expect("Failed to notify UI");
+                    keep_going = false;
                 },
                 MessageView::Tag(msg_tag) => {
                     let tags = msg_tag.get_tags();

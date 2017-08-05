@@ -6,8 +6,6 @@ extern crate cairo;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use std::fmt::Display;
-
 use std::ops::{Deref, DerefMut};
 
 use ::media::Context;

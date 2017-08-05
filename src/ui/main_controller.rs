@@ -6,7 +6,7 @@ use std::cell::RefCell;
 
 use std::path::PathBuf;
 
-use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
+use std::sync::mpsc::{channel, Receiver, Sender};
 
 use gtk::prelude::*;
 use gtk::{ApplicationWindow, HeaderBar, Button,
@@ -152,10 +152,11 @@ impl MainController {
     fn select_media(&mut self) {
         self.stop();
 
-        let file_dlg = FileChooserDialog::new(Some("Open a media file"),
-                                              Some(&self.window),
-                                              FileChooserAction::Open,
-            );
+        let file_dlg = FileChooserDialog::new(
+            Some("Open a media file"),
+            Some(&self.window),
+            FileChooserAction::Open,
+        );
         // Note: couldn't find equivalents for STOCK_OK
         file_dlg.add_button("Open", ResponseType::Ok.into());
 
@@ -165,9 +166,7 @@ impl MainController {
         if result == ResponseType::Ok.into() {
             self.open_media(file_dlg.get_filename().unwrap());
         }
-        else {
-            ()
-        }
+        else { () }
 
         file_dlg.close();
     }
@@ -178,44 +177,37 @@ impl MainController {
         ui_tx_opt: Option<Sender<ContextMessage>>,
     )
     {
-        if let Some(ref self_weak) = self.self_weak {
-            let self_weak = self_weak.clone();
+        let self_weak = self.self_weak.as_ref()
+            .expect("Failed to get ref on MainController's weak Rc for register_listener")
+            .clone();
 
-            let source_id = gtk::timeout_add(timeout, move || {
-                let mut keep_going = true;
-                let mut msg_iter = ui_rx.try_iter();
-                let first_msg_opt = msg_iter.next();
-                match first_msg_opt {
-                    Some(first_msg) => {
-                        // only get mc as mut if a message is received
-                        match self_weak.upgrade() {
-                            Some(mc) => {
-                                let mut mc_mut = mc.borrow_mut();
-                                keep_going = mc_mut.process_message(first_msg, ui_tx_opt.as_ref());
-                                if keep_going {
-                                    // process remaining messages
-                                    for msg in msg_iter {
-                                        keep_going = mc_mut.process_message(msg, ui_tx_opt.as_ref());
-                                        if !keep_going { break; }
-                                    }
-                                }
-                            },
-                            None => panic!("Main controller is no longer available for ctx channel listener"),
-                        };
-                    },
-                    None => (),
-                };
+        self.listener_src = Some(gtk::timeout_add(timeout, move || {
+            let mut keep_going = true;
+            let mut msg_iter = ui_rx.try_iter();
+            let first_msg_opt = msg_iter.next();
+            if let Some(first_msg) = first_msg_opt {
+                // only get mc as mut if a message is received
+                let mc = self_weak.upgrade()
+                    .expect("Main controller is no longer available for ctx channel listener");
+                let mut mc_mut = mc.borrow_mut();
+                keep_going = mc_mut.process_message(first_msg, ui_tx_opt.as_ref());
+                if keep_going {
+                    // process remaining messages
+                    for msg in msg_iter {
+                        keep_going = mc_mut.process_message(msg, ui_tx_opt.as_ref());
+                        if !keep_going { break; }
+                    }
+                }
+            };
 
-                if !keep_going { println!("Exiting listener"); }
-                glib::Continue(keep_going)
-            });
-
-            self.listener_src =Some(source_id);
-        }
-        // FIXME: else use proper expression to panic!
+            if !keep_going { println!("Exiting listener"); }
+            glib::Continue(keep_going)
+        }));
     }
 
     fn open_media(&mut self, filepath: PathBuf) {
+        assert_eq!(self.listener_src, None);
+
         self.audio_ctrl.clear();
 
         let (ctx_tx, ui_rx) = channel();
