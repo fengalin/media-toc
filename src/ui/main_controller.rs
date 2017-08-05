@@ -63,7 +63,6 @@ impl MainController {
         open_btn.connect_clicked(move |_|
             match mc_weak.upgrade() {
                 Some(mc) => {
-                    mc.borrow().stop();
                     mc.borrow_mut().select_media();
                 },
                 None => panic!("Main controller is no longer available for select_media"),
@@ -77,13 +76,14 @@ impl MainController {
         self.window.show_all();
     }
 
-    pub fn stop(&self) {
+    pub fn stop(&mut self) {
         if let Some(context) = self.ctx.as_ref() {
             context.stop();
             if let Some(source_id) = self.listener_src {
                 // remove listerner in order to avoid conflict on borrowing of self
                 glib::source_remove(source_id);
             }
+            self.listener_src = None;
         }
     }
 
@@ -121,14 +121,14 @@ impl MainController {
                 keep_going = false;
             },
             HaveAudioBuffer(buffer) => {
-                println!("Received HaveAudioBuffer");
+                //println!("Received HaveAudioBuffer");
                 /*println!("Received AudioBuffer with offset: {}, pts: {:?}, dts: {:?}, duration: {:?}",
                     buffer.get_offset(), buffer.get_pts(),
                     buffer.get_dts(), buffer.get_duration()
                 );*/
             },
             HaveVideoWidget(video_widget) => {
-                println!("Received HaveVideoWidget");
+                //println!("Received HaveVideoWidget");
                 let ui_tx = ui_tx_opt.as_ref()
                     .expect("Received HaveVideoWidget, but no ui_tx is defined");
                 self.video_ctrl.have_widget(video_widget);
@@ -149,6 +149,8 @@ impl MainController {
     }
 
     fn select_media(&mut self) {
+        self.stop();
+
         let file_dlg = FileChooserDialog::new(Some("Open a media file"),
                                               Some(&self.window),
                                               FileChooserAction::Open,
