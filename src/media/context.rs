@@ -77,9 +77,7 @@ impl Context {
 
     pub fn get_duration(&self) -> Timestamp {
         match self.pipeline.query_duration(gst::Format::Time) {
-            Some(duration) => Timestamp::from_sec_time_factor(
-                duration, 1f64 / 1_000_000_000f64
-            ),
+            Some(duration) => Timestamp::from_nano(duration),
             None => Timestamp::new(),
         }
     }

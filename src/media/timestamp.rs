@@ -30,6 +30,17 @@ impl Timestamp {
             is_positive: if sec >= 0 { true } else { false },
         }
     }
+
+    pub fn from_nano(nano: i64) -> Self {
+        let sec_f = nano.abs() as f64 / 1_000_000_000f64;
+        Timestamp {
+            timestamp: NaiveTime::from_num_seconds_from_midnight(
+                sec_f.trunc() as u32,
+                (sec_f.fract() * 1_000_000_000f64) as u32
+            ),
+            is_positive: if nano >= 0 { true } else { false },
+        }
+    }
 }
 
 impl Clone for Timestamp {
