@@ -27,18 +27,11 @@ impl AlignedImage {
                         stride: stride,
                     };
 
-                    let mut pixel = [0; 4];
-                    let mut byte_iter = rgb_image.iter();
-                    loop {
-                        match byte_iter.next() {
-                            Some(byte) => pixel[2] = byte.clone(),
-                            None => break,
-                        };
-                        let byte = byte_iter.next().unwrap();
-                        pixel[1] = byte.clone();
-                        let byte = byte_iter.next().unwrap();
-                        pixel[0] = byte.clone();
-                        new_img.aligned_buffer.extend_from_slice(&pixel);
+                    for pixel in rgb_image.chunks(3) {
+                        new_img.aligned_buffer.push(pixel[2]);
+                        new_img.aligned_buffer.push(pixel[1]);
+                        new_img.aligned_buffer.push(pixel[0]);
+                        new_img.aligned_buffer.push(0);
                     }
 
                     Ok(new_img)
