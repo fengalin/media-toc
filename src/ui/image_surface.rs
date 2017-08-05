@@ -6,7 +6,7 @@ pub struct ImageSurface {
     pub surface: cairo::ImageSurface,
 }
 
-impl<'a> ImageSurface {
+impl ImageSurface {
     pub fn from_uknown_buffer(input: &[u8]) -> Result<Self, String> {
         let aligned_image = match AlignedImage::from_uknown_buffer(input) {
             Ok(aligned_image) => aligned_image,

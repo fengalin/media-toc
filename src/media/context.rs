@@ -79,7 +79,7 @@ impl Context {
     pub fn get_duration(&self) -> Timestamp {
         match self.pipeline.query_duration(gst::Format::Time) {
             Some(duration) => Timestamp::from_sec_time_factor(
-                    duration, 1f64 / 1_000_000_000f64
+                duration, 1f64 / 1_000_000_000f64
             ),
             None => Timestamp::new(),
         }
@@ -126,7 +126,7 @@ impl Context {
         self.pipeline.add(&dec).unwrap();
 
         let pipeline_clone = self.pipeline.clone();
-        // Need an Arc Mutex on ctx_tx because Rust consider this method
+        // Need an Arc Mutex on ctx_tx because Rust considers this method
         // as a candidate for being called by multiple threads
         let ctx_tx_arc_mtx = Arc::new(Mutex::new(ctx_tx.clone()));
         let ui_rx_arc_mtx = Arc::new(Mutex::new(ui_rx));

@@ -83,7 +83,7 @@ impl MainController {
 
                 if !self.has_init {
                     let ref context = self.ctx.as_ref()
-                    .expect("Received AsyncDone, but context is not available");
+                        .expect("Received AsyncDone, but context is not available");
 
                     self.info_ctrl.new_media(context);
                     self.video_ctrl.new_media(context);
@@ -97,9 +97,6 @@ impl MainController {
             },
             Eos => {
                 println!("Received Eos");
-                /*self.ctx.as_ref()
-                    .expect("Received Eos, but context is not available")
-                    .stop();*/
                 true
             },
             FailedToOpenMedia => {
