@@ -25,7 +25,6 @@ pub struct MainController {
     audio_ctrl: AudioController,
 
     ctx: Option<Context>,
-    has_init: bool,
 
     self_weak: Option<Weak<RefCell<MainController>>>,
     listener_src: Option<glib::SourceId>
@@ -40,7 +39,6 @@ impl MainController {
             video_ctrl: VideoController::new(&builder),
             audio_ctrl: AudioController::new(&builder),
             ctx: None,
-            has_init: false,
             self_weak: None,
             listener_src: None,
         }));
@@ -96,19 +94,18 @@ impl MainController {
         match message {
             AsyncDone => {
                 println!("Received AsyncDone");
+            },
+            InitDone => {
+                println!("Received InitDone");
 
-                if !self.has_init {
-                    let ref context = self.ctx.as_ref()
-                        .expect("Received AsyncDone, but context is not available");
+                let ref context = self.ctx.as_ref()
+                    .expect("Received InitDone, but context is not available");
 
-                    self.info_ctrl.new_media(context);
-                    self.video_ctrl.new_media(context);
-                    self.audio_ctrl.new_media(context);
+                self.info_ctrl.new_media(context);
+                self.video_ctrl.new_media(context);
+                self.audio_ctrl.new_media(context);
 
-                    self.header_bar.set_subtitle(Some(context.file_name.as_str()));
-
-                    self.has_init = true;
-                }
+                self.header_bar.set_subtitle(Some(context.file_name.as_str()));
             },
             Eos => {
                 println!("Received Eos");
@@ -216,11 +213,8 @@ impl MainController {
         self.register_listener(ui_rx, 100, Some(ui_tx));
 
         match Context::open_media_path(filepath, ctx_tx, ctx_rx) {
-            Ok(ctx) => {
-                self.has_init = false;
-                self.ctx = Some(ctx);
-            },
-            Err(error) => println!("Error opening media: {}", error),
+            Ok(ctx) => self.ctx = Some(ctx),
+            Err(error) => eprintln!("Error opening media: {}", error),
         };
     }
 }

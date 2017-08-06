@@ -21,6 +21,7 @@ pub enum ContextMessage {
     GotVideoWidget,
     HaveAudioBuffer(gst::Buffer),
     HaveVideoWidget(glib::Value),
+    InitDone,
 }
 
 pub struct Context {
@@ -212,10 +213,12 @@ impl Context {
     // Uses ctx_tx to notify the UI controllers about the inspection process
     fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
         let info_arc_mtx = self.info.clone();
+        let mut init_done = false;
         let bus = self.pipeline.get_bus().unwrap();
         bus.add_watch(move |_, msg| {
             let mut keep_going = true;
-
+            // TODO: exit when pipeline status is null
+            // or can we reuse the inspector for subsequent plays?
             match msg.view() {
                 MessageView::Eos(..) => {
                     ctx_tx.send(ContextMessage::Eos)
@@ -232,38 +235,46 @@ impl Context {
                     keep_going = false;
                 },
                 MessageView::AsyncDone(_) => {
-                    ctx_tx.send(ContextMessage::AsyncDone)
-                        .expect("Failed to notify UI");
-                    keep_going = false;
+                    if !init_done {
+                        ctx_tx.send(ContextMessage::InitDone)
+                            .expect("Failed to notify UI");
+                        init_done = true;
+                    }
+                    else {
+                        ctx_tx.send(ContextMessage::AsyncDone)
+                            .expect("Failed to notify UI");
+                    }
                 },
                 MessageView::Tag(msg_tag) => {
-                    let tags = msg_tag.get_tags();
-                    let ref mut info = info_arc_mtx.lock()
-                        .expect("Failed to lock media info while reading tag data");
-                    assign_str_tag!(info.title, tags, Title);
-                    assign_str_tag!(info.artist, tags, Artist);
-                    assign_str_tag!(info.artist, tags, AlbumArtist);
-                    assign_str_tag!(info.video_codec, tags, VideoCodec);
-                    assign_str_tag!(info.audio_codec, tags, AudioCodec);
+                    if !init_done {
+                        let tags = msg_tag.get_tags();
+                        let ref mut info = info_arc_mtx.lock()
+                            .expect("Failed to lock media info while reading tag data");
+                        assign_str_tag!(info.title, tags, Title);
+                        assign_str_tag!(info.artist, tags, Artist);
+                        assign_str_tag!(info.artist, tags, AlbumArtist);
+                        assign_str_tag!(info.video_codec, tags, VideoCodec);
+                        assign_str_tag!(info.audio_codec, tags, AudioCodec);
 
-                    /*match tags.get::<PreviewImage>() {
-                        // TODO: check if that happens, that would be handy for videos
-                        Some(preview_tag) => println!("Found a PreviewImage tag"),
-                        None => (),
-                    };*/
+                        /*match tags.get::<PreviewImage>() {
+                            // TODO: check if that happens, that would be handy for videos
+                            Some(preview_tag) => println!("Found a PreviewImage tag"),
+                            None => (),
+                        };*/
 
-                    // TODO: distinguish front/back cover (take the first one?)
-                    if let Some(image_tag) = tags.get::<Image>() {
-                        if let Some(sample) = image_tag.get() {
-                            if let Some(buffer) = sample.get_buffer() {
-                                if let Some(map) = buffer.map_read() {
-                                    // TODO: build an aligned_image directly
-                                    // so that we can save one copy
-                                    // and implement a wrapper on an aligned_image
-                                    // in image_surface
-                                    let mut thumbnail = Vec::with_capacity(map.get_size());
-                                    thumbnail.extend_from_slice(map.as_slice());
-                                    info.thumbnail = Some(thumbnail);
+                        // TODO: distinguish front/back cover (take the first one?)
+                        if let Some(image_tag) = tags.get::<Image>() {
+                            if let Some(sample) = image_tag.get() {
+                                if let Some(buffer) = sample.get_buffer() {
+                                    if let Some(map) = buffer.map_read() {
+                                        // TODO: build an aligned_image directly
+                                        // so that we can save one copy
+                                        // and implement a wrapper on an aligned_image
+                                        // in image_surface
+                                        let mut thumbnail = Vec::with_capacity(map.get_size());
+                                        thumbnail.extend_from_slice(map.as_slice());
+                                        info.thumbnail = Some(thumbnail);
+                                    }
                                 }
                             }
                         }
