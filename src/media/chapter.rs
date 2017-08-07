@@ -36,7 +36,7 @@ impl Chapter {
 
     pub fn title(&self) -> &str {
         match self.metadata.get("title") {
-            Some(title) => &title,
+            Some(title) => title,
             None => "",
         }
     }
@@ -45,9 +45,9 @@ impl Chapter {
 impl Clone for Chapter {
     fn clone(&self) -> Self {
         Chapter {
-            id: self.id.clone(),
-            start: self.start.clone(),
-            end: self.end.clone(),
+            id: self.id,
+            start: self.start,
+            end: self.end,
             metadata: self.metadata.clone(),
         }
     }

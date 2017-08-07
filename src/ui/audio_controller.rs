@@ -5,7 +5,7 @@ use gtk::{Inhibit, WidgetExt};
 
 extern crate cairo;
 
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 use std::cell::RefCell;
 
 use std::collections::vec_deque::{VecDeque};
@@ -43,10 +43,11 @@ impl AudioController {
         {
             let this_ref = this.borrow();
             let this_weak = Rc::downgrade(&this);
-            this_ref.drawingarea.connect_draw(move |ref drawing_area, ref cairo_ctx| {
+            this_ref.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
                 let this = this_weak.upgrade()
                     .expect("Main controller is no longer available for select_media");
-                return this.borrow().draw(drawing_area, cairo_ctx);
+                let result = this.borrow().draw(drawing_area, cairo_ctx);
+                result
             });
         }
 
@@ -73,7 +74,7 @@ impl AudioController {
     }
 
     fn draw(&self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) -> Inhibit {
-        if self.circ_buffer.len() == 0 {
+        if self.circ_buffer.is_empty() {
             return Inhibit(false);
         }
 
@@ -92,9 +93,9 @@ impl AudioController {
             colors.push((0f64, 0f64, 0.2f64 * channel as f64));
         }
 
-        for ref buffer in self.circ_buffer.iter() {
-            for ref channel in buffer.channels.iter() {
-                let color = colors[channel.id];
+        for buffer in &self.circ_buffer {
+            for channel in &buffer.channels {
+                let color = colors[channel.get_id()];
                 cr.set_source_rgb(color.0, color.1, color.2);
 
                 let mut x = buffer.sample_offset as f64 - self.sample_offset;

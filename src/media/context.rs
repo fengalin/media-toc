@@ -126,7 +126,7 @@ impl Context {
         let ctx_tx_arc_mtx = Arc::new(Mutex::new(ctx_tx.clone()));
         let ui_rx_arc_mtx = Arc::new(Mutex::new(ui_rx));
         dec.connect_pad_added(move |_, src_pad| {
-            let ref pipeline = pipeline_clone;
+            let pipeline = &pipeline_clone;
 
             let caps = src_pad.get_current_caps().unwrap();
             let structure = caps.get_structure(0).unwrap();
@@ -151,20 +151,17 @@ impl Context {
                 let mut audio_caps_arc: Arc<Option<AudioCaps>> = Arc::new(None);
                 let ctx_tx_arc_mtx_clone = ctx_tx_arc_mtx.clone();
                 sink_pad.add_probe(PAD_PROBE_TYPE_BUFFER, move |sink_pad, probe_info| {
-                    match probe_info.data {
-                        Some(PadProbeData::Buffer(ref buffer)) => {
-                            // Retrieve audio caps the first time only
-                            let ref mut audio_caps = Arc::get_mut(&mut audio_caps_arc).unwrap()
-                                .get_or_insert_with(|| AudioCaps::from_sink_pad(&sink_pad));
+                    if let Some(PadProbeData::Buffer(ref buffer)) = probe_info.data {
+                        // Retrieve audio caps the first time only
+                        let audio_caps = &mut Arc::get_mut(&mut audio_caps_arc).unwrap()
+                            .get_or_insert_with(|| AudioCaps::from_sink_pad(sink_pad));
 
-                            let audio_buffer = AudioBuffer::from_gst_buffer(audio_caps, buffer);
+                        let audio_buffer = AudioBuffer::from_gst_buffer(audio_caps, buffer);
 
-                            ctx_tx_arc_mtx_clone.lock()
-                                .expect("Failed to lock ctx_tx mutex, while transmitting audio buffer")
-                                .send(ContextMessage::HaveAudioBuffer(audio_buffer))
-                                    .expect("Failed to transmit audio buffer");
-                        },
-                        _ => (),
+                        ctx_tx_arc_mtx_clone.lock()
+                            .expect("Failed to lock ctx_tx mutex, while transmitting audio buffer")
+                            .send(ContextMessage::HaveAudioBuffer(audio_buffer))
+                                .expect("Failed to transmit audio buffer");
                     };
 
                     PadProbeReturn::Ok
@@ -252,7 +249,7 @@ impl Context {
                 MessageView::Tag(msg_tag) => {
                     if !init_done {
                         let tags = msg_tag.get_tags();
-                        let ref mut info = info_arc_mtx.lock()
+                        let info = &mut info_arc_mtx.lock()
                             .expect("Failed to lock media info while reading tag data");
                         assign_str_tag!(info.title, tags, Title);
                         assign_str_tag!(info.artist, tags, Artist);

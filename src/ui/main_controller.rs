@@ -94,7 +94,7 @@ impl MainController {
             InitDone => {
                 println!("Received InitDone");
 
-                let ref context = self.ctx.as_ref()
+                let context = self.ctx.as_ref()
                     .expect("Received InitDone, but context is not available");
 
                 self.info_ctrl.new_media(context);

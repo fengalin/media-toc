@@ -50,13 +50,13 @@ impl InfoController {
         };
 
         this.chapter_treeview.set_model(Some(&this.chapter_store));
-        this.add_chapter_column(&"Id", 0, false);
-        this.add_chapter_column(&"Title", 1, true);
-        this.add_chapter_column(&"Start", 2, false);
-        this.add_chapter_column(&"End", 3, false);
+        this.add_chapter_column("Id", 0, false);
+        this.add_chapter_column("Title", 1, true);
+        this.add_chapter_column("Start", 2, false);
+        this.add_chapter_column("End", 3, false);
 
         let thumbnail_weak = Rc::downgrade(&this.thumbnail);
-        this.drawingarea.connect_draw(move |ref drawing_area, ref cairo_ctx| {
+        this.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
             if let Some(thumbnail_rc) = thumbnail_weak.upgrade() {
                 let thumbnail_ref = thumbnail_rc.borrow();
                 if let Some(ref thumbnail) = *thumbnail_ref {
@@ -113,7 +113,7 @@ impl DerefMut for InfoController {
 
 impl MediaHandler for InfoController {
     fn new_media(&mut self, ctx: &Context) {
-        let ref mut info = ctx.info.lock()
+        let mut info = ctx.info.lock()
             .expect("Failed to lock media info in InfoController");
         self.title_lbl.set_label(&info.title);
         self.artist_lbl.set_label(&info.artist);
@@ -139,12 +139,10 @@ impl MediaHandler for InfoController {
 
         self.chapter_store.clear();
         // FIX for sample.mkv video: generate ids (TODO: remove)
-        let mut id = 0;
-        for chapter in info.chapters.iter() {
-            id += 1;
+        for (id, chapter) in info.chapters.iter().enumerate() {
             self.chapter_store.insert_with_values(
                 None, &[0, 1, 2, 3],
-                &[&id, &chapter.title(), &format!("{}", &chapter.start), &format!("{}", chapter.end)],
+                &[&((id+1) as u32), &chapter.title(), &format!("{}", &chapter.start), &format!("{}", chapter.end)],
             );
         }
         self.show();

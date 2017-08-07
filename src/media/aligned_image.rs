@@ -46,14 +46,6 @@ impl AlignedImage {
         self.aligned_buffer.into_boxed_slice()
     }
 
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.aligned_buffer.clone()
-    }
-
-    pub fn as_ref<'a>(&'a self) -> &'a Vec<u8> {
-        self.aligned_buffer.as_ref()
-    }
-
     pub fn width(&self) -> usize {
         self.width
     }

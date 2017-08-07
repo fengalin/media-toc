@@ -1,5 +1,3 @@
-#![feature(option_entry)]
-
 extern crate gtk;
 extern crate cairo;
 

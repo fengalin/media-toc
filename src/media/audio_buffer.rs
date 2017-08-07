@@ -1,16 +1,12 @@
 extern crate byteorder;
-use byteorder::{ByteOrder, LittleEndian, ReadBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt};
 
 extern crate gstreamer as gst;
 use gstreamer::PadExt;
 
-use std::clone::Clone;
-
 use std::io::Cursor;
 
 use std::ops::{Deref, DerefMut};
-
-use super::Timestamp;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum SampleFormat {
@@ -42,7 +38,7 @@ impl AudioCaps {
     pub fn new() -> Self {
         AudioCaps {
             sample_format: SampleFormat::Unknown,
-            layout: SampleLayout::Interleaved,
+            layout: SampleLayout::Unknown,
             rate: 0,
             sample_duration: 0f64,
             channels: 0,
@@ -100,7 +96,7 @@ impl AudioCaps {
 
 
 pub struct AudioChannel {
-    pub id: usize,
+    id: usize,
     samples: Vec<f64>,
 }
 
@@ -143,7 +139,7 @@ pub struct AudioBuffer {
 impl AudioBuffer {
     pub fn from_gst_buffer(caps: &AudioCaps, buffer: &gst::Buffer) -> Self {
         let mut this = AudioBuffer {
-            caps: caps.clone(),
+            caps: *caps,
             pts: buffer.get_pts() as usize,
             duration: buffer.get_duration() as usize,
             sample_offset: (buffer.get_pts() as f64 / caps.sample_duration) as usize,
@@ -161,7 +157,7 @@ impl AudioBuffer {
         let mut keep_going = true;
         let mut data_reader = Cursor::new(data);
 
-        assert!(this.caps.layout == SampleLayout::Interleaved);
+        assert_eq!(this.caps.layout, SampleLayout::Interleaved);
         while keep_going {
             for channel in 0..this.caps.channels {
                 let norm_sample = match this.caps.sample_format {
