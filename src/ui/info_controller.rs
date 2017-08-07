@@ -113,7 +113,7 @@ impl DerefMut for InfoController {
 
 impl MediaHandler for InfoController {
     fn new_media(&mut self, ctx: &Context) {
-        let ref info = ctx.info.lock()
+        let ref mut info = ctx.info.lock()
             .expect("Failed to lock media info in InfoController");
         self.title_lbl.set_label(&info.title);
         self.artist_lbl.set_label(&info.artist);
@@ -121,8 +121,8 @@ impl MediaHandler for InfoController {
         self.duration_lbl.set_label(&format!("{}", ctx.get_duration()));
 
         let mut has_image = false;
-        if let Some(thumbnail) = info.thumbnail.as_ref() {
-            if let Ok(image) = ImageSurface::from_uknown_buffer(thumbnail.as_slice()) {
+        if let Some(thumbnail) = info.thumbnail.take() {
+            if let Ok(image) = ImageSurface::from_aligned_image(thumbnail) {
                 let mut thumbnail_ref = self.thumbnail.borrow_mut();
                 *thumbnail_ref = Some(image);
                 has_image = true;

@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
-use super::{AudioBuffer, AudioCaps, MediaInfo, Timestamp};
+use super::{AlignedImage, AudioBuffer, AudioCaps, MediaInfo, Timestamp};
 
 pub enum ContextMessage {
     AsyncDone,
@@ -270,13 +270,9 @@ impl Context {
                             if let Some(sample) = image_tag.get() {
                                 if let Some(buffer) = sample.get_buffer() {
                                     if let Some(map) = buffer.map_read() {
-                                        // TODO: build an aligned_image directly
-                                        // so that we can save one copy
-                                        // and implement a wrapper on an aligned_image
-                                        // in image_surface
-                                        let mut thumbnail = Vec::with_capacity(map.get_size());
-                                        thumbnail.extend_from_slice(map.as_slice());
-                                        info.thumbnail = Some(thumbnail);
+                                        info.thumbnail = AlignedImage::from_uknown_buffer(
+                                                map.as_slice()
+                                            ).ok();
                                     }
                                 }
                             }
