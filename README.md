@@ -23,7 +23,7 @@ At the moment, Media-TOC can:
 - Display the first video frame
 - Display the cover image if available.
 - Display metadata from the media.
-- Display the first frame's wave form (ffmpeg version only ATM).
+- Display the first buffers' wave form.
 - Display chapters' data (ffmpeg version only ATM).
 
 ## <a name='ui'></a>Screenshot
