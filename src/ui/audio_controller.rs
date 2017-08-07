@@ -21,6 +21,7 @@ pub struct AudioController {
     drawingarea: gtk::DrawingArea,
 
     circ_buffer: VecDeque<AudioBuffer>,
+    channels: usize,
     sample_offset: f64,
     samples_nb: f64,
 }
@@ -34,6 +35,7 @@ impl AudioController {
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
 
             circ_buffer: VecDeque::new(),
+            channels: 0,
             sample_offset: 0f64,
             samples_nb: 0f64,
         }));
@@ -53,6 +55,7 @@ impl AudioController {
 
     pub fn clear(&mut self) {
         self.circ_buffer.clear();
+        self.channels = 0;
         self.sample_offset = 0f64;
         self.samples_nb = 0f64;
     }
@@ -61,6 +64,7 @@ impl AudioController {
         // Firt approximation: suppose the buffers come in ordered
         if self.sample_offset == 0f64 {
             self.sample_offset = buffer.sample_offset as f64;
+            self.channels = buffer.caps.channels;
         }
         self.samples_nb += buffer.samples_nb as f64;
 
@@ -82,10 +86,15 @@ impl AudioController {
         );
         cr.set_line_width(1f64);
 
+        let mut colors = vec![(0.9f64, 0.9f64, 0.9f64), (0.9f64, 0f64, 0f64)];
+        for channel in 2..self.channels {
+            colors.push((0f64, 0f64, 0.2f64 * channel as f64));
+        }
+
         for ref buffer in self.circ_buffer.iter() {
             for ref channel in buffer.channels.iter() {
-                let colors = vec![(0.8f64, 0.8f64, 0.8f64), (0.8f64, 0f64, 0f64)][channel.id];
-                cr.set_source_rgb(colors.0, colors.1, colors.2);
+                let color = colors[channel.id];
+                cr.set_source_rgb(color.0, color.1, color.2);
 
                 let mut x = buffer.sample_offset as f64 - self.sample_offset;
                 let mut is_first = true;
