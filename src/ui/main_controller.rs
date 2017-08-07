@@ -22,7 +22,7 @@ pub struct MainController {
     header_bar: HeaderBar,
     info_ctrl: InfoController,
     video_ctrl: VideoController,
-    audio_ctrl: AudioController,
+    audio_ctrl: Rc<RefCell<AudioController>>,
 
     ctx: Option<Context>,
 
@@ -58,14 +58,11 @@ impl MainController {
 
         let open_btn: Button = builder.get_object("open-btn").unwrap();
         let mc_weak = Rc::downgrade(&mc);
-        open_btn.connect_clicked(move |_|
-            match mc_weak.upgrade() {
-                Some(mc) => {
-                    mc.borrow_mut().select_media();
-                },
-                None => panic!("Main controller is no longer available for select_media"),
-            }
-        );
+        open_btn.connect_clicked(move |_| {
+            let mc = mc_weak.upgrade()
+                .expect("Main controller is no longer available for select_media");
+            mc.borrow_mut().select_media();
+        });
 
         mc
     }
@@ -103,7 +100,7 @@ impl MainController {
 
                 self.info_ctrl.new_media(context);
                 self.video_ctrl.new_media(context);
-                self.audio_ctrl.new_media(context);
+                self.audio_ctrl.borrow_mut().new_media(context);
 
                 self.header_bar.set_subtitle(Some(context.file_name.as_str()));
             },
@@ -118,7 +115,7 @@ impl MainController {
                 keep_going = false;
             },
             HaveAudioBuffer(buffer) => {
-                self.audio_ctrl.have_buffer(buffer);
+                self.audio_ctrl.borrow_mut().have_buffer(buffer);
                 //println!("Received HaveAudioBuffer");
                 /*println!("Received AudioBuffer with offset: {}, pts: {:?}, dts: {:?}, duration: {:?}",
                     buffer.get_offset(), buffer.get_pts(),
@@ -205,7 +202,7 @@ impl MainController {
     fn open_media(&mut self, filepath: PathBuf) {
         assert_eq!(self.listener_src, None);
 
-        self.audio_ctrl.clear();
+        self.audio_ctrl.borrow_mut().clear();
 
         let (ctx_tx, ui_rx) = channel();
         let (ui_tx, ctx_rx) = channel();
