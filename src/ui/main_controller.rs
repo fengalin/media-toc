@@ -44,7 +44,6 @@ impl MainController {
         }));
 
         {
-            // TODO: stop any playing context or pending_ctx
             let mut this_mut = this.borrow_mut();
             this_mut.window.connect_delete_event(|_, _| {
                 gtk::main_quit();
@@ -111,16 +110,10 @@ impl MainController {
             FailedToOpenMedia => {
                 eprintln!("ERROR: failed to open media");
                 self.ctx = None;
-                // TODO: clear UI
                 keep_going = false;
             },
             HaveAudioBuffer(audio_buffer) => {
                 self.audio_ctrl.borrow_mut().have_buffer(audio_buffer);
-                //println!("Received HaveAudioBuffer");
-                /*println!("Received AudioBuffer with offset: {}, pts: {:?}, dts: {:?}, duration: {:?}",
-                    buffer.get_offset(), buffer.get_pts(),
-                    buffer.get_dts(), buffer.get_duration()
-                );*/
             },
             HaveVideoWidget(video_widget) => {
                 //println!("Received HaveVideoWidget");
@@ -156,7 +149,6 @@ impl MainController {
 
         let result = file_dlg.run();
 
-        // Note: couldn't find a way to coerce ResponseType to i32 in a match statement
         if result == ResponseType::Ok.into() {
             self.open_media(file_dlg.get_filename().unwrap());
         }
@@ -171,7 +163,7 @@ impl MainController {
         ui_tx_opt: Option<Sender<ContextMessage>>,
     )
     {
-        let self_weak = self.self_weak.as_ref()
+        let this_weak = self.self_weak.as_ref()
             .expect("Failed to get ref on MainController's weak Rc for register_listener")
             .clone();
 
@@ -182,7 +174,7 @@ impl MainController {
             let first_msg_opt = msg_iter.next();
             if let Some(first_msg) = first_msg_opt {
                 // only get this as mut if a message is received
-                let this = self_weak.upgrade()
+                let this = this_weak.upgrade()
                     .expect("Main controller is no longer available for ctx channel listener");
                 let mut this_mut = this.borrow_mut();
                 keep_going = this_mut.process_message(first_msg, ui_tx_opt.as_ref());
