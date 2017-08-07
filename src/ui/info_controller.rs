@@ -31,7 +31,7 @@ impl InfoController {
     pub fn new(builder: &gtk::Builder) -> Self {
         // need a RefCell because the callbacks will use immutable versions of ac
         // when the UI controllers will get a mutable version from time to time
-        let ic = InfoController {
+        let this = InfoController {
             media_ctl: MediaController::new(
                 builder.get_object("info-box").unwrap(),
             ),
@@ -49,14 +49,14 @@ impl InfoController {
             thumbnail: Rc::new(RefCell::new(None)),
         };
 
-        ic.chapter_treeview.set_model(Some(&ic.chapter_store));
-        ic.add_chapter_column(&"Id", 0, false);
-        ic.add_chapter_column(&"Title", 1, true);
-        ic.add_chapter_column(&"Start", 2, false);
-        ic.add_chapter_column(&"End", 3, false);
+        this.chapter_treeview.set_model(Some(&this.chapter_store));
+        this.add_chapter_column(&"Id", 0, false);
+        this.add_chapter_column(&"Title", 1, true);
+        this.add_chapter_column(&"Start", 2, false);
+        this.add_chapter_column(&"End", 3, false);
 
-        let thumbnail_weak = Rc::downgrade(&ic.thumbnail);
-        ic.drawingarea.connect_draw(move |ref drawing_area, ref cairo_ctx| {
+        let thumbnail_weak = Rc::downgrade(&this.thumbnail);
+        this.drawingarea.connect_draw(move |ref drawing_area, ref cairo_ctx| {
             if let Some(thumbnail_rc) = thumbnail_weak.upgrade() {
                 let thumbnail_ref = thumbnail_rc.borrow();
                 if let Some(ref thumbnail) = *thumbnail_ref {
@@ -83,7 +83,7 @@ impl InfoController {
             Inhibit(false)
         });
 
-        ic
+        this
     }
 
     fn add_chapter_column(&self, title: &str, col_id: i32, can_expand: bool) {

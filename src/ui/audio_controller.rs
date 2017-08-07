@@ -27,7 +27,7 @@ pub struct AudioController {
 
 impl AudioController {
     pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
-        let ac = Rc::new(RefCell::new(AudioController {
+        let this = Rc::new(RefCell::new(AudioController {
             media_ctl: MediaController::new(
                 builder.get_object("audio-container").unwrap(),
             ),
@@ -39,16 +39,16 @@ impl AudioController {
         }));
 
         {
-            let ac_ref = ac.borrow();
-            let ac_weak = Rc::downgrade(&ac);
-            ac_ref.drawingarea.connect_draw(move |ref drawing_area, ref cairo_ctx| {
-                let ac = ac_weak.upgrade()
+            let this_ref = this.borrow();
+            let this_weak = Rc::downgrade(&this);
+            this_ref.drawingarea.connect_draw(move |ref drawing_area, ref cairo_ctx| {
+                let this = this_weak.upgrade()
                     .expect("Main controller is no longer available for select_media");
-                return ac.borrow().draw(drawing_area, cairo_ctx);
+                return this.borrow().draw(drawing_area, cairo_ctx);
             });
         }
 
-        ac
+        this
     }
 
     pub fn clear(&mut self) {

@@ -32,7 +32,7 @@ pub struct MainController {
 
 impl MainController {
     pub fn new(builder: gtk::Builder) -> Rc<RefCell<Self>> {
-        let mc = Rc::new(RefCell::new(MainController {
+        let this = Rc::new(RefCell::new(MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
             info_ctrl: InfoController::new(&builder),
@@ -45,26 +45,26 @@ impl MainController {
 
         {
             // TODO: stop any playing context or pending_ctx
-            let mut mc_mut = mc.borrow_mut();
-            mc_mut.window.connect_delete_event(|_, _| {
+            let mut this_mut = this.borrow_mut();
+            this_mut.window.connect_delete_event(|_, _| {
                 gtk::main_quit();
                 Inhibit(false)
             });
-            mc_mut.window.set_titlebar(&mc_mut.header_bar);
+            this_mut.window.set_titlebar(&this_mut.header_bar);
 
-            let mc_weak = Rc::downgrade(&mc);
-            mc_mut.self_weak = Some(mc_weak);
+            let this_weak = Rc::downgrade(&this);
+            this_mut.self_weak = Some(this_weak);
         }
 
         let open_btn: Button = builder.get_object("open-btn").unwrap();
-        let mc_weak = Rc::downgrade(&mc);
+        let this_weak = Rc::downgrade(&this);
         open_btn.connect_clicked(move |_| {
-            let mc = mc_weak.upgrade()
+            let this = this_weak.upgrade()
                 .expect("Main controller is no longer available for select_media");
-            mc.borrow_mut().select_media();
+            this.borrow_mut().select_media();
         });
 
-        mc
+        this
     }
 
     pub fn show_all(&self) {
@@ -178,17 +178,18 @@ impl MainController {
         self.listener_src = Some(gtk::timeout_add(timeout, move || {
             let mut keep_going = true;
             let mut msg_iter = ui_rx.try_iter();
+
             let first_msg_opt = msg_iter.next();
             if let Some(first_msg) = first_msg_opt {
-                // only get mc as mut if a message is received
-                let mc = self_weak.upgrade()
+                // only get this as mut if a message is received
+                let this = self_weak.upgrade()
                     .expect("Main controller is no longer available for ctx channel listener");
-                let mut mc_mut = mc.borrow_mut();
-                keep_going = mc_mut.process_message(first_msg, ui_tx_opt.as_ref());
+                let mut this_mut = this.borrow_mut();
+                keep_going = this_mut.process_message(first_msg, ui_tx_opt.as_ref());
                 if keep_going {
                     // process remaining messages
                     for msg in msg_iter {
-                        keep_going = mc_mut.process_message(msg, ui_tx_opt.as_ref());
+                        keep_going = this_mut.process_message(msg, ui_tx_opt.as_ref());
                         if !keep_going { break; }
                     }
                 }

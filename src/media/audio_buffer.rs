@@ -57,11 +57,11 @@ impl AudioCaps {
 
         println!("\nAudio sink caps:\n\t{:?}", structure);
 
-        let mut ac = AudioCaps::new();
+        let mut this = AudioCaps::new();
 
         let format = structure.get::<String>("format")
             .expect("AudioCaps::from_gst_caps: Couldn't get sample format for audio stream");
-        ac.sample_format = if format == "F32LE" {
+        this.sample_format = if format == "F32LE" {
             SampleFormat::F32LE
         } else if format == "F64LE" {
             SampleFormat::F64LE
@@ -79,22 +79,22 @@ impl AudioCaps {
 
         let layout = structure.get::<String>("layout")
             .expect("AudioCaps::from_gst_caps: Couldn't get sample layout for audio stream");
-        ac.layout = if layout == "interleaved" {
+        this.layout = if layout == "interleaved" {
             SampleLayout::Interleaved
         } else {
             panic!("AudioCaps::from_gst_caps: Unknown sample layout: {}", layout);
         };
 
-        ac.rate = structure.get::<i32>("rate")
+        this.rate = structure.get::<i32>("rate")
             .expect("AudioCaps::from_gst_caps: Couldn't get sample rate for audio stream")
             as usize;
-        ac.sample_duration = 1_000_000_000f64 / ac.rate as f64;
+        this.sample_duration = 1_000_000_000f64 / this.rate as f64;
 
-        ac.channels = structure.get::<i32>("channels")
+        this.channels = structure.get::<i32>("channels")
             .expect("AudioCaps::from_gst_caps: Couldn't get sample channels for audio stream")
             as usize;
 
-        ac
+        this
     }
 }
 
