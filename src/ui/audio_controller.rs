@@ -69,6 +69,7 @@ impl AudioController {
         self.samples_nb += buffer.samples_nb as f64;
 
         self.circ_buffer.push_back(buffer);
+        self.drawingarea.queue_draw();
     }
 
     fn draw(&self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) -> Inhibit {
@@ -76,7 +77,7 @@ impl AudioController {
             return Inhibit(false);
         }
 
-        let sample_nb = self.samples_nb.min(5_000f64);
+        let sample_nb = self.samples_nb.min(32_767f64);
         let sample_dyn = 1024f64;
 
         let allocation = drawing_area.get_allocation();
@@ -84,7 +85,7 @@ impl AudioController {
             allocation.width as f64 / sample_nb,
             allocation.height as f64 / 2f64 / sample_dyn,
         );
-        cr.set_line_width(1f64);
+        cr.set_line_width(1.5f64);
 
         let mut colors = vec![(0.9f64, 0.9f64, 0.9f64), (0.9f64, 0f64, 0f64)];
         for channel in 2..self.channels {
