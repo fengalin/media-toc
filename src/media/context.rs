@@ -157,11 +157,12 @@ impl Context {
                             let ref mut audio_caps = Arc::get_mut(&mut audio_caps_arc).unwrap()
                                 .get_or_insert_with(|| AudioCaps::from_sink_pad(&sink_pad));
 
+                            let audio_buffer = AudioBuffer::from_gst_buffer(audio_caps, buffer);
+
                             ctx_tx_arc_mtx_clone.lock()
                                 .expect("Failed to lock ctx_tx mutex, while transmitting audio buffer")
-                                .send(ContextMessage::HaveAudioBuffer(
-                                        AudioBuffer::from_gst_buffer(audio_caps, buffer)
-                                )).expect("Failed to transmit audio buffer");
+                                .send(ContextMessage::HaveAudioBuffer(audio_buffer))
+                                    .expect("Failed to transmit audio buffer");
                         },
                         _ => (),
                     };
