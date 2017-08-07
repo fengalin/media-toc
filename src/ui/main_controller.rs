@@ -114,8 +114,8 @@ impl MainController {
                 // TODO: clear UI
                 keep_going = false;
             },
-            HaveAudioBuffer(buffer) => {
-                self.audio_ctrl.borrow_mut().have_buffer(buffer);
+            HaveAudioBuffer(audio_buffer) => {
+                self.audio_ctrl.borrow_mut().have_buffer(audio_buffer);
                 //println!("Received HaveAudioBuffer");
                 /*println!("Received AudioBuffer with offset: {}, pts: {:?}, dts: {:?}, duration: {:?}",
                     buffer.get_offset(), buffer.get_pts(),

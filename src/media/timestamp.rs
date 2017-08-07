@@ -1,63 +1,83 @@
 extern crate chrono;
 
-use std::clone::Clone;
-
 use std::fmt;
 
-use chrono::{NaiveTime, Timelike};
+use chrono::{Datelike, NaiveDateTime, NaiveTime, Timelike};
 
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 pub struct Timestamp {
-    timestamp: NaiveTime,
-    is_positive: bool,
+    date: NaiveDateTime,
+    time: NaiveTime,
+    is_date: bool,
 }
 
 impl Timestamp {
     pub fn new() -> Self {
         Timestamp {
-            timestamp: NaiveTime::from_num_seconds_from_midnight(0, 0),
-            is_positive: true,
+            date: NaiveDateTime::from_timestamp(0, 0),
+            time: NaiveTime::from_num_seconds_from_midnight(0, 0),
+            is_date: false,
+        }
+    }
+
+    fn from_sec_nano(sec: i64, nano: u32) -> Self {
+        if sec > 24i64 * 3600i64 {
+            // sec part larger than one day
+            Timestamp {
+                date: NaiveDateTime::from_timestamp(sec, nano),
+                time: NaiveTime::from_num_seconds_from_midnight(0, 0),
+                is_date: true
+            }
+        } else {
+            Timestamp {
+                date: NaiveDateTime::from_timestamp(0, 0),
+                time: NaiveTime::from_num_seconds_from_midnight(sec as u32, nano),
+                is_date: false
+            }
         }
     }
 
     pub fn from_sec_time_factor(sec: i64, time_factor: f64) -> Self {
         let sec_f = sec.abs() as f64 * time_factor;
-        Timestamp {
-            timestamp: NaiveTime::from_num_seconds_from_midnight(
-                sec_f.trunc() as u32,
-                (sec_f.fract() * 1_000_000_000f64) as u32
-            ),
-            is_positive: if sec >= 0 { true } else { false },
-        }
+        let sec = sec_f.trunc() as i64;
+        Timestamp::from_sec_nano(
+            sec as i64,
+            (sec_f.fract() * 1_000_000_000f64) as u32
+        )
     }
 
-    pub fn from_nano(nano: i64) -> Self {
+    pub fn from_signed_nano(nano: i64) -> Self {
         let sec_f = nano.abs() as f64 / 1_000_000_000f64;
-        Timestamp {
-            timestamp: NaiveTime::from_num_seconds_from_midnight(
-                sec_f.trunc() as u32,
-                (sec_f.fract() * 1_000_000_000f64) as u32
-            ),
-            is_positive: if nano >= 0 { true } else { false },
-        }
+        let sec = sec_f.trunc() as i64;
+        let nano = (nano - (sec * 1_000_000_000i64)).abs() as u32;
+        Timestamp::from_sec_nano(sec, nano)
     }
-}
 
-impl Clone for Timestamp {
-    fn clone(&self) -> Self { *self }
+    pub fn from_nano(nano: u64) -> Self {
+        let sec_f = nano as f64 / 1_000_000_000f64;
+        let sec = sec_f.trunc() as u64;
+        let nano = (nano - (sec * 1_000_000_000u64)) as u32;
+        Timestamp::from_sec_nano(sec as i64, nano)
+    }
 }
 
 impl fmt::Display for Timestamp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut format = String::new();
-        if self.timestamp.hour() > 0 {
-            format = "%H:".to_owned();
+        if self.is_date {
+            write!(f, "{}",
+                self.date.format("%Y/%m/%d %H:%M:%S%.3f").to_string()
+            )
         }
-        format += "%M:%S%.3f";
+        else {
+            let mut format = String::new();
+            if self.time.hour() > 0 {
+                format = "%H:".to_owned();
+            }
+            format += "%M:%S%.3f";
 
-        write!(f, "{}{}",
-            if self.is_positive { "".to_owned() } else  { "-".to_owned() },
-            self.timestamp.format(&format).to_string()
-        )
+            write!(f, "{}",
+                self.time.format(&format).to_string()
+            )
+        }
     }
 }

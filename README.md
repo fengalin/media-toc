@@ -39,7 +39,8 @@ Contributions are welcomed.
 ## Toolchain
 You can install Rust via your package manager or using Rustup which allows
 installing the compiler for your user only and which will fetch the latest
-versions (stable or nightly, depending on your preference).
+nightly versions. The nightly version is required for `feature(option_entry)`
+([this is](https://doc.rust-lang.org/std/option/enum.Option.html#method.get_or_insert) the feature).
 
 ### Using the distribution's package manager
 Example on Fedora:

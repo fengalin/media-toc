@@ -12,14 +12,14 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
-use super::{MediaInfo, Timestamp};
+use super::{AudioBuffer, AudioCaps, MediaInfo, Timestamp};
 
 pub enum ContextMessage {
     AsyncDone,
     Eos,
     FailedToOpenMedia,
     GotVideoWidget,
-    HaveAudioBuffer(gst::Buffer),
+    HaveAudioBuffer(AudioBuffer),
     HaveVideoWidget(glib::Value),
     InitDone,
 }
@@ -64,7 +64,7 @@ impl Context {
         ui_rx: Receiver<ContextMessage>,
     ) -> Result<Context, String>
     {
-        println!("\nAttempting to open {:?}", path);
+        println!("\n\n* Attempting to open {:?}", path);
 
         let ctx = Context::new(path);
         ctx.build_pipeline(&ctx_tx, ui_rx);
@@ -78,7 +78,7 @@ impl Context {
 
     pub fn get_duration(&self) -> Timestamp {
         match self.pipeline.query_duration(gst::Format::Time) {
-            Some(duration) => Timestamp::from_nano(duration),
+            Some(duration) => Timestamp::from_signed_nano(duration),
             None => Timestamp::new(),
         }
     }
@@ -148,17 +148,20 @@ impl Context {
                 let sink_pad = queue.get_static_pad("sink").unwrap();
                 assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
 
+                let mut audio_caps_arc: Arc<Option<AudioCaps>> = Arc::new(None);
                 let ctx_tx_arc_mtx_clone = ctx_tx_arc_mtx.clone();
-                sink_pad.add_probe(PAD_PROBE_TYPE_BUFFER, move |_, probe_info| {
+                sink_pad.add_probe(PAD_PROBE_TYPE_BUFFER, move |sink_pad, probe_info| {
                     match probe_info.data {
                         Some(PadProbeData::Buffer(ref buffer)) => {
-                            // TODO: use a dedicated wrapper to convert in place
-                            // and avoid as many copy as possible
-                            // (couldn't find a way to avoid the clone below)
+                            // Retrieve audio caps the first time only
+                            let ref mut audio_caps = Arc::get_mut(&mut audio_caps_arc).unwrap()
+                                .get_or_insert_with(|| AudioCaps::from_sink_pad(&sink_pad));
+
                             ctx_tx_arc_mtx_clone.lock()
                                 .expect("Failed to lock ctx_tx mutex, while transmitting audio buffer")
-                                .send(ContextMessage::HaveAudioBuffer(buffer.clone()))
-                                    .expect("Failed to transmit audio buffer");
+                                .send(ContextMessage::HaveAudioBuffer(
+                                        AudioBuffer::from_gst_buffer(audio_caps, buffer)
+                                )).expect("Failed to transmit audio buffer");
                         },
                         _ => (),
                     };
