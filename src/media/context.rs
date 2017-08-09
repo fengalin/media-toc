@@ -121,8 +121,6 @@ impl Context {
         self.pipeline.add(&dec).unwrap();
 
         let pipeline_clone = self.pipeline.clone();
-        // Need an Arc Mutex on ctx_tx because Rust considers this method
-        // as a candidate for being called by multiple threads
         let ctx_tx_arc_mtx = Arc::new(Mutex::new(ctx_tx.clone()));
         let ui_rx_arc_mtx = Arc::new(Mutex::new(ui_rx));
         dec.connect_pad_added(move |_, src_pad| {
@@ -184,12 +182,12 @@ impl Context {
                     (sink, widget_val)
                 };
 
-                // Pass the video_sink for integration in the UI
+                // Pass the video widget for integration in the UI
                 ctx_tx_arc_mtx.lock()
                     .expect("Failed to lock ctx_tx mutex, while building the video queue")
                     .send(ContextMessage::HaveVideoWidget(widget_val))
                         .expect("Failed to transmit GstGtkWidget");
-                // Wait for the widget to be added to the UI, otherwise the pipeline
+                // Wait for the widget to get added to the UI, otherwise the pipeline
                 // embeds it in a default window
                 match ui_rx_arc_mtx.lock()
                     .expect("Failed to lock ui_rx mutex, while building the video queue")
@@ -219,14 +217,13 @@ impl Context {
         let mut init_done = false;
         let bus = self.pipeline.get_bus().unwrap();
         bus.add_watch(move |_, msg| {
-            let mut keep_going = true;
             // TODO: exit when pipeline status is null
             // or can we reuse the inspector for subsequent plays?
             match msg.view() {
                 MessageView::Eos(..) => {
                     ctx_tx.send(ContextMessage::Eos)
                         .expect("Failed to notify UI");
-                    keep_going = false;
+                    glib::Continue(false)
                 },
                 MessageView::Error(err) => {
                     eprintln!("Error from {}: {} ({:?})",
@@ -235,7 +232,7 @@ impl Context {
                     );
                     ctx_tx.send(ContextMessage::FailedToOpenMedia)
                         .expect("Failed to notify UI");
-                    keep_going = false;
+                    glib::Continue(false)
                 },
                 MessageView::AsyncDone(_) => {
                     if !init_done {
@@ -247,6 +244,7 @@ impl Context {
                         ctx_tx.send(ContextMessage::AsyncDone)
                             .expect("Failed to notify UI");
                     }
+                    glib::Continue(true)
                 },
                 MessageView::Tag(msg_tag) => {
                     if !init_done {
@@ -259,11 +257,11 @@ impl Context {
                         assign_str_tag!(info.video_codec, tags, VideoCodec);
                         assign_str_tag!(info.audio_codec, tags, AudioCodec);
 
-                        /*match tags.get::<PreviewImage>() {
+                        match tags.get::<PreviewImage>() {
                             // TODO: check if that happens, that would be handy for videos
-                            Some(preview_tag) => println!("Found a PreviewImage tag"),
+                            Some(preview_tag) => println!("** Found a PreviewImage tag **"),
                             None => (),
-                        };*/
+                        };
 
                         // TODO: distinguish front/back cover (take the first one?)
                         if let Some(image_tag) = tags.get::<Image>() {
@@ -278,61 +276,65 @@ impl Context {
                             }
                         }
                     }
+                    glib::Continue(true)
                 },
                 MessageView::Toc(msg_toc) => {
-                    if !init_done {
-                        let (toc, _) = msg_toc.get_toc();
-                        if toc.get_scope() == TocScope::Global {
-                            let info = &mut info_arc_mtx.lock()
-                                .expect("Failed to lock media info while reading toc data");
-                            if info.chapters.is_empty() {
-                                for entry in toc.get_entries() {
-                                    if entry.get_entry_type() == TocEntryType::Edition {
-                                        for sub_entry in entry.get_sub_entries() {
-                                            if sub_entry.get_entry_type() == TocEntryType::Chapter {
-                                                if let Some((start, stop)) = sub_entry.get_start_stop_times() {
-                                                    let mut title = String::new();
-                                                    if let Some(tags) = sub_entry.get_tags() {
-                                                        if let Some(tag) = tags.get::<Title>() {
-                                                            title = tag.get().unwrap().to_owned();
-                                                        };
-                                                    };
-                                                    info.chapters.push(Chapter::new(
-                                                        sub_entry.get_uid(),
-                                                        &title,
-                                                        Timestamp::from_signed_nano(start),
-                                                        Timestamp::from_signed_nano(stop)
-                                                    ));
-                                                }
-                                            }
-                                            else {
-                                                println!("Warning: Skipping toc sub entry with entry type: {:?}",
-                                                    sub_entry.get_entry_type()
-                                                );
-                                            }
-                                        }
-                                    }
-                                    else {
-                                        println!("Warning: Skipping toc entry with entry type: {:?}",
-                                            entry.get_entry_type()
-                                        );
+                    if init_done {
+                        return glib::Continue(true);
+                    }
+                    let (toc, _) = msg_toc.get_toc();
+                    if toc.get_scope() != TocScope::Global {
+                        println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
+                        return glib::Continue(true);
+                    }
+
+                    let info = &mut info_arc_mtx.lock()
+                        .expect("Failed to lock media info while reading toc data");
+                    if !info.chapters.is_empty() {
+                        // chapters already retrieved
+                        // TODO: check if there are medias with some sort of
+                        // incremental tocs (not likely for files)
+                        // or maybe the updated flag (_ above) should be used
+                        return glib::Continue(true);
+                    }
+
+                    for entry in toc.get_entries() {
+                        if entry.get_entry_type() == TocEntryType::Edition {
+                            for sub_entry in entry.get_sub_entries() {
+                                if sub_entry.get_entry_type() == TocEntryType::Chapter {
+                                    if let Some((start, stop)) = sub_entry.get_start_stop_times() {
+                                        let mut title = String::new();
+                                        if let Some(tags) = sub_entry.get_tags() {
+                                            if let Some(tag) = tags.get::<Title>() {
+                                                title = tag.get().unwrap().to_owned();
+                                            };
+                                        };
+                                        info.chapters.push(Chapter::new(
+                                            sub_entry.get_uid(),
+                                            &title,
+                                            Timestamp::from_signed_nano(start),
+                                            Timestamp::from_signed_nano(stop)
+                                        ));
                                     }
                                 }
+                                else {
+                                    println!("Warning: Skipping toc sub entry with entry type: {:?}",
+                                        sub_entry.get_entry_type()
+                                    );
+                                }
                             }
-                            // else chapters already retrieved
-                            // TODO: check if there are medias with some sort of
-                            // incremental tocs (not likely for files)
-                            // or maybe the updated flag (_ above) should be used
                         }
                         else {
-                            println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
+                            println!("Warning: Skipping toc entry with entry type: {:?}",
+                                entry.get_entry_type()
+                            );
                         }
                     }
-                }
-                _ => (),
-            };
 
-            glib::Continue(keep_going)
+                    glib::Continue(true)
+                }
+                _ => glib::Continue(true),
+            }
         });
     }
 }
