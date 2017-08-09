@@ -1,170 +1,124 @@
+extern crate glib;
+
 extern crate gtk;
+use gtk::{Inhibit, WidgetExt};
+
 extern crate cairo;
-
-extern crate ffmpeg;
-
-use std::ops::{Deref, DerefMut};
 
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use gtk::prelude::*;
+use std::collections::vec_deque::{VecDeque};
 
-use ::media::Context;
-use ::media::AudioNotifiable;
+use std::ops::{Deref, DerefMut};
 
-use super::MediaNotifiable;
-use super::MediaController;
+use ::media::{Context, AudioBuffer};
+
+use super::{MediaController, MediaHandler};
 
 pub struct AudioController {
     media_ctl: MediaController,
     drawingarea: gtk::DrawingArea,
-    graph: Option<ffmpeg::filter::Graph>,
-    frame: Option<ffmpeg::frame::Audio>,
+
+    circ_buffer: VecDeque<AudioBuffer>,
+    channels: usize,
+    sample_offset: f64,
+    samples_nb: f64,
 }
 
 impl AudioController {
-    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<AudioController>> {
-        // need a RefCell because the callbacks will use immutable versions of ac
-        // when the UI controllers will get a mutable version from time to time
-        let ac = Rc::new(RefCell::new(AudioController {
-            media_ctl: MediaController::new(builder.get_object("audio-container").unwrap()),
+    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
+        let this = Rc::new(RefCell::new(AudioController {
+            media_ctl: MediaController::new(
+                builder.get_object("audio-container").unwrap(),
+            ),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
-            graph: None,
-            frame: None,
+
+            circ_buffer: VecDeque::new(),
+            channels: 0,
+            sample_offset: 0f64,
+            samples_nb: 0f64,
         }));
 
-        let ac_for_cb = ac.clone();
-        ac.borrow().drawingarea.connect_draw(move |ref drawing_area, ref cairo_ctx| {
-            ac_for_cb.borrow().draw(drawing_area, cairo_ctx);
-            Inhibit(false)
-        });
-
-        ac
-    }
-
-    fn build_graph(&mut self, decoder: &ffmpeg::codec::decoder::Audio) {
-        let mut graph = ffmpeg::filter::Graph::new();
-
-        // Fix broken channel layouts
-        let channel_layout = match decoder.channel_layout().bits() {
-            0 => match decoder.channels() {
-                1 => ffmpeg::channel_layout::MONO,
-                2 => ffmpeg::channel_layout::FRONT_LEFT | ffmpeg::channel_layout::FRONT_RIGHT | ffmpeg::channel_layout::STEREO,
-                _ => panic!("Unknown channel layout"),
-            },
-            _ => decoder.channel_layout(),
-        };
-        let args = format!("time_base={}:sample_rate={}:sample_fmt={}:channel_layout=0x{:x}",
-            decoder.time_base(), decoder.rate(), decoder.format().name(), channel_layout.bits());
-
-        let in_filter = ffmpeg::filter::find("abuffer").unwrap();
-        match graph.add(&in_filter, "in", &args) {
-            Ok(_) => (),
-            Err(error) => panic!("Error adding in pad: {:?}", error),
-        }
-
-        let out_filter = ffmpeg::filter::find("abuffersink").unwrap();
-        match graph.add(&out_filter, "out", "") {
-            Ok(_) => (),
-            Err(error) => panic!("Error adding out pad: {:?}", error),
-        }
         {
-            let mut out_pad = graph.get("out").unwrap();
-            out_pad.set_sample_format(ffmpeg::format::Sample::I16(ffmpeg::format::sample::Type::Planar));
+            let this_ref = this.borrow();
+            let this_weak = Rc::downgrade(&this);
+            this_ref.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
+                let this = this_weak.upgrade()
+                    .expect("Main controller is no longer available for select_media");
+                let result = this.borrow().draw(drawing_area, cairo_ctx);
+                result
+            });
         }
 
-        {
-            let in_parser;
-            match graph.output("in", 0) {
-                Ok(value) => in_parser = value,
-                Err(error) => panic!("Error getting output for in pad: {:?}", error),
-            }
-            let out_parser;
-            match in_parser.input("out", 0) {
-                Ok(value) => out_parser = value,
-                Err(error) => panic!("Error getting input for out pad: {:?}", error),
-            }
-            match out_parser.parse("anull") {
-                Ok(_) => (),
-                Err(error) => panic!("Error parsing format: {:?}", error),
-            }
-        }
-
-        match graph.validate() {
-            Ok(_) => self.graph = Some(graph),
-            Err(error) => panic!("Error validating graph: {:?}", error),
-        }
+        this
     }
 
-    fn convert_to_pcm16(&mut self, frame: &ffmpeg::frame::Audio) -> Result<ffmpeg::frame::Audio, String> {
-        let mut graph = self.graph.as_mut().unwrap();
-        graph.get("in").unwrap().source().add(&frame).unwrap();
-
-        let mut frame_pcm = ffmpeg::frame::Audio::empty();
-        while let Ok(..) = graph.get("out").unwrap().sink().frame(&mut frame_pcm) {
-        }
-
-        match frame_pcm.pts() {
-            Some(pts) => println!("\t\tpts {}", pts),
-            None => (),
-        }
-        match frame_pcm.timestamp() {
-            Some(timestamp) => println!("\t\ttimestamp {}", timestamp),
-            None => (),
-        }
-
-        Ok(frame_pcm)
+    pub fn clear(&mut self) {
+        self.circ_buffer.clear();
+        self.channels = 0;
+        self.sample_offset = 0f64;
+        self.samples_nb = 0f64;
     }
 
-    fn draw(&self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) {
-        match self.frame {
-            Some(ref frame) => {
-                let allocation = drawing_area.get_allocation();
-                let offset = (::std::i16::MAX / 2) as i32;
-                cr.scale(
-                    allocation.width as f64 / frame.samples() as f64,
-                    allocation.height as f64 / 2f64 / offset as f64,
-                );
-                cr.set_line_width(1f64);
+    pub fn have_buffer(&mut self, buffer: AudioBuffer) {
+        // Firt approximation: suppose the buffers come in ordered
+        if self.sample_offset == 0f64 {
+            self.sample_offset = buffer.sample_offset as f64;
+            self.channels = buffer.caps.channels;
+        }
+        self.samples_nb += buffer.samples_nb as f64;
 
-                let mut ymin = offset as f64;
-                let mut ymax = 0f64;
-                let planes_nb = frame.planes();
-                for index in 0..planes_nb {
-                    let colors = vec![(0.8f64, 0.8f64, 0.8f64), (0.8f64, 0f64, 0f64)][index];
-                    cr.set_source_rgb(colors.0, colors.1, colors.2);
+        self.circ_buffer.push_back(buffer);
+        self.drawingarea.queue_draw();
+    }
 
-                    let mut is_first = true;
-                    let mut x = 0f64;
-                    for sample in frame.plane::<i16>(index) {
-                        let y = (offset - *sample as i32) as f64;
-                        match is_first {
-                            true => {
-                                cr.move_to(x, y);
-                                is_first = false;
-                            },
-                            false => {
-                                cr.line_to(x, y);
-                            },
-                        }
-                        x += 1f64;
+    fn draw(&self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) -> Inhibit {
+        if self.circ_buffer.is_empty() {
+            return Inhibit(false);
+        }
 
-                        if y < ymin {
-                            ymin = y;
-                        }
-                        if y > ymax {
-                            ymax = y;
-                        }
+        let sample_nb = self.samples_nb.min(32_767f64);
+        let sample_dyn = 1024f64;
+
+        let allocation = drawing_area.get_allocation();
+        cr.scale(
+            allocation.width as f64 / sample_nb,
+            allocation.height as f64 / 2f64 / sample_dyn,
+        );
+        cr.set_line_width(1.5f64);
+
+        let mut colors = vec![(0.9f64, 0.9f64, 0.9f64), (0.9f64, 0f64, 0f64)];
+        for channel in 2..self.channels {
+            colors.push((0f64, 0f64, 0.2f64 * channel as f64));
+        }
+
+        for buffer in &self.circ_buffer {
+            for channel in &buffer.channels {
+                let color = colors[channel.get_id()];
+                cr.set_source_rgb(color.0, color.1, color.2);
+
+                let mut x = buffer.sample_offset as f64 - self.sample_offset;
+                let mut is_first = true;
+                for &sample in channel.iter() {
+                    let y = sample_dyn * (1f64 - sample);
+                    if !is_first {
+                        cr.line_to(x, y);
+                    } else {
+                        cr.move_to(x, y);
+                        is_first = false;
                     }
-                    cr.stroke();
+                    x += 1f64;
+                    if x > sample_nb { break; }
                 }
-            },
-            None => (),
+
+                cr.stroke();
+            }
         }
+
+        Inhibit(false)
     }
 }
-
 
 impl Deref for AudioController {
 	type Target = MediaController;
@@ -180,30 +134,15 @@ impl DerefMut for AudioController {
 	}
 }
 
-impl MediaNotifiable for AudioController {
-    fn new_media(&mut self, context: &Context) {
-        self.graph = None;
-        self.frame = None;
-
-        match context.audio_decoder.as_ref() {
-            Some(decoder) => {
-                self.build_graph(decoder);
-                self.show();
-            },
-            None => {
-                self.hide();
-            }
-        };
-
-        self.drawingarea.queue_draw();
-    }
-}
-
-impl AudioNotifiable for AudioController {
-    fn new_audio_frame(&mut self, frame: &ffmpeg::frame::Audio) {
-        match self.convert_to_pcm16(frame) {
-            Ok(frame_pcm) => self.frame = Some(frame_pcm),
-            Err(error) =>  panic!("\tError converting to pcm: {:?}", error),
+impl MediaHandler for AudioController {
+    fn new_media(&mut self, ctx: &Context) {
+        if let Some(audio_buffer) = self.circ_buffer.get(0) {
+            println!("\n{:?}", audio_buffer.caps);
+            self.drawingarea.queue_draw();
+            self.media_ctl.show();
+        }
+        else {
+            self.media_ctl.hide();
         }
     }
 }

@@ -3,11 +3,17 @@ name = "media-toc"
 version = "0.1.0"
 authors = ["fengalin <fengalin@free.fr>"]
 
-[dependencies.gtk]
-version = "0.1"
-features = ["v3_18"]
-
 [dependencies]
-cairo-rs = "0.1"
-ffmpeg = { git = "https://github.com/fengalin/rust-ffmpeg.git", branch = "dep_workaround" }
+cairo-rs = { git = "https://github.com/gtk-rs/cairo.git" }
+gtk = { git = "https://github.com/gtk-rs/gtk.git", features = ["v3_18"] }
+glib = { git = "https://github.com/gtk-rs/glib.git" }
 chrono = "^0"
+url = "^1"
+image = "^0"
+byteorder = "^1"
+
+[dependencies.gstreamer]
+#path = "../gstreamer-rs/gstreamer"
+git = "https://github.com/fengalin/gstreamer-rs.git"
+branch = "toc"
+features = ["v1_10"]

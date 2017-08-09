@@ -1,7 +1,13 @@
 extern crate gtk;
 extern crate cairo;
-extern crate ffmpeg;
+
+extern crate gstreamer;
+extern crate glib;
+
 extern crate chrono;
+extern crate url;
+extern crate image;
+extern crate byteorder;
 
 use gtk::Builder;
 
@@ -15,7 +21,10 @@ fn main() {
         panic!("Failed to initialize GTK.");
     }
 
-    ffmpeg::init().unwrap();
+    gstreamer::init().unwrap();
+
+    // TODO: there's a `Settings` struct in GTK:
+    // https://github.com/gtk-rs/gtk/blob/master/src/auto/settings.rs
 
     let builder = Builder::new_from_string(include_str!("ui/media-toc.ui"));
     let main_ctrl = MainController::new(builder);

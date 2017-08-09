@@ -3,8 +3,7 @@ pub use self::main_controller::MainController;
 
 
 mod media_controller;
-use self::media_controller::MediaController;
-use self::media_controller::MediaNotifiable;
+use self::media_controller::{MediaController, MediaHandler};
 
 mod video_controller;
 use self::video_controller::VideoController;
@@ -14,3 +13,6 @@ use self::audio_controller::AudioController;
 
 mod info_controller;
 use self::info_controller::InfoController;
+
+mod image_surface;
+use self::image_surface::ImageSurface;

@@ -4,13 +4,19 @@ use gtk::WidgetExt;
 
 use ::media::Context;
 
+pub trait MediaHandler {
+    fn new_media(&mut self, context: &Context);
+}
+
 pub struct MediaController {
-    container: gtk::Widget,
+    pub container: gtk::Container,
 }
 
 impl MediaController {
-    pub fn new(container: gtk::Widget) -> MediaController {
-        MediaController{ container: container }
+    pub fn new(container: gtk::Container) -> Self {
+        MediaController{
+            container: container,
+        }
     }
 
     pub fn show(&self) {
@@ -20,8 +26,4 @@ impl MediaController {
     pub fn hide(&self) {
         self.container.hide();
     }
-}
-
-pub trait MediaNotifiable {
-    fn new_media(&mut self, &Context);
 }
