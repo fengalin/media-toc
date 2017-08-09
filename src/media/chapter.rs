@@ -5,33 +5,24 @@ use std::clone::Clone;
 use std::collections::HashMap;
 
 pub struct Chapter {
-    pub id: i32,
+    pub id: String,
     pub start: Timestamp,
     pub end: Timestamp,
     pub metadata: HashMap<String, String>,
 }
 
 impl Chapter {
-    pub fn new() -> Self {
-        Chapter{
-            id: 0,
-            start: Timestamp::new(),
-            end: Timestamp::new(),
+    pub fn new(id: &str, title: &str, start: Timestamp, end: Timestamp) -> Self {
+        let mut this = Chapter{
+            id: id.to_owned(),
+            start: start,
+            end: end,
             metadata: HashMap::new(),
-        }
-    }
+        };
 
-    pub fn set_id(&mut self, id: i32) {
-        self.id = id;
-    }
+        this.metadata.insert("title".to_owned(), title.to_string());
 
-    pub fn set_start(&mut self, sec: i64, time_factor: f64) {
-        self.start = Timestamp::from_sec_time_factor(sec, time_factor);
-    }
-
-
-    pub fn set_end(&mut self, sec: i64, time_factor: f64) {
-        self.end = Timestamp::from_sec_time_factor(sec, time_factor);
+        this
     }
 
     pub fn title(&self) -> &str {
@@ -45,7 +36,7 @@ impl Chapter {
 impl Clone for Chapter {
     fn clone(&self) -> Self {
         Chapter {
-            id: self.id,
+            id: self.id.clone(),
             start: self.start,
             end: self.end,
             metadata: self.metadata.clone(),

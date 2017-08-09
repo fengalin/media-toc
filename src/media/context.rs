@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
-use super::{AlignedImage, AudioBuffer, AudioCaps, MediaInfo, Timestamp};
+use super::{AlignedImage, AudioBuffer, AudioCaps, Chapter, MediaInfo, Timestamp};
 
 pub enum ContextMessage {
     AsyncDone,
@@ -279,6 +279,56 @@ impl Context {
                         }
                     }
                 },
+                MessageView::Toc(msg_toc) => {
+                    if !init_done {
+                        let (toc, _) = msg_toc.get_toc();
+                        if toc.get_scope() == TocScope::Global {
+                            let info = &mut info_arc_mtx.lock()
+                                .expect("Failed to lock media info while reading toc data");
+                            if info.chapters.is_empty() {
+                                for entry in toc.get_entries() {
+                                    if entry.get_entry_type() == TocEntryType::Edition {
+                                        for sub_entry in entry.get_sub_entries() {
+                                            if sub_entry.get_entry_type() == TocEntryType::Chapter {
+                                                if let Some((start, stop)) = sub_entry.get_start_stop_times() {
+                                                    let mut title = String::new();
+                                                    if let Some(tags) = sub_entry.get_tags() {
+                                                        if let Some(tag) = tags.get::<Title>() {
+                                                            title = tag.get().unwrap().to_owned();
+                                                        };
+                                                    };
+                                                    info.chapters.push(Chapter::new(
+                                                        sub_entry.get_uid(),
+                                                        &title,
+                                                        Timestamp::from_signed_nano(start),
+                                                        Timestamp::from_signed_nano(stop)
+                                                    ));
+                                                }
+                                            }
+                                            else {
+                                                println!("Warning: Skipping toc sub entry with entry type: {:?}",
+                                                    sub_entry.get_entry_type()
+                                                );
+                                            }
+                                        }
+                                    }
+                                    else {
+                                        println!("Warning: Skipping toc entry with entry type: {:?}",
+                                            entry.get_entry_type()
+                                        );
+                                    }
+                                }
+                            }
+                            // else chapters already retrieved
+                            // TODO: check if there are medias with some sort of
+                            // incremental tocs (not likely for files)
+                            // or maybe the updated flag (_ above) should be used
+                        }
+                        else {
+                            println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
+                        }
+                    }
+                }
                 _ => (),
             };
 

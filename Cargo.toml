@@ -13,5 +13,7 @@ image = "^0"
 byteorder = "^1"
 
 [dependencies.gstreamer]
+#path = "../gstreamer-rs/gstreamer"
 git = "https://github.com/fengalin/gstreamer-rs.git"
+branch = "toc"
 features = ["v1_10"]
