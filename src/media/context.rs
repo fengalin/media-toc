@@ -148,12 +148,14 @@ impl Context {
                 let sink_pad = queue.get_static_pad("sink").unwrap();
                 assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
 
-                let mut audio_caps_arc: Arc<Option<AudioCaps>> = Arc::new(None);
+                let audio_caps_mtx: Mutex<Option<AudioCaps>> = Mutex::new(None);
                 let ctx_tx_arc_mtx_clone = ctx_tx_arc_mtx.clone();
                 sink_pad.add_probe(PAD_PROBE_TYPE_BUFFER, move |sink_pad, probe_info| {
                     if let Some(PadProbeData::Buffer(ref buffer)) = probe_info.data {
                         // Retrieve audio caps the first time only
-                        let audio_caps = &mut Arc::get_mut(&mut audio_caps_arc).unwrap()
+                        let mut audio_caps_opt = audio_caps_mtx.lock()
+                            .expect("Failed to lock audio caps while receiving buffer");
+                        let audio_caps = audio_caps_opt
                             .get_or_insert_with(|| AudioCaps::from_sink_pad(sink_pad));
 
                         let audio_buffer = AudioBuffer::from_gst_buffer(audio_caps, buffer);
