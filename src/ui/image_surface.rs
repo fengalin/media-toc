@@ -12,13 +12,15 @@ impl ImageSurface {
         let height = image.height() as i32;
         let stride = image.stride() as i32;
 
-        Ok(ImageSurface {
-            surface: cairo::ImageSurface::create_for_data(
+        match cairo::ImageSurface::create_for_data(
                 image.into_boxed_slice(),
                 |_| {}, cairo::Format::Rgb24,
                 width, height, stride
-            ),
-        })
+        )
+        {
+            Ok(surface) => Ok(ImageSurface { surface: surface }),
+            Err(error) => Err(format!("Error creating ImageSurface from aligned image: {:?}", error))
+        }
     }
 }
 
