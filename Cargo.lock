@@ -264,7 +264,7 @@ dependencies = [
 [[package]]
 name = "gstreamer"
 version = "0.1.0"
-source = "git+https://github.com/fengalin/gstreamer-rs.git#885267ebeec0722160cda861ca8fbf292be36a79"
+source = "git+https://github.com/fengalin/gstreamer-rs.git#4276cb6228b601aafc36524a294e7d6c942e74f8"
 dependencies = [
  "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib 0.1.3 (git+https://github.com/gtk-rs/glib.git)",

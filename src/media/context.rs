@@ -1,8 +1,9 @@
 extern crate gstreamer as gst;
-use gstreamer::*;
+use gstreamer::{BinExt, BinExtManual, ElementExt, ElementFactory, GstObjectExt,
+                PadExt, PadExtManual, TocScope, TocEntryType};
 
 extern crate glib;
-use glib::ObjectExt;
+use glib::{ObjectExt, ToValue};
 
 extern crate url;
 use url::Url;
@@ -148,8 +149,8 @@ impl Context {
 
                 let audio_caps_mtx: Mutex<Option<AudioCaps>> = Mutex::new(None);
                 let ctx_tx_arc_mtx_clone = ctx_tx_arc_mtx.clone();
-                sink_pad.add_probe(PAD_PROBE_TYPE_BUFFER, move |sink_pad, probe_info| {
-                    if let Some(PadProbeData::Buffer(ref buffer)) = probe_info.data {
+                sink_pad.add_probe(gst::PAD_PROBE_TYPE_BUFFER, move |sink_pad, probe_info| {
+                    if let Some(gst::PadProbeData::Buffer(ref buffer)) = probe_info.data {
                         // Retrieve audio caps the first time only
                         let mut audio_caps_opt = audio_caps_mtx.lock()
                             .expect("Failed to lock audio caps while receiving buffer");
@@ -164,7 +165,7 @@ impl Context {
                                 .expect("Failed to transmit audio buffer");
                     };
 
-                    PadProbeReturn::Ok
+                    gst::PadProbeReturn::Ok
                 });
             } else if name.starts_with("video/") {
                 let queue = gst::ElementFactory::make("queue", None).unwrap();
@@ -220,12 +221,12 @@ impl Context {
             // TODO: exit when pipeline status is null
             // or can we reuse the inspector for subsequent plays?
             match msg.view() {
-                MessageView::Eos(..) => {
+                gst::MessageView::Eos(..) => {
                     ctx_tx.send(ContextMessage::Eos)
                         .expect("Failed to notify UI");
                     glib::Continue(false)
                 },
-                MessageView::Error(err) => {
+                gst::MessageView::Error(err) => {
                     eprintln!("Error from {}: {} ({:?})",
                         msg.get_src().get_path_string(),
                         err.get_error(), err.get_debug()
@@ -234,7 +235,7 @@ impl Context {
                         .expect("Failed to notify UI");
                     glib::Continue(false)
                 },
-                MessageView::AsyncDone(_) => {
+                gst::MessageView::AsyncDone(_) => {
                     if !init_done {
                         ctx_tx.send(ContextMessage::InitDone)
                             .expect("Failed to notify UI");
@@ -246,28 +247,28 @@ impl Context {
                     }
                     glib::Continue(true)
                 },
-                MessageView::Tag(msg_tag) => {
+                gst::MessageView::Tag(msg_tag) => {
                     if !init_done {
                         let tags = msg_tag.get_tags();
                         let info = &mut info_arc_mtx.lock()
                             .expect("Failed to lock media info while reading tag data");
-                        assign_str_tag!(info.title, tags, Title);
-                        assign_str_tag!(info.artist, tags, Artist);
-                        assign_str_tag!(info.artist, tags, AlbumArtist);
-                        assign_str_tag!(info.video_codec, tags, VideoCodec);
-                        assign_str_tag!(info.audio_codec, tags, AudioCodec);
+                        assign_str_tag!(info.title, tags, gst::tags::Title);
+                        assign_str_tag!(info.artist, tags, gst::tags::Artist);
+                        assign_str_tag!(info.artist, tags, gst::tags::AlbumArtist);
+                        assign_str_tag!(info.video_codec, tags, gst::tags::VideoCodec);
+                        assign_str_tag!(info.audio_codec, tags, gst::tags::AudioCodec);
 
-                        match tags.get::<PreviewImage>() {
+                        match tags.get::<gst::tags::PreviewImage>() {
                             // TODO: check if that happens, that would be handy for videos
                             Some(preview_tag) => println!("** Found a PreviewImage tag **"),
                             None => (),
                         };
 
                         // TODO: distinguish front/back cover (take the first one?)
-                        if let Some(image_tag) = tags.get::<Image>() {
+                        if let Some(image_tag) = tags.get::<gst::tags::Image>() {
                             if let Some(sample) = image_tag.get() {
                                 if let Some(buffer) = sample.get_buffer() {
-                                    if let Some(map) = buffer.map_read() {
+                                    if let Some(map) = buffer.map_readable() {
                                         info.thumbnail = AlignedImage::from_uknown_buffer(
                                                 map.as_slice()
                                             ).ok();
@@ -278,7 +279,7 @@ impl Context {
                     }
                     glib::Continue(true)
                 },
-                MessageView::Toc(msg_toc) => {
+                gst::MessageView::Toc(msg_toc) => {
                     if init_done {
                         return glib::Continue(true);
                     }
@@ -305,7 +306,7 @@ impl Context {
                                     if let Some((start, stop)) = sub_entry.get_start_stop_times() {
                                         let mut title = String::new();
                                         if let Some(tags) = sub_entry.get_tags() {
-                                            if let Some(tag) = tags.get::<Title>() {
+                                            if let Some(tag) = tags.get::<gst::tags::Title>() {
                                                 title = tag.get().unwrap().to_owned();
                                             };
                                         };

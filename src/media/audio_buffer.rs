@@ -151,7 +151,7 @@ impl AudioBuffer {
             this.channels.push(AudioChannel::new(channel));
         }
 
-        let map = buffer.map_read().unwrap();
+        let map = buffer.map_readable().unwrap();
         let data = map.as_slice();
 
         let mut keep_going = true;
