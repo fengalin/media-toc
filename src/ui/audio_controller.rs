@@ -17,6 +17,8 @@ pub struct AudioController {
     drawingarea: gtk::DrawingArea,
 
     circ_buffer: VecDeque<AudioBuffer>,
+    samples_max: f64,
+
     channels: usize,
     sample_offset: f64,
     samples_nb: f64,
@@ -29,6 +31,8 @@ impl AudioController {
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
 
             circ_buffer: VecDeque::new(),
+            samples_max: 12_287f64,
+
             channels: 0,
             sample_offset: 0f64,
             samples_nb: 0f64,
@@ -67,15 +71,27 @@ impl AudioController {
     }
 
     pub fn have_buffer(&mut self, buffer: AudioBuffer) {
-        // Firt approximation: suppose the buffers come in ordered
+        // First approximation: suppose the buffers come in ordered
         if self.sample_offset == 0f64 {
             self.sample_offset = buffer.sample_offset as f64;
             self.channels = buffer.caps.channels;
         }
+
         self.samples_nb += buffer.samples_nb as f64;
 
         self.circ_buffer.push_back(buffer);
         self.drawingarea.queue_draw();
+
+        // TODO: this depends on the actual position in the stream
+        while self.samples_nb > self.samples_max {
+            let prev_buffer = self.circ_buffer.pop_front()
+                .expect("Unconsistent samples nb in audio circular buffer");
+            self.samples_nb -= prev_buffer.samples_nb as f64;
+            match self.circ_buffer.get(0) {
+                Some(first_buffer) => self.sample_offset = first_buffer.sample_offset as f64,
+                None => (),
+            };
+        }
     }
 
     fn draw(&self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) -> Inhibit {
@@ -83,7 +99,7 @@ impl AudioController {
             return Inhibit(false);
         }
 
-        let sample_nb = self.samples_nb.min(12_287f64);
+        let sample_nb = self.samples_nb.min(self.samples_max);
         let sample_dyn = 1024f64;
 
         let allocation = drawing_area.get_allocation();

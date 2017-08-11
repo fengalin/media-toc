@@ -84,6 +84,14 @@ impl Context {
         }
     }
 
+    pub fn play_pause(&self) -> Result<(), String> {
+        let (state_change, current, pending) = self.pipeline.get_state(10_000_000);
+        match current {
+            gst::State::Playing => self.pause(),
+            _ => self.play(),
+        }
+    }
+
     pub fn play(&self) -> Result<(), String> {
         if self.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
             return Err("Could not set media in palying state".into());

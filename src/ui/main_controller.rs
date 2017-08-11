@@ -9,8 +9,8 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 use gtk::prelude::*;
-use gtk::{ApplicationWindow, HeaderBar, Button,
-          FileChooserDialog, ResponseType, FileChooserAction};
+use gtk::{ApplicationWindow, Button, FileChooserAction, FileChooserDialog,
+          HeaderBar, ResponseType, ToolButton};
 
 use ::media::{Context, ContextMessage};
 use ::media::ContextMessage::*;
@@ -20,6 +20,7 @@ use super::{AudioController, InfoController, VideoController};
 pub struct MainController {
     window: ApplicationWindow,
     header_bar: HeaderBar,
+    play_pause_btn: ToolButton,
     info_ctrl: InfoController,
     video_ctrl: VideoController,
     audio_ctrl: Rc<RefCell<AudioController>>,
@@ -35,6 +36,7 @@ impl MainController {
         let this = Rc::new(RefCell::new(MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
+            play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
             info_ctrl: InfoController::new(&builder),
             video_ctrl: VideoController::new(&builder),
             audio_ctrl: AudioController::new(&builder),
@@ -43,6 +45,7 @@ impl MainController {
             listener_src: None,
         }));
 
+        let this_weak = Rc::downgrade(&this);
         {
             let mut this_mut = this.borrow_mut();
             this_mut.window.connect_delete_event(|_, _| {
@@ -51,14 +54,21 @@ impl MainController {
             });
             this_mut.window.set_titlebar(&this_mut.header_bar);
 
+            let this_weak_clone = this_weak.clone();
+            this_mut.play_pause_btn.connect_clicked(move |_| {
+                let this = this_weak_clone.upgrade()
+                    .expect("Main controller is no longer available for play/pause");
+                this.borrow_mut().play_pause();
+            });
+
             let this_weak = Rc::downgrade(&this);
             this_mut.self_weak = Some(this_weak);
         }
 
         let open_btn: Button = builder.get_object("open-btn").unwrap();
-        let this_weak = Rc::downgrade(&this);
+        let this_weak_clone = this_weak.clone();
         open_btn.connect_clicked(move |_| {
-            let this = this_weak.upgrade()
+            let this = this_weak_clone.upgrade()
                 .expect("Main controller is no longer available for select_media");
             this.borrow_mut().select_media();
         });
@@ -68,6 +78,13 @@ impl MainController {
 
     pub fn show_all(&self) {
         self.window.show_all();
+    }
+
+    pub fn play_pause(&self) {
+        match self.ctx {
+            Some(ref ctx) => ctx.play_pause().unwrap(),
+            None => (),
+        };
     }
 
     pub fn stop(&mut self) {
