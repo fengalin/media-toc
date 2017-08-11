@@ -10,14 +10,10 @@ use std::cell::RefCell;
 
 use std::collections::vec_deque::{VecDeque};
 
-use std::ops::{Deref, DerefMut};
-
 use ::media::{Context, AudioBuffer};
 
-use super::{MediaController, MediaHandler};
-
 pub struct AudioController {
-    media_ctl: MediaController,
+    container: gtk::Container,
     drawingarea: gtk::DrawingArea,
 
     circ_buffer: VecDeque<AudioBuffer>,
@@ -29,9 +25,7 @@ pub struct AudioController {
 impl AudioController {
     pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
         let this = Rc::new(RefCell::new(AudioController {
-            media_ctl: MediaController::new(
-                builder.get_object("audio-container").unwrap(),
-            ),
+            container: builder.get_object("audio-container").unwrap(),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
 
             circ_buffer: VecDeque::new(),
@@ -61,6 +55,17 @@ impl AudioController {
         self.samples_nb = 0f64;
     }
 
+    pub fn new_media(&mut self, ctx: &Context) {
+        if let Some(audio_buffer) = self.circ_buffer.get(0) {
+            println!("\n{:?}", audio_buffer.caps);
+            self.drawingarea.queue_draw();
+            self.container.show();
+        }
+        else {
+            self.container.hide();
+        }
+    }
+
     pub fn have_buffer(&mut self, buffer: AudioBuffer) {
         // Firt approximation: suppose the buffers come in ordered
         if self.sample_offset == 0f64 {
@@ -78,7 +83,7 @@ impl AudioController {
             return Inhibit(false);
         }
 
-        let sample_nb = self.samples_nb.min(32_767f64);
+        let sample_nb = self.samples_nb.min(12_287f64);
         let sample_dyn = 1024f64;
 
         let allocation = drawing_area.get_allocation();
@@ -86,7 +91,7 @@ impl AudioController {
             allocation.width as f64 / sample_nb,
             allocation.height as f64 / 2f64 / sample_dyn,
         );
-        cr.set_line_width(1.5f64);
+        cr.set_line_width(2f64);
 
         let mut colors = vec![(0.9f64, 0.9f64, 0.9f64), (0.9f64, 0f64, 0f64)];
         for channel in 2..self.channels {
@@ -117,32 +122,5 @@ impl AudioController {
         }
 
         Inhibit(false)
-    }
-}
-
-impl Deref for AudioController {
-	type Target = MediaController;
-
-	fn deref(&self) -> &Self::Target {
-		&self.media_ctl
-	}
-}
-
-impl DerefMut for AudioController {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.media_ctl
-	}
-}
-
-impl MediaHandler for AudioController {
-    fn new_media(&mut self, ctx: &Context) {
-        if let Some(audio_buffer) = self.circ_buffer.get(0) {
-            println!("\n{:?}", audio_buffer.caps);
-            self.drawingarea.queue_draw();
-            self.media_ctl.show();
-        }
-        else {
-            self.media_ctl.hide();
-        }
     }
 }

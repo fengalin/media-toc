@@ -12,6 +12,8 @@ pub struct MediaInfo {
 
     pub thumbnail: Option<AlignedImage>,
 
+    pub container: String,
+
     pub video_streams: HashMap<String, gst::Caps>,
     pub video_best: Option<String>,
     pub video_codec: String,
@@ -28,6 +30,8 @@ impl MediaInfo {
             title: String::new(),
             description: String::new(),
             chapters: Vec::new(),
+
+            container: String::new(),
 
             thumbnail: None,
 

@@ -6,19 +6,18 @@ extern crate cairo;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use std::ops::{Deref, DerefMut};
-
 use ::media::Context;
 
-use super::{ImageSurface, MediaController, MediaHandler};
+use super::{ImageSurface};
 
 pub struct InfoController {
-    media_ctl: MediaController,
     drawingarea: gtk::DrawingArea,
 
     title_lbl: gtk::Label,
     artist_lbl: gtk::Label,
-    description_lbl: gtk::Label,
+    container_lbl: gtk::Label,
+    audio_codec_lbl: gtk::Label,
+    video_codec_lbl: gtk::Label,
     duration_lbl: gtk::Label,
 
     chapter_treeview: gtk::TreeView,
@@ -32,14 +31,13 @@ impl InfoController {
         // need a RefCell because the callbacks will use immutable versions of ac
         // when the UI controllers will get a mutable version from time to time
         let this = InfoController {
-            media_ctl: MediaController::new(
-                builder.get_object("info-box").unwrap(),
-            ),
             drawingarea: builder.get_object("thumbnail-drawingarea").unwrap(),
 
             title_lbl: builder.get_object("title-lbl").unwrap(),
             artist_lbl: builder.get_object("artist-lbl").unwrap(),
-            description_lbl: builder.get_object("description-lbl").unwrap(),
+            container_lbl: builder.get_object("container-lbl").unwrap(),
+            audio_codec_lbl: builder.get_object("audio_codec-lbl").unwrap(),
+            video_codec_lbl: builder.get_object("video_codec-lbl").unwrap(),
             duration_lbl: builder.get_object("duration-lbl").unwrap(),
 
             chapter_treeview: builder.get_object("chapter-treeview").unwrap(),
@@ -58,8 +56,8 @@ impl InfoController {
         let thumbnail_weak = Rc::downgrade(&this.thumbnail);
         this.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
             if let Some(thumbnail_rc) = thumbnail_weak.upgrade() {
-                let thumbnail_ref = thumbnail_rc.borrow();
-                if let Some(ref thumbnail) = *thumbnail_ref {
+                let thumbnail_opt = thumbnail_rc.borrow();
+                if let Some(ref thumbnail) = *thumbnail_opt {
                     let surface = &thumbnail.surface;
 
                     let allocation = drawing_area.get_allocation();
@@ -92,33 +90,16 @@ impl InfoController {
         let renderer = gtk::CellRendererText::new();
         col.pack_start(&renderer, true);
         col.add_attribute(&renderer, "text", col_id);
-        col.set_expand(can_expand);
+        if can_expand {
+            col.set_min_width(70);
+            col.set_expand(can_expand);
+        }
         self.chapter_treeview.append_column(&col);
     }
-}
 
-impl Deref for InfoController {
-	type Target = MediaController;
-
-	fn deref(&self) -> &Self::Target {
-		&self.media_ctl
-	}
-}
-
-impl DerefMut for InfoController {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.media_ctl
-	}
-}
-
-impl MediaHandler for InfoController {
-    fn new_media(&mut self, ctx: &Context) {
+    pub fn new_media(&mut self, ctx: &Context) {
         let mut info = ctx.info.lock()
             .expect("Failed to lock media info in InfoController");
-        self.title_lbl.set_label(&info.title);
-        self.artist_lbl.set_label(&info.artist);
-        self.description_lbl.set_label(&info.description);
-        self.duration_lbl.set_label(&format!("{}", ctx.get_duration()));
 
         let mut has_image = false;
         if let Some(thumbnail) = info.thumbnail.take() {
@@ -128,6 +109,26 @@ impl MediaHandler for InfoController {
                 has_image = true;
             }
         };
+
+        self.title_lbl.set_label(&info.title);
+        self.artist_lbl.set_label(&info.artist);
+        // Fix container for mp3 audio files
+        let container = if info.video_codec.is_empty()
+            && info.audio_codec.to_lowercase().find("mp3").is_some()
+        {
+            "MP3"
+        }
+        else {
+            &info.container
+        };
+        self.container_lbl.set_label(container);
+        self.audio_codec_lbl.set_label(
+            if !info.audio_codec.is_empty() { &info.audio_codec } else { "-" }
+        );
+        self.video_codec_lbl.set_label(
+            if !info.video_codec.is_empty() { &info.video_codec } else { "-" }
+        );
+        self.duration_lbl.set_label(&format!("{}", ctx.get_duration()));
 
         if has_image {
             self.drawingarea.show();
@@ -145,6 +146,5 @@ impl MediaHandler for InfoController {
                 &[&((id+1) as u32), &chapter.title(), &format!("{}", &chapter.start), &format!("{}", chapter.end)],
             );
         }
-        self.show();
     }
 }

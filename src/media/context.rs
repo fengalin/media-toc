@@ -255,6 +255,7 @@ impl Context {
                         assign_str_tag!(info.title, tags, gst::tags::Title);
                         assign_str_tag!(info.artist, tags, gst::tags::Artist);
                         assign_str_tag!(info.artist, tags, gst::tags::AlbumArtist);
+                        assign_str_tag!(info.container, tags, gst::tags::ContainerFormat);
                         assign_str_tag!(info.video_codec, tags, gst::tags::VideoCodec);
                         assign_str_tag!(info.audio_codec, tags, gst::tags::AudioCodec);
 

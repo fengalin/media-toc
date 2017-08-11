@@ -15,7 +15,7 @@ use gtk::{ApplicationWindow, HeaderBar, Button,
 use ::media::{Context, ContextMessage};
 use ::media::ContextMessage::*;
 
-use super::{AudioController, InfoController, MediaHandler, VideoController};
+use super::{AudioController, InfoController, VideoController};
 
 pub struct MainController {
     window: ApplicationWindow,
