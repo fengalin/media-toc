@@ -26,8 +26,9 @@ At the moment, **Media-TOC** can:
 - Display the first buffers' wave form.
 - Display chapters' data.
 
-## <a name='ui'></a>Screenshot
-![Media-TOC UI](assets/media-toc.png)
+## <a name='ui'></a>Screenshots
+![Media-TOC UI Video](assets/media-toc_video.png)
+![Media-TOC UI Audio](assets/media-toc_audio.png)
 
 # <a name='contribute'></a>How to contribute
 Contributions are welcomed.
