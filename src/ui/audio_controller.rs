@@ -18,8 +18,13 @@ pub struct AudioController {
     container: gtk::Container,
     drawingarea: gtk::DrawingArea,
 
+    stream_duration: f64,
+    channels: usize,
+    sample_duration: f64,
+
     sample_buffer: VecDeque<f64>,
     buffer_duration: f64,
+    has_reached_eos: bool,
     offset: f64,
     relative_pos: f64,
     samples_nb: usize,
@@ -27,8 +32,6 @@ pub struct AudioController {
     iter_since_adjust: usize,
     min_iter_before_adjust: usize,
 
-    channels: usize,
-    sample_duration: f64,
 }
 
 impl AudioController {
@@ -37,17 +40,19 @@ impl AudioController {
             container: builder.get_object("audio-container").unwrap(),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
 
+            stream_duration: 0f64,
+            channels: 0,
+            sample_duration: 0f64,
+
             sample_buffer: VecDeque::new(),
+            offset: 0f64,
             buffer_duration: 0f64,
+            has_reached_eos: false,
             relative_pos: 0f64,
             samples_nb: 0,
             sample_pixel_step: 0f64,
             iter_since_adjust: 0,
             min_iter_before_adjust: 5,
-
-            channels: 0,
-            offset: 0f64,
-            sample_duration: 0f64,
         }));
 
         {
@@ -70,7 +75,7 @@ impl AudioController {
 
     pub fn new_media(&mut self, ctx: &Context) {
         if !self.sample_buffer.is_empty() {
-            println!("\nAudio stream: channels {}", self.channels);
+            self.stream_duration = ctx.get_duration() as f64 / 1_000_000_000f64;
             self.drawingarea.queue_draw();
             self.container.show();
         }
@@ -82,8 +87,9 @@ impl AudioController {
     pub fn have_buffer(&mut self, mut buffer: AudioBuffer) {
         // First approximation: suppose the buffers come in ordered
         if self.sample_buffer.is_empty() {
-            self.buffer_duration = 0f64;
             self.offset = buffer.pts;
+            self.buffer_duration = 0f64;
+            self.has_reached_eos = false;
             self.relative_pos = 0f64;
             self.samples_nb = 0;
             self.sample_pixel_step = 1f64;
@@ -95,6 +101,8 @@ impl AudioController {
 
         self.samples_nb += buffer.samples_nb;
         self.buffer_duration = self.samples_nb as f64 * self.sample_duration;
+        self.has_reached_eos = self.stream_duration > 0f64
+            && self.offset + self.buffer_duration >= self.stream_duration;
 
         let mut samples_vecdeque = VecDeque::from_iter(buffer.samples.drain(..));
         self.sample_buffer.append(&mut samples_vecdeque);
@@ -148,8 +156,7 @@ impl AudioController {
         // to accomodate to computation requirements
         self.iter_since_adjust += 1;
         let first_display_pos = if self.relative_pos > self.buffer_duration - half_duration {
-            // TODO: don't adjust sample_pixel when reaching the end of file (need total duration)
-            if self.iter_since_adjust > self.min_iter_before_adjust
+            if !self.has_reached_eos && self.iter_since_adjust > self.min_iter_before_adjust
                 && self.relative_pos > self.buffer_duration - 0.25f64 * display_duration
             {
                 self.sample_pixel_step += 1f64;

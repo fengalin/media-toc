@@ -86,10 +86,10 @@ impl Context {
         }
     }
 
-    pub fn get_duration(&self) -> Timestamp {
+    pub fn get_duration(&self) -> i64 {
         match self.pipeline.query_duration(gst::Format::Time) {
-            Some(duration) => Timestamp::from_signed_nano(duration),
-            None => Timestamp::new(),
+            Some(duration) => duration,
+            None => 0,
         }
     }
 

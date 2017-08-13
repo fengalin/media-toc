@@ -6,7 +6,7 @@ extern crate cairo;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use ::media::Context;
+use ::media::{Context, Timestamp};
 
 use super::{ImageSurface};
 
@@ -128,7 +128,9 @@ impl InfoController {
         self.video_codec_lbl.set_label(
             if !info.video_codec.is_empty() { &info.video_codec } else { "-" }
         );
-        self.duration_lbl.set_label(&format!("{}", ctx.get_duration()));
+        self.duration_lbl.set_label(
+            &format!("{}", Timestamp::from_signed_nano(ctx.get_duration()))
+        );
 
         if has_image {
             self.drawingarea.show();
