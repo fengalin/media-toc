@@ -20,11 +20,12 @@ This branch relies on the following technologies:
 ## Status
 At the moment, **Media-TOC** can:
 - Open a media file (audio, video - and image but that doesn't make much sense).
-- Display the first video frame
+- Display the video frame
 - Display the cover image if available.
 - Display metadata from the media.
-- Display the first buffers' wave form.
+- Display the audio wave form.
 - Display chapters' data.
+- Play the media, draw the video, the audio wave form and play the audio.
 
 ## <a name='ui'></a>Screenshots
 ![Media-TOC UI Video](assets/media-toc_video.png)
