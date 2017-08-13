@@ -119,6 +119,12 @@ impl AudioController {
         }
     }
 
+    pub fn force_redraw(&mut self) {
+        self.sample_pixel_step = 1f64;
+        self.iter_since_adjust = 0;
+        self.drawingarea.queue_draw();
+    }
+
     fn draw(&mut self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) -> Inhibit {
         if self.sample_buffer.is_empty() {
             return Inhibit(false);

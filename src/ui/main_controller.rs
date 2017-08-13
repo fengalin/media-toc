@@ -87,7 +87,10 @@ impl MainController {
         match self.ctx {
             Some(ref mut ctx) => match ctx.play_pause().unwrap() {
                 gst::State::Playing => self.play_pause_btn.set_icon_name("media-playback-pause"),
-                gst::State::Paused => self.play_pause_btn.set_icon_name("media-playback-start"),
+                gst::State::Paused => {
+                    self.play_pause_btn.set_icon_name("media-playback-start");
+                    self.audio_ctrl.borrow_mut().force_redraw();
+                },
                 _ => (),
             },
             None => (),
