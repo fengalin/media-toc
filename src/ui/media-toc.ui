@@ -43,6 +43,7 @@
             <property name="can_focus">False</property>
             <child>
               <object class="GtkBox" id="timeline-play_control-box">
+                <property name="height_request">30</property>
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <property name="valign">end</property>
@@ -55,12 +56,26 @@
                     <property name="valign">end</property>
                     <property name="hexpand">True</property>
                     <property name="round_digits">1</property>
+                    <property name="draw_value">False</property>
                     <property name="value_pos">left</property>
                   </object>
                   <packing>
                     <property name="expand">True</property>
                     <property name="fill">True</property>
                     <property name="position">0</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="position-lbl">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="label" translatable="yes">00:00.000</property>
+                    <property name="width_chars">11</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">1</property>
                   </packing>
                 </child>
                 <child>
@@ -85,39 +100,12 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkToolButton" id="previous-toolbutton">
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="tooltip_text" translatable="yes">Start</property>
-                        <property name="label" translatable="yes">Previous</property>
-                        <property name="use_underline">True</property>
-                        <property name="stock_id">gtk-media-previous</property>
-                      </object>
-                      <packing>
-                        <property name="expand">False</property>
-                        <property name="homogeneous">True</property>
-                      </packing>
-                    </child>
-                    <child>
                       <object class="GtkToolButton" id="play_pause-toolbutton">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="label" translatable="yes">Play</property>
                         <property name="use_underline">True</property>
                         <property name="stock_id">gtk-media-play</property>
-                      </object>
-                      <packing>
-                        <property name="expand">False</property>
-                        <property name="homogeneous">True</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkToolButton" id="next-toolbutton">
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="label" translatable="yes">Next</property>
-                        <property name="use_underline">True</property>
-                        <property name="stock_id">gtk-media-next</property>
                       </object>
                       <packing>
                         <property name="expand">False</property>
@@ -141,7 +129,7 @@
                   <packing>
                     <property name="expand">False</property>
                     <property name="fill">True</property>
-                    <property name="position">1</property>
+                    <property name="position">2</property>
                   </packing>
                 </child>
               </object>

@@ -27,6 +27,7 @@ pub enum ContextMessage {
 
 pub struct Context {
     pub pipeline: gst::Pipeline,
+    pub state: gst::State,
 
     pub path: PathBuf,
     pub file_name: String,
@@ -50,6 +51,7 @@ impl Context {
     fn new(path: PathBuf) -> Self {
         Context{
             pipeline: gst::Pipeline::new("pipeline"),
+            state: gst::State::Null,
 
             file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
             name: String::from(path.file_stem().unwrap().to_str().unwrap()),
@@ -67,13 +69,20 @@ impl Context {
     {
         println!("\n\n* Attempting to open {:?}", path);
 
-        let ctx = Context::new(path);
+        let mut ctx = Context::new(path);
         ctx.build_pipeline(&ctx_tx, ui_rx);
         ctx.register_bus_inspector(ctx_tx);
 
         match ctx.pause() {
             Ok(_) => Ok(ctx),
             Err(error) => Err(error),
+        }
+    }
+
+    pub fn get_position(&self) -> i64 {
+        match self.pipeline.query_position(gst::Format::Time) {
+            Some(duration) => duration,
+            None => 0,
         }
     }
 
@@ -84,34 +93,37 @@ impl Context {
         }
     }
 
-    pub fn play_pause(&self) -> Result<(), String> {
-        let (state_change, current, pending) = self.pipeline.get_state(10_000_000);
+    pub fn play_pause(&mut self) -> Result<(), String> {
+        let (_, current, _) = self.pipeline.get_state(10_000_000);
         match current {
             gst::State::Playing => self.pause(),
             _ => self.play(),
         }
     }
 
-    pub fn play(&self) -> Result<(), String> {
+    pub fn play(&mut self) -> Result<(), String> {
         if self.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
             return Err("Could not set media in palying state".into());
         }
+        self.state = gst::State::Playing;
         Ok(())
     }
 
-    pub fn pause(&self) -> Result<(), String> {
+    pub fn pause(&mut self) -> Result<(), String> {
         if self.pipeline.set_state(gst::State::Paused) == gst::StateChangeReturn::Failure {
             println!("could not set media in Paused state");
             return Err("Could not set media in Paused state".into());
         }
+        self.state = gst::State::Paused;
         Ok(())
     }
 
-    pub fn stop(&self) {
+    pub fn stop(&mut self) {
         if self.pipeline.set_state(gst::State::Null) == gst::StateChangeReturn::Failure {
             println!("Could not set media in Null state");
             //return Err("could not set media in Null state".into());
         }
+        self.state = gst::State::Null;
     }
 
     // TODO: handle errors

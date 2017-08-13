@@ -6,8 +6,6 @@ use gstreamer::PadExt;
 
 use std::io::Cursor;
 
-use std::ops::{Deref, DerefMut};
-
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum SampleFormat {
     F32LE,
@@ -94,106 +92,67 @@ impl AudioCaps {
     }
 }
 
-
-pub struct AudioChannel {
-    id: usize,
-    samples: Vec<f64>,
-}
-
-impl AudioChannel {
-    pub fn new(id: usize) -> Self {
-        AudioChannel {
-            id: id,
-            samples: Vec::new(),
-        }
-    }
-
-    pub fn get_id(&self) -> usize {
-        self.id
-    }
-}
-
-impl Deref for AudioChannel {
-	type Target = Vec<f64>;
-
-	fn deref(&self) -> &Self::Target {
-		&self.samples
-	}
-}
-
-impl DerefMut for AudioChannel {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.samples
-	}
-}
-
 pub struct AudioBuffer {
     pub caps: AudioCaps,
-    pub pts: usize,
+    pub pts: f64,
     pub duration: usize,
     pub sample_offset: usize,
     pub samples_nb: usize,
-    pub channels: Vec<AudioChannel>,
+    pub samples: Vec<f64>,
 }
 
 impl AudioBuffer {
     pub fn from_gst_buffer(caps: &AudioCaps, buffer: &gst::Buffer) -> Self {
+        let samples_nb = (buffer.get_duration() as f64 / caps.sample_duration) as usize;
         let mut this = AudioBuffer {
             caps: *caps,
-            pts: buffer.get_pts() as usize,
+            pts: buffer.get_pts() as f64,
             duration: buffer.get_duration() as usize,
             sample_offset: (buffer.get_pts() as f64 / caps.sample_duration) as usize,
-            samples_nb: (buffer.get_duration() as f64 / caps.sample_duration) as usize,
-            channels: Vec::with_capacity(caps.channels),
+            samples_nb: samples_nb,
+            samples: Vec::with_capacity(caps.channels * samples_nb),
         };
 
-        for channel in 0..this.caps.channels {
-            this.channels.push(AudioChannel::new(channel));
-        }
+        assert_eq!(this.caps.layout, SampleLayout::Interleaved);
 
         let map = buffer.map_readable().unwrap();
         let data = map.as_slice();
 
-        let mut keep_going = true;
         let mut data_reader = Cursor::new(data);
+        loop {
+            let norm_sample = match this.caps.sample_format {
+                SampleFormat::F32LE => {
+                    data_reader.read_f32::<LittleEndian>().map(|v| v as f64)
+                },
+                SampleFormat::F64LE => {
+                    data_reader.read_f64::<LittleEndian>()
+                },
+                SampleFormat::I16LE => {
+                    data_reader.read_i16::<LittleEndian>().map(|v|
+                        v as f64 / ::std::i16::MAX as f64
+                    )
+                },
+                SampleFormat::I32LE => {
+                    data_reader.read_i32::<LittleEndian>().map(|v|
+                        v as f64 / ::std::i32::MAX as f64
+                    )
+                },
+                SampleFormat::I64LE => {
+                    data_reader.read_i64::<LittleEndian>().map(|v|
+                        v as f64 / ::std::i64::MAX as f64
+                    )
+                },
+                SampleFormat::U8 => {
+                    data_reader.read_u8().map(|v|
+                        (v as f64 - ::std::i8::MAX as f64) / ::std::i8::MAX as f64
+                    )
+                },
+                _ => panic!("never happens"), // FIXME: use proper assert
+            };
 
-        assert_eq!(this.caps.layout, SampleLayout::Interleaved);
-        while keep_going {
-            for channel in 0..this.caps.channels {
-                let norm_sample = match this.caps.sample_format {
-                    SampleFormat::F32LE => {
-                        data_reader.read_f32::<LittleEndian>().map(|v| v as f64)
-                    },
-                    SampleFormat::F64LE => {
-                        data_reader.read_f64::<LittleEndian>()
-                    },
-                    SampleFormat::I16LE => {
-                        data_reader.read_i16::<LittleEndian>().map(|v|
-                            v as f64 / ::std::i16::MAX as f64
-                        )
-                    },
-                    SampleFormat::I32LE => {
-                        data_reader.read_i32::<LittleEndian>().map(|v|
-                            v as f64 / ::std::i32::MAX as f64
-                        )
-                    },
-                    SampleFormat::I64LE => {
-                        data_reader.read_i64::<LittleEndian>().map(|v|
-                            v as f64 / ::std::i64::MAX as f64
-                        )
-                    },
-                    SampleFormat::U8 => {
-                        data_reader.read_u8().map(|v|
-                            (v as f64 - ::std::i8::MAX as f64) / ::std::i8::MAX as f64
-                        )
-                    },
-                    _ => panic!("never happens"), // FIXME: use proper assert
-                };
-
-                match norm_sample {
-                    Ok(norm_sample) => this.channels[channel].push(norm_sample),
-                    Err(_) => keep_going = false,
-                }
+            match norm_sample {
+                Ok(norm_sample) => this.samples.push(1f64 - norm_sample),
+                Err(_) => break,
             }
         }
 

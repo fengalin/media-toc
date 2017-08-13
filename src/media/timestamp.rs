@@ -6,6 +6,7 @@ use chrono::{NaiveDateTime, NaiveTime, Timelike};
 
 #[derive(Clone, Copy)]
 pub struct Timestamp {
+    pub nano: f64,
     date: NaiveDateTime,
     time: NaiveTime,
     is_date: bool,
@@ -14,50 +15,40 @@ pub struct Timestamp {
 impl Timestamp {
     pub fn new() -> Self {
         Timestamp {
+            nano: 0f64,
             date: NaiveDateTime::from_timestamp(0, 0),
             time: NaiveTime::from_num_seconds_from_midnight(0, 0),
             is_date: false,
         }
     }
 
-    fn from_sec_nano(sec: i64, nano: u32) -> Self {
-        if sec > 24i64 * 3600i64 {
+    pub fn from_nano_f(nano_f: f64) -> Self {
+        let sec = (nano_f / 1_000_000_000f64).trunc();
+        let nano = nano_f - sec * 1_000_000_000f64;
+        if sec > 24f64 * 3600f64 {
             // sec part larger than one day
             Timestamp {
-                date: NaiveDateTime::from_timestamp(sec, nano),
+                nano: nano_f,
+                date: NaiveDateTime::from_timestamp(sec as i64, nano as u32),
                 time: NaiveTime::from_num_seconds_from_midnight(0, 0),
                 is_date: true
             }
         } else {
             Timestamp {
+                nano: nano_f,
                 date: NaiveDateTime::from_timestamp(0, 0),
-                time: NaiveTime::from_num_seconds_from_midnight(sec as u32, nano),
+                time: NaiveTime::from_num_seconds_from_midnight(sec as u32, nano as u32),
                 is_date: false
             }
         }
     }
 
-    pub fn from_sec_time_factor(sec: i64, time_factor: f64) -> Self {
-        let sec_f = sec.abs() as f64 * time_factor;
-        let sec = sec_f.trunc() as i64;
-        Timestamp::from_sec_nano(
-            sec as i64,
-            (sec_f.fract() * 1_000_000_000f64) as u32
-        )
-    }
-
     pub fn from_signed_nano(nano: i64) -> Self {
-        let sec_f = nano.abs() as f64 / 1_000_000_000f64;
-        let sec = sec_f.trunc() as i64;
-        let nano = (nano - (sec * 1_000_000_000i64)).abs() as u32;
-        Timestamp::from_sec_nano(sec, nano)
+        Timestamp::from_nano_f(nano as f64)
     }
 
     pub fn from_nano(nano: u64) -> Self {
-        let sec_f = nano as f64 / 1_000_000_000f64;
-        let sec = sec_f.trunc() as u64;
-        let nano = (nano - (sec * 1_000_000_000u64)) as u32;
-        Timestamp::from_sec_nano(sec as i64, nano)
+        Timestamp::from_nano_f(nano as f64)
     }
 }
 

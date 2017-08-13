@@ -1,5 +1,6 @@
 extern crate gtk;
 extern crate glib;
+extern crate gstreamer as gst;
 
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
@@ -10,9 +11,9 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 
 use gtk::prelude::*;
 use gtk::{ApplicationWindow, Button, FileChooserAction, FileChooserDialog,
-          HeaderBar, ResponseType, ToolButton};
+          HeaderBar, ResponseType, Label, ToolButton};
 
-use ::media::{Context, ContextMessage};
+use ::media::{Context, ContextMessage, Timestamp};
 use ::media::ContextMessage::*;
 
 use super::{AudioController, InfoController, VideoController};
@@ -21,6 +22,7 @@ pub struct MainController {
     window: ApplicationWindow,
     header_bar: HeaderBar,
     play_pause_btn: ToolButton,
+    position_lbl: Label,
     info_ctrl: InfoController,
     video_ctrl: VideoController,
     audio_ctrl: Rc<RefCell<AudioController>>,
@@ -37,6 +39,7 @@ impl MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
+            position_lbl: builder.get_object("position-lbl").unwrap(),
             info_ctrl: InfoController::new(&builder),
             video_ctrl: VideoController::new(&builder),
             audio_ctrl: AudioController::new(&builder),
@@ -80,15 +83,15 @@ impl MainController {
         self.window.show_all();
     }
 
-    pub fn play_pause(&self) {
+    pub fn play_pause(&mut self) {
         match self.ctx {
-            Some(ref ctx) => ctx.play_pause().unwrap(),
+            Some(ref mut ctx) => ctx.play_pause().unwrap(),
             None => (),
         };
     }
 
     pub fn stop(&mut self) {
-        if let Some(context) = self.ctx.as_ref() {
+        if let Some(context) = self.ctx.as_mut() {
             context.stop();
             if let Some(source_id) = self.listener_src {
                 // remove listerner in order to avoid conflict on borrowing of self
@@ -174,6 +177,8 @@ impl MainController {
         file_dlg.close();
     }
 
+    // TODO: change name `listener` as it is no longer just a listener
+    // but rather a controller loop
     fn register_listener(&mut self,
         ui_rx: Receiver<ContextMessage>,
         timeout: u32,
@@ -188,21 +193,30 @@ impl MainController {
             let mut keep_going = true;
             let mut msg_iter = ui_rx.try_iter();
 
-            let first_msg_opt = msg_iter.next();
-            if let Some(first_msg) = first_msg_opt {
-                // only get this as mut if a message is received
-                let this = this_weak.upgrade()
-                    .expect("Main controller is no longer available for ctx channel listener");
-                let mut this_mut = this.borrow_mut();
-                keep_going = this_mut.process_message(first_msg, ui_tx_opt.as_ref());
-                if keep_going {
-                    // process remaining messages
-                    for msg in msg_iter {
-                        keep_going = this_mut.process_message(msg, ui_tx_opt.as_ref());
-                        if !keep_going { break; }
-                    }
+            let this = this_weak.upgrade()
+                .expect("Main controller is no longer available for ctx channel listener");
+            let mut this_mut = this.borrow_mut();
+
+            for msg in msg_iter.next() {
+                keep_going = this_mut.process_message(msg, ui_tx_opt.as_ref());
+                if !keep_going { break; }
+            }
+
+            let position = match this_mut.ctx {
+                Some(ref ctx) => if ctx.state == gst::State::Playing {
+                    let position = Timestamp::from_signed_nano(ctx.get_position());
+                    this_mut.position_lbl.set_text(&format!("{}", position));
+                    position
                 }
+                else {
+                    Timestamp::new()
+                },
+                None => Timestamp::new(),
             };
+
+            if position.nano > 0f64 {
+                this_mut.audio_ctrl.borrow_mut().have_position(position.nano);
+            }
 
             if !keep_going { println!("Exiting listener"); }
             glib::Continue(keep_going)
@@ -213,11 +227,12 @@ impl MainController {
         assert_eq!(self.listener_src, None);
 
         self.audio_ctrl.borrow_mut().clear();
+        self.position_lbl.set_text("00:00.000");
 
         let (ctx_tx, ui_rx) = channel();
         let (ui_tx, ctx_rx) = channel();
 
-        self.register_listener(ui_rx, 100, Some(ui_tx));
+        self.register_listener(ui_rx, 20, Some(ui_tx));
 
         match Context::open_media_path(filepath, ctx_tx, ctx_rx) {
             Ok(ctx) => self.ctx = Some(ctx),
