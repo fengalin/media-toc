@@ -27,7 +27,6 @@ pub struct AudioController {
     has_reached_eos: bool,
     offset: f64,
     relative_pos: f64,
-    samples_nb: usize,
     sample_pixel_step: f64,
     iter_since_adjust: usize,
     min_iter_before_adjust: usize,
@@ -49,7 +48,6 @@ impl AudioController {
             buffer_duration: 0f64,
             has_reached_eos: false,
             relative_pos: 0f64,
-            samples_nb: 0,
             sample_pixel_step: 0f64,
             iter_since_adjust: 0,
             min_iter_before_adjust: 5,
@@ -86,12 +84,14 @@ impl AudioController {
 
     pub fn have_buffer(&mut self, mut buffer: AudioBuffer) {
         // First approximation: suppose the buffers come in ordered
+        let mut is_first = false;
         if self.sample_buffer.is_empty() {
+            is_first = true;
+
             self.offset = buffer.pts;
             self.buffer_duration = 0f64;
             self.has_reached_eos = false;
             self.relative_pos = 0f64;
-            self.samples_nb = 0;
             self.sample_pixel_step = 1f64;
             self.iter_since_adjust = 0;
 
@@ -99,23 +99,32 @@ impl AudioController {
             self.sample_duration = buffer.caps.sample_duration / 1_000_000_000f64;
         }
 
-        self.samples_nb += buffer.samples_nb;
-        self.buffer_duration = self.samples_nb as f64 * self.sample_duration;
+        self.buffer_duration = (self.sample_buffer.len() / self.channels) as f64
+            * self.sample_duration;
         self.has_reached_eos = self.stream_duration > 0f64
             && self.offset + self.buffer_duration >= self.stream_duration;
 
         let mut samples_vecdeque = VecDeque::from_iter(buffer.samples.drain(..));
         self.sample_buffer.append(&mut samples_vecdeque);
 
-        // TODO: this depends on the actual position in the stream
-        /*while self.samples_nb > self.samples_max {
-            let prev_buffer = self.sample_buffer.pop_front()
-                .expect("Unconsistent samples nb in audio circular buffer");
-            self.samples_nb -= prev_buffer.samples_nb as f64;
-            match self.sample_buffer.front() {
-                Some(first_buffer) => self.sample_offset = first_buffer.sample_offset as f64,
-                None => (),
-            };
+        // FIXME: there are two issues with this draining algo:
+        // 1. It breaks the 75% limit adjustment
+        // 2. Despite the attempt to avoid discontinuity, there is still one.
+        //    This might be related to the same cause as 1.
+        // Don't purge samples if the whole stream is provided as one big buffer
+        /*if !is_first && self.buffer_duration > 5f64 { // 5s
+            // remove 2s worse of samples
+            // can't purge big chunks otherwise it impacts drawing
+            // need to comply with current sample_pixel_step in order to
+            // avoid discontinuity
+            let sample_nb_to_remove_f = (2f64 / self.sample_duration / self.sample_pixel_step).trunc() * self.sample_pixel_step;
+            let sample_nb_to_remove = sample_nb_to_remove_f as usize;
+            self.sample_buffer.drain(..(sample_nb_to_remove * self.channels));
+            let duration_removed = sample_nb_to_remove_f * self.sample_duration;
+            self.buffer_duration -= duration_removed;
+            println!("remove {} samples, sample pixel step {}", sample_nb_to_remove, self.sample_pixel_step);
+            self.offset += duration_removed * 1_000_000_000f64;
+            self.relative_pos -= duration_removed;
         }*/
     }
 
@@ -155,7 +164,11 @@ impl AudioController {
         // Take this opportunity to adjust sample pixel step in order
         // to accomodate to computation requirements
         self.iter_since_adjust += 1;
-        let first_display_pos = if self.relative_pos > self.buffer_duration - half_duration {
+        let first_display_pos = if self.relative_pos > self.buffer_duration {
+            self.sample_pixel_step += 1f64;
+            self.iter_since_adjust = 0;
+            self.buffer_duration - display_duration
+        } else if self.relative_pos > self.buffer_duration - half_duration {
             if !self.has_reached_eos && self.iter_since_adjust > self.min_iter_before_adjust
                 && self.relative_pos > self.buffer_duration - 0.25f64 * display_duration
             {
@@ -164,12 +177,14 @@ impl AudioController {
             }
             self.buffer_duration - display_duration
         } else if self.relative_pos > half_duration {
-            if self.iter_since_adjust > self.min_iter_before_adjust
-                && self.sample_pixel_step > 1f64 && self.relative_pos > self.buffer_duration - 0.25f64 * display_duration
+            // FIXME: need a real algorithm to stabilize
+            /*if self.iter_since_adjust > self.min_iter_before_adjust
+                && self.sample_pixel_step > 1f64 && self.relative_pos < self.buffer_duration - 0.20f64 * display_duration
             {
                 self.sample_pixel_step -= 1f64;
                 self.iter_since_adjust = 0;
-            }
+                self.min_iter_before_adjust *= 2;
+            }*/
             self.relative_pos - half_duration
         } else {
             0f64
