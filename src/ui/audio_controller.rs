@@ -25,7 +25,7 @@ pub struct AudioController {
     samples_nb: usize,
     sample_pixel_step: f64,
     iter_since_adjust: usize,
-    max_iter_before_adjust: usize,
+    min_iter_before_adjust: usize,
 
     channels: usize,
     sample_duration: f64,
@@ -43,7 +43,7 @@ impl AudioController {
             samples_nb: 0,
             sample_pixel_step: 0f64,
             iter_since_adjust: 0,
-            max_iter_before_adjust: 5,
+            min_iter_before_adjust: 5,
 
             channels: 0,
             offset: 0f64,
@@ -143,7 +143,7 @@ impl AudioController {
         self.iter_since_adjust += 1;
         let first_display_pos = if self.relative_pos > self.buffer_duration - half_duration {
             // TODO: don't adjust sample_pixel when reaching the end of file (need total duration)
-            if self.iter_since_adjust > self.max_iter_before_adjust
+            if self.iter_since_adjust > self.min_iter_before_adjust
                 && self.relative_pos > self.buffer_duration - 0.25f64 * display_duration
             {
                 self.sample_pixel_step += 1f64;
@@ -151,7 +151,7 @@ impl AudioController {
             }
             self.buffer_duration - display_duration
         } else if self.relative_pos > half_duration {
-            if self.iter_since_adjust > self.max_iter_before_adjust
+            if self.iter_since_adjust > self.min_iter_before_adjust
                 && self.sample_pixel_step > 1f64 && self.relative_pos > self.buffer_duration - 0.25f64 * display_duration
             {
                 self.sample_pixel_step -= 1f64;
