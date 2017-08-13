@@ -23,6 +23,9 @@ pub struct AudioController {
     offset: f64,
     relative_pos: f64,
     samples_nb: usize,
+    sample_pixel_step: f64,
+    iter_since_adjust: usize,
+    max_iter_before_adjust: usize,
 
     channels: usize,
     sample_duration: f64,
@@ -38,6 +41,9 @@ impl AudioController {
             buffer_duration: 0f64,
             relative_pos: 0f64,
             samples_nb: 0,
+            sample_pixel_step: 0f64,
+            iter_since_adjust: 0,
+            max_iter_before_adjust: 5,
 
             channels: 0,
             offset: 0f64,
@@ -50,7 +56,7 @@ impl AudioController {
             this_ref.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
                 let this = this_weak.upgrade()
                     .expect("Main controller is no longer available for select_media");
-                let result = this.borrow().draw(drawing_area, cairo_ctx);
+                let result = this.borrow_mut().draw(drawing_area, cairo_ctx);
                 result
             });
         }
@@ -77,13 +83,14 @@ impl AudioController {
         // First approximation: suppose the buffers come in ordered
         if self.sample_buffer.is_empty() {
             self.buffer_duration = 0f64;
-            self.relative_pos = 0f64;
             self.offset = buffer.pts;
+            self.relative_pos = 0f64;
+            self.samples_nb = 0;
+            self.sample_pixel_step = 1f64;
+            self.iter_since_adjust = 0;
+
             self.channels = buffer.caps.channels;
             self.sample_duration = buffer.caps.sample_duration / 1_000_000_000f64;
-            self.samples_nb = 0;
-
-            println!("Sample duration: {}, offset: {}", self.sample_duration, self.offset);
         }
 
         self.samples_nb += buffer.samples_nb;
@@ -112,7 +119,7 @@ impl AudioController {
         }
     }
 
-    fn draw(&self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) -> Inhibit {
+    fn draw(&mut self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) -> Inhibit {
         if self.sample_buffer.is_empty() {
             return Inhibit(false);
         }
@@ -128,28 +135,41 @@ impl AudioController {
             width_f / display_window_duration,
             allocation.height as f64 / 2f64,
         );
-        cr.set_line_width(0.003f64);
+        cr.set_line_width(0.002f64);
 
         let half_duration = display_duration / 2f64;
-        let first_display_pos = if self.relative_pos > (self.buffer_duration - half_duration) {
+        // Take this opportunity to adjust sample pixel step in order
+        // to accomodate to computation requirements
+        self.iter_since_adjust += 1;
+        let first_display_pos = if self.relative_pos > self.buffer_duration - half_duration {
+            // TODO: don't adjust sample_pixel when reaching the end of file (need total duration)
+            if self.iter_since_adjust > self.max_iter_before_adjust
+                && self.relative_pos > self.buffer_duration - 0.25f64 * display_duration
+            {
+                self.sample_pixel_step += 1f64;
+                self.iter_since_adjust = 0;
+            }
             self.buffer_duration - display_duration
         } else if self.relative_pos > half_duration {
+            if self.iter_since_adjust > self.max_iter_before_adjust
+                && self.sample_pixel_step > 1f64 && self.relative_pos > self.buffer_duration - 0.25f64 * display_duration
+            {
+                self.sample_pixel_step -= 1f64;
+                self.iter_since_adjust = 0;
+            }
             self.relative_pos - half_duration
         } else {
             0f64
         };
 
-        // Define the first sample as a multiple of sample_step
-        // In order to avoid flickering when origin changes between redraws
-        // TODO: use a something more linear to adapt sample step depending
-        // on the (diplay_window_sample_nb_f / width_f) ratio
-        let pixel_step = 1f64;
-        let sample_step_f = if diplay_window_sample_nb_f > width_f / pixel_step {
-            diplay_window_sample_nb_f / width_f * pixel_step
+        let sample_step_f = if diplay_window_sample_nb_f > width_f / self.sample_pixel_step {
+            (diplay_window_sample_nb_f / width_f * self.sample_pixel_step).trunc()
         } else {
             1f64
         };
-        let sample_step = sample_step_f.trunc() as usize;
+        let sample_step = sample_step_f as usize;
+        // Define the first sample as a multiple of sample_step
+        // In order to avoid flickering when origin changes between redraws
         let first_sample = (first_display_pos / self.sample_duration / sample_step_f).trunc() as usize * sample_step;
         let first_idx = first_sample * self.channels;
         let last_idx = first_idx + diplay_sample_nb * self.channels;
@@ -186,13 +206,11 @@ impl AudioController {
 
         // draw current pos
         let x = self.relative_pos - first_display_pos;
-        if x < display_window_duration {
-            cr.set_source_rgb(1f64, 1f64, 0f64);
-            cr.set_line_width(0.005f64);
-            cr.move_to(x, 0f64);
-            cr.line_to(x, 2f64);
-            cr.stroke();
-        }
+        cr.set_source_rgb(1f64, 1f64, 0f64);
+        cr.set_line_width(0.004f64);
+        cr.move_to(x, 0f64);
+        cr.line_to(x, 2f64);
+        cr.stroke();
 
         Inhibit(false)
     }
