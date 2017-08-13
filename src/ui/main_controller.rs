@@ -85,7 +85,11 @@ impl MainController {
 
     pub fn play_pause(&mut self) {
         match self.ctx {
-            Some(ref mut ctx) => ctx.play_pause().unwrap(),
+            Some(ref mut ctx) => match ctx.play_pause().unwrap() {
+                gst::State::Playing => self.play_pause_btn.set_icon_name("media-playback-pause"),
+                gst::State::Paused => self.play_pause_btn.set_icon_name("media-playback-start"),
+                _ => (),
+            },
             None => (),
         };
     }
@@ -99,6 +103,7 @@ impl MainController {
             }
             self.listener_src = None;
         }
+        self.play_pause_btn.set_icon_name("media-playback-start");
     }
 
     fn process_message(&mut self,
@@ -125,6 +130,8 @@ impl MainController {
             },
             Eos => {
                 println!("Received Eos");
+                self.play_pause_btn.set_icon_name("media-playback-start");
+                // TODO: seek to the begining
                 keep_going = false;
             },
             FailedToOpenMedia => {

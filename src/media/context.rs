@@ -93,7 +93,7 @@ impl Context {
         }
     }
 
-    pub fn play_pause(&mut self) -> Result<(), String> {
+    pub fn play_pause(&mut self) -> Result<gst::State, String> {
         let (_, current, _) = self.pipeline.get_state(10_000_000);
         match current {
             gst::State::Playing => self.pause(),
@@ -101,21 +101,21 @@ impl Context {
         }
     }
 
-    pub fn play(&mut self) -> Result<(), String> {
+    pub fn play(&mut self) -> Result<gst::State, String> {
         if self.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
             return Err("Could not set media in palying state".into());
         }
         self.state = gst::State::Playing;
-        Ok(())
+        Ok(self.state)
     }
 
-    pub fn pause(&mut self) -> Result<(), String> {
+    pub fn pause(&mut self) -> Result<gst::State, String> {
         if self.pipeline.set_state(gst::State::Paused) == gst::StateChangeReturn::Failure {
             println!("could not set media in Paused state");
             return Err("Could not set media in Paused state".into());
         }
         self.state = gst::State::Paused;
-        Ok(())
+        Ok(self.state)
     }
 
     pub fn stop(&mut self) {
