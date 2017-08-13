@@ -84,9 +84,9 @@ impl AudioController {
 
     pub fn have_buffer(&mut self, mut buffer: AudioBuffer) {
         // First approximation: suppose the buffers come in ordered
-        let mut is_first = false;
+        //let mut is_first = false;
         if self.sample_buffer.is_empty() {
-            is_first = true;
+            //is_first = true;
 
             self.offset = buffer.pts;
             self.buffer_duration = 0f64;
@@ -164,7 +164,7 @@ impl AudioController {
         // Take this opportunity to adjust sample pixel step in order
         // to accomodate to computation requirements
         self.iter_since_adjust += 1;
-        let first_display_pos = if self.relative_pos > self.buffer_duration {
+        let first_display_pos = if !self.has_reached_eos && self.relative_pos > self.buffer_duration {
             self.sample_pixel_step += 1f64;
             self.iter_since_adjust = 0;
             self.buffer_duration - display_duration
