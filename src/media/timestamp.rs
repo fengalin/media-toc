@@ -47,6 +47,7 @@ impl Timestamp {
         Timestamp::from_nano_f(nano as f64)
     }
 
+    #[allow(dead_code)]
     pub fn from_nano(nano: u64) -> Self {
         Timestamp::from_nano_f(nano as f64)
     }

@@ -4,7 +4,6 @@ use byteorder::{LittleEndian, ReadBytesExt};
 extern crate gstreamer as gst;
 use gstreamer::PadExt;
 
-use std;
 use std::io::Cursor;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -121,13 +120,11 @@ impl AudioBuffer {
 
         let mut data_reader = Cursor::new(data);
         let channels_f = this.caps.channels as f64;
-        let mut mono_sample = 0f64;
-        let mut norm_sample: Result<f64, std::io::Error> = Ok(0f64);
         let mut keep_going = true;
         while keep_going {
-            mono_sample = 0f64;
-            for channel in 0..this.caps.channels {
-                norm_sample = match this.caps.sample_format {
+            let mut mono_sample = 0f64;
+            for _ in 0..this.caps.channels {
+                let norm_sample = match this.caps.sample_format {
                     SampleFormat::F32LE => {
                         data_reader.read_f32::<LittleEndian>().map(|v| v as f64)
                     },
