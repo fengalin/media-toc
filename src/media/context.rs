@@ -281,7 +281,7 @@ impl Context {
 
                         match tags.get::<gst::tags::PreviewImage>() {
                             // TODO: check if that happens, that would be handy for videos
-                            Some(preview_tag) => println!("** Found a PreviewImage tag **"),
+                            Some(_) => println!("** Found a PreviewImage tag **"),
                             None => (),
                         };
 

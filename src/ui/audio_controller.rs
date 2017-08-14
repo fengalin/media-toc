@@ -99,8 +99,7 @@ impl AudioController {
             self.sample_duration = buffer.caps.sample_duration / 1_000_000_000f64;
         }
 
-        self.buffer_duration = (self.sample_buffer.len() / self.channels) as f64
-            * self.sample_duration;
+        self.buffer_duration = self.sample_buffer.len() as f64 * self.sample_duration;
         self.has_reached_eos = self.stream_duration > 0f64
             && self.offset + self.buffer_duration >= self.stream_duration;
 
@@ -119,7 +118,7 @@ impl AudioController {
             // avoid discontinuity
             let sample_nb_to_remove_f = (2f64 / self.sample_duration / self.sample_pixel_step).trunc() * self.sample_pixel_step;
             let sample_nb_to_remove = sample_nb_to_remove_f as usize;
-            self.sample_buffer.drain(..(sample_nb_to_remove * self.channels));
+            self.sample_buffer.drain(..sample_nb_to_remove);
             let duration_removed = sample_nb_to_remove_f * self.sample_duration;
             self.buffer_duration -= duration_removed;
             println!("remove {} samples, sample pixel step {}", sample_nb_to_remove, self.sample_pixel_step);
@@ -158,7 +157,7 @@ impl AudioController {
             width_f / display_window_duration,
             allocation.height as f64 / 2f64,
         );
-        cr.set_line_width(0.002f64);
+        cr.set_line_width(0.0015f64);
 
         let half_duration = display_duration / 2f64;
         // Take this opportunity to adjust sample pixel step in order
@@ -199,38 +198,26 @@ impl AudioController {
         // Define the first sample as a multiple of sample_step
         // In order to avoid flickering when origin changes between redraws
         let first_sample = (first_display_pos / self.sample_duration / sample_step_f).trunc() as usize * sample_step;
-        let first_idx = first_sample * self.channels;
-        let last_idx = first_idx + diplay_sample_nb * self.channels;
+        let last_sample = first_sample + diplay_sample_nb;
 
         let duration_step = sample_step_f * self.sample_duration;
-        let idx_step = sample_step * self.channels;
 
+        cr.set_source_rgb(0.8f64, 0.8f64, 0.8f64);
 
-        let colors = vec![(0.9f64, 0.9f64, 0.9f64), (0.9f64, 0f64, 0f64)];
-        for channel in 0..self.channels {
-            let color = if channel < 2 {
-                colors[channel]
-            } else {
-                (0f64, 0f64, 0.2f64 * channel as f64)
-            };
-            cr.set_source_rgb(color.0, color.1, color.2);
+        let mut sample_relative_ts = 0f64;
+        let mut sample_idx = first_sample;
 
-            let mut sample_relative_ts = 0f64;
-            let mut sample_idx = first_idx + channel;
-            while sample_idx < last_idx {
-                let y = self.sample_buffer[sample_idx];
-                if sample_idx > 0 {
-                    cr.line_to(sample_relative_ts, y);
-                } else {
-                    cr.move_to(sample_relative_ts, y);
-                }
+        cr.move_to(sample_relative_ts, self.sample_buffer[sample_idx]);
+        sample_relative_ts += duration_step;
+        sample_idx += sample_step;
 
-                sample_relative_ts += duration_step;
-                sample_idx += idx_step;
-            }
-
-            cr.stroke();
+        while sample_idx < last_sample {
+            cr.line_to(sample_relative_ts, self.sample_buffer[sample_idx]);
+            sample_relative_ts += duration_step;
+            sample_idx += sample_step;
         }
+
+        cr.stroke();
 
         // draw current pos
         let x = self.relative_pos - first_display_pos;

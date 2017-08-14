@@ -4,6 +4,7 @@ use byteorder::{LittleEndian, ReadBytesExt};
 extern crate gstreamer as gst;
 use gstreamer::PadExt;
 
+use std;
 use std::io::Cursor;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -119,40 +120,54 @@ impl AudioBuffer {
         let data = map.as_slice();
 
         let mut data_reader = Cursor::new(data);
-        loop {
-            let norm_sample = match this.caps.sample_format {
-                SampleFormat::F32LE => {
-                    data_reader.read_f32::<LittleEndian>().map(|v| v as f64)
-                },
-                SampleFormat::F64LE => {
-                    data_reader.read_f64::<LittleEndian>()
-                },
-                SampleFormat::I16LE => {
-                    data_reader.read_i16::<LittleEndian>().map(|v|
-                        v as f64 / ::std::i16::MAX as f64
-                    )
-                },
-                SampleFormat::I32LE => {
-                    data_reader.read_i32::<LittleEndian>().map(|v|
-                        v as f64 / ::std::i32::MAX as f64
-                    )
-                },
-                SampleFormat::I64LE => {
-                    data_reader.read_i64::<LittleEndian>().map(|v|
-                        v as f64 / ::std::i64::MAX as f64
-                    )
-                },
-                SampleFormat::U8 => {
-                    data_reader.read_u8().map(|v|
-                        (v as f64 - ::std::i8::MAX as f64) / ::std::i8::MAX as f64
-                    )
-                },
-                _ => panic!("never happens"), // FIXME: use proper assert
-            };
+        let channels_f = this.caps.channels as f64;
+        let mut mono_sample = 0f64;
+        let mut norm_sample: Result<f64, std::io::Error> = Ok(0f64);
+        let mut keep_going = true;
+        while keep_going {
+            mono_sample = 0f64;
+            for channel in 0..this.caps.channels {
+                norm_sample = match this.caps.sample_format {
+                    SampleFormat::F32LE => {
+                        data_reader.read_f32::<LittleEndian>().map(|v| v as f64)
+                    },
+                    SampleFormat::F64LE => {
+                        data_reader.read_f64::<LittleEndian>()
+                    },
+                    SampleFormat::I16LE => {
+                        data_reader.read_i16::<LittleEndian>().map(|v|
+                            v as f64 / ::std::i16::MAX as f64
+                        )
+                    },
+                    SampleFormat::I32LE => {
+                        data_reader.read_i32::<LittleEndian>().map(|v|
+                            v as f64 / ::std::i32::MAX as f64
+                        )
+                    },
+                    SampleFormat::I64LE => {
+                        data_reader.read_i64::<LittleEndian>().map(|v|
+                            v as f64 / ::std::i64::MAX as f64
+                        )
+                    },
+                    SampleFormat::U8 => {
+                        data_reader.read_u8().map(|v|
+                            (v as f64 - ::std::i8::MAX as f64) / ::std::i8::MAX as f64
+                        )
+                    },
+                    _ => panic!("never happens"), // FIXME: use proper assert
+                };
 
-            match norm_sample {
-                Ok(norm_sample) => this.samples.push(1f64 - norm_sample),
-                Err(_) => break,
+                match norm_sample {
+                    Ok(norm_sample) => mono_sample += norm_sample,
+                    Err(_) => {
+                        keep_going = false;
+                        break;
+                    },
+                }
+            }
+
+            if keep_going {
+                this.samples.push(1f64 - (mono_sample / channels_f));
             }
         }
 
