@@ -1,5 +1,5 @@
 # Media-TOC
-Media-TOC is an application to build a table of contents from of a media file or
+Media-TOC is an application to build a table of contents from a media file or
 to split a media file into chapters.
 
 **Important**: Media-TOC is in an early stage of development. Don't expect
@@ -25,7 +25,7 @@ At the moment, **Media-TOC** can:
 - Display metadata from the media.
 - Display the audio wave form.
 - Display chapters' data.
-- Play the media, draw the video, the audio wave form and play the audio.
+- Play the media, draw the video, the audio waveform and play the audio.
 - Adapt the waveform drawing precision in order to keep up with the playback.
 
 ## <a name='ui'></a>Screenshots
