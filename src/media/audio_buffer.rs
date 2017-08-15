@@ -2,11 +2,41 @@ extern crate byteorder;
 use byteorder::{LittleEndian, ReadBytesExt};
 
 extern crate gstreamer as gst;
+use gstreamer::PadExt;
 
 extern crate gstreamer_audio as gst_audio;
 use gstreamer_audio::AudioFormat;
 
 use std::io::Cursor;
+
+use std::ops::Deref;
+
+pub struct AudioInfo {
+    pub info: gst_audio::AudioInfo,
+    pub sample_duration: u64,
+}
+
+impl AudioInfo {
+    pub fn from_sink_pad(sink_pad: &gst::Pad) -> Self {
+        let caps = sink_pad.get_current_caps()
+            .expect("Couldn't get caps for audio stream");
+        let gst_audio_info = gst_audio::AudioInfo::from_caps(&caps)
+            .expect("Couldn't get audio info for audio stream");
+
+        AudioInfo {
+            sample_duration: 1_000_000_000 / (gst_audio_info.rate() as u64),
+            info: gst_audio_info,
+        }
+    }
+}
+
+impl Deref for AudioInfo {
+	type Target = gst_audio::AudioInfo;
+
+	fn deref(&self) -> &Self::Target {
+		&self.info
+	}
+}
 
 pub struct AudioBuffer {
     pub sample_duration: u64,
@@ -16,13 +46,12 @@ pub struct AudioBuffer {
 }
 
 impl AudioBuffer {
-    pub fn from_gst_buffer(info: &gst_audio::AudioInfo, buffer: &gst::Buffer) -> Self {
+    pub fn from_gst_buffer(info: &AudioInfo, buffer: &gst::Buffer) -> Self {
         // TODO: don't compute sample duration every time
         let duration = buffer.get_duration();
-        let sample_duration = 1_000_000_000 / info.rate();
-        let sample_nb = (duration / sample_duration as u64) as u32;
+        let sample_nb = (duration / info.sample_duration) as u32;
         let mut this = AudioBuffer {
-            sample_duration: sample_duration as u64,
+            sample_duration: info.sample_duration,
             pts: buffer.get_pts(),
             duration: duration,
             samples: Vec::with_capacity((info.channels() * sample_nb) as usize),

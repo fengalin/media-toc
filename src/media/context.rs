@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
-use super::{AlignedImage, AudioBuffer, Chapter, MediaInfo, Timestamp};
+use super::{AlignedImage, AudioBuffer, AudioInfo, Chapter, MediaInfo, Timestamp};
 
 pub enum ContextMessage {
     AsyncDone,
@@ -169,7 +169,7 @@ impl Context {
                 let sink_pad = queue.get_static_pad("sink").unwrap();
                 assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
 
-                let audio_info_mtx: Mutex<Option<gst_audio::AudioInfo>> = Mutex::new(None);
+                let audio_info_mtx: Mutex<Option<AudioInfo>> = Mutex::new(None);
                 let ctx_tx_arc_mtx_clone = ctx_tx_arc_mtx.clone();
                 sink_pad.add_probe(gst::PAD_PROBE_TYPE_BUFFER, move |sink_pad, probe_info| {
                     if let Some(gst::PadProbeData::Buffer(ref buffer)) = probe_info.data {
@@ -177,11 +177,7 @@ impl Context {
                         let mut audio_info_opt = audio_info_mtx.lock()
                             .expect("Failed to lock audio info while receiving buffer");
                         let audio_info = audio_info_opt.get_or_insert_with(||
-                            gst_audio::AudioInfo::from_caps(
-                                &sink_pad.get_current_caps()
-                                    .expect("Couldn't get caps for audio sink pad")
-                            )
-                                .expect("Couldn't get audio info from caps")
+                            AudioInfo::from_sink_pad(&sink_pad)
                         );
 
                         let audio_buffer = AudioBuffer::from_gst_buffer(audio_info, buffer);
