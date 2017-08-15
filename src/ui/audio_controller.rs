@@ -132,7 +132,6 @@ impl AudioController {
             // can't purge big chunks otherwise it impacts drawing
             // need to comply with current sample_per_step in order to
             // avoid discontinuities during waveform rendering
-            // TODO: make sure if we actually loose decimal part
             let sample_nb_to_remove =
                 (2_000_000_000 / self.sample_duration / self.sample_per_step)
                 * self.sample_per_step;
