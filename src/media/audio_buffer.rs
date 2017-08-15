@@ -27,8 +27,8 @@ pub enum SampleLayout {
 pub struct AudioCaps {
     pub sample_format: SampleFormat,
     pub layout: SampleLayout,
-    pub rate: usize,
-    pub sample_duration: f64,
+    pub rate: u64,
+    pub sample_duration: u64,
     pub channels: usize,
 }
 
@@ -38,7 +38,7 @@ impl AudioCaps {
             sample_format: SampleFormat::Unknown,
             layout: SampleLayout::Unknown,
             rate: 0,
-            sample_duration: 0f64,
+            sample_duration: 0,
             channels: 0,
         }
     }
@@ -81,8 +81,8 @@ impl AudioCaps {
 
         this.rate = structure.get::<i32>("rate")
             .expect("AudioCaps::from_gst_caps: Couldn't get sample rate for audio stream")
-            as usize;
-        this.sample_duration = 1_000_000_000f64 / this.rate as f64;
+            as u64;
+        this.sample_duration = 1_000_000_000 / this.rate;
 
         this.channels = structure.get::<i32>("channels")
             .expect("AudioCaps::from_gst_caps: Couldn't get sample channels for audio stream")
@@ -94,23 +94,21 @@ impl AudioCaps {
 
 pub struct AudioBuffer {
     pub caps: AudioCaps,
-    pub pts: f64,
-    pub duration: usize,
-    pub sample_offset: usize,
-    pub samples_nb: usize,
+    pub pts: u64,
+    pub duration: u64,
+    pub sample_offset: u64,
     pub samples: Vec<f64>,
 }
 
 impl AudioBuffer {
     pub fn from_gst_buffer(caps: &AudioCaps, buffer: &gst::Buffer) -> Self {
-        let samples_nb = (buffer.get_duration() as f64 / caps.sample_duration) as usize;
+        let samples_nb = buffer.get_duration() / caps.sample_duration;
         let mut this = AudioBuffer {
             caps: *caps,
-            pts: buffer.get_pts() as f64,
-            duration: buffer.get_duration() as usize,
-            sample_offset: (buffer.get_pts() as f64 / caps.sample_duration) as usize,
-            samples_nb: samples_nb,
-            samples: Vec::with_capacity(caps.channels * samples_nb),
+            pts: buffer.get_pts(),
+            duration: buffer.get_duration(),
+            sample_offset: buffer.get_pts() / caps.sample_duration,
+            samples: Vec::with_capacity(caps.channels * samples_nb as usize),
         };
 
         assert_eq!(this.caps.layout, SampleLayout::Interleaved);

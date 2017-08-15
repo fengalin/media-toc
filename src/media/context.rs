@@ -334,8 +334,8 @@ impl Context {
                                         info.chapters.push(Chapter::new(
                                             sub_entry.get_uid(),
                                             &title,
-                                            Timestamp::from_signed_nano(start),
-                                            Timestamp::from_signed_nano(stop)
+                                            Timestamp::from_nano(start),
+                                            Timestamp::from_nano(stop)
                                         ));
                                     }
                                 }

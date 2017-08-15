@@ -214,7 +214,7 @@ impl MainController {
 
             let position = match this_mut.ctx {
                 Some(ref ctx) => if ctx.state == gst::State::Playing {
-                    let position = Timestamp::from_signed_nano(ctx.get_position());
+                    let position = Timestamp::from_nano(ctx.get_position());
                     this_mut.position_lbl.set_text(&format!("{}", position));
                     position
                 }
@@ -224,7 +224,7 @@ impl MainController {
                 None => Timestamp::new(),
             };
 
-            if position.nano > 0f64 {
+            if position.nano > 0 {
                 this_mut.audio_ctrl.borrow_mut().have_position(position.nano);
             }
 

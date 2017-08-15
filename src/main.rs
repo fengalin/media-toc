@@ -1,3 +1,5 @@
+#![feature(ord_max_min)]
+
 extern crate gtk;
 extern crate cairo;
 
