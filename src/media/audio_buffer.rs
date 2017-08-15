@@ -47,7 +47,6 @@ pub struct AudioBuffer {
 
 impl AudioBuffer {
     pub fn from_gst_buffer(info: &AudioInfo, buffer: &gst::Buffer) -> Self {
-        // TODO: don't compute sample duration every time
         let duration = buffer.get_duration();
         let sample_nb = (duration / info.sample_duration) as u32;
         let mut this = AudioBuffer {
