@@ -4,6 +4,7 @@ extern crate gtk;
 extern crate cairo;
 
 extern crate gstreamer;
+extern crate gstreamer_audio;
 extern crate glib;
 
 extern crate chrono;

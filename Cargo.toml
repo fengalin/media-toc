@@ -12,7 +12,8 @@ url = "^1"
 image = "^0"
 byteorder = "^1"
 
-[dependencies.gstreamer]
-#path = "../gstreamer-rs/gstreamer"
-git = "https://github.com/sdroege/gstreamer-rs.git"
-features = ["v1_10"]
+#gstreamer = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
+#gstreamer-audio = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
+
+gstreamer = { path = "../gstreamer-rs/gstreamer", features = ["v1_10"] }
+gstreamer-audio = { path = "../gstreamer-rs/gstreamer-audio", features = ["v1_10"] }

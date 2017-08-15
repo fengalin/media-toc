@@ -63,7 +63,7 @@ following packages installed on your OS:
 
 ### Fedora
 ```
-$ sudo dnf install gtk3-devel glib2-devel gstreamer1-devel
+$ sudo dnf install gtk3-devel glib2-devel gstreamer1-devel gstreamer1-plugins-base-devel
 ```
 
 ### Debian & Unbuntu

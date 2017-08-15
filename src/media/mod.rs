@@ -11,7 +11,7 @@ pub mod media_info;
 pub use self::media_info::MediaInfo;
 
 pub mod audio_buffer;
-pub use self::audio_buffer::{AudioBuffer, AudioCaps};
+pub use self::audio_buffer::AudioBuffer;
 
 pub mod timestamp;
 pub use self::timestamp::Timestamp;

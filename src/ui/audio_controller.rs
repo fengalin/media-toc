@@ -111,11 +111,11 @@ impl AudioController {
             self.sample_per_step = 1;
             self.iter_since_adjust = 0;
 
-            self.sample_duration = buffer.caps.sample_duration;
+            self.sample_duration = buffer.sample_duration;
         }
 
         if buffer.pts < self.ts_offset {
-            panic!("unordered buffers");
+            panic!("Received unordered buffers");
         }
 
         let mut samples_vecdeque = VecDeque::from_iter(buffer.samples.drain(..));
