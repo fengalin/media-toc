@@ -14,6 +14,5 @@ byteorder = "^1"
 
 [dependencies.gstreamer]
 #path = "../gstreamer-rs/gstreamer"
-git = "https://github.com/fengalin/gstreamer-rs.git"
-#branch = "toc"
+git = "https://github.com/sdroege/gstreamer-rs.git"
 features = ["v1_10"]
