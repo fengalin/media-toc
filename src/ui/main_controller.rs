@@ -30,7 +30,11 @@ pub struct MainController {
     ctx: Option<Context>,
 
     self_weak: Option<Weak<RefCell<MainController>>>,
-    listener_src: Option<glib::SourceId>
+    keep_going: bool,
+    listener_src: Option<glib::SourceId>,
+    listener_calls: usize,
+    listener_usefull_calls: usize,
+    tracker_src: Option<glib::SourceId>,
 }
 
 impl MainController {
@@ -45,7 +49,11 @@ impl MainController {
             audio_ctrl: AudioController::new(&builder),
             ctx: None,
             self_weak: None,
+            keep_going: true,
             listener_src: None,
+            listener_calls: 0,
+            listener_usefull_calls: 0,
+            tracker_src: None,
         }));
 
         let this_weak = Rc::downgrade(&this);
@@ -100,70 +108,26 @@ impl MainController {
     pub fn stop(&mut self) {
         if let Some(context) = self.ctx.as_mut() {
             context.stop();
+
+            println!("Listener usefull calls: {} / {} ({}%)",
+                self.listener_calls, self.listener_usefull_calls,
+                100 * self.listener_usefull_calls / self.listener_calls,
+            );
+
+            self.listener_calls = 0;
+            self.listener_usefull_calls = 0;
+
+            // remove callbacks in order to avoid conflict on borrowing of self
             if let Some(source_id) = self.listener_src {
-                // remove listerner in order to avoid conflict on borrowing of self
                 glib::source_remove(source_id);
             }
             self.listener_src = None;
+            if let Some(source_id) = self.tracker_src {
+                glib::source_remove(source_id);
+            }
+            self.tracker_src = None;
         }
         self.play_pause_btn.set_icon_name("media-playback-start");
-    }
-
-    fn process_message(&mut self,
-        message: ContextMessage,
-        ui_tx_opt: Option<&Sender<ContextMessage>>
-    ) -> bool
-    {
-        let mut keep_going = true;
-        match message {
-            AsyncDone => {
-                println!("Received AsyncDone");
-            },
-            InitDone => {
-                println!("Received InitDone");
-
-                let context = self.ctx.as_ref()
-                    .expect("Received InitDone, but context is not available");
-
-                self.info_ctrl.new_media(context);
-                self.video_ctrl.new_media(context);
-                self.audio_ctrl.borrow_mut().new_media(context);
-
-                self.header_bar.set_subtitle(Some(context.file_name.as_str()));
-            },
-            Eos => {
-                println!("Received Eos");
-                self.play_pause_btn.set_icon_name("media-playback-start");
-                // TODO: seek to the begining
-                keep_going = false;
-            },
-            FailedToOpenMedia => {
-                eprintln!("ERROR: failed to open media");
-                self.ctx = None;
-                keep_going = false;
-            },
-            HaveAudioBuffer(audio_buffer) => {
-                self.audio_ctrl.borrow_mut().have_buffer(audio_buffer);
-            },
-            HaveVideoWidget(video_widget) => {
-                //println!("Received HaveVideoWidget");
-                let ui_tx = ui_tx_opt.as_ref()
-                    .expect("Received HaveVideoWidget, but no ui_tx is defined");
-                self.video_ctrl.have_widget(video_widget);
-                ui_tx.send(GotVideoWidget)
-                    .expect("Failed to send GotVideoWidget to context");
-            },
-            _ => {
-                eprintln!("Received an unexpected message => will quit listner");
-                keep_going = false;
-            },
-        };
-
-        if !keep_going {
-            self.listener_src = None;
-        }
-
-        keep_going
     }
 
     fn select_media(&mut self) {
@@ -187,8 +151,6 @@ impl MainController {
         file_dlg.close();
     }
 
-    // TODO: change name `listener` as it is no longer just a listener
-    // but rather a controller loop
     fn register_listener(&mut self,
         ui_rx: Receiver<ContextMessage>,
         timeout: u32,
@@ -200,16 +162,90 @@ impl MainController {
             .clone();
 
         self.listener_src = Some(gtk::timeout_add(timeout, move || {
-            let mut keep_going = true;
-            let mut msg_iter = ui_rx.try_iter();
+            let mut message_iter = ui_rx.try_iter();
 
             let this = this_weak.upgrade()
                 .expect("Main controller is no longer available for ctx channel listener");
             let mut this_mut = this.borrow_mut();
+            this_mut.listener_calls += 1;
 
-            for msg in msg_iter.next() {
-                keep_going = this_mut.process_message(msg, ui_tx_opt.as_ref());
-                if !keep_going { break; }
+            let mut was_usefull = false;
+            for message in message_iter.next() {
+                was_usefull = true;
+
+                match message {
+                    AsyncDone => {
+                        println!("Received AsyncDone");
+                    },
+                    InitDone => {
+                        println!("Received InitDone");
+
+                        let context = this_mut.ctx.take()
+                            .expect("Received InitDone, but context is not available");
+
+                        this_mut.info_ctrl.new_media(&context);
+                        this_mut.video_ctrl.new_media(&context);
+                        this_mut.audio_ctrl.borrow_mut().new_media(&context);
+                        {
+                            this_mut.header_bar.set_subtitle(Some(context.file_name.as_str()));
+                        }
+
+                        this_mut.ctx = Some(context);
+                    },
+                    Eos => {
+                        println!("Received Eos");
+                        this_mut.play_pause_btn.set_icon_name("media-playback-start");
+                        // TODO: seek to the begining
+                        this_mut.keep_going = false;
+                    },
+                    FailedToOpenMedia => {
+                        eprintln!("ERROR: failed to open media");
+                        this_mut.ctx = None;
+                        this_mut.keep_going = false;
+                    },
+                    HaveAudioBuffer(audio_buffer) => {
+                        this_mut.audio_ctrl.borrow_mut().have_buffer(audio_buffer);
+                    },
+                    HaveVideoWidget(video_widget) => {
+                        //println!("Received HaveVideoWidget");
+                        let ui_tx = ui_tx_opt.as_ref()
+                            .expect("Received HaveVideoWidget, but no ui_tx is defined");
+                        this_mut.video_ctrl.have_widget(video_widget);
+                        ui_tx.send(GotVideoWidget)
+                            .expect("Failed to send GotVideoWidget to context");
+                    },
+                    _ => {
+                        eprintln!("Received an unexpected message => will quit listner");
+                        this_mut.keep_going = false;
+                    },
+                };
+
+                if !this_mut.keep_going { break; }
+            }
+
+            if was_usefull {
+                this_mut.listener_usefull_calls += 1;
+            }
+
+            if !this_mut.keep_going {
+                this_mut.listener_src = None;
+                println!("Exiting listener");
+            }
+
+            glib::Continue(this_mut.keep_going)
+        }));
+    }
+
+    fn register_tracker(&mut self, timeout: u32) {
+        let this_weak = self.self_weak.as_ref()
+            .expect("Failed to get ref on MainController's weak Rc for register_tracker")
+            .clone();
+
+        self.tracker_src = Some(gtk::timeout_add(timeout, move || {
+            let this = this_weak.upgrade()
+                .expect("Main controller is no longer available for tracker");
+            let mut this_mut = this.borrow_mut();
+            if !this_mut.keep_going {
             }
 
             let position = match this_mut.ctx {
@@ -228,8 +264,12 @@ impl MainController {
                 this_mut.audio_ctrl.borrow_mut().have_position(position.nano);
             }
 
-            if !keep_going { println!("Exiting listener"); }
-            glib::Continue(keep_going)
+            if !this_mut.keep_going {
+                this_mut.tracker_src = None;
+                println!("Exiting tracker");
+            }
+
+            glib::Continue(this_mut.keep_going)
         }));
     }
 
@@ -242,7 +282,9 @@ impl MainController {
         let (ctx_tx, ui_rx) = channel();
         let (ui_tx, ctx_rx) = channel();
 
-        self.register_listener(ui_rx, 20, Some(ui_tx));
+        self.keep_going = true;
+        self.register_listener(ui_rx, 13, Some(ui_tx));
+        self.register_tracker(31);
 
         match Context::open_media_path(filepath, ctx_tx, ctx_rx) {
             Ok(ctx) => self.ctx = Some(ctx),
