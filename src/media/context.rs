@@ -1,11 +1,12 @@
 extern crate gstreamer as gst;
-use gstreamer::{BinExt, BinExtManual, ElementExt, ElementFactory, GstObjectExt,
-                PadExt, PadExtManual, TocScope, TocEntryType};
+use gstreamer::{BinExt, BinExtManual, Caps, ElementExt, ElementFactory, GstObjectExt,
+                PadExt, TocScope, TocEntryType};
 
 extern crate gstreamer_audio as gst_audio;
+extern crate gstreamer_app as gst_app;
 
 extern crate glib;
-use glib::{ObjectExt, ToValue};
+use glib::{Cast, ObjectExt, ToValue};
 
 extern crate url;
 use url::Url;
@@ -15,7 +16,9 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
-use super::{AlignedImage, AudioBuffer, AudioInfo, Chapter, MediaInfo, Timestamp};
+use std::i32;
+
+use super::{AlignedImage, AudioBuffer, Chapter, MediaInfo, Timestamp};
 
 pub enum ContextMessage {
     AsyncDone,
@@ -29,7 +32,7 @@ pub enum ContextMessage {
 
 pub struct Context {
     pub pipeline: gst::Pipeline,
-    pub state: gst::State,
+    pub duration: i64,
 
     pub path: PathBuf,
     pub file_name: String,
@@ -48,12 +51,167 @@ macro_rules! assign_str_tag(
     };
 );
 
+macro_rules! build_audio_pipeline(
+    ($pipeline:expr, $src_pad:expr, $buffering_duration:expr, $ctx_tx_arc_mtx:expr) => {
+        let playback_queue = gst::ElementFactory::make("queue", "playback_queue").unwrap();
+        playback_queue.set_property("max-size-time", &gst::Value::from(&$buffering_duration)).unwrap();
 
+        let playback_convert = gst::ElementFactory::make("audioconvert", None).unwrap();
+        let playback_resample = gst::ElementFactory::make("audioresample", None).unwrap();
+        let playback_sink = gst::ElementFactory::make("autoaudiosink", "audio_playback_sink").unwrap();
+        let playback_sink_pad = playback_queue.get_static_pad("sink").unwrap();
+        let playback_elements = &[
+            &playback_queue, &playback_convert, &playback_resample, &playback_sink,
+        ];
+
+        let visu_queue = gst::ElementFactory::make("queue", "visu_queue").unwrap();
+        visu_queue.set_property("max-size-time", &gst::Value::from(&$buffering_duration)).unwrap();
+
+        let visu_convert = gst::ElementFactory::make("audioconvert", None).unwrap();
+        let visu_sink = gst::ElementFactory::make("appsink", "audio_visu_sink").unwrap();
+        let visu_sink_pad = visu_queue.get_static_pad("sink").unwrap();
+
+        {
+            let visu_elements = &[&visu_queue, &visu_convert, &visu_sink];
+            let tee = gst::ElementFactory::make("tee", "audio_tee").unwrap();
+            let mut elements = vec!(&tee);
+            elements.extend_from_slice(playback_elements);
+            elements.extend_from_slice(visu_elements);
+            $pipeline.add_many(elements.as_slice()).unwrap();
+
+            gst::Element::link_many(playback_elements).unwrap();
+            gst::Element::link_many(visu_elements).unwrap();
+
+            let tee_sink = tee.get_static_pad("sink").unwrap();
+            assert_eq!($src_pad.link(&tee_sink), gst::PadLinkReturn::Ok);
+
+            // TODO: requested pads must be released when done
+            let tee_playback_src_pad = tee.get_request_pad("src_%u").unwrap();
+            assert_eq!(tee_playback_src_pad.link(&playback_sink_pad), gst::PadLinkReturn::Ok);
+
+            let tee_visu_src_pad = tee.get_request_pad("src_%u").unwrap();
+            assert_eq!(tee_visu_src_pad.link(&visu_sink_pad), gst::PadLinkReturn::Ok);
+
+            for e in elements { e.sync_state_with_parent().unwrap(); }
+        }
+
+        let appsink = visu_sink.dynamic_cast::<gst_app::AppSink>()
+            .expect("Sink element is expected to be an appsink!");
+        appsink.set_caps(&Caps::new_simple(
+            "audio/x-raw",
+            &[
+                ("format", &gst_audio::AUDIO_FORMAT_S16.to_string()),
+                ("layout", &"interleaved"),
+                ("channels", &(2i32)),
+                ("rate", &gst::IntRange::<i32>::new(1, i32::MAX)),
+            ],
+        ));
+
+        // TODO: make this configurable
+        appsink.set_property("ts-offset", &gst::Value::from(&-2_000_000_000i64)).unwrap();
+
+        // TODO: instead of using channels, wouldn't it be better
+        // if the circ_buffer would be handled from here (in this dedicated
+        // thread, along with the purge process, as an Arc<Mutex<>>
+        // This way, the UI would only have to read it when necessary
+        // The message listener would also not need to poll as frequently
+        // and we would avoid some copies...
+        let ctx_tx_arc_mtx_clone = $ctx_tx_arc_mtx.clone();
+        let ctx_tx_arc_mtx_clone2 = $ctx_tx_arc_mtx.clone();
+        appsink.set_callbacks(gst_app::AppSinkCallbacks::new(
+            /* eos: handled by pipeline */
+            |_| {},
+            /* new_preroll */
+            move |appsink| {
+                let sample = match appsink.pull_preroll() {
+                    Some(sample) => sample,
+                    None => return gst::FlowReturn::Eos,
+                };
+
+                // TODO: handle errors
+                // Note: samples are Sync & Send
+                let audio_buffer = AudioBuffer::from_gst_sample(sample);
+                ctx_tx_arc_mtx_clone.lock()
+                    .expect("Failed to lock ctx_tx mutex, while transmitting audio buffer")
+                    .send(ContextMessage::HaveAudioBuffer(audio_buffer))
+                        .expect("Failed to transmit audio buffer");
+
+                gst::FlowReturn::Ok
+            },
+            /* new_samples */
+            move |appsink| {
+                let sample = match appsink.pull_sample() {
+                    None => return gst::FlowReturn::Eos,
+                    Some(sample) => sample,
+                };
+
+                // TODO: handle errors
+                // Note: samples are Sync & Send
+                let audio_buffer = AudioBuffer::from_gst_sample(sample);
+                ctx_tx_arc_mtx_clone2.lock()
+                    .expect("Failed to lock ctx_tx mutex, while transmitting audio buffer")
+                    .send(ContextMessage::HaveAudioBuffer(audio_buffer))
+                        .expect("Failed to transmit audio buffer");
+
+                gst::FlowReturn::Ok
+            },
+        ));
+    };
+);
+
+macro_rules! build_video_pipeline(
+    ($pipeline:expr, $src_pad:expr, $ctx_tx_arc_mtx:expr, $ui_rx_arc_mtx:expr) => {
+        let queue = gst::ElementFactory::make("queue", None).unwrap();
+        let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
+        let scale = gst::ElementFactory::make("videoscale", None).unwrap();
+
+        let (sink, widget_val) = if let Some(gtkglsink) = ElementFactory::make("gtkglsink", None) {
+            let glsinkbin = ElementFactory::make("glsinkbin", "video_sink").unwrap();
+            glsinkbin.set_property("sink", &gtkglsink.to_value()).unwrap();
+            let widget_val = gtkglsink.get_property("widget").unwrap();
+            (glsinkbin, widget_val)
+        } else {
+            let sink = ElementFactory::make("gtksink", "video_sink").unwrap();
+            let widget_val = sink.get_property("widget").unwrap();
+            (sink, widget_val)
+        };
+
+        // Pass the video widget for integration in the UI
+        $ctx_tx_arc_mtx.lock()
+            .expect("Failed to lock ctx_tx mutex, while building the video queue")
+            .send(ContextMessage::HaveVideoWidget(widget_val))
+                .expect("Failed to transmit GstGtkWidget");
+        // Wait for the widget to get added to the UI, otherwise the pipeline
+        // embeds it in a default window
+        match $ui_rx_arc_mtx.lock()
+            .expect("Failed to lock ui_rx mutex, while building the video queue")
+            .recv() {
+                Ok(message) => match message {
+                    ContextMessage::GotVideoWidget => (),
+                    _ => panic!("Unexpected message while waiting for GotVideoWidget"),
+                },
+                Err(error) => panic!("Error while waiting for GotVideoWidget: {:?}", error),
+            };
+
+        let elements = &[&queue, &convert, &scale, &sink];
+        $pipeline.add_many(elements).unwrap();
+        gst::Element::link_many(elements).unwrap();
+
+        for e in elements { e.sync_state_with_parent().unwrap(); }
+
+        let sink_pad = queue.get_static_pad("sink").unwrap();
+        assert_eq!($src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
+    };
+);
+
+// FIXME: need to `release_request_pad` on the tee
+// maybe this should be done in a `drop`. At least, it
+// should be done before the pipeline is reconstructed
 impl Context {
     fn new(path: PathBuf) -> Self {
         Context{
             pipeline: gst::Pipeline::new("pipeline"),
-            state: gst::State::Null,
+            duration: 0,
 
             file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
             name: String::from(path.file_stem().unwrap().to_str().unwrap()),
@@ -65,17 +223,19 @@ impl Context {
 
     pub fn open_media_path(
         path: PathBuf,
+        buffering_duration: i64,
         ctx_tx: Sender<ContextMessage>,
         ui_rx: Receiver<ContextMessage>,
     ) -> Result<Context, String>
     {
         println!("\n\n* Attempting to open {:?}", path);
 
-        let mut ctx = Context::new(path);
-        ctx.build_pipeline(&ctx_tx, ui_rx);
+        let ctx = Context::new(path);
+        ctx.build_pipeline(buffering_duration, &ctx_tx, ui_rx);
         ctx.register_bus_inspector(ctx_tx);
 
         match ctx.pause() {
+        //match ctx.play() {
             Ok(_) => Ok(ctx),
             Err(error) => Err(error),
         }
@@ -88,36 +248,37 @@ impl Context {
         }
     }
 
-    pub fn get_duration(&self) -> i64 {
-        match self.pipeline.query_duration(gst::Format::Time) {
+    pub fn init_duration(&mut self) {
+        self.duration = match self.pipeline.query_duration(gst::Format::Time) {
             Some(duration) => duration,
             None => 0,
-        }
+        };
     }
 
-    pub fn play_pause(&mut self) -> Result<gst::State, String> {
+    pub fn get_state(&self) -> gst::State {
         let (_, current, _) = self.pipeline.get_state(10_000_000);
-        match current {
+        current
+    }
+
+    pub fn play_pause(&mut self) -> Result<(), String> {
+        match self.get_state() {
             gst::State::Playing => self.pause(),
             _ => self.play(),
         }
     }
 
-    pub fn play(&mut self) -> Result<gst::State, String> {
+    pub fn play(&self) -> Result<(), String> {
         if self.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
             return Err("Could not set media in palying state".into());
         }
-        self.state = gst::State::Playing;
-        Ok(self.state)
+        Ok(())
     }
 
-    pub fn pause(&mut self) -> Result<gst::State, String> {
+    pub fn pause(&self) -> Result<(), String> {
         if self.pipeline.set_state(gst::State::Paused) == gst::StateChangeReturn::Failure {
-            println!("could not set media in Paused state");
             return Err("Could not set media in Paused state".into());
         }
-        self.state = gst::State::Paused;
-        Ok(self.state)
+        Ok(())
     }
 
     pub fn stop(&mut self) {
@@ -125,28 +286,44 @@ impl Context {
             println!("Could not set media in Null state");
             //return Err("could not set media in Null state".into());
         }
-        self.state = gst::State::Null;
     }
 
     // TODO: handle errors
     // Uses ctx_tx & ui_rx to allow the UI integrate the GstGtkWidget
     fn build_pipeline(&self,
+        buffering_duration: i64,
         ctx_tx: &Sender<ContextMessage>,
         ui_rx: Receiver<ContextMessage>
     )
     {
-        let dec = gst::ElementFactory::make("uridecodebin", "input").unwrap();
+        let src = gst::ElementFactory::make("uridecodebin", "input").unwrap();
         let url = match Url::from_file_path(self.path.as_path()) {
             Ok(url) => url.into_string(),
             Err(_) => "Failed to convert path to URL".to_owned(),
         };
-        dec.set_property("uri", &gst::Value::from(&url)).unwrap();
-        self.pipeline.add(&dec).unwrap();
+        src.set_property("uri", &gst::Value::from(&url)).unwrap();
+        src.set_property("buffer-duration", &gst::Value::from(&buffering_duration)).unwrap();
+        // TODO: remove use-buffering because it is supposed to save stream on disk
+        //src.set_property("use-buffering", &gst::Value::from(&true)).unwrap();
+        self.pipeline.add(&src).unwrap();
+
+        match src.get_property("buffer-size") {
+            Ok(value) => println!("\tbuffer-size: {:?}", value),
+            Err(_) => (),
+        };
+        match src.get_property("buffer-duration") {
+            Ok(value) => println!("\tbuffer-duration: {:?}", value),
+            Err(_) => (),
+        };
+        match src.get_property("use-buffering") {
+            Ok(value) => println!("\tuse-buffering: {:?}", value),
+            Err(_) => (),
+        };
 
         let pipeline_clone = self.pipeline.clone();
         let ctx_tx_arc_mtx = Arc::new(Mutex::new(ctx_tx.clone()));
         let ui_rx_arc_mtx = Arc::new(Mutex::new(ui_rx));
-        dec.connect_pad_added(move |_, src_pad| {
+        src.connect_pad_added(move |_, src_pad| {
             let pipeline = &pipeline_clone;
 
             let caps = src_pad.get_current_caps().unwrap();
@@ -155,82 +332,9 @@ impl Context {
 
             // TODO: build only one queue by stream type (audio / video)
             if name.starts_with("audio/") {
-                let queue = gst::ElementFactory::make("queue", None).unwrap();
-                let convert = gst::ElementFactory::make("audioconvert", None).unwrap();
-                let resample = gst::ElementFactory::make("audioresample", None).unwrap();
-                let sink = gst::ElementFactory::make("autoaudiosink", "audio_sink").unwrap();
-
-                let elements = &[&queue, &convert, &resample, &sink];
-                pipeline.add_many(elements).unwrap();
-                gst::Element::link_many(elements).unwrap();
-
-                for e in elements { e.sync_state_with_parent().unwrap(); }
-
-                let sink_pad = queue.get_static_pad("sink").unwrap();
-                assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
-
-                let audio_info_mtx: Mutex<Option<AudioInfo>> = Mutex::new(None);
-                let ctx_tx_arc_mtx_clone = ctx_tx_arc_mtx.clone();
-                sink_pad.add_probe(gst::PAD_PROBE_TYPE_BUFFER, move |sink_pad, probe_info| {
-                    if let Some(gst::PadProbeData::Buffer(ref buffer)) = probe_info.data {
-                        // Retrieve audio info the first time only
-                        let mut audio_info_opt = audio_info_mtx.lock()
-                            .expect("Failed to lock audio info while receiving buffer");
-                        let audio_info = audio_info_opt.get_or_insert_with(||
-                            AudioInfo::from_sink_pad(&sink_pad)
-                        );
-
-                        let audio_buffer = AudioBuffer::from_gst_buffer(audio_info, buffer);
-
-                        ctx_tx_arc_mtx_clone.lock()
-                            .expect("Failed to lock ctx_tx mutex, while transmitting audio buffer")
-                            .send(ContextMessage::HaveAudioBuffer(audio_buffer))
-                                .expect("Failed to transmit audio buffer");
-                    };
-
-                    gst::PadProbeReturn::Ok
-                });
+                build_audio_pipeline!(pipeline, src_pad, buffering_duration as u64, ctx_tx_arc_mtx);
             } else if name.starts_with("video/") {
-                let queue = gst::ElementFactory::make("queue", None).unwrap();
-                let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
-                let scale = gst::ElementFactory::make("videoscale", None).unwrap();
-
-                let (sink, widget_val) = if let Some(gtkglsink) = ElementFactory::make("gtkglsink", None) {
-                    let glsinkbin = ElementFactory::make("glsinkbin", "video_sink").unwrap();
-                    glsinkbin.set_property("sink", &gtkglsink.to_value()).unwrap();
-                    let widget_val = gtkglsink.get_property("widget").unwrap();
-                    (glsinkbin, widget_val)
-                } else {
-                    let sink = ElementFactory::make("gtksink", "video_sink").unwrap();
-                    let widget_val = sink.get_property("widget").unwrap();
-                    (sink, widget_val)
-                };
-
-                // Pass the video widget for integration in the UI
-                ctx_tx_arc_mtx.lock()
-                    .expect("Failed to lock ctx_tx mutex, while building the video queue")
-                    .send(ContextMessage::HaveVideoWidget(widget_val))
-                        .expect("Failed to transmit GstGtkWidget");
-                // Wait for the widget to get added to the UI, otherwise the pipeline
-                // embeds it in a default window
-                match ui_rx_arc_mtx.lock()
-                    .expect("Failed to lock ui_rx mutex, while building the video queue")
-                    .recv() {
-                        Ok(message) => match message {
-                            ContextMessage::GotVideoWidget => (),
-                            _ => panic!("Unexpected message while waiting for GotVideoWidget"),
-                        },
-                        Err(error) => panic!("Error while waiting for GotVideoWidget: {:?}", error),
-                    };
-
-                let elements = &[&queue, &convert, &scale, &sink];
-                pipeline.add_many(elements).unwrap();
-                gst::Element::link_many(elements).unwrap();
-
-                for e in elements { e.sync_state_with_parent().unwrap(); }
-
-                let sink_pad = queue.get_static_pad("sink").unwrap();
-                assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
+                build_video_pipeline!(pipeline, src_pad, ctx_tx_arc_mtx, ui_rx_arc_mtx);
             }
         });
     }
@@ -260,9 +364,9 @@ impl Context {
                 },
                 gst::MessageView::AsyncDone(_) => {
                     if !init_done {
+                        init_done = true;
                         ctx_tx.send(ContextMessage::InitDone)
                             .expect("Failed to notify UI");
-                        init_done = true;
                     }
                     else {
                         ctx_tx.send(ContextMessage::AsyncDone)

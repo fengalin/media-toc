@@ -5,12 +5,14 @@ extern crate cairo;
 
 extern crate gstreamer;
 extern crate gstreamer_audio;
+extern crate gstreamer_app as gst_app;
+
 extern crate glib;
 
 extern crate chrono;
 extern crate url;
 extern crate image;
-extern crate byteorder;
+extern crate byte_slice_cast;
 
 use gtk::Builder;
 

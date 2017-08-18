@@ -93,13 +93,19 @@ impl MainController {
 
     pub fn play_pause(&mut self) {
         match self.ctx {
-            Some(ref mut ctx) => match ctx.play_pause().unwrap() {
-                gst::State::Playing => self.play_pause_btn.set_icon_name("media-playback-pause"),
-                gst::State::Paused => {
-                    self.play_pause_btn.set_icon_name("media-playback-start");
-                    self.audio_ctrl.borrow_mut().force_redraw();
-                },
-                _ => (),
+            Some(ref ctx) => {
+                match ctx.get_state() {
+                    gst::State::Paused => {
+                        self.audio_ctrl.borrow_mut().switching_to_play();
+                        self.play_pause_btn.set_icon_name("media-playback-pause");
+                        ctx.play().unwrap();
+                    }
+                    gst::State::Playing => {
+                        ctx.pause().unwrap();
+                        self.play_pause_btn.set_icon_name("media-playback-start");
+                    },
+                    state => println!("Can't play/pause in state {:?}", state),
+                }
             },
             None => (),
         };
@@ -180,8 +186,10 @@ impl MainController {
                     InitDone => {
                         println!("Received InitDone");
 
-                        let context = this_mut.ctx.take()
+                        let mut context = this_mut.ctx.take()
                             .expect("Received InitDone, but context is not available");
+
+                        context.init_duration();
 
                         this_mut.info_ctrl.new_media(&context);
                         this_mut.video_ctrl.new_media(&context);
@@ -195,8 +203,6 @@ impl MainController {
                     Eos => {
                         println!("Received Eos");
                         this_mut.play_pause_btn.set_icon_name("media-playback-start");
-                        // TODO: seek to the begining
-                        this_mut.keep_going = false;
                     },
                     FailedToOpenMedia => {
                         eprintln!("ERROR: failed to open media");
@@ -249,7 +255,7 @@ impl MainController {
             }
 
             let position = match this_mut.ctx {
-                Some(ref ctx) => if ctx.state == gst::State::Playing {
+                Some(ref ctx) => if ctx.get_state() == gst::State::Playing {
                     let position = Timestamp::from_nano(ctx.get_position());
                     this_mut.position_lbl.set_text(&format!("{}", position));
                     position
@@ -283,10 +289,11 @@ impl MainController {
         let (ui_tx, ctx_rx) = channel();
 
         self.keep_going = true;
-        self.register_listener(ui_rx, 13, Some(ui_tx));
+        self.register_listener(ui_rx, 5, Some(ui_tx));
         self.register_tracker(31);
 
-        match Context::open_media_path(filepath, ctx_tx, ctx_rx) {
+        // TODO: use a constant for buffering duration and share it with AudioController
+        match Context::open_media_path(filepath, 10_000_000_000, ctx_tx, ctx_rx) {
             Ok(ctx) => self.ctx = Some(ctx),
             Err(error) => eprintln!("Error opening media: {}", error),
         };

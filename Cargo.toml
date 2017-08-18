@@ -10,10 +10,12 @@ glib = { git = "https://github.com/gtk-rs/glib.git" }
 chrono = "^0"
 url = "^1"
 image = "^0"
-byteorder = "^1"
+byte-slice-cast = "^0"
 
-#gstreamer = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
-#gstreamer-audio = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
+gstreamer = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
+gstreamer-audio = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
+gstreamer-app = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
 
-gstreamer = { path = "../gstreamer-rs/gstreamer", features = ["v1_10"] }
-gstreamer-audio = { path = "../gstreamer-rs/gstreamer-audio", features = ["v1_10"] }
+#gstreamer = { path = "../gstreamer-rs/gstreamer", features = ["v1_10"] }
+#gstreamer-audio = { path = "../gstreamer-rs/gstreamer-audio", features = ["v1_10"] }
+#gstreamer-app = { path = "../gstreamer-rs/gstreamer-app", features = ["v1_10"] }

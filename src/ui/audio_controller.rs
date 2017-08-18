@@ -29,10 +29,8 @@ pub struct AudioController {
     has_received_last_buffer: bool,
 
     ts_relative_pos: u64,
-    sample_skip_step: u64,
-    sample_per_step: u64,
-    iter_since_adjust: usize,
-    min_iter_before_adjust: usize,
+    sample_per_pixel: u64,
+    skip_next_buffer: bool,
 }
 
 impl AudioController {
@@ -52,10 +50,8 @@ impl AudioController {
             has_received_last_buffer: false,
 
             ts_relative_pos: 0,
-            sample_skip_step: 0,
-            sample_per_step: 0,
-            iter_since_adjust: 0,
-            min_iter_before_adjust: 5,
+            sample_per_pixel: 0,
+            skip_next_buffer: false,
         }));
 
         {
@@ -75,11 +71,12 @@ impl AudioController {
     pub fn clear(&mut self) {
         self.sample_buffer.clear();
         self.stream_initialized = false;
+        self.skip_next_buffer = false;
     }
 
     pub fn new_media(&mut self, ctx: &Context) {
         if !self.sample_buffer.is_empty() {
-            let duration = ctx.get_duration();
+            let duration = ctx.duration;
             if duration.is_negative() {
                 panic!("Audio controller found a negative stream duration");
             }
@@ -99,6 +96,11 @@ impl AudioController {
     }
 
     pub fn have_buffer(&mut self, mut buffer: AudioBuffer) {
+        if self.skip_next_buffer {
+            self.skip_next_buffer = false;
+            return;
+        }
+
         // assume the buffers come in order
         if self.sample_buffer.is_empty() {
             self.ts_offset = 0;
@@ -107,10 +109,7 @@ impl AudioController {
             self.has_received_last_buffer = false;
 
             self.ts_relative_pos = 0;
-            self.sample_skip_step = 1;
-            self.sample_per_step = 1;
-            self.iter_since_adjust = 0;
-
+            self.sample_per_pixel = 1;
             self.sample_duration = buffer.sample_duration;
         }
 
@@ -130,11 +129,11 @@ impl AudioController {
         { // buffer larger than 10s and current pos is sufficient to:
             // remove 2s worse of samples
             // can't purge big chunks otherwise it impacts drawing
-            // need to comply with current sample_per_step in order to
-            // avoid discontinuities during waveform rendering
+            // And need to comply with self.sample_per_pixel in order
+            // to avoid discontinuity between redraw
             let sample_nb_to_remove =
-                (2_000_000_000 / self.sample_duration / self.sample_per_step)
-                * self.sample_per_step;
+                (2_000_000_000 / self.sample_duration / self.sample_per_pixel)
+                * self.sample_per_pixel;
             self.sample_buffer.drain(..(sample_nb_to_remove as usize));
 
             let duration_removed = sample_nb_to_remove * self.sample_duration;
@@ -161,10 +160,8 @@ impl AudioController {
         }
     }
 
-    pub fn force_redraw(&mut self) {
-        self.sample_skip_step = 1;
-        self.iter_since_adjust = 0;
-        self.drawingarea.queue_draw();
+    pub fn switching_to_play(&mut self) {
+        self.skip_next_buffer = true;
     }
 
     fn draw(&mut self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) -> Inhibit {
@@ -183,7 +180,7 @@ impl AudioController {
 
         let display_duration = self.buffer_duration.min(display_window_duration);
         let half_duration = display_duration / 2;
-        let quarter_duration = half_duration / 2;
+        //let quarter_duration = half_duration / 2;
         //let three_quarter_duration = quarter_duration + half_duration;
         let diplay_sample_nb = display_duration / self.sample_duration;
 
@@ -191,56 +188,37 @@ impl AudioController {
         cr.scale((width / 2) as f64, (allocation.height / 2) as f64);
         cr.set_line_width(0.0015f64);
 
-        // Take this opportunity to adjust sample skip step in order
-        // to accomodate to computation requirements
-        self.iter_since_adjust += 1;
-        let first_display_pos = if
-            !self.has_received_last_buffer && self.ts_relative_pos > self.buffer_duration
-        {
-            self.sample_skip_step += 1;
-            self.iter_since_adjust = 0;
-            self.buffer_duration - display_duration
-        } else if self.ts_relative_pos > self.buffer_duration - half_duration {
-            if !self.has_received_last_buffer && self.iter_since_adjust > self.min_iter_before_adjust
-                && self.ts_relative_pos > self.buffer_duration - quarter_duration
-            {
-                self.sample_skip_step += 1;
-                self.iter_since_adjust = 0;
-            }
-            self.buffer_duration - display_duration
-        } else if self.ts_relative_pos > half_duration {
-            // FIXME: need a real algorithm to stabilize
-            /*if self.iter_since_adjust > self.min_iter_before_adjust
-                && self.sample_skip_step > 1 && self.relative_pos < self.buffer_duration - three_quarter_duration
-            {
-                self.sample_skip_step -= 1;
-                self.iter_since_adjust = 0;
-                self.min_iter_before_adjust *= 2;
-            }*/
-            self.ts_relative_pos - half_duration
-        } else {
-            0
-        };
+        let first_display_pos =
+            if self.ts_relative_pos > self.buffer_duration - half_duration {
+                self.buffer_duration - display_duration
+            } else if self.ts_relative_pos > half_duration {
+                self.ts_relative_pos - half_duration
+            } else {
+                0
+            };
 
-        self.sample_per_step = if diplay_window_sample_nb > width / self.sample_skip_step {
-            diplay_window_sample_nb / width * self.sample_skip_step
-        } else {
-            1
-        };
+        self.sample_per_pixel =
+            if diplay_window_sample_nb > width {
+                diplay_window_sample_nb / width
+            } else {
+                1
+            };
 
-        // Define the first sample as a multiple of self.sample_per_step
+        // Define the first sample as a multiple of sample_per_pixel
         // In order to avoid flickering when origin shifts between redraws
-        let first_sample = (
-            (first_display_pos / self.sample_duration / self.sample_per_step)
-            * self.sample_per_step
+        let first_sample =
+        (
+            (first_display_pos / self.sample_duration / self.sample_per_pixel)
+            * self.sample_per_pixel
         ) as usize;
+
         let last_sample = first_sample + diplay_sample_nb as usize;
-        let sample_step = self.sample_per_step as usize;
+        let sample_step = self.sample_per_pixel as usize;
 
         cr.set_source_rgb(0.8f64, 0.8f64, 0.8f64);
 
         let mut sample_relative_ts = 0f64;
-        let duration_step = (self.sample_per_step * self.sample_duration) as f64
+        let duration_step = (self.sample_per_pixel * self.sample_duration) as f64
             / 1_000_000_000f64;
 
         let mut sample_idx = first_sample;

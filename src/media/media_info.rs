@@ -8,6 +8,7 @@ pub struct MediaInfo {
     pub artist: String,
     pub title: String,
     pub description: String,
+    pub duration: i64,
     pub chapters: Vec<Chapter>,
 
     pub thumbnail: Option<AlignedImage>,
@@ -29,6 +30,7 @@ impl MediaInfo {
             artist: String::new(),
             title: String::new(),
             description: String::new(),
+            duration: 0i64,
             chapters: Vec::new(),
 
             container: String::new(),

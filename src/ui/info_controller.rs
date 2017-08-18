@@ -112,7 +112,7 @@ impl InfoController {
 
         self.title_lbl.set_label(&info.title);
         self.artist_lbl.set_label(&info.artist);
-        // Fix container for mp3 audio files
+        // Fix container for mp3 audio files TODO: move this to MediaInfo
         let container = if info.video_codec.is_empty()
             && info.audio_codec.to_lowercase().find("mp3").is_some()
         {
@@ -129,7 +129,7 @@ impl InfoController {
             if !info.video_codec.is_empty() { &info.video_codec } else { "-" }
         );
         self.duration_lbl.set_label(
-            &format!("{}", Timestamp::from_nano(ctx.get_duration()))
+            &format!("{}", Timestamp::from_nano(ctx.duration))
         );
 
         if has_image {
