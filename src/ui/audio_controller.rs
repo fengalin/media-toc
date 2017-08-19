@@ -131,16 +131,20 @@ impl AudioController {
 
             let pixel_duration = sample_per_pixel * audio_buffer.sample_duration;
 
-            let display_duration = audio_buffer.duration.min(display_window_duration);
-            let half_duration = display_duration / 2;
-
-            let first_display_pos =
-                if self.position > audio_buffer.last_pts - half_duration {
-                    audio_buffer.last_pts - display_duration
-                } else if self.position > audio_buffer.first_pts + half_duration {
-                    self.position - half_duration
+            let (first_display_pos, display_duration) =
+                if audio_buffer.duration < display_window_duration {
+                    (0, audio_buffer.duration)
                 } else {
-                    0
+                    let half_duration = display_window_duration / 2;
+                    let first_display_pos =
+                        if self.position > audio_buffer.last_pts - half_duration {
+                            audio_buffer.last_pts - display_window_duration
+                        } else if self.position > audio_buffer.first_pts + half_duration {
+                            self.position - half_duration
+                        } else {
+                            0
+                        };
+                    (first_display_pos, display_window_duration)
                 };
 
             // align first display pos as a multiple of pixel duration
