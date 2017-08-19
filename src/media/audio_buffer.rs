@@ -101,9 +101,9 @@ impl AudioBuffer {
             .expect("Couldn't get audio samples as i16");
 
         if self.samples.len() + incoming_samples.len() > self.capacity
-            && self.current_pts_relative > 2_000_000_000
+            && self.current_pts_relative > 2 * self.drain_duration
         {   // buffer will reach capacity => drain a chunk of samples
-            // only if we have 2 sec worse of samples in history
+            // only if we have samples in history
             self.samples.drain(..self.drain_size);
             self.first_sample_offset += self.drain_size;
             self.first_pts += self.drain_duration;
