@@ -5,12 +5,10 @@ use gtk::{Inhibit, WidgetExt};
 
 extern crate cairo;
 
-use std::iter::FromIterator;
-
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use std::collections::vec_deque::{VecDeque};
+use std::sync::{Arc, Mutex};
 
 use ::media::{Context, AudioBuffer};
 
@@ -18,19 +16,9 @@ pub struct AudioController {
     container: gtk::Container,
     drawingarea: gtk::DrawingArea,
 
-    stream_duration: u64,
-    sample_duration: u64,
-    stream_initialized: bool,
-
-    sample_buffer: VecDeque<f64>,
-    ts_offset: u64,
-    ts_relative_offset: u64,
-    buffer_duration: u64,
-    has_received_last_buffer: bool,
-
-    ts_relative_pos: u64,
-    sample_per_pixel: u64,
-    skip_next_buffer: bool,
+    audio_buffer: Arc<Mutex<AudioBuffer>>,
+    can_draw: bool,
+    position: u64,
 }
 
 impl AudioController {
@@ -39,19 +27,9 @@ impl AudioController {
             container: builder.get_object("audio-container").unwrap(),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
 
-            stream_duration: 0,
-            sample_duration: 0,
-            stream_initialized: false,
-
-            sample_buffer: VecDeque::with_capacity(12 * 48_000), // 12s @ 48kHz
-            ts_offset: 0,
-            ts_relative_offset: 0,
-            buffer_duration: 0,
-            has_received_last_buffer: false,
-
-            ts_relative_pos: 0,
-            sample_per_pixel: 0,
-            skip_next_buffer: false,
+            audio_buffer: Arc::new(Mutex::new(AudioBuffer::new())),
+            can_draw: false,
+            position: 0,
         }));
 
         {
@@ -68,25 +46,33 @@ impl AudioController {
         this
     }
 
-    pub fn clear(&mut self) {
-        self.sample_buffer.clear();
-        self.stream_initialized = false;
-        self.skip_next_buffer = false;
+    pub fn cleanup(&mut self) {
+        self.can_draw = false;
+        self.position = 0;
     }
 
     pub fn new_media(&mut self, ctx: &Context) {
-        if !self.sample_buffer.is_empty() {
-            let duration = ctx.duration;
-            if duration.is_negative() {
-                panic!("Audio controller found a negative stream duration");
-            }
-            self.stream_duration = duration as u64;
+        let has_audio = {
+            let ctx_info = ctx.info.lock()
+                .expect("Failed to lock media info while initializing audio controller");
+            ctx_info.audio_best.is_some()
+        };
+
+        if has_audio {
             let position = ctx.get_position();
             if position.is_negative() {
                 panic!("Audio controller found a negative initial position");
             }
-            self.ts_offset = position as u64;
-            self.stream_initialized = true;
+            self.position = position as u64;
+
+            self.audio_buffer = ctx.audio_buffer.clone();
+            {
+                let audio_buffer = &mut self.audio_buffer.lock()
+                    .expect("Failed to lock audio buffer while initializing audio controller");
+                audio_buffer.set_first_pts(self.position);
+            }
+
+            self.can_draw = true;
             self.drawingarea.queue_draw();
             self.container.show();
         }
@@ -95,77 +81,21 @@ impl AudioController {
         }
     }
 
-    pub fn have_buffer(&mut self, mut buffer: AudioBuffer) {
-        if self.skip_next_buffer {
-            self.skip_next_buffer = false;
-            return;
-        }
-
-        // assume the buffers come in order
-        if self.sample_buffer.is_empty() {
-            self.ts_offset = 0;
-            self.ts_relative_offset = 0;
-            self.buffer_duration = 0;
-            self.has_received_last_buffer = false;
-
-            self.ts_relative_pos = 0;
-            self.sample_per_pixel = 1;
-            self.sample_duration = buffer.sample_duration;
-        }
-
-        if buffer.pts < self.ts_offset {
-            panic!("Received unordered buffers");
-        }
-
-        let mut samples_vecdeque = VecDeque::from_iter(buffer.samples.drain(..));
-        self.sample_buffer.append(&mut samples_vecdeque);
-
-        self.buffer_duration = self.sample_buffer.len() as u64 * self.sample_duration;
-        self.has_received_last_buffer = self.stream_initialized
-            && self.ts_relative_offset + self.buffer_duration >= self.stream_duration;
-
-        if !self.has_received_last_buffer && self.buffer_duration > 10_000_000_000
-            && self.ts_relative_pos > 3_000_000_000
-        { // buffer larger than 10s and current pos is sufficient to:
-            // remove 2s worse of samples
-            // can't purge big chunks otherwise it impacts drawing
-            // And need to comply with self.sample_per_pixel in order
-            // to avoid discontinuity between redraw
-            let sample_nb_to_remove =
-                (2_000_000_000 / self.sample_duration / self.sample_per_pixel)
-                * self.sample_per_pixel;
-            self.sample_buffer.drain(..(sample_nb_to_remove as usize));
-
-            let duration_removed = sample_nb_to_remove * self.sample_duration;
-            self.buffer_duration -= duration_removed;
-            self.ts_offset += duration_removed;
-            self.ts_relative_offset += duration_removed;
-            self.ts_relative_pos -= duration_removed;
-            //println!("buffer duration: {}", self.buffer_duration);
-        }
-    }
-
     pub fn have_position(&mut self, position: i64) {
         if position.is_negative() {
             panic!("Audio controller received a negative position");
         }
-        if (position as u64) < self.ts_offset {
-            panic!("Audio controller received a position earlier than first offset position: {}, offset {}", position, self.ts_offset);
-        }
-        let ts_relative_pos = position as u64 - self.ts_offset;
 
-        if self.ts_relative_pos != ts_relative_pos {
-            self.ts_relative_pos = ts_relative_pos;
+        let position = position as u64;
+
+        if self.position != position {
+            self.position = position;
             self.drawingarea.queue_draw();
         }
     }
 
-    pub fn switching_to_play(&mut self) {
-        self.skip_next_buffer = true;
-    }
-
     fn draw(&mut self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) -> Inhibit {
-        if self.sample_buffer.is_empty() {
+        if !self.can_draw {
             return Inhibit(false);
         }
         let allocation = drawing_area.get_allocation();
@@ -176,67 +106,82 @@ impl AudioController {
         let width = width as u64;
 
         let display_window_duration = 2_000_000_000; // 2s TODO: adapt according to zoom
-        let diplay_window_sample_nb = display_window_duration / self.sample_duration;
-
-        let display_duration = self.buffer_duration.min(display_window_duration);
-        let half_duration = display_duration / 2;
-        //let quarter_duration = half_duration / 2;
-        //let three_quarter_duration = quarter_duration + half_duration;
-        let diplay_sample_nb = display_duration / self.sample_duration;
 
         // TODO: make width and height adapt to zoom
         cr.scale((width / 2) as f64, (allocation.height / 2) as f64);
         cr.set_line_width(0.0015f64);
-
-        let first_display_pos =
-            if self.ts_relative_pos > self.buffer_duration - half_duration {
-                self.buffer_duration - display_duration
-            } else if self.ts_relative_pos > half_duration {
-                self.ts_relative_pos - half_duration
-            } else {
-                0
-            };
-
-        self.sample_per_pixel =
-            if diplay_window_sample_nb > width {
-                diplay_window_sample_nb / width
-            } else {
-                1
-            };
-
-        // Define the first sample as a multiple of sample_per_pixel
-        // In order to avoid flickering when origin shifts between redraws
-        let first_sample =
-        (
-            (first_display_pos / self.sample_duration / self.sample_per_pixel)
-            * self.sample_per_pixel
-        ) as usize;
-
-        let last_sample = first_sample + diplay_sample_nb as usize;
-        let sample_step = self.sample_per_pixel as usize;
-
         cr.set_source_rgb(0.8f64, 0.8f64, 0.8f64);
 
-        let mut sample_relative_ts = 0f64;
-        let duration_step = (self.sample_per_pixel * self.sample_duration) as f64
-            / 1_000_000_000f64;
+        let first_display_pos = {
+            let audio_buffer = &mut self.audio_buffer.lock()
+                .expect("Couldn't lock audio buffer in audio controller draw");
+            audio_buffer.set_pts(self.position);
 
-        let mut sample_idx = first_sample;
+            if audio_buffer.duration == 0 {
+                return Inhibit(false);
+            }
 
-        cr.move_to(sample_relative_ts, self.sample_buffer[sample_idx]);
-        sample_relative_ts += duration_step;
-        sample_idx += sample_step;
+            let diplay_window_sample_nb = display_window_duration / audio_buffer.sample_duration;
+            let sample_per_pixel =
+                if diplay_window_sample_nb > width {
+                    diplay_window_sample_nb / width
+                } else {
+                    1
+                };
 
-        while sample_idx < last_sample {
-            cr.line_to(sample_relative_ts, self.sample_buffer[sample_idx]);
-            sample_relative_ts += duration_step;
+            let pixel_duration = sample_per_pixel * audio_buffer.sample_duration;
+
+            let display_duration = audio_buffer.duration.min(display_window_duration);
+            let half_duration = display_duration / 2;
+
+            let first_display_pos =
+                if self.position > audio_buffer.last_pts - half_duration {
+                    audio_buffer.last_pts - display_duration
+                } else if self.position > audio_buffer.first_pts + half_duration {
+                    self.position - half_duration
+                } else {
+                    0
+                };
+
+            // align first display pos as a multiple of pixel duration
+            // in order to avoid discontinuities when origin shifts between redraws
+            let aligned_first_display_pos = (first_display_pos / pixel_duration) * pixel_duration;
+
+            let first_sample =
+                (aligned_first_display_pos / audio_buffer.sample_duration) as usize
+                - audio_buffer.first_sample_offset;
+
+            let sample_step = sample_per_pixel as usize;
+            let last_sample =
+                first_sample
+                + (display_duration / audio_buffer.sample_duration) as usize
+                + sample_step; // add one step to compensate the offset due to aligned_first_display_pos
+            let last_sample = last_sample.min(audio_buffer.samples.len());
+
+            let mut relative_pts =
+                (0f64 - ((first_display_pos - aligned_first_display_pos) as f64))
+                 / 1_000_000_000f64;
+            let duration_step = pixel_duration as f64 / 1_000_000_000f64;
+
+            let mut sample_idx = first_sample;
+
+            cr.move_to(relative_pts, audio_buffer.samples[sample_idx]);
+            relative_pts += duration_step;
             sample_idx += sample_step;
-        }
+
+            while sample_idx < last_sample {
+                cr.line_to(relative_pts, audio_buffer.samples[sample_idx]);
+                relative_pts += duration_step;
+                sample_idx += sample_step;
+            }
+
+            first_display_pos
+        };
 
         cr.stroke();
 
         // draw current pos
-        let x = (self.ts_relative_pos - first_display_pos) as f64 / 1_000_000_000f64;
+        let x = (self.position - first_display_pos) as f64 / 1_000_000_000f64;
         cr.set_source_rgb(1f64, 1f64, 0f64);
         cr.set_line_width(0.004f64);
         cr.move_to(x, 0f64);

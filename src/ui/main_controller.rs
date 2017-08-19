@@ -7,7 +7,7 @@ use std::cell::RefCell;
 
 use std::path::PathBuf;
 
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{channel, Receiver};
 
 use gtk::prelude::*;
 use gtk::{ApplicationWindow, Button, FileChooserAction, FileChooserDialog,
@@ -32,8 +32,6 @@ pub struct MainController {
     self_weak: Option<Weak<RefCell<MainController>>>,
     keep_going: bool,
     listener_src: Option<glib::SourceId>,
-    listener_calls: usize,
-    listener_usefull_calls: usize,
     tracker_src: Option<glib::SourceId>,
 }
 
@@ -51,8 +49,6 @@ impl MainController {
             self_weak: None,
             keep_going: true,
             listener_src: None,
-            listener_calls: 0,
-            listener_usefull_calls: 0,
             tracker_src: None,
         }));
 
@@ -96,7 +92,6 @@ impl MainController {
             Some(ref ctx) => {
                 match ctx.get_state() {
                     gst::State::Paused => {
-                        self.audio_ctrl.borrow_mut().switching_to_play();
                         self.play_pause_btn.set_icon_name("media-playback-pause");
                         ctx.play().unwrap();
                     }
@@ -114,14 +109,6 @@ impl MainController {
     pub fn stop(&mut self) {
         if let Some(context) = self.ctx.as_mut() {
             context.stop();
-
-            println!("Listener usefull calls: {} / {} ({}%)",
-                self.listener_calls, self.listener_usefull_calls,
-                100 * self.listener_usefull_calls / self.listener_calls,
-            );
-
-            self.listener_calls = 0;
-            self.listener_usefull_calls = 0;
 
             // remove callbacks in order to avoid conflict on borrowing of self
             if let Some(source_id) = self.listener_src {
@@ -158,9 +145,8 @@ impl MainController {
     }
 
     fn register_listener(&mut self,
-        ui_rx: Receiver<ContextMessage>,
         timeout: u32,
-        ui_tx_opt: Option<Sender<ContextMessage>>,
+        ui_rx: Receiver<ContextMessage>,
     )
     {
         let this_weak = self.self_weak.as_ref()
@@ -173,12 +159,8 @@ impl MainController {
             let this = this_weak.upgrade()
                 .expect("Main controller is no longer available for ctx channel listener");
             let mut this_mut = this.borrow_mut();
-            this_mut.listener_calls += 1;
 
-            let mut was_usefull = false;
             for message in message_iter.next() {
-                was_usefull = true;
-
                 match message {
                     AsyncDone => {
                         println!("Received AsyncDone");
@@ -186,10 +168,8 @@ impl MainController {
                     InitDone => {
                         println!("Received InitDone");
 
-                        let mut context = this_mut.ctx.take()
+                        let context = this_mut.ctx.take()
                             .expect("Received InitDone, but context is not available");
-
-                        context.init_duration();
 
                         this_mut.info_ctrl.new_media(&context);
                         this_mut.video_ctrl.new_media(&context);
@@ -209,28 +189,9 @@ impl MainController {
                         this_mut.ctx = None;
                         this_mut.keep_going = false;
                     },
-                    HaveAudioBuffer(audio_buffer) => {
-                        this_mut.audio_ctrl.borrow_mut().have_buffer(audio_buffer);
-                    },
-                    HaveVideoWidget(video_widget) => {
-                        //println!("Received HaveVideoWidget");
-                        let ui_tx = ui_tx_opt.as_ref()
-                            .expect("Received HaveVideoWidget, but no ui_tx is defined");
-                        this_mut.video_ctrl.have_widget(video_widget);
-                        ui_tx.send(GotVideoWidget)
-                            .expect("Failed to send GotVideoWidget to context");
-                    },
-                    _ => {
-                        eprintln!("Received an unexpected message => will quit listner");
-                        this_mut.keep_going = false;
-                    },
                 };
 
                 if !this_mut.keep_going { break; }
-            }
-
-            if was_usefull {
-                this_mut.listener_usefull_calls += 1;
             }
 
             if !this_mut.keep_going {
@@ -282,18 +243,24 @@ impl MainController {
     fn open_media(&mut self, filepath: PathBuf) {
         assert_eq!(self.listener_src, None);
 
-        self.audio_ctrl.borrow_mut().clear();
+        self.audio_ctrl.borrow_mut().cleanup();
+        self.video_ctrl.cleanup();
+
         self.position_lbl.set_text("00:00.000");
 
         let (ctx_tx, ui_rx) = channel();
-        let (ui_tx, ctx_rx) = channel();
 
         self.keep_going = true;
-        self.register_listener(ui_rx, 5, Some(ui_tx));
-        self.register_tracker(31);
+        self.register_listener(500, ui_rx);
+        self.register_tracker(33); // 30 Hz
 
-        // TODO: use a constant for buffering duration and share it with AudioController
-        match Context::open_media_path(filepath, 10_000_000_000, ctx_tx, ctx_rx) {
+        match Context::open_media_path(
+                filepath,
+                10_000_000_000,
+                self.video_ctrl.video_box.clone(),
+                ctx_tx
+            )
+            {
             Ok(ctx) => self.ctx = Some(ctx),
             Err(error) => eprintln!("Error opening media: {}", error),
         };

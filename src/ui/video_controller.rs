@@ -2,17 +2,14 @@ extern crate cairo;
 
 extern crate glib;
 
-extern crate gstreamer as gst;
-use gstreamer::{BinExt, ElementExt, PadExt};
-
 extern crate gtk;
-use gtk::{BoxExt, ContainerExt, WidgetExt};
+use gtk::{ContainerExt, WidgetExt};
 
 use ::media::Context;
 
 pub struct VideoController {
     container: gtk::Container,
-    video_box: gtk::Box,
+    pub video_box: gtk::Box,
 }
 
 impl VideoController {
@@ -23,24 +20,21 @@ impl VideoController {
         }
     }
 
-    pub fn have_widget(&self, widget_val: glib::Value) {
+    pub fn cleanup(&self) {
         for child in self.video_box.get_children() {
             self.video_box.remove(&child);
         }
-
-        let widget = widget_val.get::<gtk::Widget>()
-            .expect("Failed to get GstGtkWidget glib::Value as gtk::Widget");
-        self.video_box.pack_start(&widget, true, true, 0);
-        self.video_box.show_all();
     }
 
     pub fn new_media(&mut self, ctx: &Context) {
-        // TODO: test info in order to avoid checking pipeline directly
-        if let Some(video_sink) = ctx.pipeline.get_by_name("video_sink") {
-            println!("\nVideo sink caps:");
-            for cap in video_sink.get_static_pad("sink").unwrap().get_current_caps().unwrap().iter() {
-                println!("\t{:?}", cap);
-            }
+        let has_video = {
+            let ctx_info = &ctx.info.lock()
+                .expect("Failed to lock media info while initializing video controller");
+            ctx_info.video_best.is_some()
+        };
+
+        if has_video {
+            self.video_box.show_all();
             self.container.show();
         }
         else {
