@@ -26,7 +26,6 @@ At the moment, **Media-TOC** can:
 - Display the audio wave form.
 - Display chapters' data.
 - Play the media, draw the video, the audio waveform and play the audio.
-- Adapt the waveform drawing precision in order to keep up with the playback.
 
 ## <a name='ui'></a>Screenshots
 ![Media-TOC UI Video](assets/media-toc_video.png)
