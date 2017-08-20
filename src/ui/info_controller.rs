@@ -97,8 +97,10 @@ impl InfoController {
         self.chapter_treeview.append_column(&col);
     }
 
-    pub fn new_media(&mut self, ctx: &Context) {
-        let mut info = ctx.info.lock()
+    pub fn new_media(&mut self, context_rc: &Rc<RefCell<Context>>) {
+        let context = context_rc.borrow();
+
+        let mut info = context.info.lock()
             .expect("Failed to lock media info in InfoController");
 
         let mut has_image = false;
@@ -129,7 +131,7 @@ impl InfoController {
             if !info.video_codec.is_empty() { &info.video_codec } else { "-" }
         );
         self.duration_lbl.set_label(
-            &format!("{}", Timestamp::from_nano(ctx.get_duration()))
+            &format!("{}", Timestamp::from_nano(context.get_duration()))
         );
 
         if has_image {

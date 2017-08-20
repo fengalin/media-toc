@@ -15,16 +15,6 @@ pub struct Timestamp {
 }
 
 impl Timestamp {
-    pub fn new() -> Self {
-        Timestamp {
-            nano: 0,
-            date: NaiveDateTime::from_timestamp(0, 0),
-            time: NaiveTime::from_num_seconds_from_midnight(0, 0),
-            is_date: false,
-            is_positive: true,
-        }
-    }
-
     pub fn from_nano(nano: i64) -> Self {
         let sec = nano / 1_000_000_000;
         let nano_rem = nano - sec * 1_000_000_000;

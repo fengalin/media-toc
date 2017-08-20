@@ -88,8 +88,11 @@ impl AudioBuffer {
     }
 
     pub fn set_pts(&mut self, pts: u64) {
-        self.current_pts = pts;
-        self.current_pts_relative = pts - self.first_pts;
+        if pts > self.first_pts {
+            self.current_pts = pts;
+            self.current_pts_relative = pts - self.first_pts;
+        }
+        // FIXME: else?
     }
 
     pub fn push_gst_sample(&mut self, sample: gst::Sample) {

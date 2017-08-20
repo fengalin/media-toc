@@ -1,9 +1,8 @@
-extern crate cairo;
-
-extern crate glib;
-
 extern crate gtk;
-use gtk::{ContainerExt, WidgetExt};
+use gtk::WidgetExt;
+
+use std::rc::Rc;
+use std::cell::RefCell;
 
 use ::media::Context;
 
@@ -20,17 +19,13 @@ impl VideoController {
         }
     }
 
-    pub fn cleanup(&self) {
-        for child in self.video_box.get_children() {
-            self.video_box.remove(&child);
-        }
-    }
+    pub fn new_media(&mut self, context_rc: &Rc<RefCell<Context>>) {
+        let context = context_rc.borrow();
 
-    pub fn new_media(&mut self, ctx: &Context) {
         let has_video = {
-            let ctx_info = &ctx.info.lock()
+            let info = context.info.lock()
                 .expect("Failed to lock media info while initializing video controller");
-            ctx_info.video_best.is_some()
+            info.video_best.is_some()
         };
 
         if has_video {

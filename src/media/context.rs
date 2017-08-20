@@ -9,7 +9,7 @@ extern crate glib;
 use glib::{Cast, ObjectExt, ToValue};
 
 extern crate gtk;
-use gtk::BoxExt;
+use gtk::{BoxExt, ContainerExt};
 
 extern crate url;
 use url::Url;
@@ -175,6 +175,10 @@ impl Context {
             (sink, widget_val)
         };
 
+        // cleanups the box
+        for child in video_widget_box.get_children() {
+            video_widget_box.remove(&child);
+        }
         // Embed the video widget in the UI container
         let widget = widget_val.get::<gtk::Widget>()
             .expect("Failed to get GstGtkWidget glib::Value as gtk::Widget");
@@ -246,7 +250,7 @@ impl Context {
         Ok(())
     }
 
-    pub fn stop(&mut self) {
+    pub fn stop(&self) {
         if self.pipeline.set_state(gst::State::Null) == gst::StateChangeReturn::Failure {
             println!("Could not set media in Null state");
             //return Err("could not set media in Null state".into());

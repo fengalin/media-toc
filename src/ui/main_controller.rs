@@ -27,7 +27,8 @@ pub struct MainController {
     video_ctrl: VideoController,
     audio_ctrl: Rc<RefCell<AudioController>>,
 
-    ctx: Option<Context>,
+    context: Option<Rc<RefCell<Context>>>,
+    last_position: i64,
 
     self_weak: Option<Weak<RefCell<MainController>>>,
     keep_going: bool,
@@ -45,7 +46,8 @@ impl MainController {
             info_ctrl: InfoController::new(&builder),
             video_ctrl: VideoController::new(&builder),
             audio_ctrl: AudioController::new(&builder),
-            ctx: None,
+            context: None,
+            last_position: 0,
             self_weak: None,
             keep_going: true,
             listener_src: None,
@@ -88,15 +90,16 @@ impl MainController {
     }
 
     pub fn play_pause(&mut self) {
-        match self.ctx {
-            Some(ref ctx) => {
-                match ctx.get_state() {
+        match self.context.as_ref() {
+            Some(context_rc) => {
+                let context = context_rc.borrow();
+                match context.get_state() {
                     gst::State::Paused => {
+                        context.play().unwrap();
                         self.play_pause_btn.set_icon_name("media-playback-pause");
-                        ctx.play().unwrap();
                     }
                     gst::State::Playing => {
-                        ctx.pause().unwrap();
+                        context.pause().unwrap();
                         self.play_pause_btn.set_icon_name("media-playback-start");
                     },
                     state => println!("Can't play/pause in state {:?}", state),
@@ -107,8 +110,8 @@ impl MainController {
     }
 
     pub fn stop(&mut self) {
-        if let Some(context) = self.ctx.as_mut() {
-            context.stop();
+        if let Some(context_rc) = self.context.as_ref() {
+            context_rc.borrow().stop();
 
             // remove callbacks in order to avoid conflict on borrowing of self
             if let Some(source_id) = self.listener_src {
@@ -119,6 +122,8 @@ impl MainController {
                 glib::source_remove(source_id);
             }
             self.tracker_src = None;
+
+            self.audio_ctrl.borrow_mut().cleanup();
         }
         self.play_pause_btn.set_icon_name("media-playback-start");
     }
@@ -168,17 +173,17 @@ impl MainController {
                     InitDone => {
                         println!("Received InitDone");
 
-                        let context = this_mut.ctx.take()
-                            .expect("Received InitDone, but context is not available");
+                        let context_rc = this_mut.context.as_ref()
+                            .expect("... but no context available")
+                            .clone();
 
-                        this_mut.info_ctrl.new_media(&context);
-                        this_mut.video_ctrl.new_media(&context);
-                        this_mut.audio_ctrl.borrow_mut().new_media(&context);
-                        {
-                            this_mut.header_bar.set_subtitle(Some(context.file_name.as_str()));
-                        }
+                        this_mut.info_ctrl.new_media(&context_rc);
+                        this_mut.video_ctrl.new_media(&context_rc);
+                        this_mut.audio_ctrl.borrow_mut().new_media(&context_rc);
 
-                        this_mut.ctx = Some(context);
+                        this_mut.header_bar.set_subtitle(
+                            Some(context_rc.borrow().file_name.as_str())
+                        );
                     },
                     Eos => {
                         println!("Received Eos");
@@ -186,7 +191,7 @@ impl MainController {
                     },
                     FailedToOpenMedia => {
                         eprintln!("ERROR: failed to open media");
-                        this_mut.ctx = None;
+                        this_mut.context = None;
                         this_mut.keep_going = false;
                     },
                 };
@@ -212,26 +217,22 @@ impl MainController {
             let this = this_weak.upgrade()
                 .expect("Main controller is no longer available for tracker");
             let mut this_mut = this.borrow_mut();
-            if !this_mut.keep_going {
-            }
+            if this_mut.keep_going {
+                let context_rc = this_mut.context.as_ref()
+                    .expect("Tracking... but no context available")
+                    .clone();
 
-            let position = match this_mut.ctx {
-                Some(ref ctx) => if ctx.get_state() == gst::State::Playing {
-                    let position = Timestamp::from_nano(ctx.get_position());
-                    this_mut.position_lbl.set_text(&format!("{}", position));
-                    position
+                let context = context_rc.borrow();
+                let position = context.get_position();
+                if this_mut.last_position != position {
+                    this_mut.position_lbl.set_text(
+                        &format!("{}", Timestamp::from_nano(position))
+                    );
+                    this_mut.last_position = position;
+
+                    this_mut.audio_ctrl.borrow().tic();
                 }
-                else {
-                    Timestamp::new()
-                },
-                None => Timestamp::new(),
-            };
-
-            if position.nano > 0 {
-                this_mut.audio_ctrl.borrow_mut().have_position(position.nano);
-            }
-
-            if !this_mut.keep_going {
+            } else {
                 this_mut.tracker_src = None;
                 println!("Exiting tracker");
             }
@@ -242,9 +243,6 @@ impl MainController {
 
     fn open_media(&mut self, filepath: PathBuf) {
         assert_eq!(self.listener_src, None);
-
-        self.audio_ctrl.borrow_mut().cleanup();
-        self.video_ctrl.cleanup();
 
         self.position_lbl.set_text("00:00.000");
 
@@ -261,7 +259,10 @@ impl MainController {
                 ctx_tx
             )
             {
-            Ok(ctx) => self.ctx = Some(ctx),
+            Ok(context) => {
+                self.context = Some(Rc::new(RefCell::new(context)));
+                self.last_position = 0;
+            },
             Err(error) => eprintln!("Error opening media: {}", error),
         };
     }
