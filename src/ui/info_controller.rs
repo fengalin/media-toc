@@ -100,39 +100,52 @@ impl InfoController {
     pub fn new_media(&mut self, context_rc: &Rc<RefCell<Context>>) {
         let context = context_rc.borrow();
 
-        let mut info = context.info.lock()
-            .expect("Failed to lock media info in InfoController");
-
-        let mut has_image = false;
-        if let Some(thumbnail) = info.thumbnail.take() {
-            if let Ok(image) = ImageSurface::from_aligned_image(thumbnail) {
-                let mut thumbnail_ref = self.thumbnail.borrow_mut();
-                *thumbnail_ref = Some(image);
-                has_image = true;
-            }
-        };
-
-        self.title_lbl.set_label(&info.title);
-        self.artist_lbl.set_label(&info.artist);
-        // Fix container for mp3 audio files TODO: move this to MediaInfo
-        let container = if info.video_codec.is_empty()
-            && info.audio_codec.to_lowercase().find("mp3").is_some()
-        {
-            "MP3"
-        }
-        else {
-            &info.container
-        };
-        self.container_lbl.set_label(container);
-        self.audio_codec_lbl.set_label(
-            if !info.audio_codec.is_empty() { &info.audio_codec } else { "-" }
-        );
-        self.video_codec_lbl.set_label(
-            if !info.video_codec.is_empty() { &info.video_codec } else { "-" }
-        );
         self.duration_lbl.set_label(
             &format!("{}", Timestamp::from_nano(context.get_duration()))
         );
+
+        self.chapter_store.clear();
+
+        let mut has_image = false;
+        {
+            let mut info = context.info.lock()
+                .expect("Failed to lock media info in InfoController");
+
+            if let Some(thumbnail) = info.thumbnail.take() {
+                if let Ok(image) = ImageSurface::from_aligned_image(thumbnail) {
+                    let mut thumbnail_ref = self.thumbnail.borrow_mut();
+                    *thumbnail_ref = Some(image);
+                    has_image = true;
+                }
+            };
+
+            self.title_lbl.set_label(&info.title);
+            self.artist_lbl.set_label(&info.artist);
+            // Fix container for mp3 audio files TODO: move this to MediaInfo
+            let container = if info.video_codec.is_empty()
+                && info.audio_codec.to_lowercase().find("mp3").is_some()
+            {
+                "MP3"
+            }
+            else {
+                &info.container
+            };
+            self.container_lbl.set_label(container);
+            self.audio_codec_lbl.set_label(
+                if !info.audio_codec.is_empty() { &info.audio_codec } else { "-" }
+            );
+            self.video_codec_lbl.set_label(
+                if !info.video_codec.is_empty() { &info.video_codec } else { "-" }
+            );
+
+            // FIX for sample.mkv video: generate ids (TODO: remove)
+            for (id, chapter) in info.chapters.iter().enumerate() {
+                self.chapter_store.insert_with_values(
+                    None, &[0, 1, 2, 3],
+                    &[&((id+1) as u32), &chapter.title(), &format!("{}", &chapter.start), &format!("{}", chapter.end)],
+                );
+            }
+        }
 
         if has_image {
             self.drawingarea.show();
@@ -140,15 +153,6 @@ impl InfoController {
         }
         else {
             self.drawingarea.hide();
-        }
-
-        self.chapter_store.clear();
-        // FIX for sample.mkv video: generate ids (TODO: remove)
-        for (id, chapter) in info.chapters.iter().enumerate() {
-            self.chapter_store.insert_with_values(
-                None, &[0, 1, 2, 3],
-                &[&((id+1) as u32), &chapter.title(), &format!("{}", &chapter.start), &format!("{}", chapter.end)],
-            );
         }
     }
 }

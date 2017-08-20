@@ -59,7 +59,7 @@ impl AudioBuffer {
 
         self.capacity = capacity;
         self.sample_duration = sample_duration;
-        self.channels =structure.get::<i32>("channels")
+        self.channels = structure.get::<i32>("channels")
             .expect("Couldn't get channels from audio sample")
             as usize;
         self.drain_size = drain_size;

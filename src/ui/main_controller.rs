@@ -65,9 +65,9 @@ impl MainController {
 
             let this_weak_clone = this_weak.clone();
             this_mut.play_pause_btn.connect_clicked(move |_| {
-                let this = this_weak_clone.upgrade()
-                    .expect("Main controller is no longer available for play/pause");
-                this.borrow_mut().play_pause();
+                if let Some(this_ref) = this_weak_clone.upgrade() {
+                    this_ref.borrow_mut().play_pause();
+                };
             });
 
             let this_weak = Rc::downgrade(&this);
@@ -77,9 +77,9 @@ impl MainController {
         let open_btn: Button = builder.get_object("open-btn").unwrap();
         let this_weak_clone = this_weak.clone();
         open_btn.connect_clicked(move |_| {
-            let this = this_weak_clone.upgrade()
-                .expect("Main controller is no longer available for select_media");
-            this.borrow_mut().select_media();
+            if let Some(this_ref) = this_weak_clone.upgrade() {
+                this_ref.borrow_mut().select_media();
+            }
         });
 
         this
@@ -90,22 +90,19 @@ impl MainController {
     }
 
     pub fn play_pause(&mut self) {
-        match self.context.as_ref() {
-            Some(context_rc) => {
-                let context = context_rc.borrow();
-                match context.get_state() {
-                    gst::State::Paused => {
-                        context.play().unwrap();
-                        self.play_pause_btn.set_icon_name("media-playback-pause");
-                    }
-                    gst::State::Playing => {
-                        context.pause().unwrap();
-                        self.play_pause_btn.set_icon_name("media-playback-start");
-                    },
-                    state => println!("Can't play/pause in state {:?}", state),
+        if let Some(context_rc) = self.context.as_ref() {
+            let context = context_rc.borrow();
+            match context.get_state() {
+                gst::State::Paused => {
+                    context.play().unwrap();
+                    self.play_pause_btn.set_icon_name("media-playback-pause");
                 }
-            },
-            None => (),
+                gst::State::Playing => {
+                    context.pause().unwrap();
+                    self.play_pause_btn.set_icon_name("media-playback-start");
+                },
+                state => println!("Can't play/pause in state {:?}", state),
+            }
         };
     }
 
@@ -139,12 +136,9 @@ impl MainController {
         // Note: couldn't find equivalents for STOCK_OK
         file_dlg.add_button("Open", ResponseType::Ok.into());
 
-        let result = file_dlg.run();
-
-        if result == ResponseType::Ok.into() {
+        if file_dlg.run() == ResponseType::Ok.into() {
             self.open_media(file_dlg.get_filename().unwrap());
         }
-        else { () }
 
         file_dlg.close();
     }
@@ -155,15 +149,14 @@ impl MainController {
     )
     {
         let this_weak = self.self_weak.as_ref()
-            .expect("Failed to get ref on MainController's weak Rc for register_listener")
+            .unwrap()
             .clone();
 
         self.listener_src = Some(gtk::timeout_add(timeout, move || {
             let mut message_iter = ui_rx.try_iter();
 
-            let this = this_weak.upgrade()
-                .expect("Main controller is no longer available for ctx channel listener");
-            let mut this_mut = this.borrow_mut();
+            let this_rc = this_weak.upgrade().unwrap();
+            let mut this_mut = this_rc.borrow_mut();
 
             for message in message_iter.next() {
                 match message {
@@ -210,13 +203,13 @@ impl MainController {
 
     fn register_tracker(&mut self, timeout: u32) {
         let this_weak = self.self_weak.as_ref()
-            .expect("Failed to get ref on MainController's weak Rc for register_tracker")
+            .unwrap()
             .clone();
 
         self.tracker_src = Some(gtk::timeout_add(timeout, move || {
-            let this = this_weak.upgrade()
-                .expect("Main controller is no longer available for tracker");
+            let this = this_weak.upgrade().unwrap();
             let mut this_mut = this.borrow_mut();
+
             if this_mut.keep_going {
                 let context_rc = this_mut.context.as_ref()
                     .expect("Tracking... but no context available")

@@ -22,11 +22,10 @@ impl VideoController {
     pub fn new_media(&mut self, context_rc: &Rc<RefCell<Context>>) {
         let context = context_rc.borrow();
 
-        let has_video = {
-            let info = context.info.lock()
-                .expect("Failed to lock media info while initializing video controller");
-            info.video_best.is_some()
-        };
+        let has_video = context.info.lock()
+                .expect("Failed to lock media info while initializing video controller")
+                .video_best
+                .is_some();
 
         if has_video {
             self.video_box.show_all();

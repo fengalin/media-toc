@@ -96,11 +96,9 @@ macro_rules! build_audio_pipeline(
                     Some(sample) => sample,
                 };
 
-                {
-                    let audio_buffer = &mut audio_buffer_arc_mtx.lock()
-                        .expect("Failed to lock audio buffer while receiving samples");
-                    audio_buffer.push_gst_sample(sample);
-                }
+                audio_buffer_arc_mtx.lock().as_mut()
+                    .expect("Failed to lock audio buffer while receiving samples")
+                    .push_gst_sample(sample);
 
                 gst::FlowReturn::Ok
             },
@@ -295,11 +293,10 @@ impl Context {
                 if is_first {
                     // TODO: caps can change so it might be necessary to
                     // listen to changes and adapt the audio buffer accordingly
-                    {
-                        let audio_buffer = &mut audio_buffer_arc_mtx.lock()
-                            .expect("Failed to lock audio buffer while initializing audio stream");
-                        audio_buffer.initialize(&caps, buffering_duration);
-                    }
+                    audio_buffer_arc_mtx.lock().as_mut()
+                        .expect("Failed to lock audio buffer while initializing audio stream")
+                        .initialize(&caps, buffering_duration);
+
                     build_audio_pipeline!(
                         pipeline, src_pad, audio_sink, buffering_duration, audio_buffer_arc_mtx
                     );

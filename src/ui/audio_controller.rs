@@ -30,10 +30,13 @@ impl AudioController {
             let this_ref = this.borrow();
             let this_weak = Rc::downgrade(&this);
             this_ref.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
-                let this = this_weak.upgrade()
-                    .expect("Main controller is no longer available for select_media");
-                let result = this.borrow_mut().draw(drawing_area, cairo_ctx);
-                result
+                match this_weak.upgrade() {
+                    Some(this_ref) => {
+                        this_ref.borrow_mut()
+                            .draw(drawing_area, cairo_ctx).into()
+                    },
+                    None => Inhibit(false),
+                }
             });
         }
 
@@ -49,11 +52,10 @@ impl AudioController {
     pub fn new_media(&mut self, context_rc: &Rc<RefCell<Context>>) {
         let context = context_rc.borrow();
 
-        let has_audio = {
-            let info = context.info.lock()
-                .expect("Failed to lock media info while initializing audio controller");
-            info.audio_best.is_some()
-        };
+        let has_audio = context.info.lock()
+                .expect("Failed to lock media info while initializing audio controller")
+                .audio_best
+                .is_some();
 
         if has_audio {
             let position = context.get_position();
@@ -61,11 +63,9 @@ impl AudioController {
                 panic!("Audio controller found a negative initial position");
             }
 
-            {
-                let audio_buffer = &mut context.audio_buffer.lock()
-                    .expect("Failed to lock audio buffer while initializing audio controller");
-                audio_buffer.set_first_pts(position as u64);
-            }
+            context.audio_buffer.lock().as_mut()
+                .expect("Failed to lock audio buffer while initializing audio controller")
+                .set_first_pts(position as u64);
 
             self.context = Some(Rc::downgrade(context_rc));
 
