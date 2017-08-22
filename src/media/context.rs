@@ -21,10 +21,17 @@ use std::sync::{Arc, Mutex};
 
 use std::i32;
 
-use super::{AlignedImage, AudioBuffer, Chapter, MediaInfo, Timestamp};
+use super::{AlignedImage, AudioBuffer, WaveformBuffer, Chapter, MediaInfo, Timestamp};
 
 macro_rules! build_audio_pipeline(
-    ($pipeline:expr, $src_pad:expr, $audio_sink:expr, $buffering_duration:expr, $audio_buffer_arc_mtx:expr) => {
+    (
+        $pipeline:expr,
+        $src_pad:expr,
+        $audio_sink:expr,
+        $buffering_duration:expr,
+        $waveform_buffer_mtx:expr
+    ) =>
+    {
         let playback_queue = gst::ElementFactory::make("queue", "playback_queue").unwrap();
         playback_queue.set_property("max-size-time", &gst::Value::from(&$buffering_duration)).unwrap();
 
@@ -83,7 +90,13 @@ macro_rules! build_audio_pipeline(
         //appsink.set_property("async", &gst::Value::from(&false)).unwrap();
         //appsink.set_property("sync", &gst::Value::from(&false)).unwrap();
 
-        let audio_buffer_arc_mtx = $audio_buffer_arc_mtx.clone();
+        // TODO: caps can change so it might be necessary to
+        let audio_buffer = Arc::new(Mutex::new(AudioBuffer::new(
+            &$src_pad.get_current_caps().unwrap(),
+            2_000_000_000, // appsink offset (see above)
+            $buffering_duration,
+            $waveform_buffer_mtx.clone(),
+        )));
         appsink.set_callbacks(gst_app::AppSinkCallbacks::new(
             /* eos: handled by pipeline */
             |_| {},
@@ -96,9 +109,7 @@ macro_rules! build_audio_pipeline(
                     Some(sample) => sample,
                 };
 
-                audio_buffer_arc_mtx.lock().as_mut()
-                    .expect("Failed to lock audio buffer while receiving samples")
-                    .push_gst_sample(sample);
+                audio_buffer.lock().unwrap().push_gst_sample(sample);
 
                 gst::FlowReturn::Ok
             },
@@ -150,7 +161,7 @@ pub struct Context {
     pub name: String,
 
     pub info: Arc<Mutex<MediaInfo>>,
-    pub audio_buffer: Arc<Mutex<AudioBuffer>>,
+    pub waveform_buffer_mtx: Arc<Mutex<Option<WaveformBuffer>>>,
 }
 
 // FIXME: need to `release_request_pad` on the tee
@@ -182,7 +193,7 @@ impl Context {
             .expect("Failed to get GstGtkWidget glib::Value as gtk::Widget");
         video_widget_box.pack_start(&widget, true, true, 0);
 
-        Context{
+        Context {
             pipeline: pipeline,
             audio_sink: audio_sink,
             video_sink: video_sink,
@@ -192,7 +203,7 @@ impl Context {
             path: path,
 
             info: Arc::new(Mutex::new(MediaInfo::new())),
-            audio_buffer: Arc::new(Mutex::new(AudioBuffer::new())),
+            waveform_buffer_mtx: Arc::new(Mutex::new(Some(WaveformBuffer::new()))),
         }
     }
 
@@ -267,7 +278,7 @@ impl Context {
         self.pipeline.add(&src).unwrap();
 
         let pipeline_clone = self.pipeline.clone();
-        let audio_buffer_arc_mtx = self.audio_buffer.clone();
+        let waveform_buffer_mtx = self.waveform_buffer_mtx.clone();
         let audio_sink = self.audio_sink.clone();
         let video_sink = self.video_sink.clone();
         let info_arc_mtx = self.info.clone();
@@ -291,14 +302,8 @@ impl Context {
                 };
 
                 if is_first {
-                    // TODO: caps can change so it might be necessary to
-                    // listen to changes and adapt the audio buffer accordingly
-                    audio_buffer_arc_mtx.lock().as_mut()
-                        .expect("Failed to lock audio buffer while initializing audio stream")
-                        .initialize(&caps, buffering_duration);
-
                     build_audio_pipeline!(
-                        pipeline, src_pad, audio_sink, buffering_duration, audio_buffer_arc_mtx
+                        pipeline, src_pad, audio_sink, buffering_duration, waveform_buffer_mtx
                     );
                 }
             } else if name.starts_with("video/") {

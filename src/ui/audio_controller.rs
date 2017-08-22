@@ -7,14 +7,16 @@ extern crate cairo;
 
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
+use std::sync::{Arc, Mutex};
 
-use ::media::Context;
+use ::media::{Context, WaveformBuffer};
 
 pub struct AudioController {
     container: gtk::Container,
     drawingarea: gtk::DrawingArea,
 
     context: Option<Weak<RefCell<Context>>>,
+    waveform_buffer_mtx: Arc<Mutex<Option<WaveformBuffer>>>,
 }
 
 impl AudioController {
@@ -24,6 +26,7 @@ impl AudioController {
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
 
             context: None,
+            waveform_buffer_mtx: Arc::new(Mutex::new(None)),
         }));
 
         {
@@ -58,17 +61,8 @@ impl AudioController {
                 .is_some();
 
         if has_audio {
-            let position = context.get_position();
-            if position.is_negative() {
-                panic!("Audio controller found a negative initial position");
-            }
-
-            context.audio_buffer.lock().as_mut()
-                .expect("Failed to lock audio buffer while initializing audio controller")
-                .set_first_pts(position as u64);
-
+            self.waveform_buffer_mtx = context.waveform_buffer_mtx.clone();
             self.context = Some(Rc::downgrade(context_rc));
-
             self.container.show();
         }
         else {
@@ -94,97 +88,74 @@ impl AudioController {
         if width.is_negative() {
             return Inhibit(false);
         }
-        let width = width as u64;
 
-        let display_window_duration = 2_000_000_000; // 2s TODO: adapt according to zoom
+        let requested_duration = 2_000_000_000u64; // 2s TODO: adapt according to zoom
 
         // TODO: make width and height adapt to zoom
+        let width = width as u64;
         cr.scale((width / 2) as f64, (allocation.height / 2) as f64);
+
         cr.set_line_width(0.0015f64);
         cr.set_source_rgb(0.8f64, 0.8f64, 0.8f64);
 
-        let (position, first_display_pos) = {
-            let context = context_rc.borrow();
+        // resolution
+        let requested_step_duration =
+            if requested_duration > width {
+                requested_duration / width
+            } else {
+                1
+            };
 
+        // TODO: find another way to get the position as it results
+        // in locks (e.g. use a channel and send it from the Context' inspector)
+        let position = {
+            let context = context_rc.borrow();
             let position = context.get_position();
             if position.is_negative() {
                 return Inhibit(false);
             }
-            let position = position as u64;
+            position as u64
+        };
 
-            let audio_buffer = &mut context.audio_buffer.lock()
-                .expect("Couldn't lock audio buffer in audio controller draw");
-            if audio_buffer.duration == 0 {
+        let first_visible_pts = {
+            let mut waveform_buffer_opt = self.waveform_buffer_mtx.lock()
+                .expect("Couldn't lock waveform buffer in audio controller draw");
+            let waveform_buffer = waveform_buffer_opt.as_mut()
+                .expect("No waveform buffer buffer in audio controller draw");
+
+            waveform_buffer.update_conditions(
+                position,
+                requested_duration,
+                requested_step_duration
+            );
+
+            if waveform_buffer.duration == 0 {
                 return Inhibit(false);
             }
 
-            audio_buffer.set_pts(position);
-
-            let diplay_window_sample_nb = display_window_duration / audio_buffer.sample_duration;
-            let sample_per_pixel =
-                if diplay_window_sample_nb > width {
-                    diplay_window_sample_nb / width
-                } else {
-                    1
-                };
-
-            let pixel_duration = sample_per_pixel * audio_buffer.sample_duration;
-
-            let (first_display_pos, display_duration) =
-                if audio_buffer.duration < display_window_duration {
-                    (0, audio_buffer.duration)
-                } else {
-                    let half_duration = display_window_duration / 2;
-                    let first_display_pos =
-                        if position > audio_buffer.last_pts - half_duration {
-                            audio_buffer.last_pts - display_window_duration
-                        } else if position > audio_buffer.first_pts + half_duration {
-                            position - half_duration
-                        } else {
-                            0
-                        };
-                    (first_display_pos, display_window_duration)
-                };
-
-            // align first display pos as a multiple of pixel duration
-            // in order to avoid discontinuities when origin shifts between redraws
-            let aligned_first_display_pos = (first_display_pos / pixel_duration) * pixel_duration;
-
-            let first_sample =
-                (aligned_first_display_pos / audio_buffer.sample_duration) as usize
-                - audio_buffer.first_sample_offset;
-
-            let sample_step = sample_per_pixel as usize;
-            let last_sample =
-                first_sample
-                + (display_duration / audio_buffer.sample_duration) as usize
-                + sample_step; // add one step to compensate the offset due to aligned_first_display_pos
-            let last_sample = last_sample.min(audio_buffer.samples.len());
-
             let mut relative_pts =
-                (0f64 - ((first_display_pos - aligned_first_display_pos) as f64))
+                ((waveform_buffer.first_visible_pts - waveform_buffer.first_pts) as f64)
+                 / -1_000_000_000f64;
+
+            let step_duration =
+                waveform_buffer.step_duration as f64
                  / 1_000_000_000f64;
-            let duration_step = pixel_duration as f64 / 1_000_000_000f64;
 
-            let mut sample_idx = first_sample;
+            let mut sample_iter = waveform_buffer.samples.iter();
+            cr.move_to(relative_pts, *sample_iter.next().unwrap());
 
-            cr.move_to(relative_pts, audio_buffer.samples[sample_idx]);
-            relative_pts += duration_step;
-            sample_idx += sample_step;
-
-            while sample_idx < last_sample {
-                cr.line_to(relative_pts, audio_buffer.samples[sample_idx]);
-                relative_pts += duration_step;
-                sample_idx += sample_step;
+            for sample in sample_iter {
+                relative_pts += step_duration;
+                cr.line_to(relative_pts, *sample);
             }
 
-            (position, first_display_pos)
+            waveform_buffer.first_visible_pts
         };
 
         cr.stroke();
 
         // draw current pos
-        let x = (position - first_display_pos) as f64 / 1_000_000_000f64;
+        let x = (position - first_visible_pts) as f64 / 1_000_000_000f64;
         cr.set_source_rgb(1f64, 1f64, 0f64);
         cr.set_line_width(0.004f64);
         cr.move_to(x, 0f64);

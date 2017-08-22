@@ -211,7 +211,10 @@ impl MainController {
             let mut this_mut = this.borrow_mut();
 
             if this_mut.keep_going {
-                let context_rc = this_mut.context.as_ref()
+                // TODO: find another way to get the position as it results
+                // in locks (e.g. use a channel and send it from the Context' inspector)
+                // and pass it to the AudioController with the tic
+                /*let context_rc = this_mut.context.as_ref()
                     .expect("Tracking... but no context available")
                     .clone();
 
@@ -224,7 +227,8 @@ impl MainController {
                     this_mut.last_position = position;
 
                     this_mut.audio_ctrl.borrow().tic();
-                }
+                }*/
+                this_mut.audio_ctrl.borrow().tic();
             } else {
                 this_mut.tracker_src = None;
                 println!("Exiting tracker");

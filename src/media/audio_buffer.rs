@@ -8,42 +8,36 @@ use std::i16;
 
 use std::collections::vec_deque::VecDeque;
 
-pub struct AudioBuffer {
-    pub capacity: usize,
-    pub sample_duration: u64,
-    pub channels: usize,
-    pub drain_size: usize,
-    pub drain_duration: u64,
+use std::sync::{Arc, Mutex};
 
-    pub first_sample_offset: usize,
+use super::WaveformBuffer;
+
+pub struct AudioBuffer {
+    pts_offset: u64,
+    capacity: usize,
+    pub sample_duration: u64,
+    channels: usize,
+    drain_size: usize,
+    drain_duration: u64,
+
+    pub samples_offset: usize,
     pub first_pts: u64,
-    pub current_pts: u64,
-    pub current_pts_relative: u64,
     pub last_pts: u64,
     pub duration: u64,
     pub samples: VecDeque<f64>,
+
+    waveform_buffer_mtx: Arc<Mutex<Option<WaveformBuffer>>>,
+    second_waveform_buffer: Option<WaveformBuffer>,
 }
 
 impl AudioBuffer {
-    pub fn new() -> Self {
-        AudioBuffer {
-            capacity: 0,
-            sample_duration: 0,
-            channels: 0,
-            drain_size: 1,
-            drain_duration: 0,
-
-            first_sample_offset: 0,
-            first_pts: 0,
-            current_pts: 0,
-            current_pts_relative: 0,
-            last_pts: 0,
-            duration: 0,
-            samples: VecDeque::new(),
-        }
-    }
-
-    pub fn initialize(&mut self, caps: &gst::Caps, size_duration: u64) {
+    pub fn new(
+        caps: &gst::Caps,
+        pts_offset: u64,
+        size_duration: u64,
+        waveform_buffer_mtx: Arc<Mutex<Option<WaveformBuffer>>>,
+    ) -> Self
+    {
         let structure = caps.get_structure(0)
             .expect("Couldn't get structure from audio caps");
         let rate = structure.get::<i32>("rate")
@@ -57,61 +51,55 @@ impl AudioBuffer {
 
         let drain_size = capacity / 5;
 
-        self.capacity = capacity;
-        self.sample_duration = sample_duration;
-        self.channels = structure.get::<i32>("channels")
-            .expect("Couldn't get channels from audio sample")
-            as usize;
-        self.drain_size = drain_size;
-        self.drain_duration = (drain_size as u64) * sample_duration;
+        AudioBuffer {
+            pts_offset: pts_offset,
+            capacity: capacity,
+            sample_duration: sample_duration,
+            channels: structure.get::<i32>("channels")
+                .expect("Couldn't get channels from audio sample")
+                as usize,
+            drain_size: drain_size,
+            drain_duration: (drain_size as u64) * sample_duration,
 
-        self.first_sample_offset = 0;
-        self.first_pts = 0;
-        self.current_pts = 0;
-        self.current_pts_relative = 0;
-        self.last_pts = 0;
-        self.duration = 0;
+            samples_offset: 0,
+            first_pts: 0,
+            last_pts: 0,
+            duration: 0,
+            samples: VecDeque::with_capacity(capacity),
 
-        let current_capacity = self.samples.capacity();
-        if current_capacity < capacity {
-            self.samples.reserve(capacity - current_capacity);
+            waveform_buffer_mtx: waveform_buffer_mtx,
+            second_waveform_buffer: Some(WaveformBuffer::new()),
         }
-    }
-
-    pub fn set_first_pts(&mut self, pts: u64) {
-        if self.samples.is_empty() {
-            self.first_sample_offset = (pts / self.sample_duration) as usize;
-            self.first_pts = pts;
-            self.set_pts(pts);
-            self.last_pts += pts;
-        }
-    }
-
-    pub fn set_pts(&mut self, pts: u64) {
-        if pts > self.first_pts {
-            self.current_pts = pts;
-            self.current_pts_relative = pts - self.first_pts;
-        }
-        // FIXME: else?
     }
 
     pub fn push_gst_sample(&mut self, sample: gst::Sample) {
         let buffer = sample.get_buffer()
             .expect("Couldn't get buffer from audio sample");
 
+        let pts = buffer.get_pts();
+        if self.samples.is_empty() {
+            self.first_pts = pts;
+            self.samples_offset = (self.first_pts / self.sample_duration) as usize;
+            self.last_pts = self.first_pts;
+        }
+
         let map = buffer.map_readable().unwrap();
         let incoming_samples = map.as_slice().as_slice_of::<i16>()
             .expect("Couldn't get audio samples as i16");
 
+        // Use outputs from the double buffer preparation to decide
+        // what to drain
         if self.samples.len() + incoming_samples.len() > self.capacity
-            && self.current_pts_relative > 2 * self.drain_duration
+            && pts > self.pts_offset
         {   // buffer will reach capacity => drain a chunk of samples
             // only if we have samples in history
-            self.samples.drain(..self.drain_size);
-            self.first_sample_offset += self.drain_size;
-            self.first_pts += self.drain_duration;
-            self.current_pts_relative -= self.drain_duration;
-            self.duration -= self.drain_duration;
+            let pts = pts - self.pts_offset;
+            if pts - self.first_pts > 2 * self.drain_duration {
+                self.samples.drain(..self.drain_size);
+                self.samples_offset += self.drain_size;
+                self.first_pts += self.drain_duration;
+                self.duration -= self.drain_duration;
+            }
         }
 
         // normalize samples in range 0f64..2f64 ready to render
@@ -155,5 +143,33 @@ impl AudioBuffer {
         let duration = buffer.get_duration();
         self.last_pts += duration;
         self.duration += duration;
+
+        // FIXME: need to detect the last buffer in order to fill the
+        // waveform completly since we won't come back here after that
+
+        // prepare the second waveform buffer for rendering
+        if self.duration > 0 && pts > self.pts_offset {
+            let mut second_waveform_buffer = self.second_waveform_buffer.take()
+                .expect("Second waveform buffer not found");
+
+            second_waveform_buffer.set_position(pts - self.pts_offset);
+            second_waveform_buffer.update_samples(&self);
+
+            // switch buffers
+            let waveform_buffer = {
+                let mut waveform_buffer_opt = self.waveform_buffer_mtx.lock()
+                    .expect("Failed to lock the waveform buffer for switch");
+                let waveform_buffer = waveform_buffer_opt.take()
+                    .expect("No waveform buffer found while switch buffers");
+                *waveform_buffer_opt = Some(second_waveform_buffer);
+
+                waveform_buffer
+            };
+
+            // update buffer with latest samples
+            //waveform_buffer.update_samples(&self);
+
+            self.second_waveform_buffer = Some(waveform_buffer);
+        }
     }
 }
