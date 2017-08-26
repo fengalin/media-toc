@@ -68,7 +68,9 @@ $ brew install gtk+3 gstreamer-1.0-devel
 ```
 
 ### Windows (WIP)
-Note: I could build `media-toc` successfully, but it fails to run.
+Note: I could build `media-toc` successfully, but on the Windows 7 32bits box
+I had access to, it fails to run with error code `3221225785`. I tried to insolate
+the problem and this symptom occurs as soon as the gtk::init statement. To be continued...
 
 - MSYS2: follow [this guide](http://www.msys2.org/).
 - Install the development toolchain, GTK and GStreamer<br>
