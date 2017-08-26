@@ -125,6 +125,10 @@ impl WaveformBuffer {
             let last_sample_idx_rel =
                 last_sample_idx_rel.min(audio_buffer.samples.len());
 
+            // TODO: implement the strategy to minimize copies
+            // by deleting the unused buffer in the front
+            // and adding the missing buffer in the back
+
             self.samples.clear();
             let mut sample_idx_rel = self.samples_offset - audio_buffer.samples_offset;
             while sample_idx_rel < last_sample_idx_rel {

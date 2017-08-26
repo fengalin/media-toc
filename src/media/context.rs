@@ -1,6 +1,6 @@
 extern crate gstreamer as gst;
-use gstreamer::{BinExt, BinExtManual, Caps, ElementExt, ElementFactory, GstObjectExt,
-                PadExt, TocScope, TocEntryType};
+use gstreamer::{BinExt, BinExtManual, Caps, ElementExt, ElementExtManual,
+                ElementFactory, GstObjectExt, PadExt, TocScope, TocEntryType};
 
 extern crate gstreamer_audio as gst_audio;
 extern crate gstreamer_app as gst_app;
@@ -153,6 +153,7 @@ pub enum ContextMessage {
 
 pub struct Context {
     pipeline: gst::Pipeline,
+    position_query: gst::Query,
     audio_sink: gst::Element,
     video_sink: gst::Element,
 
@@ -195,6 +196,7 @@ impl Context {
 
         Context {
             pipeline: pipeline,
+            position_query: gst::Query::new_position(gst::Format::Time),
             audio_sink: audio_sink,
             video_sink: video_sink,
 
@@ -226,10 +228,11 @@ impl Context {
         }
     }
 
-    pub fn get_position(&self) -> i64 {
-        match self.pipeline.query_position(gst::Format::Time) {
-            Some(duration) => duration,
-            None => 0,
+    pub fn get_position(&mut self) -> i64 {
+        self.pipeline.query(self.position_query.get_mut().unwrap());
+        match self.position_query.view() {
+            gst::QueryView::Position(position) => position.get().1,
+            _ => unreachable!(),
         }
     }
 
@@ -446,7 +449,7 @@ impl Context {
                     }
 
                     glib::Continue(true)
-                }
+                },
                 _ => glib::Continue(true),
             }
         });

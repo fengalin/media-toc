@@ -247,7 +247,7 @@ impl MainController {
 
         self.keep_going = true;
         self.register_listener(500, ui_rx);
-        self.register_tracker(33); // 30 Hz
+        self.register_tracker(16); // 60 Hz
 
         match Context::open_media_path(
                 filepath,

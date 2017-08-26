@@ -1,8 +1,7 @@
 extern crate chrono;
+use chrono::{NaiveDateTime, NaiveTime, Timelike};
 
 use std::fmt;
-
-use chrono::{NaiveDateTime, NaiveTime, Timelike};
 
 #[allow(dead_code)]
 #[derive(Clone, Copy)]

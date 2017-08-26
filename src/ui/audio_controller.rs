@@ -5,6 +5,9 @@ use gtk::{Inhibit, WidgetExt};
 
 extern crate cairo;
 
+extern crate chrono;
+use chrono::Utc;
+
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
@@ -17,6 +20,11 @@ pub struct AudioController {
 
     context: Option<Weak<RefCell<Context>>>,
     waveform_buffer_mtx: Arc<Mutex<Option<WaveformBuffer>>>,
+
+    min_pos_query: u64,
+    max_pos_query: u64,
+    sum_pos_query: u64,
+    nb_pos_query: u64,
 }
 
 impl AudioController {
@@ -27,6 +35,11 @@ impl AudioController {
 
             context: None,
             waveform_buffer_mtx: Arc::new(Mutex::new(None)),
+
+            min_pos_query: 0,
+            max_pos_query: 0,
+            sum_pos_query: 0,
+            nb_pos_query: 0,
         }));
 
         {
@@ -63,6 +76,12 @@ impl AudioController {
         if has_audio {
             self.waveform_buffer_mtx = context.waveform_buffer_mtx.clone();
             self.context = Some(Rc::downgrade(context_rc));
+
+            self.min_pos_query = 0;
+            self.max_pos_query = 0;
+            self.sum_pos_query = 0;
+            self.nb_pos_query = 0;
+
             self.container.show();
         }
         else {
@@ -109,15 +128,28 @@ impl AudioController {
         // TODO: find another way to get the position as it results
         // in locks (e.g. use a channel and send it from the Context' inspector)
         let position = {
-            let context = context_rc.borrow();
+            let before = Utc::now();
+
+            let mut context = context_rc.borrow_mut();
             let position = context.get_position();
+
+            let after = Utc::now();
+            let delta = after.signed_duration_since(before)
+                .num_nanoseconds()
+                .unwrap() as u64;
+
+            self.max_pos_query = self.max_pos_query.max(delta);
+            self.sum_pos_query += delta;
+            self.nb_pos_query += 1;
+            //println!("{} - {} - {}", delta, self.max_pos_query, self.sum_pos_query / self.nb_pos_query);
+
             if position.is_negative() {
                 return Inhibit(false);
             }
             position as u64
         };
 
-        let first_visible_pts = {
+        let (position, first_visible_pts) = {
             let mut waveform_buffer_opt = self.waveform_buffer_mtx.lock()
                 .expect("Couldn't lock waveform buffer in audio controller draw");
             let waveform_buffer = waveform_buffer_opt.as_mut()
@@ -132,6 +164,12 @@ impl AudioController {
             if waveform_buffer.duration == 0 {
                 return Inhibit(false);
             }
+
+            if position < 1_000_000_000 {
+                self.max_pos_query = 0;
+                self.sum_pos_query = 0;
+                self.nb_pos_query = 0;
+            };
 
             let mut relative_pts =
                 ((waveform_buffer.first_visible_pts - waveform_buffer.first_pts) as f64)
@@ -149,7 +187,7 @@ impl AudioController {
                 cr.line_to(relative_pts, *sample);
             }
 
-            waveform_buffer.first_visible_pts
+            (waveform_buffer.current_pts, waveform_buffer.first_visible_pts)
         };
 
         cr.stroke();

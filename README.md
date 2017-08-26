@@ -6,17 +6,6 @@ to split a media file into chapters.
 anything usable soon. Of course, you can [contribute](#contribute) to the project
 if you find it interesting.
 
-# Design
-## Technologies
-Media-TOC is developped in Rust. This is my first project using this language.
-This branch relies on the following technologies:
-- **GTK-3** ([official documentation](https://developer.gnome.org/gtk3/stable/),
-[Rust binding](https://crates.io/crates/gtk)) and [Glade](https://glade.gnome.org/).
-- **Cairo** ([official documentation](https://www.cairographics.org/documentation/),
-[Rust binding](https://crates.io/crates/cairo-rs)).
-- **GStreamer** ([official documentation](https://gstreamer.freedesktop.org/documentation/),
-[Rust binding](https://github.com/sdroege/gstreamer-rs)).
-
 ## Status
 At the moment, **Media-TOC** can:
 - Open a media file (audio, video - and image but that doesn't make much sense).
@@ -37,20 +26,20 @@ Contributions are welcomed.
 - If you wish to contribute to the code, please fork your own copy and submit a
 [pull request](https://github.com/fengalin/media-toc/pulls).
 
+# Design
+## Technologies
+**Media-TOC** is developped in Rust and uses the following technologies:
+- **GTK-3** ([official documentation](https://developer.gnome.org/gtk3/stable/),
+[Rust binding](https://crates.io/crates/gtk)) and [Glade](https://glade.gnome.org/).
+- **Cairo** ([official documentation](https://www.cairographics.org/documentation/),
+[Rust binding](https://crates.io/crates/cairo-rs)).
+- **GStreamer** ([official documentation](https://gstreamer.freedesktop.org/documentation/),
+[Rust binding](https://github.com/sdroege/gstreamer-rs)).
+
 # Environment preparation
 ## Toolchain
-You can install Rust via your package manager or using Rustup which allows
-installing the compiler for your user only and which will fetch the latest
-nightly versions. The nightly version is required for
-[this feature](https://doc.rust-lang.org/std/option/enum.Option.html#method.get_or_insert).
+The nightly version is required for [this feature](https://doc.rust-lang.org/std/option/enum.Option.html#method.get_or_insert).
 
-### Using the distribution's package manager
-Example on Fedora:
-```
-$ sudo dnf install rust cargo
-```
-
-### Using rustup
 ```
 $ curl https://sh.rustup.rs -sSf | sh
 ```
@@ -67,53 +56,43 @@ $ sudo dnf install gtk3-devel glib2-devel gstreamer1-devel gstreamer1-plugins-ba
 ```
 
 ### Debian & Unbuntu
-**Needs confirmation**
+*Need confirmation*
 ```
 $ sudo apt-get install libgtk-3-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
 ```
 
 ### MacOS
-**Needs confirmation**
+*Need confirmation*
 ```
 $ brew install gtk+3 gstreamer-1.0-devel
 ```
 
-### Windows WIP
-It should be possible to use MSVC, but I didn't try it.
-Note: I could build `media-toc` successfully, but it fails when run.
+### Windows (WIP)
+Note: I could build `media-toc` successfully, but it fails to run.
 
 - MSYS2: follow [this guide](http://www.msys2.org/).
-- Install the development toolchain, GTK and GStreamer
+- Install the development toolchain, GTK and GStreamer<br>
+Note: for a 32bits system, use `mingw-w64-i686-...`
 ```
 pacman -S mingw-w64-x86_64-toolchain base-devel mingw-w64-x86_64-gtk3 \
     mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-plugins-base
 ```
-Note: for a 32bits system, use `mingw-w64-i686-...`
 - Rustup: launch the [rustup installer](https://www.rustup.rs/).
-When asked for the default host triple, use the default if you use MSVC or,
-select something like `x86_64-pc-windows-gnu`. Then select `nightly` as the
-default toolchain.
+When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
+`i686-pc-windows-gnu` for a 32bits system), then select `nightly`.
 - From a MSYS2 shell
   - add cargo to the `PATH`:
   ```
   echo 'PATH=$PATH:/c/Users/'$USER'/.cargo/bin' >> .bashrc
   ```
-  - create the file /c/Users/$USER/.cargo/config and add the following lines:
+  - Create the file /c/Users/$USER/.cargo/config and add the following lines:<br>
+  Note: on a 32bits system, use `i686-pc-windows-gnu` and `/msys32/mingw32/...`
   ```
   [target.x86_64-pc-windows-gnu]
   linker = "/msys64/mingw64/bin/gcc"
   ar = "/msys64/mingw64/bin/ar"
   ```
-  Note: on a 32bits system, use `i686-pc-windows-gnu` and `/msys32/mingw32/...`
-  - restart the MSYS2 shell.
-  - install `git`:
-  ```
-  pacman -S git
-  ```
-  - Download the sources:
-  ```
-  git clone https://github.com/fengalin/media-toc.git && cd media-toc
-  ```
+  - Restart the MSYS2 shell before using `cargo`.
 
 # Build and run
 Use Cargo (from the root of the project directory):
