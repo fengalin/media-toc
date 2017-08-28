@@ -76,8 +76,6 @@ impl AudioBuffer {
         let buffer = sample.get_buffer()
             .expect("Couldn't get buffer from audio sample");
 
-        // FIXME: use buffer.segment.stream_time
-        // see https://gstreamer.freedesktop.org/documentation/application-development/advanced/clocks.html
         let pts = buffer.get_pts();
         if self.samples.is_empty() {
             self.first_pts = pts;

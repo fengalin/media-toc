@@ -2,6 +2,9 @@ extern crate gtk;
 extern crate glib;
 extern crate gstreamer as gst;
 
+/*extern crate chrono;
+use chrono::Utc;*/
+
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
@@ -28,7 +31,12 @@ pub struct MainController {
     audio_ctrl: Rc<RefCell<AudioController>>,
 
     context: Option<Rc<RefCell<Context>>>,
-    last_position: i64,
+    last_position: u64,
+
+    /*min_pos_query: u64,
+    max_pos_query: u64,
+    sum_pos_query: u64,
+    nb_pos_query: u64,*/
 
     self_weak: Option<Weak<RefCell<MainController>>>,
     keep_going: bool,
@@ -47,7 +55,13 @@ impl MainController {
             video_ctrl: VideoController::new(&builder),
             audio_ctrl: AudioController::new(&builder),
             context: None,
+
             last_position: 0,
+            /*min_pos_query: 0,
+            max_pos_query: 0,
+            sum_pos_query: 0,
+            nb_pos_query: 0,*/
+
             self_weak: None,
             keep_going: true,
             listener_src: None,
@@ -211,24 +225,38 @@ impl MainController {
             let mut this_mut = this.borrow_mut();
 
             if this_mut.keep_going {
-                // TODO: find another way to get the position as it results
-                // in locks (e.g. use a channel and send it from the Context' inspector)
-                // and pass it to the AudioController with the tic
-                /*let context_rc = this_mut.context.as_ref()
+                let context_rc = this_mut.context.as_ref()
                     .expect("Tracking... but no context available")
                     .clone();
 
-                let context = context_rc.borrow();
+                let mut context = context_rc.borrow_mut();
+
+                //let before = Utc::now();
                 let position = context.get_position();
+                /*let after = Utc::now();
+                let delta = after.signed_duration_since(before)
+                    .num_nanoseconds()
+                    .unwrap() as u64;
+
+                this_mut.max_pos_query = this_mut.max_pos_query.max(delta);
+                this_mut.sum_pos_query += delta;
+                this_mut.nb_pos_query += 1;
+                println!("{} - {} - {}", this_mut.max_pos_query, this_mut.sum_pos_query / this_mut.nb_pos_query, delta);
+
+                if this_mut.nb_pos_query > 10 * 60 {
+                    this_mut.max_pos_query = 0;
+                    this_mut.sum_pos_query = 0;
+                    this_mut.nb_pos_query = 0;
+                }*/
+
                 if this_mut.last_position != position {
                     this_mut.position_lbl.set_text(
-                        &format!("{}", Timestamp::from_nano(position))
+                        &format!("{}", Timestamp::from_nano(position as i64))
                     );
                     this_mut.last_position = position;
 
-                    this_mut.audio_ctrl.borrow().tic();
-                }*/
-                this_mut.audio_ctrl.borrow().tic();
+                    this_mut.audio_ctrl.borrow_mut().tic(position);
+                }
             } else {
                 this_mut.tracker_src = None;
                 println!("Exiting tracker");

@@ -1,5 +1,5 @@
 extern crate gstreamer as gst;
-use gstreamer::{BinExt, BinExtManual, Caps, ElementExt, ElementExtManual,
+use gstreamer::{BinExt, BinExtManual, Caps, ClockExt, ElementExt,
                 ElementFactory, GstObjectExt, PadExt, TocScope, TocEntryType};
 
 extern crate gstreamer_audio as gst_audio;
@@ -153,7 +153,7 @@ pub enum ContextMessage {
 
 pub struct Context {
     pipeline: gst::Pipeline,
-    position_query: gst::Query,
+    clock: Option<gst::Clock>,
     audio_sink: gst::Element,
     video_sink: gst::Element,
 
@@ -196,7 +196,7 @@ impl Context {
 
         Context {
             pipeline: pipeline,
-            position_query: gst::Query::new_position(gst::Format::Time),
+            clock: None,
             audio_sink: audio_sink,
             video_sink: video_sink,
 
@@ -228,11 +228,14 @@ impl Context {
         }
     }
 
-    pub fn get_position(&mut self) -> i64 {
-        self.pipeline.query(self.position_query.get_mut().unwrap());
-        match self.position_query.view() {
-            gst::QueryView::Position(position) => position.get().1,
-            _ => unreachable!(),
+    pub fn get_position(&mut self) -> u64 {
+        let pipeline_clone = self.pipeline.clone();
+        match self.clock {
+            Some(ref clock) => clock.get_time(),
+            None => {
+                self.clock = pipeline_clone.get_clock();
+                0
+            },
         }
     }
 
