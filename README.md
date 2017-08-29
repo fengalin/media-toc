@@ -67,17 +67,19 @@ $ sudo apt-get install libgtk-3-dev libgstreamer1.0-dev libgstreamer-plugins-bas
 $ brew install gtk+3 gstreamer-1.0-devel
 ```
 
-### Windows (WIP)
-Note: I could build `media-toc` successfully, but on the Windows 7 32bits box
-I had access to, it fails to run with error code `3221225785`. I tried to insolate
-the problem and this symptom occurs as soon as the gtk::init statement. To be continued...
+### Windows
+#### Status
+`media-toc` builds and runs successfully on Windows 64bits.
 
+#### Environment Preparation
 - MSYS2: follow [this guide](http://www.msys2.org/).
 - Install the development toolchain, GTK and GStreamer<br>
 Note: for a 32bits system, use `mingw-w64-i686-...`
 ```
 pacman -S mingw-w64-x86_64-toolchain base-devel mingw-w64-x86_64-gtk3 \
-    mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-plugins-base
+    mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-plugins-base \
+    mingw-w64-x86_64-gst-plugins-good mingw-w64-x86_64-gst-plugins-bad \
+    mingw-w64-x86_64-gst-plugins-ugly
 ```
 - Rustup: launch the [rustup installer](https://www.rustup.rs/).
 When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
@@ -86,13 +88,6 @@ When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
   - add cargo to the `PATH`:
   ```
   echo 'PATH=$PATH:/c/Users/'$USER'/.cargo/bin' >> .bashrc
-  ```
-  - Create the file /c/Users/$USER/.cargo/config and add the following lines:<br>
-  Note: on a 32bits system, use `i686-pc-windows-gnu` and `/msys32/mingw32/...`
-  ```
-  [target.x86_64-pc-windows-gnu]
-  linker = "/msys64/mingw64/bin/gcc"
-  ar = "/msys64/mingw64/bin/ar"
   ```
   - Restart the MSYS2 shell before using `cargo`.
 
