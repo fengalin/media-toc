@@ -122,7 +122,7 @@ impl AudioController {
                 requested_step_duration
             );
 
-            if waveform_buffer.duration == 0 {
+            if waveform_buffer.samples.is_empty() {
                 return Inhibit(false);
             }
 
@@ -130,9 +130,7 @@ impl AudioController {
                 ((waveform_buffer.first_visible_pts - waveform_buffer.first_pts) as f64)
                  / -1_000_000_000f64;
 
-            let step_duration =
-                waveform_buffer.step_duration as f64
-                 / 1_000_000_000f64;
+            let step_duration = waveform_buffer.step_duration / 1_000_000_000f64;
 
             let mut sample_iter = waveform_buffer.samples.iter();
             cr.move_to(relative_pts, *sample_iter.next().unwrap());
@@ -148,7 +146,7 @@ impl AudioController {
         cr.stroke();
 
         // draw current pos
-        let x = (self.position - first_visible_pts) as f64 / 1_000_000_000f64;
+        let x = (self.position as f64 - first_visible_pts) / 1_000_000_000f64;
         cr.set_source_rgb(1f64, 1f64, 0f64);
         cr.set_line_width(0.004f64);
         cr.move_to(x, 0f64);

@@ -15,15 +15,13 @@ use super::WaveformBuffer;
 pub struct AudioBuffer {
     pts_offset: u64,
     capacity: usize,
-    pub sample_duration: u64,
+    pub sample_duration: f64,
     channels: usize,
     drain_size: usize,
     drain_duration: u64,
 
     pub samples_offset: usize,
     pub first_pts: u64,
-    pub last_pts: u64,
-    pub duration: u64,
     pub samples: VecDeque<f64>,
 
     waveform_buffer_mtx: Arc<Mutex<Option<WaveformBuffer>>>,
@@ -46,8 +44,8 @@ impl AudioBuffer {
         // assert_eq!(format, S16);
         // assert_eq!(layout, Interleaved);
 
-        let sample_duration = 1_000_000_000 / (rate as u64);
-        let capacity = (size_duration / sample_duration) as usize;
+        let sample_duration = 1_000_000_000f64 / (rate as f64);
+        let capacity = (size_duration as f64 / sample_duration) as usize;
 
         let drain_size = capacity / 5;
 
@@ -59,12 +57,10 @@ impl AudioBuffer {
                 .expect("Couldn't get channels from audio sample")
                 as usize,
             drain_size: drain_size,
-            drain_duration: (drain_size as u64) * sample_duration,
+            drain_duration: ((drain_size as f64) * sample_duration) as u64,
 
             samples_offset: 0,
             first_pts: 0,
-            last_pts: 0,
-            duration: 0,
             samples: VecDeque::with_capacity(capacity),
 
             waveform_buffer_mtx: waveform_buffer_mtx,
@@ -79,8 +75,7 @@ impl AudioBuffer {
         let pts = buffer.get_pts();
         if self.samples.is_empty() {
             self.first_pts = pts;
-            self.samples_offset = (self.first_pts / self.sample_duration) as usize;
-            self.last_pts = self.first_pts;
+            self.samples_offset = (self.first_pts as f64 / self.sample_duration) as usize;
         }
 
         let map = buffer.map_readable().unwrap();
@@ -89,7 +84,7 @@ impl AudioBuffer {
 
         // Use outputs from the double buffer preparation to decide
         // what to drain
-        if self.samples.len() + incoming_samples.len() > self.capacity
+        /*if self.samples.len() + incoming_samples.len() > self.capacity
             && pts > self.pts_offset
         {   // buffer will reach capacity => drain a chunk of samples
             // only if we have samples in history
@@ -100,7 +95,7 @@ impl AudioBuffer {
                 self.first_pts += self.drain_duration;
                 self.duration -= self.drain_duration;
             }
-        }
+        }*/
 
         // normalize samples in range 0f64..2f64 ready to render
 
@@ -140,23 +135,15 @@ impl AudioBuffer {
             self.samples.push_back(1f64 - norm_sample);
         };
 
-        let duration = buffer.get_duration();
-        self.last_pts += duration;
-        self.duration += duration;
-
-        // FIXME: need to detect the last buffer in order to fill the
-        // waveform completly since we won't come back here after that
-
         // prepare the second waveform buffer for rendering
-        if self.duration > 0 && pts > self.pts_offset {
+        if !self.samples.is_empty() && pts > self.pts_offset {
             let mut second_waveform_buffer = self.second_waveform_buffer.take()
                 .expect("Second waveform buffer not found");
 
-            second_waveform_buffer.set_position(pts - self.pts_offset);
             second_waveform_buffer.update_samples(&self);
 
             // switch buffers
-            let waveform_buffer = {
+            let mut waveform_buffer = {
                 let mut waveform_buffer_opt = self.waveform_buffer_mtx.lock()
                     .expect("Failed to lock the waveform buffer for switch");
                 let waveform_buffer = waveform_buffer_opt.take()
@@ -167,7 +154,7 @@ impl AudioBuffer {
             };
 
             // update buffer with latest samples
-            //waveform_buffer.update_samples(&self);
+            waveform_buffer.update_samples(&self);
 
             self.second_waveform_buffer = Some(waveform_buffer);
         }

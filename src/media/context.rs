@@ -97,6 +97,8 @@ macro_rules! build_audio_pipeline(
             $buffering_duration,
             $waveform_buffer_mtx.clone(),
         )));
+        // FIXME: need to implement EOS in order to fill the
+        // waveform completly since we won't come back in new_samples after that
         appsink.set_callbacks(gst_app::AppSinkCallbacks::new(
             /* eos: handled by pipeline */
             |_| {},
