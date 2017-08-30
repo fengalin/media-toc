@@ -104,38 +104,51 @@ impl MainController {
     }
 
     pub fn play_pause(&mut self) {
-        if let Some(context_rc) = self.context.as_ref() {
-            let context = context_rc.borrow();
-            match context.get_state() {
-                gst::State::Paused => {
-                    context.play().unwrap();
-                    self.play_pause_btn.set_icon_name("media-playback-pause");
+        let state =
+            if let Some(context_rc) = self.context.as_ref() {
+                let context = context_rc.borrow();
+                match context.get_state() {
+                    gst::State::Paused => {
+                        context.play().unwrap();
+                        gst::State::Paused
+                    }
+                    gst::State::Playing => {
+                        context.pause().unwrap();
+                        gst::State::Playing
+                    },
+                    state => {
+                        println!("Can't play/pause in state {:?}", state);
+                        return;
+                    },
                 }
-                gst::State::Playing => {
-                    context.pause().unwrap();
-                    self.play_pause_btn.set_icon_name("media-playback-start");
-                },
-                state => println!("Can't play/pause in state {:?}", state),
+            } else {
+                return;
+            };
+
+        match state {
+            gst::State::Paused => {
+                self.register_tracker(16); // 60 Hz
+                self.play_pause_btn.set_icon_name("media-playback-pause");
             }
+            gst::State::Playing => {
+                self.play_pause_btn.set_icon_name("media-playback-start");
+                self.remove_tracker();
+            },
+            state => println!("Can't play/pause in state {:?}", state),
         };
     }
 
     pub fn stop(&mut self) {
         if let Some(context_rc) = self.context.as_ref() {
             context_rc.borrow().stop();
+        };
 
-            // remove callbacks in order to avoid conflict on borrowing of self
-            if let Some(source_id) = self.listener_src {
-                glib::source_remove(source_id);
-            }
-            self.listener_src = None;
-            if let Some(source_id) = self.tracker_src {
-                glib::source_remove(source_id);
-            }
-            self.tracker_src = None;
+        // remove callbacks in order to avoid conflict on borrowing of self
+        self.remove_listener();
+        self.remove_tracker();
 
-            self.audio_ctrl.borrow_mut().cleanup();
-        }
+        self.audio_ctrl.borrow_mut().cleanup();
+
         self.play_pause_btn.set_icon_name("media-playback-start");
     }
 
@@ -155,6 +168,13 @@ impl MainController {
         }
 
         file_dlg.close();
+    }
+
+    fn remove_listener(&mut self) {
+        if let Some(source_id) = self.listener_src {
+            glib::source_remove(source_id);
+        }
+        self.listener_src = None;
     }
 
     fn register_listener(&mut self,
@@ -213,6 +233,13 @@ impl MainController {
 
             glib::Continue(this_mut.keep_going)
         }));
+    }
+
+    fn remove_tracker(&mut self) {
+        if let Some(source_id) = self.tracker_src {
+            glib::source_remove(source_id);
+        }
+        self.tracker_src = None;
     }
 
     fn register_tracker(&mut self, timeout: u32) {
@@ -275,7 +302,6 @@ impl MainController {
 
         self.keep_going = true;
         self.register_listener(500, ui_rx);
-        self.register_tracker(16); // 60 Hz
 
         match Context::open_media_path(
                 filepath,
