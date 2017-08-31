@@ -90,18 +90,19 @@ macro_rules! build_audio_pipeline(
         //appsink.set_property("async", &gst::Value::from(&false)).unwrap();
         //appsink.set_property("sync", &gst::Value::from(&false)).unwrap();
 
-        // TODO: caps can change so it might be necessary to
+        // TODO: caps can change so it might be necessary to update accordingly
         let audio_buffer = Arc::new(Mutex::new(AudioBuffer::new(
             &$src_pad.get_current_caps().unwrap(),
             2_000_000_000, // appsink offset (see above)
             $buffering_duration,
             $waveform_buffer_mtx.clone(),
         )));
-        // FIXME: need to implement EOS in order to fill the
-        // waveform completly since we won't come back in new_samples after that
+        let audio_buffer_clone = audio_buffer.clone();
         appsink.set_callbacks(gst_app::AppSinkCallbacks::new(
             /* eos: handled by pipeline */
-            |_| {},
+            move |_| {
+                audio_buffer_clone.lock().unwrap().handle_eos();
+            },
             /* new_preroll */
             |_| { gst::FlowReturn::Ok },
             /* new_samples */
@@ -230,7 +231,7 @@ impl Context {
         }
     }
 
-    pub fn get_position(&mut self) -> u64 {
+    pub fn get_time(&mut self) -> u64 {
         let pipeline_clone = self.pipeline.clone();
         match self.clock {
             Some(ref clock) => clock.get_time(),
@@ -238,6 +239,13 @@ impl Context {
                 self.clock = pipeline_clone.get_clock();
                 0
             },
+        }
+    }
+
+    pub fn get_position(&mut self) -> u64 {
+        match self.pipeline.query_position(gst::Format::Time) {
+            Some(position) => position as u64,
+            None => 0,
         }
     }
 

@@ -15,6 +15,7 @@ pub struct WaveformBuffer {
     pub first_visible_pts: f64,
 
     pub first_pts: f64,
+    pub eos: bool,
 
     samples_offset: usize,
     last_sample: usize,
@@ -35,6 +36,7 @@ impl WaveformBuffer {
             sample_step: 0,
             first_visible_pts: 0f64,
             first_pts: 0f64,
+            eos: false,
 
             samples_offset: 0,
             last_sample: 0,
@@ -54,13 +56,11 @@ impl WaveformBuffer {
 
         if !self.samples.is_empty() {
             let first_visible_sample =
-                if self.current_sample + self.half_requested_sample_window
-                    > self.last_sample
-                {
+                if self.eos {
                     if self.samples.len() * self.sample_step > self.requested_sample_window {
                         self.last_sample - self.requested_sample_window
                     }
-                    else {
+                    else { // TODO: check if this is really necessary
                         self.samples_offset
                     }
                 } else if self.current_sample > self.half_requested_sample_window
@@ -95,9 +95,7 @@ impl WaveformBuffer {
             let sample_step = sample_step as usize;
 
             let (first_visible_sample, sample_window) =
-                if self.current_sample + self.half_requested_sample_window
-                    > audio_buffer.samples_offset + audio_buffer.samples.len()
-                {
+                if self.eos {
                     if audio_buffer.samples.len() > self.requested_sample_window {
                         (
                             audio_buffer.samples_offset + audio_buffer.samples.len()

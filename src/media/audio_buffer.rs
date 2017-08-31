@@ -72,12 +72,6 @@ impl AudioBuffer {
         let buffer = sample.get_buffer()
             .expect("Couldn't get buffer from audio sample");
 
-        let pts = buffer.get_pts();
-        if self.samples.is_empty() {
-            self.first_pts = pts;
-            self.samples_offset = (self.first_pts as f64 / self.sample_duration) as usize;
-        }
-
         let map = buffer.map_readable().unwrap();
         let incoming_samples = map.as_slice().as_slice_of::<i16>()
             .expect("Couldn't get audio samples as i16");
@@ -136,7 +130,7 @@ impl AudioBuffer {
         };
 
         // prepare the second waveform buffer for rendering
-        if !self.samples.is_empty() && pts > self.pts_offset {
+        if !self.samples.is_empty() {
             let mut second_waveform_buffer = self.second_waveform_buffer.take()
                 .expect("Second waveform buffer not found");
 
@@ -157,6 +151,22 @@ impl AudioBuffer {
             waveform_buffer.update_samples(&self);
 
             self.second_waveform_buffer = Some(waveform_buffer);
+        }
+    }
+
+    pub fn handle_eos(&mut self) {
+        if !self.samples.is_empty() {
+            let mut second_waveform_buffer = self.second_waveform_buffer.take()
+                .expect("Second waveform buffer not found");
+
+            second_waveform_buffer.eos = true;
+            second_waveform_buffer.update_samples(&self);
+
+            // replace buffer
+            let mut waveform_buffer_opt = self.waveform_buffer_mtx.lock()
+                .expect("Failed to lock the waveform buffer for switch");
+
+            *waveform_buffer_opt = Some(second_waveform_buffer);
         }
     }
 }
