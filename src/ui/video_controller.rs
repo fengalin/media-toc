@@ -1,9 +1,6 @@
 extern crate gtk;
 use gtk::WidgetExt;
 
-use std::rc::Rc;
-use std::cell::RefCell;
-
 use ::media::Context;
 
 pub struct VideoController {
@@ -19,9 +16,7 @@ impl VideoController {
         }
     }
 
-    pub fn new_media(&mut self, context_rc: &Rc<RefCell<Context>>) {
-        let context = context_rc.borrow();
-
+    pub fn new_media(&mut self, context: &Context) {
         let has_video = context.info.lock()
                 .expect("Failed to lock media info while initializing video controller")
                 .video_best

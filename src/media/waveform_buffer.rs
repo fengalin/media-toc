@@ -56,11 +56,11 @@ impl WaveformBuffer {
 
         if !self.samples.is_empty() {
             let first_visible_sample =
-                if self.eos {
+                if self.current_sample + self.half_requested_sample_window > self.last_sample {
                     if self.samples.len() * self.sample_step > self.requested_sample_window {
                         self.last_sample - self.requested_sample_window
                     }
-                    else { // TODO: check if this is really necessary
+                    else {
                         self.samples_offset
                     }
                 } else if self.current_sample > self.half_requested_sample_window
@@ -97,10 +97,14 @@ impl WaveformBuffer {
             let (first_visible_sample, sample_window) =
                 if self.eos {
                     if audio_buffer.samples.len() > self.requested_sample_window {
+                        let first_visible_sample =
+                            self.current_sample - self.half_requested_sample_window;
                         (
-                            audio_buffer.samples_offset + audio_buffer.samples.len()
-                                - self.requested_sample_window,
-                            self.requested_sample_window
+                            first_visible_sample,
+                            audio_buffer.samples.len().min(
+                                audio_buffer.samples_offset + audio_buffer.samples.len()
+                                - first_visible_sample
+                            )
                         )
                     }
                     else {

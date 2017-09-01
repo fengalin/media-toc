@@ -5,8 +5,9 @@ use gtk::{Inhibit, WidgetExt};
 
 extern crate cairo;
 
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 use std::cell::RefCell;
+
 use std::sync::{Arc, Mutex};
 
 use ::media::{Context, WaveformBuffer};
@@ -15,7 +16,6 @@ pub struct AudioController {
     container: gtk::Container,
     drawingarea: gtk::DrawingArea,
 
-    context: Option<Weak<RefCell<Context>>>,
     position: u64,
     waveform_buffer_mtx: Arc<Mutex<Option<WaveformBuffer>>>,
 }
@@ -26,7 +26,6 @@ impl AudioController {
             container: builder.get_object("audio-container").unwrap(),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
 
-            context: None,
             position: 0,
             waveform_buffer_mtx: Arc::new(Mutex::new(None)),
         }));
@@ -49,14 +48,11 @@ impl AudioController {
     }
 
     pub fn cleanup(&mut self) {
-        self.context = None;
         // force redraw to purge the double buffer
         self.drawingarea.queue_draw();
     }
 
-    pub fn new_media(&mut self, context_rc: &Rc<RefCell<Context>>) {
-        let context = context_rc.borrow();
-
+    pub fn new_media(&mut self, context: &Context) {
         let has_audio = context.info.lock()
                 .expect("Failed to lock media info while initializing audio controller")
                 .audio_best
@@ -65,7 +61,6 @@ impl AudioController {
         if has_audio {
             self.position = 0;
             self.waveform_buffer_mtx = context.waveform_buffer_mtx.clone();
-            self.context = Some(Rc::downgrade(context_rc));
 
             self.container.show();
         }

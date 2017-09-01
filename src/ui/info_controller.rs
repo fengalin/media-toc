@@ -97,9 +97,7 @@ impl InfoController {
         self.chapter_treeview.append_column(&col);
     }
 
-    pub fn new_media(&mut self, context_rc: &Rc<RefCell<Context>>) {
-        let context = context_rc.borrow();
-
+    pub fn new_media(&mut self, context: &Context) {
         self.duration_lbl.set_label(
             &format!("{}", Timestamp::from_nano(context.get_duration()))
         );

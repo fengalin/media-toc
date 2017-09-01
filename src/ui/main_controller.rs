@@ -30,7 +30,8 @@ pub struct MainController {
     video_ctrl: VideoController,
     audio_ctrl: Rc<RefCell<AudioController>>,
 
-    context: Option<Rc<RefCell<Context>>>,
+    context: Option<Context>,
+    duration: u64,
     last_position: u64,
 
     /*min_pos_query: u64,
@@ -55,6 +56,7 @@ impl MainController {
             video_ctrl: VideoController::new(&builder),
             audio_ctrl: AudioController::new(&builder),
             context: None,
+            duration: 0,
 
             last_position: 0,
             /*min_pos_query: 0,
@@ -104,43 +106,32 @@ impl MainController {
     }
 
     pub fn play_pause(&mut self) {
-        let state =
-            if let Some(context_rc) = self.context.as_ref() {
-                let context = context_rc.borrow();
-                match context.get_state() {
-                    gst::State::Paused => {
-                        context.play().unwrap();
-                        gst::State::Paused
-                    }
-                    gst::State::Playing => {
-                        context.pause().unwrap();
-                        gst::State::Playing
-                    },
-                    state => {
-                        println!("Can't play/pause in state {:?}", state);
-                        return;
-                    },
-                }
-            } else {
-                return;
+        let context =
+            match self.context.take() {
+                Some(context) => context,
+                None => return,
             };
 
-        match state {
+        match context.get_state() {
             gst::State::Paused => {
                 self.register_tracker(16); // 60 Hz
                 self.play_pause_btn.set_icon_name("media-playback-pause");
+                context.play().unwrap();
             }
             gst::State::Playing => {
+                context.pause().unwrap();
                 self.play_pause_btn.set_icon_name("media-playback-start");
                 self.remove_tracker();
             },
             state => println!("Can't play/pause in state {:?}", state),
         };
+
+        self.context = Some(context);
     }
 
     pub fn stop(&mut self) {
-        if let Some(context_rc) = self.context.as_ref() {
-            context_rc.borrow().stop();
+        if let Some(context) = self.context.as_ref() {
+            context.stop();
         };
 
         // remove callbacks in order to avoid conflict on borrowing of self
@@ -200,20 +191,30 @@ impl MainController {
                     InitDone => {
                         println!("Received InitDone");
 
-                        let context_rc = this_mut.context.as_ref()
-                            .expect("... but no context available")
-                            .clone();
+                        let context = this_mut.context.take()
+                            .expect("... but no context available");
 
-                        this_mut.info_ctrl.new_media(&context_rc);
-                        this_mut.video_ctrl.new_media(&context_rc);
-                        this_mut.audio_ctrl.borrow_mut().new_media(&context_rc);
+                        let duration = context.get_duration();
+                        if duration.is_negative() {
+                            panic!("Negative duration");
+                        }
+                        this_mut.duration = duration as u64;
+
+                        this_mut.info_ctrl.new_media(&context);
+                        this_mut.video_ctrl.new_media(&context);
+                        this_mut.audio_ctrl.borrow_mut().new_media(&context);
 
                         this_mut.header_bar.set_subtitle(
-                            Some(context_rc.borrow().file_name.as_str())
+                            Some(context.file_name.as_str())
                         );
+
+                        this_mut.context = Some(context);
                     },
                     Eos => {
                         println!("Received Eos");
+                        this_mut.remove_tracker();
+                        let duration = this_mut.duration;
+                        this_mut.tic(duration);
                         this_mut.play_pause_btn.set_icon_name("media-playback-start");
                     },
                     FailedToOpenMedia => {
@@ -242,6 +243,15 @@ impl MainController {
         self.tracker_src = None;
     }
 
+    fn tic(&mut self, position: u64) {
+        self.position_lbl.set_text(
+            &format!("{}", Timestamp::from_nano(position as i64))
+        );
+        self.last_position = position;
+
+        self.audio_ctrl.borrow_mut().tic(position);
+    }
+
     fn register_tracker(&mut self, timeout: u32) {
         let this_weak = self.self_weak.as_ref()
             .unwrap()
@@ -252,37 +262,35 @@ impl MainController {
             let mut this_mut = this.borrow_mut();
 
             if this_mut.keep_going {
-                let context_rc = this_mut.context.as_ref()
-                    .expect("Tracking... but no context available")
-                    .clone();
+                let position = {
+                    let context = this_mut.context.as_mut()
+                        .expect("Tracking... but no context available");
 
-                let mut context = context_rc.borrow_mut();
+                    //let before = Utc::now();
+                    let position = context.get_time();
+                    /*let after = Utc::now();
+                    let delta = after.signed_duration_since(before)
+                        .num_nanoseconds()
+                        .unwrap() as u64;
 
-                //let before = Utc::now();
-                let position = context.get_position();
-                /*let after = Utc::now();
-                let delta = after.signed_duration_since(before)
-                    .num_nanoseconds()
-                    .unwrap() as u64;
+                    this_mut.max_pos_query = this_mut.max_pos_query.max(delta);
+                    this_mut.sum_pos_query += delta;
+                    this_mut.nb_pos_query += 1;
+                    println!("{} - {} - {}", this_mut.max_pos_query, this_mut.sum_pos_query / this_mut.nb_pos_query, delta);
 
-                this_mut.max_pos_query = this_mut.max_pos_query.max(delta);
-                this_mut.sum_pos_query += delta;
-                this_mut.nb_pos_query += 1;
-                println!("{} - {} - {}", this_mut.max_pos_query, this_mut.sum_pos_query / this_mut.nb_pos_query, delta);
+                    if this_mut.nb_pos_query > 10 * 60 {
+                        this_mut.max_pos_query = 0;
+                        this_mut.sum_pos_query = 0;
+                        this_mut.nb_pos_query = 0;
+                    }*/
 
-                if this_mut.nb_pos_query > 10 * 60 {
-                    this_mut.max_pos_query = 0;
-                    this_mut.sum_pos_query = 0;
-                    this_mut.nb_pos_query = 0;
-                }*/
+                    position
+                };
 
                 if this_mut.last_position != position {
-                    this_mut.position_lbl.set_text(
-                        &format!("{}", Timestamp::from_nano(position as i64))
-                    );
-                    this_mut.last_position = position;
-
-                    this_mut.audio_ctrl.borrow_mut().tic(position);
+                    if position <= this_mut.duration {
+                        this_mut.tic(position);
+                    }
                 }
             } else {
                 this_mut.tracker_src = None;
@@ -311,7 +319,7 @@ impl MainController {
             )
             {
             Ok(context) => {
-                self.context = Some(Rc::new(RefCell::new(context)));
+                self.context = Some(context);
                 self.last_position = 0;
             },
             Err(error) => eprintln!("Error opening media: {}", error),
