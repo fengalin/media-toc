@@ -114,7 +114,7 @@ impl MainController {
 
         match context.get_state() {
             gst::State::Paused => {
-                self.register_tracker(16); // 60 Hz
+                self.register_tracker(25); // 40 Hz
                 self.play_pause_btn.set_icon_name("media-playback-pause");
                 context.play().unwrap();
             }

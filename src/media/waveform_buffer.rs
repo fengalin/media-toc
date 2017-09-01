@@ -56,7 +56,8 @@ impl WaveformBuffer {
 
         if !self.samples.is_empty() {
             let first_visible_sample =
-                if self.current_sample + self.half_requested_sample_window > self.last_sample {
+                if self.eos
+                && self.current_sample + self.half_requested_sample_window > self.last_sample {
                     if self.samples.len() * self.sample_step > self.requested_sample_window {
                         self.last_sample - self.requested_sample_window
                     }
@@ -113,12 +114,17 @@ impl WaveformBuffer {
                 } else if self.current_sample > self.half_requested_sample_window
                     + audio_buffer.samples_offset
                 {
-                    // attempt to get a 20% larger buffer in order to compensate
+                    // attempt to get a larger buffer in order to compensate
                     // for the delay when it will actually be drawn
+                    let first_visible_sample =
+                        self.current_sample - self.half_requested_sample_window;
+                    let available_duration =
+                        audio_buffer.samples_offset + audio_buffer.samples.len()
+                        - first_visible_sample;
                     (
-                        self.current_sample - self.half_requested_sample_window,
-                        audio_buffer.samples.len().min(
-                            self.requested_sample_window + self.requested_sample_window / 20
+                        first_visible_sample,
+                        available_duration.min(
+                            self.requested_sample_window + self.half_requested_sample_window
                         )
                     )
                 } else {
