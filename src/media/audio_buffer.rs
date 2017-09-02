@@ -18,10 +18,9 @@ pub struct AudioBuffer {
     pub sample_duration: f64,
     channels: usize,
     drain_size: usize,
-    drain_duration: u64,
 
     pub samples_offset: usize,
-    pub first_pts: u64,
+    waveform_samples_offset: usize,
     pub samples: VecDeque<f64>,
 
     waveform_buffer_mtx: Arc<Mutex<Option<WaveformBuffer>>>,
@@ -57,10 +56,9 @@ impl AudioBuffer {
                 .expect("Couldn't get channels from audio sample")
                 as usize,
             drain_size: drain_size,
-            drain_duration: ((drain_size as f64) * sample_duration) as u64,
 
             samples_offset: 0,
-            first_pts: 0,
+            waveform_samples_offset: 0,
             samples: VecDeque::with_capacity(capacity),
 
             waveform_buffer_mtx: waveform_buffer_mtx,
@@ -76,20 +74,15 @@ impl AudioBuffer {
         let incoming_samples = map.as_slice().as_slice_of::<i16>()
             .expect("Couldn't get audio samples as i16");
 
-        // Use outputs from the double buffer preparation to decide
-        // what to drain
-        /*if self.samples.len() + incoming_samples.len() > self.capacity
-            && pts > self.pts_offset
+        if self.samples.len() + incoming_samples.len() > self.capacity
         {   // buffer will reach capacity => drain a chunk of samples
             // only if we have samples in history
-            let pts = pts - self.pts_offset;
-            if pts - self.first_pts > 2 * self.drain_duration {
+            let offset_delta = self.waveform_samples_offset - self.samples_offset;
+            if offset_delta > self.drain_size {
                 self.samples.drain(..self.drain_size);
                 self.samples_offset += self.drain_size;
-                self.first_pts += self.drain_duration;
-                self.duration -= self.drain_duration;
             }
-        }*/
+        }
 
         // normalize samples in range 0f64..2f64 ready to render
 
@@ -149,6 +142,7 @@ impl AudioBuffer {
 
             // update buffer with latest samples
             waveform_buffer.update_samples(&self);
+            self.waveform_samples_offset = waveform_buffer.samples_offset;
 
             self.second_waveform_buffer = Some(waveform_buffer);
         }

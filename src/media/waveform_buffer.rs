@@ -19,7 +19,7 @@ pub struct WaveformBuffer {
     pub first_pts: f64,
     pub eos: bool,
 
-    samples_offset: usize,
+    pub samples_offset: usize,
     last_sample: usize,
     pub samples: VecDeque<f64>,
 }
