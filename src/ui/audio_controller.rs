@@ -121,13 +121,10 @@ impl AudioController {
                 return Inhibit(false);
             }
 
-            let mut relative_pts =
-                ((waveform_buffer.first_visible_pts - waveform_buffer.first_pts) as f64)
-                 / -1_000_000_000f64;
-
+            let mut relative_pts = 0f64;
             let step_duration = waveform_buffer.step_duration / 1_000_000_000f64;
 
-            let mut sample_iter = waveform_buffer.samples.iter();
+            let mut sample_iter = waveform_buffer.iter();
             cr.move_to(relative_pts, *sample_iter.next().unwrap());
 
             for sample in sample_iter {

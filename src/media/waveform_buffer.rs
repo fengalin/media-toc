@@ -12,6 +12,8 @@ pub struct WaveformBuffer {
 
     pub step_duration: f64,
     sample_step: usize,
+    first_visible_idx: usize,
+    last_visible_idx: usize,
     pub first_visible_pts: f64,
 
     pub first_pts: f64,
@@ -34,6 +36,8 @@ impl WaveformBuffer {
 
             step_duration: 0f64,
             sample_step: 0,
+            first_visible_idx: 0,
+            last_visible_idx: 0,
             first_visible_pts: 0f64,
             first_pts: 0f64,
             eos: false,
@@ -55,26 +59,51 @@ impl WaveformBuffer {
         self.requested_step_duration = step_duration;
 
         if !self.samples.is_empty() {
-            let first_visible_sample =
+            let buffer_sample_window = self.samples.len() * self.sample_step;
+            let (first_visible_sample, sample_window) =
                 if self.eos
                 && self.current_sample + self.half_requested_sample_window > self.last_sample {
-                    if self.samples.len() * self.sample_step > self.requested_sample_window {
-                        self.last_sample - self.requested_sample_window
+                    if buffer_sample_window > self.requested_sample_window {
+                        (
+                            self.last_sample - self.requested_sample_window,
+                            self.requested_sample_window
+                        )
                     }
                     else {
-                        self.samples_offset
+                        (
+                            self.samples_offset,
+                            buffer_sample_window
+                        )
                     }
-                } else if self.current_sample > self.half_requested_sample_window
-                    + self.samples_offset
-                {
-                    self.current_sample - self.half_requested_sample_window
                 } else {
-                    self.samples_offset
+                    if self.current_sample > self.half_requested_sample_window
+                        + self.samples_offset
+                    {
+                        let first_visible_sample =
+                            self.current_sample - self.half_requested_sample_window;
+                        let remaining_samples = self.last_sample - first_visible_sample;
+                        (
+                            first_visible_sample,
+                            remaining_samples.min(self.requested_sample_window)
+                        )
+                    } else {
+                        (
+                            self.samples_offset,
+                            buffer_sample_window.min(self.requested_sample_window)
+                        )
+                    }
                 };
+
+            self.first_visible_idx = (first_visible_sample - self.samples_offset) / self.sample_step;
+            self.last_visible_idx = self.first_visible_idx + sample_window / self.sample_step;
 
             self.first_visible_pts =
                 first_visible_sample as f64 * self.sample_duration;
         }
+    }
+
+    pub fn iter(&self) -> Iter {
+        Iter::new(self)
     }
 
     pub fn set_position(&mut self, pts: u64) {
@@ -171,6 +200,50 @@ impl WaveformBuffer {
             self.first_pts = first_sample as f64 * self.sample_duration;
             self.first_visible_pts =
                 first_visible_sample as f64 * self.sample_duration;
+
+            self.first_visible_idx = (first_visible_sample - self.samples_offset) / self.sample_step;
+            self.last_visible_idx = self.samples.len();
         } // else wait until UI requests something
+    }
+}
+
+pub struct Iter<'a> {
+    buffer: &'a WaveformBuffer,
+    idx: usize,
+    last: usize,
+}
+
+impl<'a> Iter<'a> {
+    fn new(buffer: &'a WaveformBuffer) -> Iter<'a> {
+        Iter {
+            buffer: buffer,
+            idx: buffer.first_visible_idx,
+            last: buffer.last_visible_idx,
+        }
+    }
+}
+
+impl<'a> Iterator for Iter<'a> {
+    type Item = &'a f64;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx >= self.last {
+            return None;
+        }
+
+        let item = self.buffer.samples.get(self.idx);
+        self.idx += 1;
+
+        item
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        if self.idx == self.last {
+            return (0, Some(0));
+        }
+
+        let remaining = self.last - self.idx;
+
+        (remaining, Some(remaining))
     }
 }
