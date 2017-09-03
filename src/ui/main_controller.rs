@@ -167,9 +167,7 @@ impl MainController {
         self.listener_src = Some(gtk::timeout_add(timeout, move || {
             let mut message_iter = ui_rx.try_iter();
 
-            let this_rc = this_weak.upgrade().unwrap();
-            let mut this_mut = this_rc.borrow_mut();
-
+            let mut keep_going = true;
             for message in message_iter.next() {
                 match message {
                     AsyncDone => {
@@ -177,6 +175,9 @@ impl MainController {
                     },
                     InitDone => {
                         println!("Received InitDone");
+
+                        let this_rc = this_weak.upgrade().unwrap();
+                        let mut this_mut = this_rc.borrow_mut();
 
                         let context = this_mut.context.take()
                             .expect("... but no context available");
@@ -199,27 +200,31 @@ impl MainController {
                     },
                     Eos => {
                         println!("Received Eos");
+                        let this_rc = this_weak.upgrade().unwrap();
+                        let mut this_mut = this_rc.borrow_mut();
+
                         this_mut.remove_tracker();
                         let duration = this_mut.duration;
                         this_mut.tic(duration);
+
+                        // TODO: exit tracker
                         this_mut.play_pause_btn.set_icon_name("media-playback-start");
                     },
                     FailedToOpenMedia => {
                         eprintln!("ERROR: failed to open media");
+                        let this_rc = this_weak.upgrade().unwrap();
+                        let mut this_mut = this_rc.borrow_mut();
+
                         this_mut.context = None;
                         this_mut.keep_going = false;
+                        keep_going = false;
                     },
                 };
 
-                if !this_mut.keep_going { break; }
+                if !keep_going { break; }
             }
 
-            if !this_mut.keep_going {
-                this_mut.listener_src = None;
-                println!("Exiting listener");
-            }
-
-            glib::Continue(this_mut.keep_going)
+            glib::Continue(keep_going)
         }));
     }
 
