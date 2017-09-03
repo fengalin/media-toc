@@ -13,7 +13,6 @@ use std::sync::{Arc, Mutex};
 use super::WaveformBuffer;
 
 pub struct AudioBuffer {
-    pts_offset: u64,
     capacity: usize,
     pub sample_duration: f64,
     channels: usize,
@@ -30,7 +29,6 @@ pub struct AudioBuffer {
 impl AudioBuffer {
     pub fn new(
         caps: &gst::Caps,
-        pts_offset: u64,
         size_duration: u64,
         waveform_buffer_mtx: Arc<Mutex<Option<WaveformBuffer>>>,
     ) -> Self
@@ -49,7 +47,6 @@ impl AudioBuffer {
         let drain_size = capacity / 5;
 
         AudioBuffer {
-            pts_offset: pts_offset,
             capacity: capacity,
             sample_duration: sample_duration,
             channels: structure.get::<i32>("channels")

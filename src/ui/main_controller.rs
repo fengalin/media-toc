@@ -2,9 +2,6 @@ extern crate gtk;
 extern crate glib;
 extern crate gstreamer as gst;
 
-/*extern crate chrono;
-use chrono::Utc;*/
-
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
@@ -34,11 +31,6 @@ pub struct MainController {
     duration: u64,
     last_position: u64,
 
-    /*min_pos_query: u64,
-    max_pos_query: u64,
-    sum_pos_query: u64,
-    nb_pos_query: u64,*/
-
     self_weak: Option<Weak<RefCell<MainController>>>,
     keep_going: bool,
     listener_src: Option<glib::SourceId>,
@@ -55,14 +47,10 @@ impl MainController {
             info_ctrl: InfoController::new(&builder),
             video_ctrl: VideoController::new(&builder),
             audio_ctrl: AudioController::new(&builder),
+
             context: None,
             duration: 0,
-
             last_position: 0,
-            /*min_pos_query: 0,
-            max_pos_query: 0,
-            sum_pos_query: 0,
-            nb_pos_query: 0,*/
 
             self_weak: None,
             keep_going: true,
@@ -130,7 +118,7 @@ impl MainController {
     }
 
     pub fn stop(&mut self) {
-        if let Some(context) = self.context.as_ref() {
+        if let Some(context) = self.context.as_mut() {
             context.stop();
         };
 
@@ -162,10 +150,9 @@ impl MainController {
     }
 
     fn remove_listener(&mut self) {
-        if let Some(source_id) = self.listener_src {
+        if let Some(source_id) = self.listener_src.take() {
             glib::source_remove(source_id);
         }
-        self.listener_src = None;
     }
 
     fn register_listener(&mut self,
@@ -237,10 +224,9 @@ impl MainController {
     }
 
     fn remove_tracker(&mut self) {
-        if let Some(source_id) = self.tracker_src {
+        if let Some(source_id) = self.tracker_src.take() {
             glib::source_remove(source_id);
         }
-        self.tracker_src = None;
     }
 
     fn tic(&mut self, position: u64) {
@@ -262,31 +248,9 @@ impl MainController {
             let mut this_mut = this.borrow_mut();
 
             if this_mut.keep_going {
-                let position = {
-                    let context = this_mut.context.as_mut()
-                        .expect("Tracking... but no context available");
-
-                    //let before = Utc::now();
-                    let position = context.get_time();
-                    /*let after = Utc::now();
-                    let delta = after.signed_duration_since(before)
-                        .num_nanoseconds()
-                        .unwrap() as u64;
-
-                    this_mut.max_pos_query = this_mut.max_pos_query.max(delta);
-                    this_mut.sum_pos_query += delta;
-                    this_mut.nb_pos_query += 1;
-                    println!("{} - {} - {}", this_mut.max_pos_query, this_mut.sum_pos_query / this_mut.nb_pos_query, delta);
-
-                    if this_mut.nb_pos_query > 10 * 60 {
-                        this_mut.max_pos_query = 0;
-                        this_mut.sum_pos_query = 0;
-                        this_mut.nb_pos_query = 0;
-                    }*/
-
-                    position
-                };
-
+                let position = this_mut.context.as_mut()
+                    .expect("No context in tracker")
+                    .get_position();
                 if this_mut.last_position != position {
                     if position <= this_mut.duration {
                         this_mut.tic(position);

@@ -93,7 +93,6 @@ macro_rules! build_audio_pipeline(
         // TODO: caps can change so it might be necessary to update accordingly
         let audio_buffer = Arc::new(Mutex::new(AudioBuffer::new(
             &$src_pad.get_current_caps().unwrap(),
-            2_000_000_000, // appsink offset (see above)
             $buffering_duration,
             $waveform_buffer_mtx.clone(),
         )));
@@ -157,6 +156,7 @@ pub enum ContextMessage {
 pub struct Context {
     pipeline: gst::Pipeline,
     clock: Option<gst::Clock>,
+
     audio_sink: gst::Element,
     video_sink: gst::Element,
 
@@ -200,6 +200,7 @@ impl Context {
         Context {
             pipeline: pipeline,
             clock: None,
+
             audio_sink: audio_sink,
             video_sink: video_sink,
 
@@ -231,21 +232,13 @@ impl Context {
         }
     }
 
-    pub fn get_time(&mut self) -> u64 {
-        let pipeline_clone = self.pipeline.clone();
+    pub fn get_position(&mut self) -> u64 {
         match self.clock {
             Some(ref clock) => clock.get_time(),
             None => {
-                self.clock = pipeline_clone.get_clock();
+                self.clock = self.pipeline.get_clock();
                 0
-            },
-        }
-    }
-
-    pub fn get_position(&mut self) -> u64 {
-        match self.pipeline.query_position(gst::Format::Time) {
-            Some(position) => position as u64,
-            None => 0,
+            }
         }
     }
 
