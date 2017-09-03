@@ -32,15 +32,10 @@ impl AudioController {
 
         {
             let this_ref = this.borrow();
-            let this_weak = Rc::downgrade(&this);
+            let this_rc = this.clone();
             this_ref.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
-                match this_weak.upgrade() {
-                    Some(this_ref) => {
-                        this_ref.borrow_mut()
-                            .draw(drawing_area, cairo_ctx).into()
-                    },
-                    None => Inhibit(false),
-                }
+                this_rc.borrow()
+                    .draw(drawing_area, cairo_ctx).into()
             });
         }
 
@@ -74,7 +69,7 @@ impl AudioController {
         self.drawingarea.queue_draw();
     }
 
-    fn draw(&mut self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) -> Inhibit {
+    fn draw(&self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) -> Inhibit {
         if self.position == 0 {
             return Inhibit(false);
         }
