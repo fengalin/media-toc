@@ -2,7 +2,7 @@ extern crate gtk;
 extern crate glib;
 extern crate gstreamer as gst;
 
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 use std::cell::RefCell;
 
 use std::path::PathBuf;
@@ -31,7 +31,7 @@ pub struct MainController {
     duration: u64,
     last_position: u64,
 
-    self_weak: Option<Weak<RefCell<MainController>>>,
+    this_opt: Option<Rc<RefCell<MainController>>>,
     keep_going: bool,
     listener_src: Option<glib::SourceId>,
     tracker_src: Option<glib::SourceId>,
@@ -52,38 +52,34 @@ impl MainController {
             duration: 0,
             last_position: 0,
 
-            self_weak: None,
+            this_opt: None,
             keep_going: true,
             listener_src: None,
             tracker_src: None,
         }));
 
-        let this_weak = Rc::downgrade(&this);
         {
             let mut this_mut = this.borrow_mut();
+
+            let this_rc = this.clone();
+            this_mut.this_opt = Some(this_rc);
+
             this_mut.window.connect_delete_event(|_, _| {
                 gtk::main_quit();
                 Inhibit(false)
             });
             this_mut.window.set_titlebar(&this_mut.header_bar);
 
-            let this_weak_clone = this_weak.clone();
+            let this_rc = this.clone();
             this_mut.play_pause_btn.connect_clicked(move |_| {
-                if let Some(this_ref) = this_weak_clone.upgrade() {
-                    this_ref.borrow_mut().play_pause();
-                };
+                this_rc.borrow_mut().play_pause();
             });
-
-            let this_weak = Rc::downgrade(&this);
-            this_mut.self_weak = Some(this_weak);
         }
 
         let open_btn: Button = builder.get_object("open-btn").unwrap();
-        let this_weak_clone = this_weak.clone();
+        let this_rc = this.clone();
         open_btn.connect_clicked(move |_| {
-            if let Some(this_ref) = this_weak_clone.upgrade() {
-                this_ref.borrow_mut().select_media();
-            }
+            this_rc.borrow_mut().select_media();
         });
 
         this
@@ -160,7 +156,7 @@ impl MainController {
         ui_rx: Receiver<ContextMessage>,
     )
     {
-        let this_weak = self.self_weak.as_ref()
+        let this_rc = self.this_opt.as_ref()
             .unwrap()
             .clone();
 
@@ -176,7 +172,6 @@ impl MainController {
                     InitDone => {
                         println!("Received InitDone");
 
-                        let this_rc = this_weak.upgrade().unwrap();
                         let mut this_mut = this_rc.borrow_mut();
 
                         let context = this_mut.context.take()
@@ -200,7 +195,7 @@ impl MainController {
                     },
                     Eos => {
                         println!("Received Eos");
-                        let this_rc = this_weak.upgrade().unwrap();
+
                         let mut this_mut = this_rc.borrow_mut();
 
                         this_mut.remove_tracker();
@@ -212,7 +207,7 @@ impl MainController {
                     },
                     FailedToOpenMedia => {
                         eprintln!("ERROR: failed to open media");
-                        let this_rc = this_weak.upgrade().unwrap();
+
                         let mut this_mut = this_rc.borrow_mut();
 
                         this_mut.context = None;
@@ -244,13 +239,12 @@ impl MainController {
     }
 
     fn register_tracker(&mut self, timeout: u32) {
-        let this_weak = self.self_weak.as_ref()
+        let this_rc = self.this_opt.as_ref()
             .unwrap()
             .clone();
 
         self.tracker_src = Some(gtk::timeout_add(timeout, move || {
-            let this = this_weak.upgrade().unwrap();
-            let mut this_mut = this.borrow_mut();
+            let mut this_mut = this_rc.borrow_mut();
 
             if this_mut.keep_going {
                 let position = this_mut.context.as_mut()
