@@ -16,6 +16,7 @@ pub struct AudioController {
     container: gtk::Container,
     drawingarea: gtk::DrawingArea,
 
+    is_active: bool,
     position: u64,
     waveform_buffer_mtx: Arc<Mutex<Option<WaveformBuffer>>>,
 }
@@ -26,6 +27,7 @@ impl AudioController {
             container: builder.get_object("audio-container").unwrap(),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
 
+            is_active: false,
             position: 0,
             waveform_buffer_mtx: Arc::new(Mutex::new(None)),
         }));
@@ -43,6 +45,7 @@ impl AudioController {
     }
 
     pub fn cleanup(&mut self) {
+        self.is_active = false;
         // force redraw to purge the double buffer
         self.drawingarea.queue_draw();
     }
@@ -54,6 +57,7 @@ impl AudioController {
                 .is_some();
 
         if has_audio {
+            self.is_active = true;
             self.position = 0;
             self.waveform_buffer_mtx = context.waveform_buffer_mtx.clone();
 
@@ -70,6 +74,13 @@ impl AudioController {
     }
 
     fn draw(&self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) -> Inhibit {
+        if !self.is_active {
+            return Inhibit(false);
+        }
+
+        cr.set_source_rgb(0.0f64, 0.0f64, 0.0f64);
+        cr.paint();
+
         if self.position == 0 {
             return Inhibit(false);
         }
