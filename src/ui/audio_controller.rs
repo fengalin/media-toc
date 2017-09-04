@@ -120,17 +120,18 @@ impl AudioController {
             let step_duration = waveform_buffer.step_duration / 1_000_000_000f64;
 
             let mut sample_iter = waveform_buffer.iter();
-            cr.move_to(relative_pts, *sample_iter.next().unwrap());
+            let mut sample_value = *sample_iter.next().unwrap();
 
             for sample in sample_iter {
+                cr.move_to(relative_pts, sample_value);
                 relative_pts += step_duration;
-                cr.line_to(relative_pts, *sample);
+                sample_value = *sample;
+                cr.line_to(relative_pts, sample_value);
+                cr.stroke();
             }
 
             waveform_buffer.first_visible_pts
         };
-
-        cr.stroke();
 
         // draw current pos
         let x = (self.position as f64 - first_visible_pts) / 1_000_000_000f64;
