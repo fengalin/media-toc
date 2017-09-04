@@ -246,18 +246,12 @@ impl MainController {
         self.tracker_src = Some(gtk::timeout_add(timeout, move || {
             let mut this_mut = this_rc.borrow_mut();
 
-            if this_mut.keep_going {
-                let position = this_mut.context.as_mut()
-                    .expect("No context in tracker")
-                    .get_position();
-                if this_mut.last_position != position {
-                    if position <= this_mut.duration {
-                        this_mut.tic(position);
-                    }
-                }
-            } else {
-                this_mut.tracker_src = None;
-                println!("Exiting tracker");
+            let position = this_mut.context.as_mut()
+                .expect("No context in tracker")
+                .get_position();
+            if this_mut.last_position != position
+            && position <= this_mut.duration {
+                this_mut.tic(position);
             }
 
             glib::Continue(this_mut.keep_going)
