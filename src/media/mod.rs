@@ -17,4 +17,4 @@ pub mod timestamp;
 pub use self::timestamp::Timestamp;
 
 pub mod waveform_buffer;
-pub use self::waveform_buffer::WaveformBuffer;
+pub use self::waveform_buffer::{SamplesExtractor, WaveformBuffer};

@@ -10,7 +10,7 @@ use std::collections::vec_deque::VecDeque;
 
 use std::sync::{Arc, Mutex};
 
-use super::WaveformBuffer;
+use super::{SamplesExtractor, WaveformBuffer};
 
 pub struct AudioBuffer {
     capacity: usize,
@@ -124,7 +124,7 @@ impl AudioBuffer {
             let mut second_waveform_buffer = self.second_waveform_buffer.take()
                 .expect("Second waveform buffer not found");
 
-            second_waveform_buffer.update_samples(&self);
+            second_waveform_buffer.extract_samples(&self);
 
             // switch buffers
             let mut waveform_buffer = {
@@ -138,11 +138,15 @@ impl AudioBuffer {
             };
 
             // update buffer with latest samples
-            waveform_buffer.update_samples(&self);
-            self.waveform_samples_offset = waveform_buffer.samples_offset;
+            waveform_buffer.extract_samples(&self);
+            self.waveform_samples_offset = waveform_buffer.get_sample_offset();
 
             self.second_waveform_buffer = Some(waveform_buffer);
         }
+    }
+
+    pub fn get_sample(&self, absolute_idx: usize) -> f64 {
+        self.samples[absolute_idx - self.samples_offset]
     }
 
     pub fn handle_eos(&mut self) {
@@ -150,8 +154,8 @@ impl AudioBuffer {
             let mut second_waveform_buffer = self.second_waveform_buffer.take()
                 .expect("Second waveform buffer not found");
 
-            second_waveform_buffer.eos = true;
-            second_waveform_buffer.update_samples(&self);
+            second_waveform_buffer.handle_eos();
+            second_waveform_buffer.extract_samples(&self);
 
             // replace buffer
             let mut waveform_buffer_opt = self.waveform_buffer_mtx.lock()

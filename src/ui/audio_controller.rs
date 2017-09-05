@@ -128,7 +128,7 @@ impl AudioController {
             }
 
             let mut relative_pts = 0f64;
-            let step_duration = waveform_buffer.step_duration / 1_000_000_000f64;
+            let step_duration = waveform_buffer.get_step_duration() / 1_000_000_000f64;
 
             let mut sample_iter = waveform_buffer.iter();
             let mut sample_value = *sample_iter.next().unwrap();
