@@ -13,7 +13,6 @@ pub struct SamplesExtractionState {
     pub half_requested_sample_window: usize,
     pub requested_step_duration: u64,
 
-    pub step_duration: f64,
     pub sample_step: usize,
 
     pub eos: bool,
@@ -32,7 +31,6 @@ impl SamplesExtractionState {
             half_requested_sample_window: 0,
             requested_step_duration: 0,
 
-            step_duration: 0f64,
             sample_step: 0,
             eos: false,
         }
@@ -78,7 +76,6 @@ pub trait SamplesExtractor {
                 state.requested_step_duration as f64
                 / state.sample_duration
             ).round();
-            state.step_duration = sample_step * state.sample_duration;
             let sample_step = sample_step as usize;
 
             if state.eos {
@@ -171,7 +168,7 @@ impl WaveformBuffer {
     }
 
     pub fn get_step_duration(&self) -> f64 {
-        self.state.step_duration
+        self.state.sample_step as f64 * self.state.sample_duration
     }
 
     pub fn update_conditions(&mut self, pts: u64, duration: u64, step_duration: u64) {
@@ -255,18 +252,17 @@ impl SamplesExtractor for WaveformBuffer {
         if self.state.sample_step != sample_step {
             // resolution has changed or initialization => reset extraction
             self.samples.clear();
+            self.state.sample_step = sample_step;
             let mut sample_idx = first_sample;
             while sample_idx < last_sample {
                 self.samples.push_back(audio_buffer.get_sample(sample_idx));
                 sample_idx += sample_step;
             }
-
-            self.state.sample_step = sample_step;
         } else {
             // incremental update
-            let new_first_sample_idx =
+            let new_first_sample_idx_rel =
                 (first_sample - self.state.samples_offset) / sample_step;
-            self.samples.drain(..new_first_sample_idx);
+            self.samples.drain(..new_first_sample_idx_rel);
 
             // add missing samples
             let mut sample_idx = self.state.last_sample;
@@ -277,7 +273,7 @@ impl SamplesExtractor for WaveformBuffer {
         }
 
         self.state.samples_offset = first_sample;
-        self.state.last_sample = last_sample;
+        self.state.last_sample = first_sample + self.samples.len() * sample_step;
     }
 }
 

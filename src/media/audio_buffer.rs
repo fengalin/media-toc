@@ -127,24 +127,24 @@ impl AudioBuffer {
             second_waveform_buffer.extract_samples(&self);
 
             // switch buffers
-            let mut waveform_buffer = {
+            let waveform_buffer = {
                 let mut waveform_buffer_opt = self.waveform_buffer_mtx.lock()
                     .expect("Failed to lock the waveform buffer for switch");
                 let waveform_buffer = waveform_buffer_opt.take()
-                    .expect("No waveform buffer found while switch buffers");
+                    .expect("No waveform buffer found while switching buffers");
                 *waveform_buffer_opt = Some(second_waveform_buffer);
 
                 waveform_buffer
             };
 
-            // update buffer with latest samples
-            waveform_buffer.extract_samples(&self);
+            // get required sample boundary for next draining
             self.waveform_samples_offset = waveform_buffer.get_sample_offset();
 
             self.second_waveform_buffer = Some(waveform_buffer);
         }
     }
 
+    // TODO: make an iter in order to avoid index comptutation for each call
     pub fn get_sample(&self, absolute_idx: usize) -> f64 {
         self.samples[absolute_idx - self.samples_offset]
     }
