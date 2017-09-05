@@ -78,7 +78,7 @@ impl AudioController {
             return Inhibit(false);
         }
 
-        cr.set_source_rgb(0.0f64, 0.0f64, 0.0f64);
+        cr.set_source_rgb(0.2f64, 0.2235f64, 0.2314f64);
         cr.paint();
 
         if self.position == 0 {
