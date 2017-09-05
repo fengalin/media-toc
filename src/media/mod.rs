@@ -16,5 +16,5 @@ pub use self::media_info::MediaInfo;
 pub mod timestamp;
 pub use self::timestamp::Timestamp;
 
-pub mod waveform_buffer;
-pub use self::waveform_buffer::{SamplesExtractor, WaveformBuffer};
+pub mod samples_extractor;
+pub use self::samples_extractor::{SamplesExtractor, WaveformBuffer};
