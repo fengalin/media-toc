@@ -129,9 +129,11 @@ impl AudioBuffer {
             moved_buffer.extract_samples(&self);
 
             // swap buffers
-            let waveform_buffer_box = &mut *self.waveform_buffer_mtx.lock()
-                .expect("AudioBuffer: failed to lock the waveform buffer for swap");
-            mem::swap(waveform_buffer_box, &mut moved_buffer);
+            {
+                let waveform_buffer_box = &mut *self.waveform_buffer_mtx.lock()
+                    .expect("AudioBuffer: failed to lock the waveform buffer for swap");
+                mem::swap(waveform_buffer_box, &mut moved_buffer);
+            }
 
             self.second_waveform_buffer_box = Some(moved_buffer);
             // self.second_waveform_buffer_box is now the buffer previously in
@@ -156,10 +158,11 @@ impl AudioBuffer {
             // swap buffers
             // TODO: could we just replace? - need to verify that we won't
             // push_gst_sample after that
-            let waveform_buffer_box = &mut *self.waveform_buffer_mtx.lock()
-                .expect("AudioBuffer: failed to lock the waveform buffer for swap");
-
-            mem::swap(waveform_buffer_box, &mut moved_buffer);
+            {
+                let waveform_buffer_box = &mut *self.waveform_buffer_mtx.lock()
+                    .expect("AudioBuffer: failed to lock the waveform buffer for swap");
+                mem::swap(waveform_buffer_box, &mut moved_buffer);
+            }
 
             self.second_waveform_buffer_box = Some(moved_buffer);
             // self.second_waveform_buffer_box is now the buffer previously in
