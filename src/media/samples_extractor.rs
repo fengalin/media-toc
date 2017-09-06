@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use std::collections::vec_deque::VecDeque;
 
 use super::AudioBuffer;
@@ -37,7 +39,8 @@ impl SamplesExtractionState {
     }
 }
 
-pub trait SamplesExtractor {
+pub trait SamplesExtractor: Send {
+    fn as_mut_any(&mut self) -> &mut Any;
     fn get_extraction_state(&self) -> &SamplesExtractionState;
     fn get_extraction_state_mut(&mut self) -> &mut SamplesExtractionState;
 
@@ -231,6 +234,10 @@ impl WaveformBuffer {
 }
 
 impl SamplesExtractor for WaveformBuffer {
+    fn as_mut_any(&mut self) -> &mut Any {
+        self
+    }
+
     fn get_extraction_state(&self) -> &SamplesExtractionState {
         &self.state
     }

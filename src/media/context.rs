@@ -21,7 +21,8 @@ use std::sync::{Arc, Mutex};
 
 use std::i32;
 
-use super::{AlignedImage, AudioBuffer, WaveformBuffer, Chapter, MediaInfo, Timestamp};
+use super::{AlignedImage, AudioBuffer, Chapter, MediaInfo, Timestamp,
+            WaveformBuffer, SamplesExtractor};
 
 macro_rules! build_audio_pipeline(
     (
@@ -95,6 +96,7 @@ macro_rules! build_audio_pipeline(
             &$src_pad.get_current_caps().unwrap(),
             $buffering_duration,
             $waveform_buffer_mtx.clone(),
+            Box::new(WaveformBuffer::new())
         )));
         let audio_buffer_clone = audio_buffer.clone();
         appsink.set_callbacks(gst_app::AppSinkCallbacks::new(
@@ -165,7 +167,7 @@ pub struct Context {
     pub name: String,
 
     pub info: Arc<Mutex<MediaInfo>>,
-    pub waveform_buffer_mtx: Arc<Mutex<Option<WaveformBuffer>>>,
+    pub waveform_buffer_mtx: Arc<Mutex<Box<SamplesExtractor>>>,
 }
 
 // FIXME: need to `release_request_pad` on the tee
@@ -209,7 +211,7 @@ impl Context {
             path: path,
 
             info: Arc::new(Mutex::new(MediaInfo::new())),
-            waveform_buffer_mtx: Arc::new(Mutex::new(Some(WaveformBuffer::new()))),
+            waveform_buffer_mtx: Arc::new(Mutex::new(Box::new(WaveformBuffer::new()))),
         }
     }
 

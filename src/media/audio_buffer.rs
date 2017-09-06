@@ -8,9 +8,11 @@ use std::i16;
 
 use std::collections::vec_deque::VecDeque;
 
+use std::mem;
+
 use std::sync::{Arc, Mutex};
 
-use super::{SamplesExtractor, WaveformBuffer};
+use super::SamplesExtractor;
 
 pub struct AudioBuffer {
     capacity: usize,
@@ -19,18 +21,18 @@ pub struct AudioBuffer {
     drain_size: usize,
 
     pub samples_offset: usize,
-    waveform_samples_offset: usize,
     pub samples: VecDeque<f64>,
 
-    waveform_buffer_mtx: Arc<Mutex<Option<WaveformBuffer>>>,
-    second_waveform_buffer: Option<WaveformBuffer>,
+    waveform_buffer_mtx: Arc<Mutex<Box<SamplesExtractor>>>,
+    second_waveform_buffer_box: Option<Box<SamplesExtractor>>,
 }
 
 impl AudioBuffer {
     pub fn new(
         caps: &gst::Caps,
         size_duration: u64,
-        waveform_buffer_mtx: Arc<Mutex<Option<WaveformBuffer>>>,
+        waveform_buffer_mtx: Arc<Mutex<Box<SamplesExtractor>>>,
+        second_waveform_buffer: Box<SamplesExtractor>,
     ) -> Self
     {
         let structure = caps.get_structure(0)
@@ -55,11 +57,10 @@ impl AudioBuffer {
             drain_size: drain_size,
 
             samples_offset: 0,
-            waveform_samples_offset: 0,
             samples: VecDeque::with_capacity(capacity),
 
             waveform_buffer_mtx: waveform_buffer_mtx,
-            second_waveform_buffer: Some(WaveformBuffer::new()),
+            second_waveform_buffer_box: Some(second_waveform_buffer),
         }
     }
 
@@ -74,7 +75,9 @@ impl AudioBuffer {
         if self.samples.len() + incoming_samples.len() > self.capacity
         {   // buffer will reach capacity => drain a chunk of samples
             // only if we have samples in history
-            let offset_delta = self.waveform_samples_offset - self.samples_offset;
+            let offset_delta = self.second_waveform_buffer_box.as_ref()
+                .expect("AudioBuffer: failed to get ref on second buffer for drain")
+                .get_sample_offset() - self.samples_offset;
             if offset_delta > self.drain_size {
                 self.samples.drain(..self.drain_size);
                 self.samples_offset += self.drain_size;
@@ -121,26 +124,18 @@ impl AudioBuffer {
 
         // prepare the second waveform buffer for rendering
         if !self.samples.is_empty() {
-            let mut second_waveform_buffer = self.second_waveform_buffer.take()
-                .expect("Second waveform buffer not found");
+            let mut moved_buffer = self.second_waveform_buffer_box.take()
+                .expect("AudioBuffer: failed to take second buffer while updating");
+            moved_buffer.extract_samples(&self);
 
-            second_waveform_buffer.extract_samples(&self);
+            // swap buffers
+            let waveform_buffer_box = &mut *self.waveform_buffer_mtx.lock()
+                .expect("AudioBuffer: failed to lock the waveform buffer for swap");
+            mem::swap(waveform_buffer_box, &mut moved_buffer);
 
-            // switch buffers
-            let waveform_buffer = {
-                let mut waveform_buffer_opt = self.waveform_buffer_mtx.lock()
-                    .expect("Failed to lock the waveform buffer for switch");
-                let waveform_buffer = waveform_buffer_opt.take()
-                    .expect("No waveform buffer found while switching buffers");
-                *waveform_buffer_opt = Some(second_waveform_buffer);
-
-                waveform_buffer
-            };
-
-            // get required sample boundary for next draining
-            self.waveform_samples_offset = waveform_buffer.get_sample_offset();
-
-            self.second_waveform_buffer = Some(waveform_buffer);
+            self.second_waveform_buffer_box = Some(moved_buffer);
+            // self.second_waveform_buffer_box is now the buffer previously in
+            // self.waveform_buffer_mtx
         }
     }
 
@@ -152,17 +147,23 @@ impl AudioBuffer {
 
     pub fn handle_eos(&mut self) {
         if !self.samples.is_empty() {
-            let mut second_waveform_buffer = self.second_waveform_buffer.take()
-                .expect("Second waveform buffer not found");
+            // get all remaining samples in the buffer
+            let mut moved_buffer = self.second_waveform_buffer_box.take()
+                .expect("AudioBuffer: failed to take second buffer while handling eos");
+            moved_buffer.handle_eos();
+            moved_buffer.extract_samples(&self);
 
-            second_waveform_buffer.handle_eos();
-            second_waveform_buffer.extract_samples(&self);
+            // swap buffers
+            // TODO: could we just replace? - need to verify that we won't
+            // push_gst_sample after that
+            let waveform_buffer_box = &mut *self.waveform_buffer_mtx.lock()
+                .expect("AudioBuffer: failed to lock the waveform buffer for swap");
 
-            // replace buffer
-            let mut waveform_buffer_opt = self.waveform_buffer_mtx.lock()
-                .expect("Failed to lock the waveform buffer for switch");
+            mem::swap(waveform_buffer_box, &mut moved_buffer);
 
-            *waveform_buffer_opt = Some(second_waveform_buffer);
+            self.second_waveform_buffer_box = Some(moved_buffer);
+            // self.second_waveform_buffer_box is now the buffer previously in
+            // self.waveform_buffer_mtx
         }
     }
 }

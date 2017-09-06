@@ -5,12 +5,14 @@ use gtk::{Inhibit, WidgetExt};
 
 extern crate cairo;
 
+use std::boxed::Box;
+
 use std::rc::Rc;
 use std::cell::RefCell;
 
 use std::sync::{Arc, Mutex};
 
-use ::media::{Context, WaveformBuffer};
+use ::media::{Context, WaveformBuffer, SamplesExtractor};
 
 pub struct AudioController {
     container: gtk::Container,
@@ -18,7 +20,7 @@ pub struct AudioController {
 
     is_active: bool,
     position: u64,
-    waveform_buffer_mtx: Arc<Mutex<Option<WaveformBuffer>>>,
+    waveform_buffer_mtx: Arc<Mutex<Box<SamplesExtractor>>>,
 }
 
 impl AudioController {
@@ -29,7 +31,7 @@ impl AudioController {
 
             is_active: false,
             position: 0,
-            waveform_buffer_mtx: Arc::new(Mutex::new(None)),
+            waveform_buffer_mtx: Arc::new(Mutex::new(Box::new(WaveformBuffer::new()))),
         }));
 
         {
@@ -109,13 +111,11 @@ impl AudioController {
             };
 
         let first_visible_pts = {
-            let mut waveform_buffer_opt = self.waveform_buffer_mtx.lock()
+            let waveform_buffer_grd = &mut *self.waveform_buffer_mtx.lock()
                 .expect("Couldn't lock waveform buffer in audio controller draw");
-            let waveform_buffer =
-                match waveform_buffer_opt.as_mut() {
-                    Some(waveform_buffer) => waveform_buffer,
-                    None => return Inhibit(false),
-                };
+            let waveform_buffer = waveform_buffer_grd
+                .as_mut_any().downcast_mut::<WaveformBuffer>()
+                .expect("SamplesExtratctor is not a waveform buffer in audio controller draw");
 
             waveform_buffer.update_conditions(
                 self.position,
