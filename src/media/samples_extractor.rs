@@ -253,22 +253,22 @@ impl SamplesExtractor for WaveformBuffer {
             // resolution has changed or initialization => reset extraction
             self.samples.clear();
             self.state.sample_step = sample_step;
-            let mut sample_idx = first_sample;
-            while sample_idx < last_sample {
-                self.samples.push_back(audio_buffer.get_sample(sample_idx));
-                sample_idx += sample_step;
-            }
+            self.samples.extend(
+                audio_buffer.iter(first_sample, last_sample, sample_step)
+            );
         } else {
             // incremental update
+
+            // remove no longer necessary samples
             let new_first_sample_idx_rel =
                 (first_sample - self.state.samples_offset) / sample_step;
             self.samples.drain(..new_first_sample_idx_rel);
 
-            // add missing samples
-            let mut sample_idx = self.state.last_sample;
-            while sample_idx < last_sample {
-                self.samples.push_back(audio_buffer.get_sample(sample_idx));
-                sample_idx += sample_step;
+            // add missing samples if any
+            if last_sample > self.state.last_sample {
+                self.samples.extend(
+                    audio_buffer.iter(self.state.last_sample, last_sample, sample_step)
+                );
             }
         }
 

@@ -144,9 +144,10 @@ impl AudioBuffer {
         }
     }
 
-    // TODO: make an iter in order to avoid index comptutation for each call
-    pub fn get_sample(&self, absolute_idx: usize) -> f64 {
-        self.samples[absolute_idx - self.samples_offset]
+    pub fn iter(&self, first: usize, last: usize, step: usize) -> Iter {
+        assert!(first >= self.samples_offset);
+        let last = if last > first { last } else { first };
+        Iter::new(self, first, last, step)
     }
 
     pub fn handle_eos(&mut self) {
@@ -163,5 +164,48 @@ impl AudioBuffer {
 
             *waveform_buffer_opt = Some(second_waveform_buffer);
         }
+    }
+}
+
+pub struct Iter<'a> {
+    buffer: &'a AudioBuffer,
+    idx: usize,
+    last: usize,
+    step: usize,
+}
+
+impl<'a> Iter<'a> {
+    fn new(buffer: &'a AudioBuffer, first: usize, last: usize, step: usize) -> Iter<'a> {
+        Iter {
+            buffer: buffer,
+            idx: first - buffer.samples_offset,
+            last: buffer.samples.len().min(last - buffer.samples_offset),
+            step: step,
+        }
+    }
+}
+
+impl<'a> Iterator for Iter<'a> {
+    type Item = &'a f64;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx >= self.last {
+            return None;
+        }
+
+        let item = self.buffer.samples.get(self.idx);
+        self.idx += self.step;
+
+        item
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        if self.idx == self.last {
+            return (0, Some(0));
+        }
+
+        let remaining = (self.last - self.idx) / self.step;
+
+        (remaining, Some(remaining))
     }
 }
