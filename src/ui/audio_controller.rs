@@ -64,8 +64,7 @@ impl AudioController {
             self.waveform_buffer_mtx = context.waveform_buffer_mtx.clone();
 
             self.container.show();
-        }
-        else {
+        } else {
             self.container.hide();
         }
     }
