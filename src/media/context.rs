@@ -9,7 +9,7 @@ extern crate glib;
 use glib::{Cast, ObjectExt, ToValue};
 
 extern crate gtk;
-use gtk::{BoxExt, ContainerExt};
+use gtk::{BoxExt, ContainerExt, WidgetExt};
 
 extern crate url;
 use url::Url;
@@ -197,6 +197,8 @@ impl Context {
         // Embed the video widget in the UI container
         let widget = widget_val.get::<gtk::Widget>()
             .expect("Failed to get GstGtkWidget glib::Value as gtk::Widget");
+        widget.set_app_paintable(true);
+        widget.set_double_buffered(false);
         video_widget_box.pack_start(&widget, true, true, 0);
 
         Context {

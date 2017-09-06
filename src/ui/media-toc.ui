@@ -183,6 +183,7 @@
                       <object class="GtkDrawingArea" id="audio-drawingarea">
                         <property name="name">audio</property>
                         <property name="visible">True</property>
+                        <property name="app_paintable">True</property>
                         <property name="can_focus">False</property>
                         <property name="double_buffered">False</property>
                         <property name="hexpand">True</property>
