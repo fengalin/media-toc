@@ -85,29 +85,13 @@ impl AudioController {
         }
 
         let allocation = drawing_area.get_allocation();
-        let width = allocation.width;
-        if width.is_negative() {
+        if allocation.width.is_negative() {
             return Inhibit(false);
         }
 
-        let requested_duration = 2_000_000_000u64; // 2s TODO: adapt according to zoom
+        let requested_duration = 2_000_000_000u64; // 2s
 
-        // TODO: make width and height adapt to zoom
-        let width = width as u64;
-        cr.scale((width / 2) as f64, (allocation.height / 2) as f64);
-
-        cr.set_line_width(0.0015f64);
-        cr.set_source_rgb(0.8f64, 0.8f64, 0.8f64);
-
-        // resolution
-        let requested_step_duration =
-            if requested_duration > width {
-                requested_duration / width
-            } else {
-                1
-            };
-
-        let first_visible_pts = {
+        let current_x = {
             let waveform_buffer_grd = &mut *self.waveform_buffer_mtx.lock()
                 .expect("Couldn't lock waveform buffer in audio controller draw");
             let waveform_buffer = waveform_buffer_grd
@@ -115,38 +99,30 @@ impl AudioController {
                 .expect("SamplesExtratctor is not a waveform buffer in audio controller draw");
 
             waveform_buffer.update_conditions(
-                self.position,
-                requested_duration,
-                requested_step_duration
-            );
+                    self.position,
+                    requested_duration,
+                    allocation.width,
+                    allocation.height,
+                );
 
-            if waveform_buffer.samples.is_empty() {
-                return Inhibit(false);
-            }
+            let image = match waveform_buffer.image_surface.as_ref() {
+                Some(image) => image,
+                None => return Inhibit(false),
+            };
 
-            let mut relative_pts = 0f64;
-            let step_duration = waveform_buffer.get_step_duration() / 1_000_000_000f64;
+            cr.set_source_surface(image, -(waveform_buffer.x_offset as f64), 0f64);
+            cr.paint();
 
-            let mut sample_iter = waveform_buffer.iter();
-            let mut sample_value = *sample_iter.next().unwrap();
-
-            for sample in sample_iter {
-                cr.move_to(relative_pts, sample_value);
-                relative_pts += step_duration;
-                sample_value = *sample;
-                cr.line_to(relative_pts, sample_value);
-                cr.stroke();
-            }
-
-            waveform_buffer.first_visible_pts
+            waveform_buffer.current_x
         };
 
         // draw current pos
-        let x = (self.position as f64 - first_visible_pts) / 1_000_000_000f64;
+        cr.scale(1f64, allocation.height as f64);
         cr.set_source_rgb(1f64, 1f64, 0f64);
-        cr.set_line_width(0.004f64);
-        cr.move_to(x, 0f64);
-        cr.line_to(x, 2f64);
+        cr.set_line_width(1f64);
+        let current_pos = current_x as f64;
+        cr.move_to(current_pos, 0f64);
+        cr.line_to(current_pos, 1f64);
         cr.stroke();
 
         Inhibit(false)

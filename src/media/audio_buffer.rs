@@ -12,6 +12,9 @@ use std::sync::{Arc, Mutex};
 
 use super::SamplesExtractor;
 
+pub const SAMPLES_NORM: f64 = 200f64;
+const SAMPLES_OFFSET: f64 = SAMPLES_NORM / 2f64;
+
 pub struct AudioBuffer {
     capacity: usize,
     pub sample_duration: f64,
@@ -82,23 +85,23 @@ impl AudioBuffer {
             }
         }
 
-        // normalize samples in range 0f64..2f64 ready to render
+        // normalize samples in range 0f64..1f64 ready to render
 
         // FIXME: use gstreamer downmix
         // FIXME: select the channels using the position info
         // if more than 2 channels,
-        // Use 75% for first 2 channels (assumes front left and front right)
-        // Use 25% for the rest
+        // Use 75% for first 2 channels (assumeing front left and front right)
+        // Use 25% for the others
         let (front_norm_factor, others_norm_factor, front_channels) =
             if self.channels > 2 {
                 (
-                    0.75f64 / 2f64 / (i16::MAX as f64),
-                    0.25f64 / ((self.channels - 2) as f64) / (i16::MAX as f64),
+                    0.75f64 / 2f64 / (i16::MAX as f64) * SAMPLES_OFFSET,
+                    0.25f64 / ((self.channels - 2) as f64) / (i16::MAX as f64) * SAMPLES_OFFSET,
                     2
                 )
             } else {
                 (
-                    1f64 / (self.channels as f64) / (i16::MAX as f64),
+                    1f64 / (self.channels as f64) / (i16::MAX as f64) * SAMPLES_OFFSET,
                     0f64,
                     self.channels
                 )
@@ -117,7 +120,7 @@ impl AudioBuffer {
                 norm_sample += incoming_samples[index] as f64 * others_norm_factor;
                 index += 1;
             }
-            self.samples.push_back(1f64 - norm_sample);
+            self.samples.push_back(SAMPLES_OFFSET - norm_sample);
         };
 
         // prepare the second waveform buffer for rendering
@@ -153,18 +156,12 @@ impl AudioBuffer {
             moved_buffer.handle_eos();
             moved_buffer.extract_samples(&self);
 
-            // swap buffers
-            // TODO: could we just replace? - need to verify that we won't
-            // push_gst_sample after that
+            // replace buffer (last update)
             {
                 let waveform_buffer_box = &mut *self.waveform_buffer_mtx.lock()
                     .expect("AudioBuffer: failed to lock the waveform buffer for swap");
-                mem::swap(waveform_buffer_box, &mut moved_buffer);
+                mem::replace(waveform_buffer_box, moved_buffer);
             }
-
-            self.second_waveform_buffer_box = Some(moved_buffer);
-            // self.second_waveform_buffer_box is now the buffer previously in
-            // self.waveform_buffer_mtx
         }
     }
 }

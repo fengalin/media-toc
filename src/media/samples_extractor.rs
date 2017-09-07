@@ -127,12 +127,14 @@ pub trait SamplesExtractor: Send {
         // for a given requested_step_duration and avoiding flickering
         // between redraws
         let first_sample =
-            (first_visible_sample / sample_step) * sample_step;
+            first_visible_sample / sample_step * sample_step;
+        let last_sample =
+            (first_sample + sample_window) / sample_step * sample_step;
 
         self.update_extraction(
             audio_buffer,
             first_sample,
-            first_sample + sample_window,
+            last_sample,
             sample_step
         );
     }

@@ -1,98 +1,88 @@
+extern crate cairo;
+
 use std::any::Any;
 
-use std::collections::vec_deque::VecDeque;
-
-use super::AudioBuffer;
+use super::{AudioBuffer, SAMPLES_NORM};
 
 use super::SamplesExtractor;
 use super::samples_extractor::SamplesExtractionState;
 
 pub struct WaveformBuffer {
     state: SamplesExtractionState,
+    buffer_sample_window: usize,
 
-    pub samples: VecDeque<f64>,
+    height: i32,
+    pub image_surface: Option<cairo::ImageSurface>,
 
-    first_visible_idx: usize,
-    last_visible_idx: usize,
-    pub first_visible_pts: f64,
+    pub x_offset: usize,
+    pub current_x: usize,
 }
 
 impl WaveformBuffer {
     pub fn new() -> Self {
         WaveformBuffer {
             state: SamplesExtractionState::new(),
+            buffer_sample_window: 0,
 
-            samples: VecDeque::new(),
+            height: 0,
+            image_surface: None,
 
-            first_visible_idx: 0,
-            last_visible_idx: 0,
-            first_visible_pts: 0f64,
+            x_offset: 0,
+            current_x: 0,
         }
     }
 
-    pub fn iter(&self) -> Iter {
-        Iter::new(self)
-    }
-
-    pub fn get_step_duration(&self) -> f64 {
-        self.state.sample_step as f64 * self.state.sample_duration
-    }
-
-    pub fn update_conditions(&mut self, pts: u64, duration: u64, step_duration: u64) {
+    pub fn update_conditions(&mut self,
+        pts: u64,
+        duration: u64,
+        width: i32,
+        height: i32,
+    )
+    {
         let state = &mut self.state;
+
+        self.height = height;
 
         state.current_sample = (
             pts as f64 / state.sample_duration
         ).round() as usize;
+
+        let width = width as u64;
+        // resolution
+        state.requested_step_duration =
+            if duration > width {
+                duration / width
+            } else {
+                1
+            };
 
         state.requested_sample_window = (
             duration as f64 / state.sample_duration
         ).round() as usize;
         state.half_requested_sample_window = state.requested_sample_window / 2;
 
-        state.requested_step_duration = step_duration;
-
-        if !self.samples.is_empty() {
-            let buffer_sample_window = self.samples.len() * state.sample_step;
-            let (first_visible_sample, sample_window) =
+        if self.image_surface.is_some() {
+            let first_visible_sample =
                 if state.eos
                 && state.current_sample + state.half_requested_sample_window > state.last_sample {
-                    if buffer_sample_window > state.requested_sample_window {
-                        (
-                            state.last_sample - state.requested_sample_window,
-                            state.requested_sample_window
-                        )
+                    if self.buffer_sample_window > state.requested_sample_window {
+                        state.last_sample - state.requested_sample_window
                     }
                     else {
-                        (
-                            state.samples_offset,
-                            buffer_sample_window
-                        )
+                        state.samples_offset
                     }
                 } else {
                     if state.current_sample > state.half_requested_sample_window
                         + state.samples_offset
                     {
-                        let first_visible_sample =
-                            state.current_sample - state.half_requested_sample_window;
-                        let remaining_samples = state.last_sample - first_visible_sample;
-                        (
-                            first_visible_sample,
-                            remaining_samples.min(state.requested_sample_window)
-                        )
+                        state.current_sample - state.half_requested_sample_window
                     } else {
-                        (
-                            state.samples_offset,
-                            buffer_sample_window.min(state.requested_sample_window)
-                        )
+                        state.samples_offset
                     }
                 };
 
-            self.first_visible_idx = (first_visible_sample - state.samples_offset) / state.sample_step;
-            self.last_visible_idx = self.first_visible_idx + sample_window / state.sample_step;
-
-            self.first_visible_pts =
-                first_visible_sample as f64 * state.sample_duration;
+            self.x_offset = (first_visible_sample - state.samples_offset) / state.sample_step;
+            self.current_x = (state.current_sample - first_visible_sample) / state.sample_step;
         }
     }
 }
@@ -120,71 +110,71 @@ impl SamplesExtractor for WaveformBuffer {
         last_sample: usize,
         sample_step: usize,
     ) {
-        if self.state.sample_step != sample_step {
-            // resolution has changed or initialization => reset extraction
-            self.samples.clear();
-            self.state.sample_step = sample_step;
-            self.samples.extend(
-                audio_buffer.iter(first_sample, last_sample, sample_step)
-            );
-        } else {
-            // incremental update
+        let buffer_sample_window = last_sample - first_sample;
 
-            // remove no longer necessary samples
-            let new_first_sample_idx_rel =
-                (first_sample - self.state.samples_offset) / sample_step;
-            self.samples.drain(..new_first_sample_idx_rel);
+        // TODO: use 2 prealocated image_surface
+        // in order to reuse them when dimensions are kept the same
+        let image_surface = cairo::ImageSurface::create(
+                cairo::Format::ARgb32,
+                (buffer_sample_window / sample_step) as i32,
+                self.height
+            ).expect("WaveformBuffer: couldn't create image surface in update_extraction");
+        let cr = cairo::Context::new(&image_surface);
 
-            // add missing samples if any
-            if last_sample > self.state.last_sample {
-                self.samples.extend(
-                    audio_buffer.iter(self.state.last_sample, last_sample, sample_step)
+        let (mut sample_iter, mut x) =
+            if self.state.sample_step != sample_step {
+                // Resolution has changed or initialization
+                // redraw the whole range
+                self.state.sample_step = sample_step;
+
+                (
+                    audio_buffer.iter(first_sample, last_sample, sample_step),
+                    0f64,
+                )
+            } else {
+                // shift previous context
+                let previous_image = self.image_surface.take()
+                    .expect("WaveformBuffer: no image_surface while updating");
+
+                let sample_step_offset =
+                    (first_sample - self.state.samples_offset) / sample_step;
+                cr.set_source_surface(
+                    &previous_image,
+                    -(sample_step_offset as f64),
+                    0f64
                 );
+                cr.paint();
+
+                // prepare to add remaining samples
+                (
+                    audio_buffer.iter(self.state.last_sample, last_sample, sample_step),
+                    (
+                        (self.state.last_sample - self.state.samples_offset) / sample_step
+                        - sample_step_offset
+                    ) as f64,
+                )
+            };
+
+        if sample_iter.size_hint().0 > 0 {
+            // Stroke selected samples
+            cr.scale(1f64, self.height as f64 / SAMPLES_NORM);
+            cr.set_line_width(0.5f64);
+            cr.set_source_rgb(0.8f64, 0.8f64, 0.8f64);
+
+            let mut sample_value = *sample_iter.next().unwrap();
+            for sample in sample_iter {
+                cr.move_to(x, sample_value);
+                x += 1f64;
+                sample_value = *sample;
+                cr.line_to(x, sample_value);
+                cr.stroke();
             }
         }
 
+        self.image_surface = Some(image_surface);
+
         self.state.samples_offset = first_sample;
-        self.state.last_sample = first_sample + self.samples.len() * sample_step;
-    }
-}
-
-pub struct Iter<'a> {
-    buffer: &'a WaveformBuffer,
-    idx: usize,
-    last: usize,
-}
-
-impl<'a> Iter<'a> {
-    fn new(buffer: &'a WaveformBuffer) -> Iter<'a> {
-        Iter {
-            buffer: buffer,
-            idx: buffer.first_visible_idx,
-            last: buffer.last_visible_idx,
-        }
-    }
-}
-
-impl<'a> Iterator for Iter<'a> {
-    type Item = &'a f64;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.idx >= self.last {
-            return None;
-        }
-
-        let item = self.buffer.samples.get(self.idx);
-        self.idx += 1;
-
-        item
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        if self.idx == self.last {
-            return (0, Some(0));
-        }
-
-        let remaining = self.last - self.idx;
-
-        (remaining, Some(remaining))
+        self.buffer_sample_window = buffer_sample_window;
+        self.state.last_sample = last_sample;
     }
 }

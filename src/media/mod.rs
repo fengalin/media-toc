@@ -2,7 +2,7 @@ pub mod aligned_image;
 pub use self::aligned_image::AlignedImage;
 
 pub mod audio_buffer;
-pub use self::audio_buffer::AudioBuffer;
+pub use self::audio_buffer::{AudioBuffer, SAMPLES_NORM};
 
 pub mod chapter;
 pub use self::chapter::Chapter;
