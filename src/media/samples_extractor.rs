@@ -85,14 +85,11 @@ pub trait SamplesExtractor: Send {
                         state.current_sample - state.half_requested_sample_window;
                     (
                         first_visible_sample,
-                        audio_buffer.samples.len().min(
-                            audio_buffer.samples_offset + audio_buffer.samples.len()
-                            - first_visible_sample
-                        ),
+                        audio_buffer.samples_offset + audio_buffer.samples.len()
+                            - first_visible_sample,
                         sample_step
                     )
-                }
-                else {
+                } else {
                     (
                         audio_buffer.samples_offset,
                         audio_buffer.samples.len(),
