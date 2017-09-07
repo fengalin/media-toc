@@ -1,4 +1,3 @@
-extern crate chrono;
 use chrono::{NaiveDateTime, NaiveTime, Timelike};
 
 use std::fmt;

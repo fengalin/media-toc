@@ -11,7 +11,6 @@ use glib::{Cast, ObjectExt, ToValue};
 extern crate gtk;
 use gtk::{BoxExt, ContainerExt, WidgetExt};
 
-extern crate url;
 use url::Url;
 
 use std::path::PathBuf;

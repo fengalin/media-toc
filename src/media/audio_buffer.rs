@@ -1,7 +1,5 @@
 extern crate gstreamer as gst;
-extern crate gstreamer_app as gst_app;
 
-extern crate byte_slice_cast;
 use byte_slice_cast::AsSliceOf;
 
 use std::i16;

@@ -1,8 +1,6 @@
 extern crate gtk;
 use gtk::prelude::*;
 
-extern crate cairo;
-
 use std::rc::Rc;
 use std::cell::RefCell;
 

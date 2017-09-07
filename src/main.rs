@@ -1,15 +1,11 @@
 #![feature(ord_max_min)]
 
-extern crate cairo;
 extern crate glib;
 extern crate gstreamer;
-extern crate gstreamer_audio;
-extern crate gstreamer_app as gst_app;
 extern crate gtk;
 
 extern crate byte_slice_cast;
 extern crate chrono;
-extern crate image;
 extern crate url;
 
 use gtk::Builder;

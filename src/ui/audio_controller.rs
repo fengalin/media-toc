@@ -1,5 +1,3 @@
-extern crate glib;
-
 extern crate gtk;
 use gtk::{Inhibit, WidgetExt};
 
