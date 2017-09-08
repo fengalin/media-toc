@@ -77,8 +77,7 @@ impl WaveformBuffer {
                 && state.current_sample + state.half_requested_sample_window > state.last_sample {
                     if self.buffer_sample_window > state.requested_sample_window {
                         state.last_sample - state.requested_sample_window
-                    }
-                    else {
+                    } else {
                         state.samples_offset
                     }
                 } else {

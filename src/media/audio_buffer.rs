@@ -134,6 +134,8 @@ impl AudioBuffer {
 
     pub fn handle_eos(&mut self) {
         if !self.samples.is_empty() {
+            self.eos = true;
+
             let mut samples_extractor = self.samples_extractor_opt.take().unwrap();
             samples_extractor.extract_samples(&self);
             self.samples_extractor_opt = Some(samples_extractor);
