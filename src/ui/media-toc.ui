@@ -185,7 +185,6 @@
                         <property name="visible">True</property>
                         <property name="app_paintable">True</property>
                         <property name="can_focus">False</property>
-                        <property name="double_buffered">False</property>
                         <property name="hexpand">True</property>
                         <property name="vexpand">True</property>
                       </object>
@@ -450,7 +449,6 @@
                 <property name="visible">True</property>
                 <property name="app_paintable">True</property>
                 <property name="can_focus">False</property>
-                <property name="double_buffered">False</property>
               </object>
               <packing>
                 <property name="expand">False</property>
