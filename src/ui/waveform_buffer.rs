@@ -2,10 +2,20 @@ extern crate cairo;
 
 use std::any::Any;
 
-use super::{AudioBuffer, SAMPLES_NORM};
+use ::media::{AudioBuffer, SAMPLES_NORM};
 
-use super::SamplesExtractor;
-use super::samples_extractor::SamplesExtractionState;
+use ::media::{DoubleSampleExtractor, SamplesExtractor};
+use ::media::samples_extractor::SamplesExtractionState;
+
+pub struct DoubleWaveformBuffer {}
+impl DoubleWaveformBuffer {
+    pub fn new() -> DoubleSampleExtractor {
+        DoubleSampleExtractor::new(
+            Box::new(WaveformBuffer::new()),
+            Box::new(WaveformBuffer::new()),
+        )
+    }
+}
 
 pub struct WaveformBuffer {
     state: SamplesExtractionState,

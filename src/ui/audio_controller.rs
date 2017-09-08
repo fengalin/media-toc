@@ -10,7 +10,9 @@ use std::cell::RefCell;
 
 use std::sync::{Arc, Mutex};
 
-use ::media::{Context, WaveformBuffer, SamplesExtractor};
+use ::media::{Context, SamplesExtractor};
+
+use super::WaveformBuffer;
 
 pub struct AudioController {
     container: gtk::Container,

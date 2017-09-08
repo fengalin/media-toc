@@ -1,6 +1,62 @@
 use std::any::Any;
 
+use std::mem;
+
+use std::sync::{Arc, Mutex};
+
 use super::AudioBuffer;
+
+// DoubleSampleExtractor hosts two SampleExtractors
+// that can be swapped to implement a double buffer mechanism
+// which selects a subset of samples depending on external
+// conditions
+pub struct DoubleSampleExtractor {
+    pub exposed_buffer_mtx: Arc<Mutex<Box<SamplesExtractor>>>,
+    pub samples_offset: usize,
+    working_buffer: Option<Box<SamplesExtractor>>,
+}
+
+impl DoubleSampleExtractor {
+    // need 2 arguments for new as we can't clone buffers as they are known
+    // as SamplesExtractor which isn't Size
+    pub fn new(
+        buffer1: Box<SamplesExtractor>,
+        buffer2: Box<SamplesExtractor>
+    ) -> DoubleSampleExtractor {
+        DoubleSampleExtractor {
+            exposed_buffer_mtx: Arc::new(Mutex::new(buffer1)),
+            samples_offset: 0,
+            working_buffer: Some(buffer2),
+        }
+    }
+
+    pub fn extract_samples(&mut self, audio_buffer: &AudioBuffer) {
+        let mut working_buffer = self.working_buffer.take()
+            .expect("DoubleSampleExtractor: failed to take working buffer while updating");
+        working_buffer.extract_samples(audio_buffer);
+
+        if !audio_buffer.eos {
+            // swap buffers
+            {
+                let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock()
+                    .expect("DoubleSampleExtractor: failed to lock the exposed buffer for swap");
+                mem::swap(exposed_buffer_box, &mut working_buffer);
+            }
+
+            self.samples_offset = working_buffer.get_sample_offset();
+            self.working_buffer = Some(working_buffer);
+            // self.working_buffer is now the buffer previously in
+            // self.exposed_buffer_mtx
+        } else {
+            // replace buffer (last update)
+            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock()
+                .expect("DoubleSampleExtractor: failed to lock the exposed buffer for replace");
+            mem::replace(exposed_buffer_box, working_buffer);
+        }
+    }
+}
+
+unsafe impl Sync for DoubleSampleExtractor {}
 
 pub struct SamplesExtractionState {
     pub sample_duration: f64,
@@ -56,11 +112,6 @@ pub trait SamplesExtractor: Send {
         state.samples_offset
     }
 
-    fn handle_eos(&mut self) {
-        let state = self.get_extraction_state_mut();
-        state.eos = true;
-    }
-
     fn extract_samples(&mut self, audio_buffer: &AudioBuffer) {
         let (first_visible_sample, sample_window, sample_step) = {
             let can_extract = self.can_extract();
@@ -79,7 +130,9 @@ pub trait SamplesExtractor: Send {
             ).round();
             let sample_step = sample_step as usize;
 
-            if state.eos {
+            if audio_buffer.eos {
+                state.eos = true;
+
                 if audio_buffer.samples.len() > state.requested_sample_window {
                     let first_visible_sample =
                         state.current_sample - state.half_requested_sample_window;

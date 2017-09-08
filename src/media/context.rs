@@ -20,8 +20,8 @@ use std::sync::{Arc, Mutex};
 
 use std::i32;
 
-use super::{AlignedImage, AudioBuffer, Chapter, MediaInfo, Timestamp,
-            WaveformBuffer, SamplesExtractor};
+use super::{AlignedImage, AudioBuffer, Chapter, DoubleSampleExtractor, MediaInfo,
+            Timestamp, SamplesExtractor};
 
 macro_rules! build_audio_pipeline(
     (
@@ -29,7 +29,7 @@ macro_rules! build_audio_pipeline(
         $src_pad:expr,
         $audio_sink:expr,
         $buffering_duration:expr,
-        $waveform_buffer_mtx:expr
+        $samples_extractor:expr
     ) =>
     {
         let playback_queue = gst::ElementFactory::make("queue", "playback_queue").unwrap();
@@ -94,12 +94,11 @@ macro_rules! build_audio_pipeline(
         let audio_buffer = Arc::new(Mutex::new(AudioBuffer::new(
             &$src_pad.get_current_caps().unwrap(),
             $buffering_duration,
-            $waveform_buffer_mtx.clone(),
-            Box::new(WaveformBuffer::new())
+            $samples_extractor,
         )));
         let audio_buffer_clone = audio_buffer.clone();
         appsink.set_callbacks(gst_app::AppSinkCallbacks::new(
-            /* eos: handled by pipeline */
+            /* eos */
             move |_| {
                 audio_buffer_clone.lock().unwrap().handle_eos();
             },
@@ -173,7 +172,10 @@ pub struct Context {
 // maybe this should be done in a `drop`. At least, it
 // should be done before the pipeline is reconstructed
 impl Context {
-    fn new(path: PathBuf, video_widget_box: gtk::Box) -> Self {
+    fn new(path: PathBuf,
+        samples_extractor: &DoubleSampleExtractor,
+        video_widget_box: gtk::Box
+    ) -> Self {
         let pipeline = gst::Pipeline::new("pipeline");
 
         let audio_sink = gst::ElementFactory::make("autoaudiosink", "audio_playback_sink").unwrap();
@@ -212,21 +214,22 @@ impl Context {
             path: path,
 
             info: Arc::new(Mutex::new(MediaInfo::new())),
-            waveform_buffer_mtx: Arc::new(Mutex::new(Box::new(WaveformBuffer::new()))),
+            waveform_buffer_mtx: samples_extractor.exposed_buffer_mtx.clone(),
         }
     }
 
     pub fn open_media_path(
         path: PathBuf,
         buffering_duration: u64,
+        samples_extractor: DoubleSampleExtractor,
         video_widget_box: gtk::Box,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<Context, String>
     {
         println!("\n\n* Attempting to open {:?}", path);
 
-        let ctx = Context::new(path, video_widget_box);
-        ctx.build_pipeline(buffering_duration);
+        let mut ctx = Context::new(path, &samples_extractor, video_widget_box);
+        ctx.build_pipeline(buffering_duration, samples_extractor);
         ctx.register_bus_inspector(ctx_tx);
 
         match ctx.pause() {
@@ -279,7 +282,10 @@ impl Context {
     }
 
     // TODO: handle errors
-    fn build_pipeline(&self, buffering_duration: u64) {
+    fn build_pipeline(&mut self,
+        buffering_duration: u64,
+        samples_extractor: DoubleSampleExtractor
+    ) {
         let src = gst::ElementFactory::make("uridecodebin", "input").unwrap();
         let url = match Url::from_file_path(self.path.as_path()) {
             Ok(url) => url.into_string(),
@@ -289,8 +295,9 @@ impl Context {
         src.set_property("buffer-duration", &gst::Value::from(&(buffering_duration as i64))).unwrap();
         self.pipeline.add(&src).unwrap();
 
+
         let pipeline_clone = self.pipeline.clone();
-        let waveform_buffer_mtx = self.waveform_buffer_mtx.clone();
+        let samples_extractor_mtx = Arc::new(Mutex::new(Some(samples_extractor)));
         let audio_sink = self.audio_sink.clone();
         let video_sink = self.video_sink.clone();
         let info_arc_mtx = self.info.clone();
@@ -314,8 +321,13 @@ impl Context {
                 };
 
                 if is_first {
+                    let samples_extractor = samples_extractor_mtx.lock()
+                        .expect("Context::build_pipeline: couldn't lock samples_extractor_mtx")
+                        .take()
+                        .expect("Context::build_pipeline: samples_extractor already taken");
+
                     build_audio_pipeline!(
-                        pipeline, src_pad, audio_sink, buffering_duration, waveform_buffer_mtx
+                        pipeline, src_pad, audio_sink, buffering_duration, samples_extractor
                     );
                 }
             } else if name.starts_with("video/") {
@@ -364,8 +376,7 @@ impl Context {
                         init_done = true;
                         ctx_tx.send(ContextMessage::InitDone)
                             .expect("Failed to notify UI");
-                    }
-                    else {
+                    } else {
                         ctx_tx.send(ContextMessage::AsyncDone)
                             .expect("Failed to notify UI");
                     }
@@ -442,19 +453,17 @@ impl Context {
                                             Timestamp::from_nano(stop)
                                         ));
                                     }
-                                }
-                                else {
+                                } /*else {
                                     println!("Warning: Skipping toc sub entry with entry type: {:?}",
                                         sub_entry.get_entry_type()
                                     );
-                                }
+                                }*/
                             }
-                        }
-                        else {
+                        } /*else {
                             println!("Warning: Skipping toc entry with entry type: {:?}",
                                 entry.get_entry_type()
                             );
-                        }
+                        }*/
                     }
 
                     glib::Continue(true)

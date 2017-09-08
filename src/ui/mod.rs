@@ -12,3 +12,6 @@ use self::info_controller::InfoController;
 
 mod image_surface;
 use self::image_surface::ImageSurface;
+
+pub mod waveform_buffer;
+pub use self::waveform_buffer::{DoubleWaveformBuffer, WaveformBuffer};

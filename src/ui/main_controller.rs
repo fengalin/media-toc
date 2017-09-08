@@ -16,7 +16,7 @@ use gtk::{ApplicationWindow, Button, FileChooserAction, FileChooserDialog,
 use ::media::{Context, ContextMessage, Timestamp};
 use ::media::ContextMessage::*;
 
-use super::{AudioController, InfoController, VideoController};
+use super::{AudioController, DoubleWaveformBuffer, InfoController, VideoController};
 
 pub struct MainController {
     window: ApplicationWindow,
@@ -271,6 +271,7 @@ impl MainController {
         match Context::open_media_path(
                 filepath,
                 10_000_000_000,
+                DoubleWaveformBuffer::new(),
                 self.video_ctrl.video_box.clone(),
                 ctx_tx
             )
