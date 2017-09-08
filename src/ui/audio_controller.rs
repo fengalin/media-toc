@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex};
 use ::media::{Context, SamplesExtractor};
 
 use super::WaveformBuffer;
+use super::waveform_buffer::BACKGROUND_COLOR;
 
 pub struct AudioController {
     container: gtk::Container,
@@ -79,7 +80,11 @@ impl AudioController {
             return Inhibit(false);
         }
 
-        cr.set_source_rgb(0.2f64, 0.2235f64, 0.2314f64);
+        cr.set_source_rgb(
+            BACKGROUND_COLOR.0,
+            BACKGROUND_COLOR.1,
+            BACKGROUND_COLOR.2
+        );
         cr.paint();
 
         if self.position == 0 {

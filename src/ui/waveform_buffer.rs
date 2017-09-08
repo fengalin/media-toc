@@ -7,6 +7,8 @@ use ::media::{AudioBuffer, SAMPLES_NORM};
 use ::media::{DoubleSampleExtractor, SamplesExtractor};
 use ::media::samples_extractor::SamplesExtractionState;
 
+pub const BACKGROUND_COLOR: (f64, f64, f64) = (0.2f64, 0.2235f64, 0.2314f64);
+
 pub struct DoubleWaveformBuffer {}
 impl DoubleWaveformBuffer {
     pub fn new() -> DoubleSampleExtractor {
@@ -21,8 +23,10 @@ pub struct WaveformBuffer {
     state: SamplesExtractionState,
     buffer_sample_window: usize,
 
+    width: i32,
     height: i32,
     pub image_surface: Option<cairo::ImageSurface>,
+    working_image: Option<cairo::ImageSurface>,
 
     pub x_offset: usize,
     pub current_x: usize,
@@ -34,8 +38,10 @@ impl WaveformBuffer {
             state: SamplesExtractionState::new(),
             buffer_sample_window: 0,
 
+            width: 0,
             height: 0,
             image_surface: None,
+            working_image: None,
 
             x_offset: 0,
             current_x: 0,
@@ -51,6 +57,7 @@ impl WaveformBuffer {
     {
         let state = &mut self.state;
 
+        self.width = width;
         self.height = height;
 
         state.current_sample = (
@@ -120,19 +127,50 @@ impl SamplesExtractor for WaveformBuffer {
         sample_step: usize,
     ) {
         let buffer_sample_window = last_sample - first_sample;
+        let extracted_samples_window =
+            (buffer_sample_window / sample_step) as i32;
 
-        // TODO: use 2 prealocated image_surface
-        // in order to reuse them when dimensions are kept the same
-        let image_surface = cairo::ImageSurface::create(
-                cairo::Format::ARgb32,
-                (buffer_sample_window / sample_step) as i32,
-                self.height
-            ).expect("WaveformBuffer: couldn't create image surface in update_extraction");
-        let cr = cairo::Context::new(&image_surface);
+        let mut must_redraw = self.state.sample_step != sample_step;
+
+        let working_image = {
+            let mut can_reuse = false;
+            let target_width = extracted_samples_window.max(self.width);
+
+            if let Some(ref working_image) = self.working_image {
+                if self.height != working_image.get_height() {
+                    // height has changed => scale samples amplitude accordingly
+                    must_redraw = true;
+                }
+
+                if target_width <= working_image.get_width()
+                && self.height <= working_image.get_height() {
+                    // expected dimensions fit in current working image => reuse it
+                    can_reuse = true;
+                }
+            }
+
+            if can_reuse {
+                self.working_image.take().unwrap()
+            } else {
+                cairo::ImageSurface::create(
+                    cairo::Format::Rgb24,
+                    target_width,
+                    self.height
+                ).expect("WaveformBuffer: couldn't create image surface in update_extraction")
+            }
+        };
+
+        let cr = cairo::Context::new(&working_image);
+        cr.set_source_rgb(
+            BACKGROUND_COLOR.0,
+            BACKGROUND_COLOR.1,
+            BACKGROUND_COLOR.2
+        );
+        cr.paint();
 
         let (mut sample_iter, mut x) =
-            if self.state.sample_step != sample_step {
-                // Resolution has changed or initialization
+            if must_redraw {
+                // Initialization or resolution has changed
                 // redraw the whole range
                 self.state.sample_step = sample_step;
 
@@ -153,6 +191,8 @@ impl SamplesExtractor for WaveformBuffer {
                     0f64
                 );
                 cr.paint();
+
+                self.image_surface = Some(previous_image);
 
                 // prepare to add remaining samples
                 (
@@ -180,7 +220,10 @@ impl SamplesExtractor for WaveformBuffer {
             }
         }
 
-        self.image_surface = Some(image_surface);
+        if let Some(previous_image) = self.image_surface.take() {
+            self.working_image = Some(previous_image);
+        }
+        self.image_surface = Some(working_image);
 
         self.state.samples_offset = first_sample;
         self.buffer_sample_window = buffer_sample_window;
