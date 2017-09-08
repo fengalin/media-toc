@@ -157,68 +157,19 @@ pub struct Context {
     pipeline: gst::Pipeline,
     clock: Option<gst::Clock>,
 
-    audio_sink: gst::Element,
-    video_sink: gst::Element,
-
     pub path: PathBuf,
     pub file_name: String,
     pub name: String,
 
     pub info: Arc<Mutex<MediaInfo>>,
-    pub waveform_buffer_mtx: Arc<Mutex<Box<SamplesExtractor>>>,
+    pub samples_extractor_mtx: Arc<Mutex<Box<SamplesExtractor>>>,
 }
 
 // FIXME: need to `release_request_pad` on the tee
 // maybe this should be done in a `drop`. At least, it
 // should be done before the pipeline is reconstructed
 impl Context {
-    fn new(path: PathBuf,
-        samples_extractor: &DoubleSampleExtractor,
-        video_widget_box: gtk::Box
-    ) -> Self {
-        let pipeline = gst::Pipeline::new("pipeline");
-
-        let audio_sink = gst::ElementFactory::make("autoaudiosink", "audio_playback_sink").unwrap();
-
-        let (video_sink, widget_val) = if let Some(gtkglsink) = ElementFactory::make("gtkglsink", None) {
-            let glsinkbin = ElementFactory::make("glsinkbin", "video_sink").unwrap();
-            glsinkbin.set_property("sink", &gtkglsink.to_value()).unwrap();
-            let widget_val = gtkglsink.get_property("widget").unwrap();
-            (glsinkbin, widget_val)
-        } else {
-            let sink = ElementFactory::make("gtksink", "video_sink").unwrap();
-            let widget_val = sink.get_property("widget").unwrap();
-            (sink, widget_val)
-        };
-
-        // cleanups the box
-        for child in video_widget_box.get_children() {
-            video_widget_box.remove(&child);
-        }
-        // Embed the video widget in the UI container
-        let widget = widget_val.get::<gtk::Widget>()
-            .expect("Failed to get GstGtkWidget glib::Value as gtk::Widget");
-        widget.set_app_paintable(true);
-        widget.set_double_buffered(false);
-        video_widget_box.pack_start(&widget, true, true, 0);
-
-        Context {
-            pipeline: pipeline,
-            clock: None,
-
-            audio_sink: audio_sink,
-            video_sink: video_sink,
-
-            file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
-            name: String::from(path.file_stem().unwrap().to_str().unwrap()),
-            path: path,
-
-            info: Arc::new(Mutex::new(MediaInfo::new())),
-            waveform_buffer_mtx: samples_extractor.exposed_buffer_mtx.clone(),
-        }
-    }
-
-    pub fn open_media_path(
+    pub fn new(
         path: PathBuf,
         buffering_duration: u64,
         samples_extractor: DoubleSampleExtractor,
@@ -228,8 +179,20 @@ impl Context {
     {
         println!("\n\n* Attempting to open {:?}", path);
 
-        let mut ctx = Context::new(path, &samples_extractor, video_widget_box);
-        ctx.build_pipeline(buffering_duration, samples_extractor);
+        let mut ctx = Context {
+            pipeline: gst::Pipeline::new("pipeline"),
+            clock: None,
+
+            file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
+            name: String::from(path.file_stem().unwrap().to_str().unwrap()),
+            path: path,
+
+            info: Arc::new(Mutex::new(MediaInfo::new())),
+            samples_extractor_mtx: samples_extractor.exposed_buffer_mtx.clone(),
+        };
+
+        ctx.build_pipeline(buffering_duration, samples_extractor, video_widget_box);
+
         ctx.register_bus_inspector(ctx_tx);
 
         match ctx.pause() {
@@ -284,7 +247,8 @@ impl Context {
     // TODO: handle errors
     fn build_pipeline(&mut self,
         buffering_duration: u64,
-        samples_extractor: DoubleSampleExtractor
+        samples_extractor: DoubleSampleExtractor,
+        video_widget_box: gtk::Box,
     ) {
         let src = gst::ElementFactory::make("uridecodebin", "input").unwrap();
         let url = match Url::from_file_path(self.path.as_path()) {
@@ -295,11 +259,34 @@ impl Context {
         src.set_property("buffer-duration", &gst::Value::from(&(buffering_duration as i64))).unwrap();
         self.pipeline.add(&src).unwrap();
 
+        // audio sink init
+        let audio_sink = gst::ElementFactory::make("autoaudiosink", "audio_playback_sink").unwrap();
 
+        // video sink init
+        let (video_sink, widget_val) = if let Some(gtkglsink) = ElementFactory::make("gtkglsink", None) {
+            let glsinkbin = ElementFactory::make("glsinkbin", "video_sink").unwrap();
+            glsinkbin.set_property("sink", &gtkglsink.to_value()).unwrap();
+            let widget_val = gtkglsink.get_property("widget").unwrap();
+            (glsinkbin, widget_val)
+        } else {
+            let sink = ElementFactory::make("gtksink", "video_sink").unwrap();
+            let widget_val = sink.get_property("widget").unwrap();
+            (sink, widget_val)
+        };
+        for child in video_widget_box.get_children() {
+            video_widget_box.remove(&child);
+        }
+        let widget = widget_val.get::<gtk::Widget>()
+            .expect("Failed to get GstGtkWidget glib::Value as gtk::Widget");
+        widget.set_app_paintable(true);
+        widget.set_double_buffered(false);
+        video_widget_box.pack_start(&widget, true, true, 0);
+
+        // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
         let samples_extractor_mtx = Arc::new(Mutex::new(Some(samples_extractor)));
-        let audio_sink = self.audio_sink.clone();
-        let video_sink = self.video_sink.clone();
+        /*let audio_sink = self.audio_sink.clone();
+        let video_sink = self.video_sink.clone();*/
         let info_arc_mtx = self.info.clone();
         src.connect_pad_added(move |_, src_pad| {
             let pipeline = &pipeline_clone;

@@ -268,7 +268,7 @@ impl MainController {
         self.keep_going = true;
         self.register_listener(500, ui_rx);
 
-        match Context::open_media_path(
+        match Context::new(
                 filepath,
                 10_000_000_000,
                 DoubleWaveformBuffer::new(),

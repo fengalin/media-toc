@@ -20,7 +20,7 @@ pub struct AudioController {
 
     is_active: bool,
     position: u64,
-    waveform_buffer_mtx: Arc<Mutex<Box<SamplesExtractor>>>,
+    samples_extractor_mtx: Arc<Mutex<Box<SamplesExtractor>>>,
 }
 
 impl AudioController {
@@ -31,7 +31,7 @@ impl AudioController {
 
             is_active: false,
             position: 0,
-            waveform_buffer_mtx: Arc::new(Mutex::new(Box::new(WaveformBuffer::new()))),
+            samples_extractor_mtx: Arc::new(Mutex::new(Box::new(WaveformBuffer::new()))),
         }));
 
         {
@@ -61,7 +61,7 @@ impl AudioController {
         if has_audio {
             self.is_active = true;
             self.position = 0;
-            self.waveform_buffer_mtx = context.waveform_buffer_mtx.clone();
+            self.samples_extractor_mtx = context.samples_extractor_mtx.clone();
 
             self.container.show();
         } else {
@@ -94,7 +94,7 @@ impl AudioController {
         let requested_duration = 2_000_000_000u64; // 2s
 
         let current_x = {
-            let waveform_buffer_grd = &mut *self.waveform_buffer_mtx.lock()
+            let waveform_buffer_grd = &mut *self.samples_extractor_mtx.lock()
                 .expect("Couldn't lock waveform buffer in audio controller draw");
             let waveform_buffer = waveform_buffer_grd
                 .as_mut_any().downcast_mut::<WaveformBuffer>()
