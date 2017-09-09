@@ -23,3 +23,7 @@ glib = { path = "../glib" }
 gstreamer = { path = "../gstreamer-rs/gstreamer", features = ["v1_10"] }
 gstreamer-audio = { path = "../gstreamer-rs/gstreamer-audio", features = ["v1_10"] }
 gstreamer-app = { path = "../gstreamer-rs/gstreamer-app", features = ["v1_10"] }
+
+[features]
+audio-draw-profiling = []
+default-features = []
