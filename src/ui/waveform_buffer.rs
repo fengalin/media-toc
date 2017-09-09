@@ -1,5 +1,8 @@
 extern crate cairo;
 
+#[cfg(feature = "waveform-buffer-profiling")]
+use chrono::Utc;
+
 use std::any::Any;
 
 use ::media::{AudioBuffer, SAMPLES_NORM};
@@ -126,6 +129,9 @@ impl SamplesExtractor for WaveformBuffer {
         last_sample: usize,
         sample_step: usize,
     ) {
+        #[cfg(feature = "waveform-buffer-profiling")]
+        let start = Utc::now();
+
         let buffer_sample_window = last_sample - first_sample;
         let extracted_samples_window =
             (buffer_sample_window / sample_step) as i32;
@@ -228,5 +234,14 @@ impl SamplesExtractor for WaveformBuffer {
         self.state.samples_offset = first_sample;
         self.buffer_sample_window = buffer_sample_window;
         self.state.last_sample = last_sample;
+
+        #[cfg(feature = "waveform-buffer-profiling")]
+        let end = Utc::now();
+
+        #[cfg(feature = "waveform-buffer-profiling")]
+        println!("waveform-buffer,{},{}",
+            start.time().format("%H:%M:%S%.6f"),
+            end.time().format("%H:%M:%S%.6f"),
+        );
     }
 }
