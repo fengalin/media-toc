@@ -167,18 +167,19 @@ impl SamplesExtractor for WaveformBuffer {
         };
 
         let cr = cairo::Context::new(&working_image);
-        cr.set_source_rgb(
-            BACKGROUND_COLOR.0,
-            BACKGROUND_COLOR.1,
-            BACKGROUND_COLOR.2
-        );
-        cr.paint();
-
         let (mut sample_iter, mut x) =
             if must_redraw {
                 // Initialization or resolution has changed
                 // redraw the whole range
                 self.state.sample_step = sample_step;
+
+                // clear the image
+                cr.set_source_rgb(
+                    BACKGROUND_COLOR.0,
+                    BACKGROUND_COLOR.1,
+                    BACKGROUND_COLOR.2
+                );
+                cr.paint();
 
                 (
                     audio_buffer.iter(first_sample, last_sample, sample_step),
@@ -210,9 +211,22 @@ impl SamplesExtractor for WaveformBuffer {
                 )
             };
 
+        cr.scale(1f64, self.height as f64 / SAMPLES_NORM);
+
+        if !must_redraw {
+            // fill the rest of the image with background color
+            cr.set_source_rgb(
+                BACKGROUND_COLOR.0,
+                BACKGROUND_COLOR.1,
+                BACKGROUND_COLOR.2
+            );
+            cr.rectangle(x, 0f64, working_image.get_width() as f64 - x, SAMPLES_NORM);
+            cr.stroke_preserve();
+            cr.fill();
+        } // else brackgroung already set while clearing the image
+
         if sample_iter.size_hint().0 > 0 {
             // Stroke selected samples
-            cr.scale(1f64, self.height as f64 / SAMPLES_NORM);
             cr.set_line_width(0.5f64);
             cr.set_source_rgb(0.8f64, 0.8f64, 0.8f64);
 

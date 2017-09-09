@@ -16,7 +16,6 @@ use std::sync::{Arc, Mutex};
 use ::media::{Context, SamplesExtractor};
 
 use super::WaveformBuffer;
-use super::waveform_buffer::BACKGROUND_COLOR;
 
 pub struct AudioController {
     container: gtk::Container,
@@ -82,16 +81,6 @@ impl AudioController {
         if !self.is_active {
             return Inhibit(false);
         }
-
-        #[cfg(feature = "audio-draw-profiling")]
-        let before_background = Utc::now();
-
-        cr.set_source_rgb(
-            BACKGROUND_COLOR.0,
-            BACKGROUND_COLOR.1,
-            BACKGROUND_COLOR.2
-        );
-        cr.paint();
 
         #[cfg(feature = "audio-draw-profiling")]
         let before_init = Utc::now();
@@ -162,7 +151,6 @@ impl AudioController {
 
         #[cfg(feature = "audio-draw-profiling")]
         println!("audio-draw,{},{},{},{},{},{},{}",
-            before_background.time().format("%H:%M:%S%.6f"),
             before_init.time().format("%H:%M:%S%.6f"),
             before_lock.time().format("%H:%M:%S%.6f"),
             _before_cndt.time().format("%H:%M:%S%.6f"),
