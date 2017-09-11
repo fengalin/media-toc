@@ -1,5 +1,8 @@
 extern crate gstreamer as gst;
 
+#[cfg(feature = "profiling-audio-buffer")]
+use chrono::Utc;
+
 use byte_slice_cast::AsSliceOf;
 
 use std::i16;
@@ -63,12 +66,18 @@ impl AudioBuffer {
     }
 
     pub fn push_gst_sample(&mut self, sample: gst::Sample) {
+        #[cfg(feature = "profiling-audio-buffer")]
+        let start = Utc::now();
+
         let buffer = sample.get_buffer()
             .expect("Couldn't get buffer from audio sample");
 
         let map = buffer.map_readable().unwrap();
         let incoming_samples = map.as_slice().as_slice_of::<i16>()
             .expect("Couldn't get audio samples as i16");
+
+        #[cfg(feature = "profiling-audio-buffer")]
+        let before_drain = Utc::now();
 
         if self.samples.len() + incoming_samples.len() > self.capacity
         {   // buffer will reach capacity => drain a chunk of samples
@@ -80,6 +89,9 @@ impl AudioBuffer {
                 self.samples_offset += self.drain_size;
             }
         }
+
+        #[cfg(feature = "profiling-audio-buffer")]
+        let before_storage = Utc::now();
 
         // normalize samples in range 0f64..1f64 ready to render
 
@@ -119,11 +131,27 @@ impl AudioBuffer {
             self.samples.push_back(SAMPLES_OFFSET - norm_sample);
         };
 
+        #[cfg(feature = "profiling-audio-buffer")]
+        let before_extract = Utc::now();
+
         if !self.samples.is_empty() {
             let mut samples_extractor = self.samples_extractor_opt.take().unwrap();
             samples_extractor.extract_samples(&self);
             self.samples_extractor_opt = Some(samples_extractor);
         }
+
+        #[cfg(feature = "profiling-audio-buffer")]
+        let end = Utc::now();
+
+        #[cfg(feature = "profiling-audio-buffer")]
+        println!("audio-buffer,{},{},{},{},{},{}",
+            start.time().format("%H:%M:%S%.6f"),
+            before_drain.time().format("%H:%M:%S%.6f"),
+            before_storage.time().format("%H:%M:%S%.6f"),
+            before_extract.time().format("%H:%M:%S%.6f"),
+            end.time().format("%H:%M:%S%.6f"),
+            index
+        );
     }
 
     pub fn iter(&self, first: usize, last: usize, step: usize) -> Iter {
