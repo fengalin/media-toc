@@ -216,9 +216,9 @@ impl Context {
         }
     }
 
-    pub fn get_duration(&self) -> i64 {
+    pub fn get_duration(&self) -> u64 {
         match self.pipeline.query_duration(gst::Format::Time) {
-            Some(duration) => duration,
+            Some(duration) => if duration.is_positive() { duration as u64 } else { 0 },
             None => 0,
         }
     }
@@ -261,7 +261,6 @@ impl Context {
             Err(_) => "Failed to convert path to URL".to_owned(),
         };
         src.set_property("uri", &gst::Value::from(&url)).unwrap();
-        src.set_property("buffer-duration", &gst::Value::from(&(buffering_duration as i64))).unwrap();
         self.pipeline.add(&src).unwrap();
 
         // audio sink init
@@ -441,8 +440,8 @@ impl Context {
                                         info.chapters.push(Chapter::new(
                                             sub_entry.get_uid(),
                                             &title,
-                                            Timestamp::from_nano(start),
-                                            Timestamp::from_nano(stop)
+                                            Timestamp::from_signed_nano(start),
+                                            Timestamp::from_signed_nano(stop)
                                         ));
                                     }
                                 } /*else {

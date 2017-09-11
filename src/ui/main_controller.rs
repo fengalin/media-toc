@@ -2,6 +2,9 @@ extern crate gtk;
 extern crate glib;
 extern crate gstreamer as gst;
 
+#[cfg(feature = "profiling-tracker")]
+use chrono::Utc;
+
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -154,8 +157,7 @@ impl MainController {
     fn register_listener(&mut self,
         timeout: u32,
         ui_rx: Receiver<ContextMessage>,
-    )
-    {
+    ) {
         let this_rc = self.this_opt.as_ref()
             .unwrap()
             .clone();
@@ -177,11 +179,7 @@ impl MainController {
                         let context = this_mut.context.take()
                             .expect("... but no context available");
 
-                        let duration = context.get_duration();
-                        if duration.is_negative() {
-                            panic!("Negative duration");
-                        }
-                        this_mut.duration = duration as u64;
+                        this_mut.duration = context.get_duration();
 
                         this_mut.info_ctrl.new_media(&context);
                         this_mut.video_ctrl.new_media(&context);
@@ -230,9 +228,7 @@ impl MainController {
     }
 
     fn tic(&mut self, position: u64) {
-        self.position_lbl.set_text(
-            &format!("{}", Timestamp::from_nano(position as i64))
-        );
+        self.position_lbl.set_text(&Timestamp::format(position));
         self.last_position = position;
 
         self.audio_ctrl.borrow_mut().tic(position);
@@ -244,15 +240,36 @@ impl MainController {
             .clone();
 
         self.tracker_src = Some(gtk::timeout_add(timeout, move || {
+            #[cfg(feature = "profiling-tracker")]
+            let start = Utc::now();
+
             let mut this_mut = this_rc.borrow_mut();
+
+            #[cfg(feature = "profiling-tracker")]
+            let before_position = Utc::now();
 
             let position = this_mut.context.as_mut()
                 .expect("No context in tracker")
                 .get_position();
+
+            #[cfg(feature = "profiling-tracker")]
+            let before_tic = Utc::now();
+
             if this_mut.last_position != position
             && position <= this_mut.duration {
                 this_mut.tic(position);
             }
+
+            #[cfg(feature = "profiling-tracker")]
+            let end = Utc::now();
+
+            #[cfg(feature = "profiling-tracker")]
+            println!("tracker,{},{},{},{}",
+                start.time().format("%H:%M:%S%.6f"),
+                before_position.time().format("%H:%M:%S%.6f"),
+                before_tic.time().format("%H:%M:%S%.6f"),
+                end.time().format("%H:%M:%S%.6f"),
+            );
 
             glib::Continue(this_mut.keep_going)
         }));
@@ -270,7 +287,7 @@ impl MainController {
 
         match Context::new(
             filepath,
-            4_000_000_000,
+            5_000_000_000,
             DoubleWaveformBuffer::new(),
             self.video_ctrl.video_box.clone(),
             ctx_tx

@@ -97,7 +97,7 @@ impl InfoController {
 
     pub fn new_media(&mut self, context: &Context) {
         self.duration_lbl.set_label(
-            &format!("{}", Timestamp::from_nano(context.get_duration()))
+            &format!("{}", Timestamp::format(context.get_duration()))
         );
 
         self.chapter_store.clear();

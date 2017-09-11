@@ -5,8 +5,15 @@ extern crate gstreamer;
 extern crate gtk;
 
 extern crate byte_slice_cast;
-extern crate chrono;
 extern crate url;
+
+#[cfg(any(
+    feature = "profiling-audio-draw",
+    feature = "profiling-audio-buffer",
+    feature = "profiling-tracker",
+    feature = "profiling-waveform-buffer",
+))]
+extern crate chrono;
 
 use gtk::Builder;
 
