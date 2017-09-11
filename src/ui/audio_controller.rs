@@ -3,7 +3,7 @@ use gtk::{Inhibit, WidgetExt};
 
 extern crate cairo;
 
-#[cfg(feature = "audio-draw-profiling")]
+#[cfg(feature = "profiling-audio-draw")]
 use chrono::Utc;
 
 use std::boxed::Box;
@@ -82,7 +82,7 @@ impl AudioController {
             return Inhibit(false);
         }
 
-        #[cfg(feature = "audio-draw-profiling")]
+        #[cfg(feature = "profiling-audio-draw")]
         let before_init = Utc::now();
 
         if self.position == 0 {
@@ -96,11 +96,11 @@ impl AudioController {
 
         let requested_duration = 2_000_000_000u64; // 2s
 
-        #[cfg(feature = "audio-draw-profiling")]
+        #[cfg(feature = "profiling-audio-draw")]
         let before_lock = Utc::now();
-        #[cfg(feature = "audio-draw-profiling")]
+        #[cfg(feature = "profiling-audio-draw")]
         let mut _before_cndt = Utc::now();
-        #[cfg(feature = "audio-draw-profiling")]
+        #[cfg(feature = "profiling-audio-draw")]
         let mut _before_image = Utc::now();
 
         let current_x = {
@@ -110,7 +110,7 @@ impl AudioController {
                 .as_mut_any().downcast_mut::<WaveformBuffer>()
                 .expect("SamplesExtratctor is not a waveform buffer in audio controller draw");
 
-            #[cfg(feature = "audio-draw-profiling")]
+            #[cfg(feature = "profiling-audio-draw")]
             let _before_cndt = Utc::now();
 
             waveform_buffer.update_conditions(
@@ -120,7 +120,7 @@ impl AudioController {
                     allocation.height,
                 );
 
-            #[cfg(feature = "audio-draw-profiling")]
+            #[cfg(feature = "profiling-audio-draw")]
             let _before_image = Utc::now();
 
             let image = match waveform_buffer.image_surface.as_ref() {
@@ -134,10 +134,10 @@ impl AudioController {
             waveform_buffer.current_x
         };
 
-        #[cfg(feature = "audio-draw-profiling")]
+        #[cfg(feature = "profiling-audio-draw")]
         let before_pos = Utc::now();
 
-       // draw current pos
+        // draw current pos
         cr.scale(1f64, allocation.height as f64);
         cr.set_source_rgb(1f64, 1f64, 0f64);
         cr.set_line_width(1f64);
@@ -146,10 +146,10 @@ impl AudioController {
         cr.line_to(current_pos, 1f64);
         cr.stroke();
 
-        #[cfg(feature = "audio-draw-profiling")]
+        #[cfg(feature = "profiling-audio-draw")]
         let end = Utc::now();
 
-        #[cfg(feature = "audio-draw-profiling")]
+        #[cfg(feature = "profiling-audio-draw")]
         println!("audio-draw,{},{},{},{},{},{}",
             before_init.time().format("%H:%M:%S%.6f"),
             before_lock.time().format("%H:%M:%S%.6f"),

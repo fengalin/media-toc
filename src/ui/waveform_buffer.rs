@@ -1,6 +1,6 @@
 extern crate cairo;
 
-#[cfg(feature = "waveform-buffer-profiling")]
+#[cfg(feature = "profiling-waveform-buffer")]
 use chrono::Utc;
 
 use std::any::Any;
@@ -129,7 +129,7 @@ impl SamplesExtractor for WaveformBuffer {
         last_sample: usize,
         sample_step: usize,
     ) {
-        #[cfg(feature = "waveform-buffer-profiling")]
+        #[cfg(feature = "profiling-waveform-buffer")]
         let start = Utc::now();
 
         let buffer_sample_window = last_sample - first_sample;
@@ -249,10 +249,10 @@ impl SamplesExtractor for WaveformBuffer {
         self.buffer_sample_window = buffer_sample_window;
         self.state.last_sample = last_sample;
 
-        #[cfg(feature = "waveform-buffer-profiling")]
+        #[cfg(feature = "profiling-waveform-buffer")]
         let end = Utc::now();
 
-        #[cfg(feature = "waveform-buffer-profiling")]
+        #[cfg(feature = "profiling-waveform-buffer")]
         println!("waveform-buffer,{},{}",
             start.time().format("%H:%M:%S%.6f"),
             end.time().format("%H:%M:%S%.6f"),
