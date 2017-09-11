@@ -2,7 +2,7 @@ extern crate gtk;
 extern crate glib;
 extern crate gstreamer as gst;
 
-#[cfg(feature = "profiling-tracker")]
+#[cfg(any(feature = "profiling-listener", feature = "profiling-tracker"))]
 use chrono::Utc;
 
 use std::rc::Rc;
@@ -163,9 +163,16 @@ impl MainController {
             .clone();
 
         self.listener_src = Some(gtk::timeout_add(timeout, move || {
+            #[cfg(feature = "profiling-listener")]
+            let start = Utc::now();
+
             let mut message_iter = ui_rx.try_iter();
 
             let mut keep_going = true;
+
+            #[cfg(feature = "profiling-listener")]
+            let before_loop = Utc::now();
+
             for message in message_iter.next() {
                 match message {
                     AsyncDone => {
@@ -196,12 +203,13 @@ impl MainController {
 
                         let mut this_mut = this_rc.borrow_mut();
 
-                        this_mut.remove_tracker();
                         let duration = this_mut.duration;
                         this_mut.tic(duration);
 
-                        // TODO: exit tracker
                         this_mut.play_pause_btn.set_icon_name("media-playback-start");
+
+                        this_mut.keep_going = false;
+                        keep_going = false;
                     },
                     FailedToOpenMedia => {
                         eprintln!("ERROR: failed to open media");
@@ -216,6 +224,16 @@ impl MainController {
 
                 if !keep_going { break; }
             }
+
+            #[cfg(feature = "profiling-listener")]
+            let end = Utc::now();
+
+            #[cfg(feature = "profiling-listener")]
+            println!("listener,{},{},{}",
+                start.time().format("%H:%M:%S%.6f"),
+                before_loop.time().format("%H:%M:%S%.6f"),
+                end.time().format("%H:%M:%S%.6f"),
+            );
 
             glib::Continue(keep_going)
         }));
