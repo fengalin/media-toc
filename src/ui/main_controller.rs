@@ -270,7 +270,7 @@ impl MainController {
 
         match Context::new(
                 filepath,
-                10_000_000_000,
+                4_000_000_000,
                 DoubleWaveformBuffer::new(),
                 self.video_ctrl.video_box.clone(),
                 ctx_tx

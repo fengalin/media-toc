@@ -44,6 +44,11 @@ macro_rules! build_audio_pipeline(
 
         let visu_queue = gst::ElementFactory::make("queue", "visu_queue").unwrap();
         visu_queue.set_property("max-size-time", &gst::Value::from(&$buffering_duration)).unwrap();
+        #[cfg(feature = "profiling-audio-queue")]
+        visu_queue.connect("overrun", false, |_| {
+            println!("WARNING: audio visu queue OVERRUN");
+            None
+        }).ok().unwrap();
 
         let visu_convert = gst::ElementFactory::make("audioconvert", None).unwrap();
         let visu_sink = gst::ElementFactory::make("appsink", "audio_visu_sink").unwrap();

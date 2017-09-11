@@ -27,5 +27,6 @@ gstreamer-app = { path = "../gstreamer-rs/gstreamer-app", features = ["v1_10"] }
 [features]
 profiling-audio-draw = []
 profiling-audio-buffer = []
+profiling-audio-queue = []
 profiling-waveform-buffer = []
 default-features = []
