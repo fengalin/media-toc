@@ -21,11 +21,11 @@ impl Timestamp {
 
         if h == 0 {
             format!("{:02}:{:02}.{:03}",
-                m_total % 60, s_total % 1_000, ms_total % 1_000
+                m_total % 60, s_total % 60, ms_total % 1_000
             ).to_owned()
         } else {
             format!("{:02}:{:02}:{:02}.{:03}",
-                h, m_total % 60, s_total % 1_000, ms_total % 1_000
+                h, m_total % 60, s_total % 60, ms_total % 1_000
             ).to_owned()
         }
     }
@@ -40,7 +40,7 @@ impl Timestamp {
             nano: nano_total % 1_000,
             us: us_total % 1_000,
             ms: ms_total % 1_000,
-            s: s_total % 1_000,
+            s: s_total % 60,
             m: m_total % 60,
             h: m_total / 60,
         }
