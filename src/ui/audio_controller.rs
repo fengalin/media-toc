@@ -1,7 +1,7 @@
 extern crate cairo;
 
 extern crate gstreamer as gst;
-use gstreamer::ElementExt;
+use gstreamer::{ElementExtManual, QueryView};
 
 extern crate gtk;
 use gtk::{Inhibit, WidgetExt};
@@ -25,6 +25,7 @@ pub struct AudioController {
     pub drawingarea: gtk::DrawingArea,
 
     audio_sink: Option<gst::Element>,
+    position_query: gst::Query,
 
     is_active: bool,
     position: u64,
@@ -38,6 +39,7 @@ impl AudioController {
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
 
             audio_sink: None,
+            position_query: gst::Query::new_position(gst::Format::Time),
 
             is_active: false,
             position: 0,
@@ -48,7 +50,7 @@ impl AudioController {
             let this_ref = this.borrow();
             let this_rc = this.clone();
             this_ref.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
-                this_rc.borrow()
+                this_rc.borrow_mut()
                     .draw(drawing_area, cairo_ctx).into()
             });
         }
@@ -81,7 +83,7 @@ impl AudioController {
         }
     }
 
-    fn draw(&self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) -> Inhibit {
+    fn draw(&mut self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) -> Inhibit {
         if !self.is_active {
             return Inhibit(false);
         }
@@ -96,10 +98,13 @@ impl AudioController {
 
         let requested_duration = 2_000_000_000u64; // 2s
 
-        let position = self.audio_sink.as_ref()
+        self.audio_sink.as_ref()
             .expect("No audio ref in AudioController::draw")
-            .query_position(gst::Format::Time)
-            .expect("Couldn't get position in AudioController::draw") as u64;
+            .query(self.position_query.get_mut().unwrap());
+        let position = match self.position_query.view() {
+            QueryView::Position(ref position) => position.get().1 as u64,
+            _ => unreachable!(),
+        };
 
         #[cfg(feature = "profiling-audio-draw")]
         let before_lock = Utc::now();

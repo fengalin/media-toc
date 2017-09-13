@@ -1,6 +1,7 @@
 extern crate gstreamer as gst;
-use gstreamer::{BinExt, BinExtManual, Caps, ClockExt, ElementExt,
-                ElementFactory, GstObjectExt, PadExt, TocScope, TocEntryType};
+use gstreamer::{BinExt, BinExtManual, Caps, ElementExt, ElementExtManual,
+                ElementFactory, GstObjectExt, PadExt, QueryView,
+                TocScope, TocEntryType};
 
 extern crate gstreamer_audio as gst_audio;
 extern crate gstreamer_app as gst_app;
@@ -160,7 +161,8 @@ pub enum ContextMessage {
 
 pub struct Context {
     pipeline: gst::Pipeline,
-    clock: Option<gst::Clock>,
+    position_element: Option<gst::Element>,
+    position_query: gst::Query,
 
     pub path: PathBuf,
     pub file_name: String,
@@ -186,7 +188,8 @@ impl Context {
 
         let mut ctx = Context {
             pipeline: gst::Pipeline::new("pipeline"),
-            clock: None,
+            position_element: None,
+            position_query: gst::Query::new_position(gst::Format::Time),
 
             file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
             name: String::from(path.file_stem().unwrap().to_str().unwrap()),
@@ -211,12 +214,19 @@ impl Context {
     }
 
     pub fn get_position(&mut self) -> u64 {
-        match self.clock {
-            Some(ref clock) => clock.get_time(),
-            None => {
-                self.clock = self.pipeline.get_clock();
-                0
+        let pipeline = self.pipeline.clone();
+        self.position_element.get_or_insert_with(|| {
+            if let Some(audio) = pipeline.get_by_name("audio_playback_sink") {
+                audio
+            } else if let Some(video) = pipeline.get_by_name("video_sink") {
+                video
+            } else {
+                panic!("No sink in pipeline");
             }
+        }).query(self.position_query.get_mut().unwrap());
+        match self.position_query.view() {
+            QueryView::Position(ref position) => position.get().1 as u64,
+            _ => unreachable!(),
         }
     }
 
