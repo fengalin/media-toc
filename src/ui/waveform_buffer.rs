@@ -221,7 +221,6 @@ impl SamplesExtractor for WaveformBuffer {
                 BACKGROUND_COLOR.2
             );
             cr.rectangle(x, 0f64, working_image.get_width() as f64 - x, SAMPLES_NORM);
-            cr.stroke_preserve();
             cr.fill();
         } // else brackgroung already set while clearing the image
 
