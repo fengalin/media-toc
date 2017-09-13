@@ -1,7 +1,10 @@
+extern crate cairo;
+
+extern crate gstreamer as gst;
+use gstreamer::ElementExt;
+
 extern crate gtk;
 use gtk::{Inhibit, WidgetExt};
-
-extern crate cairo;
 
 #[cfg(feature = "profiling-audio-draw")]
 use chrono::Utc;
@@ -19,7 +22,9 @@ use super::WaveformBuffer;
 
 pub struct AudioController {
     container: gtk::Container,
-    drawingarea: gtk::DrawingArea,
+    pub drawingarea: gtk::DrawingArea,
+
+    audio_sink: Option<gst::Element>,
 
     is_active: bool,
     position: u64,
@@ -31,6 +36,8 @@ impl AudioController {
         let this = Rc::new(RefCell::new(AudioController {
             container: builder.get_object("audio-container").unwrap(),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
+
+            audio_sink: None,
 
             is_active: false,
             position: 0,
@@ -62,6 +69,8 @@ impl AudioController {
                 .is_some();
 
         if has_audio {
+            self.audio_sink = context.get_audio_sink();
+
             self.is_active = true;
             self.position = 0;
             self.samples_extractor_mtx = context.samples_extractor_mtx.clone();
@@ -72,11 +81,6 @@ impl AudioController {
         }
     }
 
-    pub fn tic(&mut self, position: u64) {
-        self.position = position;
-        self.drawingarea.queue_draw();
-    }
-
     fn draw(&self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) -> Inhibit {
         if !self.is_active {
             return Inhibit(false);
@@ -85,16 +89,17 @@ impl AudioController {
         #[cfg(feature = "profiling-audio-draw")]
         let before_init = Utc::now();
 
-        if self.position == 0 {
-            return Inhibit(false);
-        }
-
         let allocation = drawing_area.get_allocation();
         if allocation.width.is_negative() {
             return Inhibit(false);
         }
 
         let requested_duration = 2_000_000_000u64; // 2s
+
+        let position = self.audio_sink.as_ref()
+            .expect("No audio ref in AudioController::draw")
+            .query_position(gst::Format::Time)
+            .expect("Couldn't get position in AudioController::draw") as u64;
 
         #[cfg(feature = "profiling-audio-draw")]
         let before_lock = Utc::now();
@@ -114,7 +119,7 @@ impl AudioController {
             let _before_cndt = Utc::now();
 
             waveform_buffer.update_conditions(
-                    self.position,
+                    position,
                     requested_duration,
                     allocation.width,
                     allocation.height,

@@ -206,6 +206,10 @@ impl Context {
         }
     }
 
+    pub fn get_audio_sink(&self) -> Option<gst::Element> {
+        self.pipeline.get_by_name("audio_playback_sink")
+    }
+
     pub fn get_position(&mut self) -> u64 {
         match self.clock {
             Some(ref clock) => clock.get_time(),

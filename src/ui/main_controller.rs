@@ -29,10 +29,9 @@ pub struct MainController {
     info_ctrl: InfoController,
     video_ctrl: VideoController,
     audio_ctrl: Rc<RefCell<AudioController>>,
+    audio_drawingarea: gtk::DrawingArea,
 
     context: Option<Context>,
-    duration: u64,
-    last_position: u64,
 
     this_opt: Option<Rc<RefCell<MainController>>>,
     keep_going: bool,
@@ -42,6 +41,9 @@ pub struct MainController {
 
 impl MainController {
     pub fn new(builder: gtk::Builder) -> Rc<RefCell<Self>> {
+        let audio_controller = AudioController::new(&builder);
+        let audio_drawingarea = audio_controller.borrow().drawingarea.clone();
+
         let this = Rc::new(RefCell::new(MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
@@ -49,11 +51,10 @@ impl MainController {
             position_lbl: builder.get_object("position-lbl").unwrap(),
             info_ctrl: InfoController::new(&builder),
             video_ctrl: VideoController::new(&builder),
-            audio_ctrl: AudioController::new(&builder),
+            audio_ctrl: audio_controller,
+            audio_drawingarea: audio_drawingarea,
 
             context: None,
-            duration: 0,
-            last_position: 0,
 
             this_opt: None,
             keep_going: true,
@@ -186,8 +187,6 @@ impl MainController {
                         let context = this_mut.context.take()
                             .expect("... but no context available");
 
-                        this_mut.duration = context.get_duration();
-
                         this_mut.info_ctrl.new_media(&context);
                         this_mut.video_ctrl.new_media(&context);
                         this_mut.audio_ctrl.borrow_mut().new_media(&context);
@@ -203,8 +202,7 @@ impl MainController {
 
                         let mut this_mut = this_rc.borrow_mut();
 
-                        let duration = this_mut.duration;
-                        this_mut.tic(duration);
+                        this_mut.audio_drawingarea.queue_draw();
 
                         this_mut.play_pause_btn.set_icon_name("media-playback-start");
 
@@ -235,6 +233,12 @@ impl MainController {
                 end.time().format("%H:%M:%S%.6f"),
             );
 
+            if !keep_going {
+                let mut this_mut = this_rc.borrow_mut();
+                this_mut.listener_src = None;
+                this_mut.tracker_src = None;
+            }
+
             glib::Continue(keep_going)
         }));
     }
@@ -243,13 +247,6 @@ impl MainController {
         if let Some(source_id) = self.tracker_src.take() {
             glib::source_remove(source_id);
         }
-    }
-
-    fn tic(&mut self, position: u64) {
-        self.position_lbl.set_text(&Timestamp::format(position));
-        self.last_position = position;
-
-        self.audio_ctrl.borrow_mut().tic(position);
     }
 
     fn register_tracker(&mut self, timeout: u32) {
@@ -273,10 +270,8 @@ impl MainController {
             #[cfg(feature = "profiling-tracker")]
             let before_tic = Utc::now();
 
-            if this_mut.last_position != position
-            && position <= this_mut.duration {
-                this_mut.tic(position);
-            }
+            this_mut.position_lbl.set_text(&Timestamp::format(position));
+            this_mut.audio_drawingarea.queue_draw();
 
             #[cfg(feature = "profiling-tracker")]
             let end = Utc::now();
@@ -313,7 +308,6 @@ impl MainController {
         ) {
             Ok(context) => {
                 self.context = Some(context);
-                self.last_position = 0;
             },
             Err(error) => eprintln!("Error opening media: {}", error),
         };
