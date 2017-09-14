@@ -32,7 +32,7 @@ impl InfoController {
     pub fn new(builder: &gtk::Builder) -> Self {
         // need a RefCell because the callbacks will use immutable versions of ac
         // when the UI controllers will get a mutable version from time to time
-        let this = InfoController {
+        let mut this = InfoController {
             drawingarea: builder.get_object("thumbnail-drawingarea").unwrap(),
 
             title_lbl: builder.get_object("title-lbl").unwrap(),
@@ -52,6 +52,8 @@ impl InfoController {
 
             thumbnail: Rc::new(RefCell::new(None)),
         };
+
+        this.cleanup();
 
         this.chapter_treeview.set_model(Some(&this.chapter_store));
         this.add_chapter_column("Id", 0, false);
@@ -181,11 +183,11 @@ impl InfoController {
         self.container_lbl.set_text("");
         self.audio_codec_lbl.set_text("");
         self.video_codec_lbl.set_text("");
-        self.duration_lbl.set_text("");
+        self.duration_lbl.set_text("00:00.000");
         self.chapter_store.clear();
         self.timeline_scale.clear_marks();
         self.timeline_scale.set_value(0f64);
-        self.position_lbl.set_text("");
+        self.position_lbl.set_text("00:00.000");
     }
 
     pub fn tic(&mut self, position: u64) {
