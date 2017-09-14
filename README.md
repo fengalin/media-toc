@@ -2,9 +2,8 @@
 Media-TOC is an application to build a table of contents from a media file or
 to split a media file into chapters.
 
-**Important**: Media-TOC is in an early stage of development. Don't expect
-anything usable soon. Of course, you can [contribute](#contribute) to the project
-if you find it interesting.
+**Important**: Media-TOC is in an early stage of development. Of course, you can
+[contribute](#contribute) to the project if you find it interesting.
 
 ## Status
 At the moment, **Media-TOC** can:
@@ -12,9 +11,9 @@ At the moment, **Media-TOC** can:
 - Display the video frame
 - Display the cover image if available.
 - Display metadata from the media.
-- Display the audio wave form.
-- Display chapters' data.
-- Play the media, draw the video, the audio waveform and play the audio.
+- Display chapters list and marks on the timeline at the begining of each chapter.
+- Play the media, draw the video, the audio waveform, play the audio and select
+the chapter in the list while playing.
 
 ## <a name='ui'></a>Screenshots
 ![Media-TOC UI Video](assets/media-toc_video.png)
@@ -47,8 +46,8 @@ Select the nightly toolchain. See the full documentation
 [here](https://github.com/rust-lang-nursery/rustup.rs#installation).
 
 ## Dependencies
-Rust dependencies are handled by [Cargo](http://doc.crates.io/). You will also need the
-following packages installed on your OS:
+Rust dependencies are handled by [Cargo](http://doc.crates.io/). You will also
+need the following packages installed on your OS:
 
 ### Fedora
 ```
@@ -56,22 +55,18 @@ $ sudo dnf install gtk3-devel glib2-devel gstreamer1-devel gstreamer1-plugins-ba
 ```
 
 ### Debian & Unbuntu
-*Need confirmation*
+*Needs confirmation*
 ```
 $ sudo apt-get install libgtk-3-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
 ```
 
 ### MacOS
-*Need confirmation*
+*Needs confirmation*
 ```
 $ brew install gtk+3 gstreamer-1.0-devel
 ```
 
 ### Windows
-#### Status
-`media-toc` builds and runs successfully on Windows 64bits.
-
-#### Environment Preparation
 - MSYS2: follow [this guide](http://www.msys2.org/).
 - Install the development toolchain, GTK and GStreamer<br>
 Note: for a 32bits system, use `mingw-w64-i686-...`
@@ -81,6 +76,7 @@ pacman -S mingw-w64-x86_64-toolchain base-devel mingw-w64-x86_64-gtk3 \
     mingw-w64-x86_64-gst-plugins-good mingw-w64-x86_64-gst-plugins-bad \
     mingw-w64-x86_64-gst-plugins-ugly
 ```
+Note: opencv seems necessary to play a video.
 - Rustup: launch the [rustup installer](https://www.rustup.rs/).
 When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
 `i686-pc-windows-gnu` for a 32bits system), then select `nightly`.
