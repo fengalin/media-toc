@@ -160,13 +160,14 @@ impl AudioController {
         let end = Utc::now();
 
         #[cfg(feature = "profiling-audio-draw")]
-        println!("audio-draw,{},{},{},{},{},{}",
+        println!("audio-draw,{},{},{},{},{},{},{}",
             before_init.time().format("%H:%M:%S%.6f"),
             before_lock.time().format("%H:%M:%S%.6f"),
             _before_cndt.time().format("%H:%M:%S%.6f"),
             _before_image.time().format("%H:%M:%S%.6f"),
             before_pos.time().format("%H:%M:%S%.6f"),
             end.time().format("%H:%M:%S%.6f"),
+            position,
         );
 
        Inhibit(true)
