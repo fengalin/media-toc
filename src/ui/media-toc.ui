@@ -153,7 +153,6 @@
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
                             <property name="no_show_all">True</property>
-                            <property name="double_buffered">False</property>
                             <property name="use_underline">True</property>
                           </object>
                           <packing>
@@ -185,7 +184,6 @@
                         <property name="visible">True</property>
                         <property name="app_paintable">True</property>
                         <property name="can_focus">False</property>
-                        <property name="double_buffered">False</property>
                         <property name="hexpand">True</property>
                         <property name="vexpand">True</property>
                       </object>
@@ -439,9 +437,7 @@
         <child>
           <object class="GtkBox" id="thumbnail-box">
             <property name="visible">True</property>
-            <property name="app_paintable">True</property>
             <property name="can_focus">False</property>
-            <property name="double_buffered">False</property>
             <property name="margin_right">3</property>
             <property name="margin_top">3</property>
             <property name="orientation">vertical</property>

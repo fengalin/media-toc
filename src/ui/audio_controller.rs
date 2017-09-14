@@ -169,6 +169,6 @@ impl AudioController {
             end.time().format("%H:%M:%S%.6f"),
         );
 
-       Inhibit(false)
+       Inhibit(true)
     }
 }

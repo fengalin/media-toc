@@ -76,7 +76,7 @@ impl InfoController {
                 }
             }
 
-            Inhibit(false)
+            Inhibit(true)
         });
 
         this
