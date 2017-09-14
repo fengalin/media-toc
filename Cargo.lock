@@ -296,9 +296,7 @@ dependencies = [
 name = "gstreamer-app-sys"
 version = "0.3.0"
 dependencies = [
- "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib-sys 0.4.0",
- "gobject-sys 0.4.0",
  "gstreamer-base-sys 0.3.0",
  "gstreamer-sys 0.3.0",
  "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -328,7 +326,6 @@ dependencies = [
  "gobject-sys 0.4.0",
  "gstreamer-base-sys 0.3.0",
  "gstreamer-sys 0.3.0",
- "gstreamer-tag-sys 0.3.0",
  "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
  "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -352,19 +349,6 @@ dependencies = [
  "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib-sys 0.4.0",
  "gobject-sys 0.4.0",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
- "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "gstreamer-tag-sys"
-version = "0.3.0"
-dependencies = [
- "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "glib-sys 0.4.0",
- "gobject-sys 0.4.0",
- "gstreamer-base-sys 0.3.0",
- "gstreamer-sys 0.3.0",
  "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
  "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

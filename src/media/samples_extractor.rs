@@ -1,3 +1,6 @@
+extern crate gstreamer as gst;
+use gstreamer::{ElementExtManual, QueryView};
+
 use std::any::Any;
 
 use std::mem;
@@ -28,6 +31,17 @@ impl DoubleSampleExtractor {
             samples_offset: 0,
             working_buffer: Some(buffer2),
         }
+    }
+
+    pub fn set_audio_sink(&mut self, audio_sink: &gst::Element) {
+        {
+            let exposed_buffer = &mut self.exposed_buffer_mtx.lock()
+                .expect("Couldn't lock exposed_buffer_mtx while setting audio sink");
+            exposed_buffer.set_audio_sink(audio_sink.clone());
+        }
+        self.working_buffer.as_mut()
+            .expect("Couldn't get working_buffer while setting audio sink")
+            .set_audio_sink(audio_sink.clone());
     }
 
     pub fn extract_samples(&mut self, audio_buffer: &AudioBuffer) {
@@ -72,6 +86,9 @@ pub struct SamplesExtractionState {
     pub sample_step: usize,
 
     pub eos: bool,
+
+    audio_sink: Option<gst::Element>,
+    position_query: gst::Query,
 }
 
 impl SamplesExtractionState {
@@ -89,7 +106,26 @@ impl SamplesExtractionState {
 
             sample_step: 0,
             eos: false,
+
+            audio_sink: None,
+            position_query: gst::Query::new_position(gst::Format::Time),
         }
+    }
+
+    pub fn set_audio_sink(&mut self, audio_sink: gst::Element) {
+        self.audio_sink = Some(audio_sink);
+    }
+
+    pub fn update_current_sample(&mut self) {
+        self.audio_sink.as_ref()
+            .expect("DoubleSampleExtractor: no audio ref while getting position")
+            .query(self.position_query.get_mut().unwrap());
+        self.current_sample = (
+            match self.position_query.view() {
+                QueryView::Position(ref position) => position.get().1 as f64,
+                _ => unreachable!(),
+            } / self.sample_duration
+        ).round() as usize;
     }
 }
 
@@ -97,6 +133,10 @@ pub trait SamplesExtractor: Send {
     fn as_mut_any(&mut self) -> &mut Any;
     fn get_extraction_state(&self) -> &SamplesExtractionState;
     fn get_extraction_state_mut(&mut self) -> &mut SamplesExtractionState;
+
+    fn set_audio_sink(&mut self, audio_sink: gst::Element) {
+        self.get_extraction_state_mut().set_audio_sink(audio_sink);
+    }
 
     fn can_extract(&self) -> bool;
 

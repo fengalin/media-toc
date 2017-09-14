@@ -209,10 +209,6 @@ impl Context {
         }
     }
 
-    pub fn get_audio_sink(&self) -> Option<gst::Element> {
-        self.pipeline.get_by_name("audio_playback_sink")
-    }
-
     pub fn get_position(&mut self) -> u64 {
         let pipeline = self.pipeline.clone();
         self.position_element.get_or_insert_with(|| {
@@ -324,10 +320,12 @@ impl Context {
                 };
 
                 if is_first {
-                    let samples_extractor = samples_extractor_mtx.lock()
+                    let mut samples_extractor = samples_extractor_mtx.lock()
                         .expect("Context::build_pipeline: couldn't lock samples_extractor_mtx")
                         .take()
                         .expect("Context::build_pipeline: samples_extractor already taken");
+
+                    samples_extractor.set_audio_sink(&audio_sink);
 
                     build_audio_pipeline!(
                         pipeline, src_pad, audio_sink, buffering_duration, samples_extractor

@@ -1,8 +1,5 @@
 extern crate cairo;
 
-extern crate gstreamer as gst;
-use gstreamer::{ElementExtManual, QueryView};
-
 extern crate gtk;
 use gtk::{Inhibit, WidgetExt};
 
@@ -24,9 +21,6 @@ pub struct AudioController {
     container: gtk::Container,
     pub drawingarea: gtk::DrawingArea,
 
-    audio_sink: Option<gst::Element>,
-    position_query: gst::Query,
-
     is_active: bool,
     position: u64,
     samples_extractor_mtx: Arc<Mutex<Box<SamplesExtractor>>>,
@@ -37,9 +31,6 @@ impl AudioController {
         let this = Rc::new(RefCell::new(AudioController {
             container: builder.get_object("audio-container").unwrap(),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
-
-            audio_sink: None,
-            position_query: gst::Query::new_position(gst::Format::Time),
 
             is_active: false,
             position: 0,
@@ -71,8 +62,6 @@ impl AudioController {
                 .is_some();
 
         if has_audio {
-            self.audio_sink = context.get_audio_sink();
-
             self.is_active = true;
             self.position = 0;
             self.samples_extractor_mtx = context.samples_extractor_mtx.clone();
@@ -98,12 +87,6 @@ impl AudioController {
 
         let requested_duration = 2_000_000_000u64; // 2s
 
-        let audio_sink = self.audio_sink.as_ref()
-            .expect("No audio ref in AudioController::draw");
-
-        #[allow(unused_assignments)]
-        let mut position = 0;
-
         #[cfg(feature = "profiling-audio-draw")]
         let before_lock = Utc::now();
         #[cfg(feature = "profiling-audio-draw")]
@@ -121,14 +104,7 @@ impl AudioController {
             #[cfg(feature = "profiling-audio-draw")]
             let _before_cndt = Utc::now();
 
-            audio_sink.query(self.position_query.get_mut().unwrap());
-            position = match self.position_query.view() {
-                QueryView::Position(ref position) => position.get().1 as u64,
-                _ => unreachable!(),
-            };
-
             waveform_buffer.update_conditions(
-                    position,
                     requested_duration,
                     allocation.width,
                     allocation.height,
@@ -164,14 +140,13 @@ impl AudioController {
         let end = Utc::now();
 
         #[cfg(feature = "profiling-audio-draw")]
-        println!("audio-draw,{},{},{},{},{},{},{}",
+        println!("audio-draw,{},{},{},{},{},{}",
             before_init.time().format("%H:%M:%S%.6f"),
             before_lock.time().format("%H:%M:%S%.6f"),
             _before_cndt.time().format("%H:%M:%S%.6f"),
             _before_image.time().format("%H:%M:%S%.6f"),
             before_pos.time().format("%H:%M:%S%.6f"),
             end.time().format("%H:%M:%S%.6f"),
-            position,
         );
 
        Inhibit(true)

@@ -52,7 +52,6 @@ impl WaveformBuffer {
     }
 
     pub fn update_conditions(&mut self,
-        pts: u64,
         duration: u64,
         width: i32,
         height: i32,
@@ -62,10 +61,6 @@ impl WaveformBuffer {
 
         self.width = width;
         self.height = height;
-
-        state.current_sample = (
-            pts as f64 / state.sample_duration
-        ).round() as usize;
 
         let width = width as u64;
         // resolution
@@ -82,6 +77,8 @@ impl WaveformBuffer {
         state.half_requested_sample_window = state.requested_sample_window / 2;
 
         if self.image_surface.is_some() {
+            state.update_current_sample();
+
             let first_visible_sample =
                 if state.eos
                 && state.current_sample + state.half_requested_sample_window > state.last_sample {
