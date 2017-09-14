@@ -14,7 +14,7 @@ use std::sync::mpsc::{channel, Receiver};
 
 use gtk::prelude::*;
 
-use ::media::{Context, ContextMessage, Timestamp};
+use ::media::{Context, ContextMessage};
 use ::media::ContextMessage::*;
 
 use super::{AudioController, DoubleWaveformBuffer, InfoController, VideoController};
@@ -23,8 +23,6 @@ pub struct MainController {
     window: gtk::ApplicationWindow,
     header_bar: gtk::HeaderBar,
     play_pause_btn: gtk::ToolButton,
-    position_lbl: gtk::Label,
-    timeline_scale: gtk::Scale,
     info_ctrl: InfoController,
     video_ctrl: VideoController,
     audio_ctrl: Rc<RefCell<AudioController>>,
@@ -47,8 +45,6 @@ impl MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
-            position_lbl: builder.get_object("position-lbl").unwrap(),
-            timeline_scale: builder.get_object("timeline-scale").unwrap(),
             info_ctrl: InfoController::new(&builder),
             video_ctrl: VideoController::new(&builder),
             audio_ctrl: audio_controller,
@@ -270,8 +266,7 @@ impl MainController {
             #[cfg(feature = "profiling-tracker")]
             let before_tic = Utc::now();
 
-            this_mut.timeline_scale.set_value(position as f64);
-            this_mut.position_lbl.set_text(&Timestamp::format(position));
+            this_mut.info_ctrl.tic(position);
             this_mut.audio_drawingarea.queue_draw();
 
             #[cfg(feature = "profiling-tracker")]
@@ -293,8 +288,9 @@ impl MainController {
     fn open_media(&mut self, filepath: PathBuf) {
         assert_eq!(self.listener_src, None);
 
-        self.timeline_scale.set_value(0f64);
-        self.position_lbl.set_text("00:00.000");
+        self.info_ctrl.cleanup();
+        self.audio_ctrl.borrow_mut().cleanup();
+        self.header_bar.set_subtitle("");
 
         let (ctx_tx, ui_rx) = channel();
 

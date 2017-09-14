@@ -17,10 +17,13 @@ pub struct InfoController {
     audio_codec_lbl: gtk::Label,
     video_codec_lbl: gtk::Label,
     duration_lbl: gtk::Label,
+    position_lbl: gtk::Label,
     timeline_scale: gtk::Scale,
 
     chapter_treeview: gtk::TreeView,
     chapter_store: gtk::ListStore,
+    chapter_starts: Vec<(u64, usize)>,
+    current_chapter_id: usize,
 
     thumbnail: Rc<RefCell<Option<ImageSurface>>>,
 }
@@ -38,11 +41,14 @@ impl InfoController {
             audio_codec_lbl: builder.get_object("audio_codec-lbl").unwrap(),
             video_codec_lbl: builder.get_object("video_codec-lbl").unwrap(),
             duration_lbl: builder.get_object("duration-lbl").unwrap(),
+            position_lbl: builder.get_object("position-lbl").unwrap(),
             timeline_scale: builder.get_object("timeline-scale").unwrap(),
 
             chapter_treeview: builder.get_object("chapter-treeview").unwrap(),
             // columns: Id, Title, Start, End
             chapter_store: gtk::ListStore::new(&[gtk::Type::I32, gtk::Type::String, gtk::Type::String, gtk::Type::String]),
+            chapter_starts: Vec::<(u64, usize)>::new(),
+            current_chapter_id: ::std::usize::MAX,
 
             thumbnail: Rc::new(RefCell::new(None)),
         };
@@ -139,6 +145,7 @@ impl InfoController {
             );
 
             self.timeline_scale.clear_marks();
+            self.chapter_starts.clear();
 
             // FIX for sample.mkv video: generate ids (TODO: remove)
             for (id, chapter) in info.chapters.iter().enumerate() {
@@ -151,7 +158,12 @@ impl InfoController {
                     None, &[0, 1, 2, 3],
                     &[&((id+1) as u32), &chapter.title(), &format!("{}", &chapter.start), &format!("{}", chapter.end)],
                 );
+                self.chapter_starts.push((chapter.start.nano_total, id));
             }
+
+            // reverse chapters in order to ease seaching
+            self.chapter_starts.reverse();
+            self.current_chapter_id = ::std::usize::MAX;
         }
 
         if has_image {
@@ -160,6 +172,45 @@ impl InfoController {
         }
         else {
             self.drawingarea.hide();
+        }
+    }
+
+    pub fn cleanup(&mut self) {
+        self.title_lbl.set_text("");
+        self.artist_lbl.set_text("");
+        self.container_lbl.set_text("");
+        self.audio_codec_lbl.set_text("");
+        self.video_codec_lbl.set_text("");
+        self.duration_lbl.set_text("");
+        self.chapter_store.clear();
+        self.timeline_scale.clear_marks();
+        self.timeline_scale.set_value(0f64);
+        self.position_lbl.set_text("");
+    }
+
+    pub fn tic(&mut self, position: u64) {
+        self.timeline_scale.set_value(position as f64);
+        self.position_lbl.set_text(&Timestamp::format(position));
+
+        // reminder: chapters order is reversed
+        for &(start, id) in self.chapter_starts.iter() {
+            if start <= position {
+                // found current chapter
+                if self.current_chapter_id != id {
+                    if let Some(store_iter) =
+                        self.chapter_store.get_iter(
+                            &gtk::TreePath::new_from_indicesv(&[id as i32])
+                        )
+                    {
+                        self.chapter_treeview.get_selection()
+                            .select_iter(&store_iter);
+                    };
+
+                    self.current_chapter_id = id;
+                }
+
+                break;
+            }
         }
     }
 }
