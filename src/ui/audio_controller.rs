@@ -98,13 +98,11 @@ impl AudioController {
 
         let requested_duration = 2_000_000_000u64; // 2s
 
-        self.audio_sink.as_ref()
-            .expect("No audio ref in AudioController::draw")
-            .query(self.position_query.get_mut().unwrap());
-        let position = match self.position_query.view() {
-            QueryView::Position(ref position) => position.get().1 as u64,
-            _ => unreachable!(),
-        };
+        let audio_sink = self.audio_sink.as_ref()
+            .expect("No audio ref in AudioController::draw");
+
+        #[allow(unused_assignments)]
+        let mut position = 0;
 
         #[cfg(feature = "profiling-audio-draw")]
         let before_lock = Utc::now();
@@ -122,6 +120,12 @@ impl AudioController {
 
             #[cfg(feature = "profiling-audio-draw")]
             let _before_cndt = Utc::now();
+
+            audio_sink.query(self.position_query.get_mut().unwrap());
+            position = match self.position_query.view() {
+                QueryView::Position(ref position) => position.get().1 as u64,
+                _ => unreachable!(),
+            };
 
             waveform_buffer.update_conditions(
                     position,
