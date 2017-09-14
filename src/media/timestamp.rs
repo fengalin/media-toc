@@ -2,6 +2,7 @@ use std::fmt;
 
 #[derive(Clone, Copy)]
 pub struct Timestamp {
+    pub nano_total: u64,
     pub nano: u64,
     pub us: u64,
     pub ms: u64,
@@ -37,6 +38,7 @@ impl Timestamp {
         let m_total = s_total / 60;
 
         Timestamp {
+            nano_total: nano_total,
             nano: nano_total % 1_000,
             us: us_total % 1_000,
             ms: ms_total % 1_000,
@@ -49,6 +51,7 @@ impl Timestamp {
     pub fn from_signed_nano(nano: i64) -> Self {
         if nano.is_negative() {
             Timestamp {
+                nano_total: 0,
                 nano: 0,
                 us: 0,
                 ms: 0,

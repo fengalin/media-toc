@@ -17,6 +17,7 @@ pub struct InfoController {
     audio_codec_lbl: gtk::Label,
     video_codec_lbl: gtk::Label,
     duration_lbl: gtk::Label,
+    timeline_scale: gtk::Scale,
 
     chapter_treeview: gtk::TreeView,
     chapter_store: gtk::ListStore,
@@ -37,6 +38,7 @@ impl InfoController {
             audio_codec_lbl: builder.get_object("audio_codec-lbl").unwrap(),
             video_codec_lbl: builder.get_object("video_codec-lbl").unwrap(),
             duration_lbl: builder.get_object("duration-lbl").unwrap(),
+            timeline_scale: builder.get_object("timeline-scale").unwrap(),
 
             chapter_treeview: builder.get_object("chapter-treeview").unwrap(),
             // columns: Id, Title, Start, End
@@ -96,8 +98,10 @@ impl InfoController {
     }
 
     pub fn new_media(&mut self, context: &Context) {
+        let duration = context.get_duration();
+        self.timeline_scale.set_range(0f64, duration as f64);
         self.duration_lbl.set_label(
-            &format!("{}", Timestamp::format(context.get_duration()))
+            &format!("{}", Timestamp::format(duration))
         );
 
         self.chapter_store.clear();
@@ -134,8 +138,15 @@ impl InfoController {
                 if !info.video_codec.is_empty() { &info.video_codec } else { "-" }
             );
 
+            self.timeline_scale.clear_marks();
+
             // FIX for sample.mkv video: generate ids (TODO: remove)
             for (id, chapter) in info.chapters.iter().enumerate() {
+                self.timeline_scale.add_mark(
+                    chapter.start.nano_total as f64,
+                    gtk::PositionType::Top,
+                    None
+                );
                 self.chapter_store.insert_with_values(
                     None, &[0, 1, 2, 3],
                     &[&((id+1) as u32), &chapter.title(), &format!("{}", &chapter.start), &format!("{}", chapter.end)],

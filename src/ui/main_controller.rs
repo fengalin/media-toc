@@ -13,8 +13,6 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver};
 
 use gtk::prelude::*;
-use gtk::{ApplicationWindow, Button, FileChooserAction, FileChooserDialog,
-          HeaderBar, ResponseType, Label, ToolButton};
 
 use ::media::{Context, ContextMessage, Timestamp};
 use ::media::ContextMessage::*;
@@ -22,10 +20,11 @@ use ::media::ContextMessage::*;
 use super::{AudioController, DoubleWaveformBuffer, InfoController, VideoController};
 
 pub struct MainController {
-    window: ApplicationWindow,
-    header_bar: HeaderBar,
-    play_pause_btn: ToolButton,
-    position_lbl: Label,
+    window: gtk::ApplicationWindow,
+    header_bar: gtk::HeaderBar,
+    play_pause_btn: gtk::ToolButton,
+    position_lbl: gtk::Label,
+    timeline_scale: gtk::Scale,
     info_ctrl: InfoController,
     video_ctrl: VideoController,
     audio_ctrl: Rc<RefCell<AudioController>>,
@@ -49,6 +48,7 @@ impl MainController {
             header_bar: builder.get_object("header-bar").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
             position_lbl: builder.get_object("position-lbl").unwrap(),
+            timeline_scale: builder.get_object("timeline-scale").unwrap(),
             info_ctrl: InfoController::new(&builder),
             video_ctrl: VideoController::new(&builder),
             audio_ctrl: audio_controller,
@@ -80,7 +80,7 @@ impl MainController {
             });
         }
 
-        let open_btn: Button = builder.get_object("open-btn").unwrap();
+        let open_btn: gtk::Button = builder.get_object("open-btn").unwrap();
         let this_rc = this.clone();
         open_btn.connect_clicked(move |_| {
             this_rc.borrow_mut().select_media();
@@ -134,15 +134,15 @@ impl MainController {
     fn select_media(&mut self) {
         self.stop();
 
-        let file_dlg = FileChooserDialog::new(
+        let file_dlg = gtk::FileChooserDialog::new(
             Some("Open a media file"),
             Some(&self.window),
-            FileChooserAction::Open,
+            gtk::FileChooserAction::Open,
         );
         // Note: couldn't find equivalents for STOCK_OK
-        file_dlg.add_button("Open", ResponseType::Ok.into());
+        file_dlg.add_button("Open", gtk::ResponseType::Ok.into());
 
-        if file_dlg.run() == ResponseType::Ok.into() {
+        if file_dlg.run() == gtk::ResponseType::Ok.into() {
             self.open_media(file_dlg.get_filename().unwrap());
         }
 
@@ -187,13 +187,13 @@ impl MainController {
                         let context = this_mut.context.take()
                             .expect("... but no context available");
 
-                        this_mut.info_ctrl.new_media(&context);
-                        this_mut.video_ctrl.new_media(&context);
-                        this_mut.audio_ctrl.borrow_mut().new_media(&context);
-
                         this_mut.header_bar.set_subtitle(
                             Some(context.file_name.as_str())
                         );
+
+                        this_mut.info_ctrl.new_media(&context);
+                        this_mut.video_ctrl.new_media(&context);
+                        this_mut.audio_ctrl.borrow_mut().new_media(&context);
 
                         this_mut.context = Some(context);
                     },
@@ -270,6 +270,7 @@ impl MainController {
             #[cfg(feature = "profiling-tracker")]
             let before_tic = Utc::now();
 
+            this_mut.timeline_scale.set_value(position as f64);
             this_mut.position_lbl.set_text(&Timestamp::format(position));
             this_mut.audio_drawingarea.queue_draw();
 
@@ -292,6 +293,7 @@ impl MainController {
     fn open_media(&mut self, filepath: PathBuf) {
         assert_eq!(self.listener_src, None);
 
+        self.timeline_scale.set_value(0f64);
         self.position_lbl.set_text("00:00.000");
 
         let (ctx_tx, ui_rx) = channel();
