@@ -113,7 +113,7 @@ impl AudioController {
             #[cfg(feature = "profiling-audio-draw")]
             let _before_image = Utc::now();
 
-            let image = match waveform_buffer.image_surface.as_ref() {
+            let image = match waveform_buffer.exposed_image.as_ref() {
                 Some(image) => image,
                 None => return Inhibit(false),
             };

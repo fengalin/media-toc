@@ -28,7 +28,7 @@ pub struct WaveformBuffer {
 
     width: i32,
     height: i32,
-    pub image_surface: Option<cairo::ImageSurface>,
+    pub exposed_image: Option<cairo::ImageSurface>,
     working_image: Option<cairo::ImageSurface>,
 
     pub x_offset: usize,
@@ -43,7 +43,7 @@ impl WaveformBuffer {
 
             width: 0,
             height: 0,
-            image_surface: None,
+            exposed_image: None,
             working_image: None,
 
             x_offset: 0,
@@ -76,7 +76,7 @@ impl WaveformBuffer {
         ).round() as usize;
         state.half_requested_sample_window = state.requested_sample_window / 2;
 
-        if self.image_surface.is_some() {
+        if self.exposed_image.is_some() {
             state.update_current_sample();
 
             let first_visible_sample =
@@ -184,8 +184,8 @@ impl SamplesExtractor for WaveformBuffer {
                 )
             } else {
                 // shift previous context
-                let previous_image = self.image_surface.take()
-                    .expect("WaveformBuffer: no image_surface while updating");
+                let previous_image = self.exposed_image.take()
+                    .expect("WaveformBuffer: no exposed_image while updating");
 
                 let sample_step_offset =
                     (first_sample - self.state.samples_offset) / sample_step;
@@ -196,7 +196,7 @@ impl SamplesExtractor for WaveformBuffer {
                 );
                 cr.paint();
 
-                self.image_surface = Some(previous_image);
+                self.exposed_image = Some(previous_image);
 
                 // prepare to add remaining samples
                 (
@@ -236,10 +236,10 @@ impl SamplesExtractor for WaveformBuffer {
             }
         }
 
-        if let Some(previous_image) = self.image_surface.take() {
+        if let Some(previous_image) = self.exposed_image.take() {
             self.working_image = Some(previous_image);
         }
-        self.image_surface = Some(working_image);
+        self.exposed_image = Some(working_image);
 
         self.state.samples_offset = first_sample;
         self.buffer_sample_window = buffer_sample_window;
