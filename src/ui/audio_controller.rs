@@ -104,11 +104,11 @@ impl AudioController {
             #[cfg(feature = "profiling-audio-draw")]
             let _before_cndt = Utc::now();
 
-            waveform_buffer.update_conditions(
+            let (x_offset, current_x) = waveform_buffer.update_conditions(
                     requested_duration,
                     allocation.width,
                     allocation.height,
-                );
+            );
 
             #[cfg(feature = "profiling-audio-draw")]
             let _before_image = Utc::now();
@@ -118,10 +118,10 @@ impl AudioController {
                 None => return Inhibit(false),
             };
 
-            cr.set_source_surface(image, -(waveform_buffer.x_offset as f64), 0f64);
+            cr.set_source_surface(image, -(x_offset as f64), 0f64);
             cr.paint();
 
-            waveform_buffer.current_x
+            current_x
         };
 
         #[cfg(feature = "profiling-audio-draw")]

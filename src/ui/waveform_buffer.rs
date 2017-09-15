@@ -30,9 +30,6 @@ pub struct WaveformBuffer {
     height: i32,
     pub exposed_image: Option<cairo::ImageSurface>,
     working_image: Option<cairo::ImageSurface>,
-
-    pub x_offset: usize,
-    pub current_x: usize,
 }
 
 impl WaveformBuffer {
@@ -45,9 +42,6 @@ impl WaveformBuffer {
             height: 0,
             exposed_image: None,
             working_image: None,
-
-            x_offset: 0,
-            current_x: 0,
         }
     }
 
@@ -55,7 +49,7 @@ impl WaveformBuffer {
         duration: u64,
         width: i32,
         height: i32,
-    )
+    ) -> (usize, usize) // (x_offset, current_x)
     {
         let state = &mut self.state;
 
@@ -97,8 +91,12 @@ impl WaveformBuffer {
                     }
                 };
 
-            self.x_offset = (first_visible_sample - state.samples_offset) / state.sample_step;
-            self.current_x = (state.current_sample - first_visible_sample) / state.sample_step;
+            (
+                (first_visible_sample - state.samples_offset) / state.sample_step, // x_offset
+                (state.current_sample - first_visible_sample) / state.sample_step  // current_x
+            )
+        } else {
+            (0, 0)
         }
     }
 }
