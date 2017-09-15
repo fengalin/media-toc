@@ -22,8 +22,7 @@ pub struct InfoController {
 
     chapter_treeview: gtk::TreeView,
     chapter_store: gtk::ListStore,
-    chapter_starts: Vec<(u64, usize)>,
-    current_chapter_id: usize,
+    chapter_iter: Option<gtk::TreeIter>,
 
     thumbnail: Rc<RefCell<Option<ImageSurface>>>,
 }
@@ -45,10 +44,16 @@ impl InfoController {
             timeline_scale: builder.get_object("timeline-scale").unwrap(),
 
             chapter_treeview: builder.get_object("chapter-treeview").unwrap(),
-            // columns: Id, Title, Start, End
-            chapter_store: gtk::ListStore::new(&[gtk::Type::I32, gtk::Type::String, gtk::Type::String, gtk::Type::String]),
-            chapter_starts: Vec::<(u64, usize)>::new(),
-            current_chapter_id: ::std::usize::MAX,
+            // columns: Id, Start, End, Title, StartStr, EndStr
+            chapter_store: gtk::ListStore::new(&[
+                gtk::Type::I32,
+                gtk::Type::U64,
+                gtk::Type::U64,
+                gtk::Type::String,
+                gtk::Type::String,
+                gtk::Type::String
+            ]),
+            chapter_iter: None,
 
             thumbnail: Rc::new(RefCell::new(None)),
         };
@@ -57,9 +62,9 @@ impl InfoController {
 
         this.chapter_treeview.set_model(Some(&this.chapter_store));
         this.add_chapter_column("Id", 0, false);
-        this.add_chapter_column("Title", 1, true);
-        this.add_chapter_column("Start", 2, false);
-        this.add_chapter_column("End", 3, false);
+        this.add_chapter_column("Title", 3, true);
+        this.add_chapter_column("Start", 4, false);
+        this.add_chapter_column("End", 5, false);
 
         let thumbnail_weak = Rc::downgrade(&this.thumbnail);
         this.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
@@ -147,7 +152,7 @@ impl InfoController {
             );
 
             self.timeline_scale.clear_marks();
-            self.chapter_starts.clear();
+            self.chapter_iter = None;
 
             // FIX for sample.mkv video: generate ids (TODO: remove)
             for (id, chapter) in info.chapters.iter().enumerate() {
@@ -157,15 +162,19 @@ impl InfoController {
                     None
                 );
                 self.chapter_store.insert_with_values(
-                    None, &[0, 1, 2, 3],
-                    &[&((id+1) as u32), &chapter.title(), &format!("{}", &chapter.start), &format!("{}", chapter.end)],
+                    None, &[0, 1, 2, 3, 4, 5],
+                    &[
+                        &((id+1) as u32),
+                        &chapter.start.nano_total,
+                        &chapter.end.nano_total,
+                        &chapter.title(),
+                        &format!("{}", &chapter.start),
+                        &format!("{}", chapter.end)
+                    ],
                 );
-                self.chapter_starts.push((chapter.start.nano_total, id));
             }
 
-            // reverse chapters in order to ease seaching
-            self.chapter_starts.reverse();
-            self.current_chapter_id = ::std::usize::MAX;
+            self.chapter_iter = self.chapter_store.get_iter_first();
         }
 
         if has_image {
@@ -184,6 +193,8 @@ impl InfoController {
         self.audio_codec_lbl.set_text("");
         self.video_codec_lbl.set_text("");
         self.duration_lbl.set_text("00:00.000");
+        *self.thumbnail.borrow_mut() = None;
+        self.chapter_iter = None;
         self.chapter_store.clear();
         self.timeline_scale.clear_marks();
         self.timeline_scale.set_value(0f64);
@@ -194,25 +205,34 @@ impl InfoController {
         self.timeline_scale.set_value(position as f64);
         self.position_lbl.set_text(&Timestamp::format(position));
 
-        // reminder: chapters order is reversed
-        for &(start, id) in self.chapter_starts.iter() {
-            if start <= position {
-                // found current chapter
-                if self.current_chapter_id != id {
-                    if let Some(store_iter) =
-                        self.chapter_store.get_iter(
-                            &gtk::TreePath::new_from_indicesv(&[id as i32])
-                        )
-                    {
-                        self.chapter_treeview.get_selection()
-                            .select_iter(&store_iter);
-                    };
+        let mut done_with_chapters = false;
 
-                    self.current_chapter_id = id;
+        if let Some(current_iter) = self.chapter_iter.as_mut() {
+            if position >= self.chapter_store.get_value(&current_iter, 2)
+                    .get::<u64>().unwrap() {
+                // passed the end of current chapter
+                // unselect current chapter
+                self.chapter_treeview.get_selection()
+                    .unselect_iter(&current_iter);
+
+                if !self.chapter_store.iter_next(&current_iter) {
+                    // no more chapters
+                    done_with_chapters = true;
                 }
-
-                break;
             }
+
+            if !done_with_chapters
+            && position >= self.chapter_store.get_value(&current_iter, 1)
+                    .get::<u64>().unwrap() // after current start
+            && position < self.chapter_store.get_value(&current_iter, 2)
+                    .get::<u64>().unwrap() { // before current end
+                self.chapter_treeview.get_selection()
+                    .select_iter(&current_iter);
+            }
+        }
+
+        if done_with_chapters {
+            self.chapter_iter = None;
         }
     }
 }
