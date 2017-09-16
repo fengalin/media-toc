@@ -1,4 +1,4 @@
-# Media-TOC
+# media-toc
 Media-TOC is an application to build a table of contents from a media file or
 to split a media file into chapters.
 
@@ -51,19 +51,18 @@ need the following packages installed on your OS:
 
 ### Fedora
 ```
-$ sudo dnf install gtk3-devel glib2-devel gstreamer1-devel gstreamer1-plugins-base-devel
+sudo dnf install gtk3-devel glib2-devel gstreamer1-devel gstreamer1-plugins-base-devel
 ```
 
 ### Debian & Unbuntu
-*Needs confirmation*
 ```
-$ sudo apt-get install libgtk-3-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+sudo apt-get install libgtk-3-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
 ```
 
 ### MacOS
 *Needs confirmation*
 ```
-$ brew install gtk+3 gstreamer-1.0-devel
+brew install gtk+3 gstreamer-1.0-devel
 ```
 
 ### Windows
