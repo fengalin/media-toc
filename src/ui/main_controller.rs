@@ -93,7 +93,10 @@ impl MainController {
         let context =
             match self.context.take() {
                 Some(context) => context,
-                None => return,
+                None => {
+                    self.select_media();
+                    return;
+                },
             };
 
         match context.get_state() {
