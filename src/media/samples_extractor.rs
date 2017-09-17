@@ -167,8 +167,7 @@ pub trait SamplesExtractor: Send {
             let sample_step = (
                 state.requested_step_duration as f64
                 / state.sample_duration
-            ).round();
-            let sample_step = sample_step as usize;
+            ).round() as usize;
 
             if audio_buffer.eos {
                 state.eos = true;
@@ -215,7 +214,7 @@ pub trait SamplesExtractor: Send {
             }
         };
 
-        // align requested first pts in order to keep a regular
+        // align requested first pts in order to keep a steady
         // offset between redraws. This allows using the same samples
         // for a given requested_step_duration and avoiding flickering
         // between redraws
