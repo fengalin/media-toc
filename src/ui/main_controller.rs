@@ -61,7 +61,7 @@ impl MainController {
         {
             let mut this_mut = this.borrow_mut();
 
-            let this_rc = this.clone();
+            let this_rc = Rc::clone(&this);
             this_mut.this_opt = Some(this_rc);
 
             this_mut.window.connect_delete_event(|_, _| {
@@ -70,14 +70,14 @@ impl MainController {
             });
             this_mut.window.set_titlebar(&this_mut.header_bar);
 
-            let this_rc = this.clone();
+            let this_rc = Rc::clone(&this);
             this_mut.play_pause_btn.connect_clicked(move |_| {
                 this_rc.borrow_mut().play_pause();
             });
         }
 
         let open_btn: gtk::Button = builder.get_object("open-btn").unwrap();
-        let this_rc = this.clone();
+        let this_rc = Rc::clone(&this);
         open_btn.connect_clicked(move |_| {
             this_rc.borrow_mut().select_media();
         });
@@ -158,22 +158,12 @@ impl MainController {
         timeout: u32,
         ui_rx: Receiver<ContextMessage>,
     ) {
-        let this_rc = self.this_opt.as_ref()
-            .unwrap()
-            .clone();
+        let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
 
         self.listener_src = Some(gtk::timeout_add(timeout, move || {
-            #[cfg(feature = "profiling-listener")]
-            let start = Utc::now();
-
-            let mut message_iter = ui_rx.try_iter();
-
             let mut keep_going = true;
 
-            #[cfg(feature = "profiling-listener")]
-            let before_loop = Utc::now();
-
-            for message in message_iter.next() {
+            for message in ui_rx.try_iter() {
                 match message {
                     AsyncDone => {
                         println!("Received AsyncDone");
@@ -222,16 +212,6 @@ impl MainController {
                 if !keep_going { break; }
             }
 
-            #[cfg(feature = "profiling-listener")]
-            let end = Utc::now();
-
-            #[cfg(feature = "profiling-listener")]
-            println!("listener,{},{},{}",
-                start.time().format("%H:%M:%S%.6f"),
-                before_loop.time().format("%H:%M:%S%.6f"),
-                end.time().format("%H:%M:%S%.6f"),
-            );
-
             if !keep_going {
                 let mut this_mut = this_rc.borrow_mut();
                 this_mut.listener_src = None;
@@ -249,9 +229,7 @@ impl MainController {
     }
 
     fn register_tracker(&mut self, timeout: u32) {
-        let this_rc = self.this_opt.as_ref()
-            .unwrap()
-            .clone();
+        let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
 
         self.tracker_src = Some(gtk::timeout_add(timeout, move || {
             #[cfg(feature = "profiling-tracker")]

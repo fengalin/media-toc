@@ -74,16 +74,24 @@ impl InfoController {
                     let surface = &thumbnail.surface;
 
                     let allocation = drawing_area.get_allocation();
-                    let alloc_ratio = allocation.width as f64 / allocation.height as f64;
-                    let surface_ratio = surface.get_width() as f64 / surface.get_height() as f64;
+                    let alloc_ratio = f64::from(allocation.width)
+                        / f64::from(allocation.height);
+                    let surface_ratio = f64::from(surface.get_width())
+                        / f64::from(surface.get_height());
                     let scale = if surface_ratio < alloc_ratio {
-                        allocation.height as f64 / surface.get_height() as f64
+                        f64::from(allocation.height)
+                        / f64::from(surface.get_height())
                     }
                     else {
-                        allocation.width as f64 / surface.get_width() as f64
+                        f64::from(allocation.width)
+                        / f64::from(surface.get_width())
                     };
-                    let x = (allocation.width as f64 / scale - surface.get_width() as f64).abs() / 2f64;
-                    let y = (allocation.height as f64 / scale - surface.get_height() as f64).abs() / 2f64;
+                    let x = (
+                            f64::from(allocation.width) / scale - f64::from(surface.get_width())
+                        ).abs() / 2f64;
+                    let y = (
+                        f64::from(allocation.height) / scale - f64::from(surface.get_height())
+                        ).abs() / 2f64;
 
                     cairo_ctx.scale(scale, scale);
                     cairo_ctx.set_source_surface(surface, x, y);
@@ -208,26 +216,26 @@ impl InfoController {
         let mut done_with_chapters = false;
 
         if let Some(current_iter) = self.chapter_iter.as_mut() {
-            if position >= self.chapter_store.get_value(&current_iter, 2)
+            if position >= self.chapter_store.get_value(current_iter, 2)
                     .get::<u64>().unwrap() {
                 // passed the end of current chapter
                 // unselect current chapter
                 self.chapter_treeview.get_selection()
-                    .unselect_iter(&current_iter);
+                    .unselect_iter(current_iter);
 
-                if !self.chapter_store.iter_next(&current_iter) {
+                if !self.chapter_store.iter_next(current_iter) {
                     // no more chapters
                     done_with_chapters = true;
                 }
             }
 
             if !done_with_chapters
-            && position >= self.chapter_store.get_value(&current_iter, 1)
+            && position >= self.chapter_store.get_value(current_iter, 1)
                     .get::<u64>().unwrap() // after current start
-            && position < self.chapter_store.get_value(&current_iter, 2)
+            && position < self.chapter_store.get_value(current_iter, 2)
                     .get::<u64>().unwrap() { // before current end
                 self.chapter_treeview.get_selection()
-                    .select_iter(&current_iter);
+                    .select_iter(current_iter);
             }
         }
 

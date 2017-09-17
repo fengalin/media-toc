@@ -43,7 +43,7 @@ impl AudioBuffer {
         // assert_eq!(format, S16);
         // assert_eq!(layout, Interleaved);
 
-        let sample_duration = 1_000_000_000f64 / (rate as f64);
+        let sample_duration = 1_000_000_000f64 / f64::from(rate);
         let capacity = (size_duration as f64 / sample_duration) as usize;
 
         let drain_size = capacity / 5;
@@ -80,14 +80,12 @@ impl AudioBuffer {
         let before_drain = Utc::now();
 
         if self.samples.len() + incoming_samples.len() > self.capacity
+        && self.samples_extractor_opt.as_ref().unwrap().samples_offset
+            > self.samples_offset + self.drain_size
         {   // buffer will reach capacity => drain a chunk of samples
             // only if we have samples in history
-            if self.samples_extractor_opt.as_ref().unwrap().samples_offset
-                > self.samples_offset + self.drain_size
-            {
-                self.samples.drain(..self.drain_size);
-                self.samples_offset += self.drain_size;
-            }
+            self.samples.drain(..self.drain_size);
+            self.samples_offset += self.drain_size;
         }
 
         #[cfg(feature = "profiling-audio-buffer")]
@@ -103,13 +101,13 @@ impl AudioBuffer {
         let (front_norm_factor, others_norm_factor, front_channels) =
             if self.channels > 2 {
                 (
-                    0.75f64 / 2f64 / (i16::MAX as f64) * SAMPLES_NORM / 2f64,
-                    0.25f64 / ((self.channels - 2) as f64) / (i16::MAX as f64) * SAMPLES_NORM / 2f64,
+                    0.75f64 / 2f64 / f64::from(i16::MAX) * SAMPLES_NORM / 2f64,
+                    0.25f64 / ((self.channels - 2) as f64) / f64::from(i16::MAX) * SAMPLES_NORM / 2f64,
                     2
                 )
             } else {
                 (
-                    1f64 / (self.channels as f64) / (i16::MAX as f64) * SAMPLES_OFFSET,
+                    1f64 / (self.channels as f64) / f64::from(i16::MAX) * SAMPLES_OFFSET,
                     0f64,
                     self.channels
                 )
@@ -121,11 +119,11 @@ impl AudioBuffer {
             norm_sample = 0f64;
 
             for _ in 0..front_channels {
-                norm_sample += incoming_samples[index] as f64 * front_norm_factor;
+                norm_sample += f64::from(incoming_samples[index]) * front_norm_factor;
                 index += 1;
             }
             for _ in front_channels..self.channels {
-                norm_sample += incoming_samples[index] as f64 * others_norm_factor;
+                norm_sample += f64::from(incoming_samples[index]) * others_norm_factor;
                 index += 1;
             }
             self.samples.push_back(SAMPLES_OFFSET - norm_sample);
@@ -136,7 +134,7 @@ impl AudioBuffer {
 
         if !self.samples.is_empty() {
             let mut samples_extractor = self.samples_extractor_opt.take().unwrap();
-            samples_extractor.extract_samples(&self);
+            samples_extractor.extract_samples(self);
             self.samples_extractor_opt = Some(samples_extractor);
         }
 
@@ -165,7 +163,7 @@ impl AudioBuffer {
             self.eos = true;
 
             let mut samples_extractor = self.samples_extractor_opt.take().unwrap();
-            samples_extractor.extract_samples(&self);
+            samples_extractor.extract_samples(self);
             self.samples_extractor_opt = Some(samples_extractor);
         }
     }

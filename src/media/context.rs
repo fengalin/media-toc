@@ -1,6 +1,6 @@
 extern crate gstreamer as gst;
-use gstreamer::{BinExt, BinExtManual, Caps, ElementExt, ElementExtManual,
-                ElementFactory, GstObjectExt, PadExt, QueryView,
+use gstreamer::prelude::*;
+use gstreamer::{BinExt, Caps, ElementFactory, GstObjectExt, PadExt, QueryView,
                 TocScope, TocEntryType};
 
 extern crate gstreamer_audio as gst_audio;
@@ -196,7 +196,7 @@ impl Context {
             path: path,
 
             info: Arc::new(Mutex::new(MediaInfo::new())),
-            samples_extractor_mtx: samples_extractor.exposed_buffer_mtx.clone(),
+            samples_extractor_mtx: Arc::clone(&samples_extractor.exposed_buffer_mtx),
         };
 
         ctx.build_pipeline(buffering_duration, samples_extractor, video_widget_box);
@@ -299,7 +299,7 @@ impl Context {
         let samples_extractor_mtx = Arc::new(Mutex::new(Some(samples_extractor)));
         /*let audio_sink = self.audio_sink.clone();
         let video_sink = self.video_sink.clone();*/
-        let info_arc_mtx = self.info.clone();
+        let info_arc_mtx = Arc::clone(&self.info);
         src.connect_pad_added(move |_, src_pad| {
             let pipeline = &pipeline_clone;
 
@@ -351,7 +351,7 @@ impl Context {
 
     // Uses ctx_tx to notify the UI controllers about the inspection process
     fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
-        let info_arc_mtx = self.info.clone();
+        let info_arc_mtx = Arc::clone(&self.info);
         let mut init_done = false;
         let bus = self.pipeline.get_bus().unwrap();
         bus.add_watch(move |_, msg| {
@@ -361,7 +361,7 @@ impl Context {
                 gst::MessageView::Eos(..) => {
                     ctx_tx.send(ContextMessage::Eos)
                         .expect("Failed to notify UI");
-                    glib::Continue(false)
+                    return glib::Continue(false);
                 },
                 gst::MessageView::Error(err) => {
                     eprintln!("Error from {}: {} ({:?})",
@@ -370,7 +370,7 @@ impl Context {
                     );
                     ctx_tx.send(ContextMessage::FailedToOpenMedia)
                         .expect("Failed to notify UI");
-                    glib::Continue(false)
+                    return glib::Continue(false);
                 },
                 gst::MessageView::AsyncDone(_) => {
                     if !init_done {
@@ -381,96 +381,92 @@ impl Context {
                         ctx_tx.send(ContextMessage::AsyncDone)
                             .expect("Failed to notify UI");
                     }
-                    glib::Continue(true)
                 },
                 gst::MessageView::Tag(msg_tag) => {
                     if !init_done {
-                        let tags = msg_tag.get_tags();
-                        let info = &mut info_arc_mtx.lock()
-                            .expect("Failed to lock media info while reading tag data");
-                        assign_str_tag!(info.title, tags, gst::tags::Title);
-                        assign_str_tag!(info.artist, tags, gst::tags::Artist);
-                        assign_str_tag!(info.artist, tags, gst::tags::AlbumArtist);
-                        assign_str_tag!(info.container, tags, gst::tags::ContainerFormat);
-                        assign_str_tag!(info.video_codec, tags, gst::tags::VideoCodec);
-                        assign_str_tag!(info.audio_codec, tags, gst::tags::AudioCodec);
-
-                        match tags.get::<gst::tags::PreviewImage>() {
-                            // TODO: check if that happens, that would be handy for videos
-                            Some(_) => println!("** Found a PreviewImage tag **"),
-                            None => (),
-                        };
-
-                        // TODO: distinguish front/back cover (take the first one?)
-                        if let Some(image_tag) = tags.get::<gst::tags::Image>() {
-                            if let Some(sample) = image_tag.get() {
-                                if let Some(buffer) = sample.get_buffer() {
-                                    if let Some(map) = buffer.map_readable() {
-                                        info.thumbnail = AlignedImage::from_uknown_buffer(
-                                                map.as_slice()
-                                            ).ok();
-                                    }
-                                }
-                            }
-                        }
+                        Context::add_tags(msg_tag.get_tags(), &info_arc_mtx);
                     }
-                    glib::Continue(true)
                 },
                 gst::MessageView::Toc(msg_toc) => {
-                    if init_done {
-                        return glib::Continue(true);
+                    if !init_done {
+                        let (toc, _) = msg_toc.get_toc();
+                        if toc.get_scope() == TocScope::Global {
+                            Context::add_toc(toc, &info_arc_mtx);
+                        } else {
+                            println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
+                        }
                     }
-                    let (toc, _) = msg_toc.get_toc();
-                    if toc.get_scope() != TocScope::Global {
-                        println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
-                        return glib::Continue(true);
-                    }
+                },
+                _ => (),
+            }
 
-                    let info = &mut info_arc_mtx.lock()
-                        .expect("Failed to lock media info while reading toc data");
-                    if !info.chapters.is_empty() {
-                        // chapters already retrieved
-                        // TODO: check if there are medias with some sort of
-                        // incremental tocs (not likely for files)
-                        // or maybe the updated flag (_ above) should be used
-                        return glib::Continue(true);
-                    }
+            glib::Continue(true)
+        });
+    }
 
-                    for entry in toc.get_entries() {
-                        if entry.get_entry_type() == TocEntryType::Edition {
-                            for sub_entry in entry.get_sub_entries() {
-                                if sub_entry.get_entry_type() == TocEntryType::Chapter {
-                                    if let Some((start, stop)) = sub_entry.get_start_stop_times() {
-                                        let mut title = String::new();
-                                        if let Some(tags) = sub_entry.get_tags() {
-                                            if let Some(tag) = tags.get::<gst::tags::Title>() {
-                                                title = tag.get().unwrap().to_owned();
-                                            };
-                                        };
-                                        info.chapters.push(Chapter::new(
-                                            sub_entry.get_uid(),
-                                            &title,
-                                            Timestamp::from_signed_nano(start),
-                                            Timestamp::from_signed_nano(stop)
-                                        ));
-                                    }
-                                } /*else {
-                                    println!("Warning: Skipping toc sub entry with entry type: {:?}",
-                                        sub_entry.get_entry_type()
-                                    );
-                                }*/
+    fn add_tags(tags: gst::TagList, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
+        let info = &mut info_arc_mtx.lock()
+            .expect("Failed to lock media info while reading tag data");
+        assign_str_tag!(info.title, tags, gst::tags::Title);
+        assign_str_tag!(info.artist, tags, gst::tags::Artist);
+        assign_str_tag!(info.artist, tags, gst::tags::AlbumArtist);
+        assign_str_tag!(info.container, tags, gst::tags::ContainerFormat);
+        assign_str_tag!(info.video_codec, tags, gst::tags::VideoCodec);
+        assign_str_tag!(info.audio_codec, tags, gst::tags::AudioCodec);
+
+        // TODO: distinguish front/back cover (take the first one?)
+        if let Some(image_tag) = tags.get::<gst::tags::Image>() {
+            if let Some(sample) = image_tag.get() {
+                if let Some(buffer) = sample.get_buffer() {
+                    if let Some(map) = buffer.map_readable() {
+                        info.thumbnail = AlignedImage::from_uknown_buffer(
+                                map.as_slice()
+                            ).ok();
+                    }
+                }
+            }
+        }
+    }
+
+    fn add_toc(toc: gst::Toc, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
+        let info = &mut info_arc_mtx.lock()
+            .expect("Failed to lock media info while reading toc data");
+        if info.chapters.is_empty() {
+            // chapters not retrieved yet
+            // TODO: check if there are medias with some sort of
+            // incremental tocs (not likely for files)
+            // or maybe the updated flag (_ above) should be used
+
+            for entry in toc.get_entries() {
+                if entry.get_entry_type() == TocEntryType::Edition {
+                    for sub_entry in entry.get_sub_entries() {
+                        if sub_entry.get_entry_type() == TocEntryType::Chapter {
+                            if let Some((start, stop)) = sub_entry.get_start_stop_times() {
+                                let mut title = String::new();
+                                if let Some(tags) = sub_entry.get_tags() {
+                                    if let Some(tag) = tags.get::<gst::tags::Title>() {
+                                        title = tag.get().unwrap().to_owned();
+                                    };
+                                };
+                                info.chapters.push(Chapter::new(
+                                    sub_entry.get_uid(),
+                                    &title,
+                                    Timestamp::from_signed_nano(start),
+                                    Timestamp::from_signed_nano(stop)
+                                ));
                             }
                         } /*else {
-                            println!("Warning: Skipping toc entry with entry type: {:?}",
-                                entry.get_entry_type()
+                            println!("Warning: Skipping toc sub entry with entry type: {:?}",
+                                sub_entry.get_entry_type()
                             );
                         }*/
                     }
-
-                    glib::Continue(true)
-                },
-                _ => glib::Continue(true),
+                } /*else {
+                    println!("Warning: Skipping toc entry with entry type: {:?}",
+                        entry.get_entry_type()
+                    );
+                }*/
             }
-        });
+        }
     }
 }

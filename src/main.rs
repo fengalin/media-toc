@@ -10,7 +10,6 @@ extern crate url;
 #[cfg(any(
     feature = "profiling-audio-draw",
     feature = "profiling-audio-buffer",
-    feature = "profiling-listener",
     feature = "profiling-tracker",
     feature = "profiling-waveform-buffer",
 ))]

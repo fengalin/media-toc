@@ -39,7 +39,7 @@ impl AudioController {
 
         {
             let this_ref = this.borrow();
-            let this_rc = this.clone();
+            let this_rc = Rc::clone(&this);
             this_ref.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
                 this_rc.borrow_mut()
                     .draw(drawing_area, cairo_ctx).into()
@@ -64,7 +64,7 @@ impl AudioController {
         if has_audio {
             self.is_active = true;
             self.position = 0;
-            self.samples_extractor_mtx = context.samples_extractor_mtx.clone();
+            self.samples_extractor_mtx = Arc::clone(&context.samples_extractor_mtx);
 
             self.container.show();
         } else {
@@ -128,7 +128,7 @@ impl AudioController {
         let before_pos = Utc::now();
 
         // draw current pos
-        cr.scale(1f64, allocation.height as f64);
+        cr.scale(1f64, f64::from(allocation.height));
         cr.set_source_rgb(1f64, 1f64, 0f64);
         cr.set_line_width(1f64);
         let current_pos = current_x as f64;

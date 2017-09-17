@@ -81,14 +81,11 @@ impl WaveformBuffer {
                     } else {
                         state.samples_offset
                     }
+                } else if state.current_sample > state.half_requested_sample_window
+                        + state.samples_offset {
+                    state.current_sample - state.half_requested_sample_window
                 } else {
-                    if state.current_sample > state.half_requested_sample_window
-                        + state.samples_offset
-                    {
-                        state.current_sample - state.half_requested_sample_window
-                    } else {
-                        state.samples_offset
-                    }
+                    state.samples_offset
                 };
 
             (
@@ -206,7 +203,7 @@ impl SamplesExtractor for WaveformBuffer {
                 )
             };
 
-        cr.scale(1f64, self.height as f64 / SAMPLES_NORM);
+        cr.scale(1f64, f64::from(self.height) / SAMPLES_NORM);
 
         if !must_redraw {
             // fill the rest of the image with background color
@@ -215,7 +212,7 @@ impl SamplesExtractor for WaveformBuffer {
                 BACKGROUND_COLOR.1,
                 BACKGROUND_COLOR.2
             );
-            cr.rectangle(x, 0f64, working_image.get_width() as f64 - x, SAMPLES_NORM);
+            cr.rectangle(x, 0f64, f64::from(working_image.get_width()) - x, SAMPLES_NORM);
             cr.fill();
         } // else brackgroung already set while clearing the image
 
