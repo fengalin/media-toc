@@ -279,7 +279,7 @@ dependencies = [
 [[package]]
 name = "gstreamer"
 version = "0.9.0"
-source = "git+https://github.com/fengalin/gstreamer-rs.git?branch=cairo_pr_153#2f5da622ac77e20cc7649891f966cece8ba6894f"
+source = "git+https://github.com/fengalin/gstreamer-rs.git?branch=cairo_pr_153#10f341afe9e7e00d43803d4fc342f3cefecb9dd3"
 dependencies = [
  "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib 0.3.0 (git+https://github.com/fengalin/glib.git?branch=cairo_pr_153)",
@@ -294,7 +294,7 @@ dependencies = [
 [[package]]
 name = "gstreamer-app"
 version = "0.9.0"
-source = "git+https://github.com/fengalin/gstreamer-rs.git?branch=cairo_pr_153#2f5da622ac77e20cc7649891f966cece8ba6894f"
+source = "git+https://github.com/fengalin/gstreamer-rs.git?branch=cairo_pr_153#10f341afe9e7e00d43803d4fc342f3cefecb9dd3"
 dependencies = [
  "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib 0.3.0 (git+https://github.com/fengalin/glib.git?branch=cairo_pr_153)",
@@ -302,6 +302,8 @@ dependencies = [
  "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gstreamer 0.9.0 (git+https://github.com/fengalin/gstreamer-rs.git?branch=cairo_pr_153)",
  "gstreamer-app-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)",
+ "gstreamer-base 0.9.0 (git+https://github.com/fengalin/gstreamer-rs.git?branch=cairo_pr_153)",
+ "gstreamer-base-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)",
  "gstreamer-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)",
  "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -309,7 +311,7 @@ dependencies = [
 [[package]]
 name = "gstreamer-app-sys"
 version = "0.3.0"
-source = "git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153#993824806ada7f787d7bd349a8eb96a936a97fac"
+source = "git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153#8a76bc6185a4e96b43667d7f03b65cf79866d1c1"
 dependencies = [
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gstreamer-base-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)",
@@ -321,7 +323,7 @@ dependencies = [
 [[package]]
 name = "gstreamer-audio"
 version = "0.9.0"
-source = "git+https://github.com/fengalin/gstreamer-rs.git?branch=cairo_pr_153#2f5da622ac77e20cc7649891f966cece8ba6894f"
+source = "git+https://github.com/fengalin/gstreamer-rs.git?branch=cairo_pr_153#10f341afe9e7e00d43803d4fc342f3cefecb9dd3"
 dependencies = [
  "array-init 0.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -336,7 +338,7 @@ dependencies = [
 [[package]]
 name = "gstreamer-audio-sys"
 version = "0.3.0"
-source = "git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153#993824806ada7f787d7bd349a8eb96a936a97fac"
+source = "git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153#8a76bc6185a4e96b43667d7f03b65cf79866d1c1"
 dependencies = [
  "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
@@ -348,9 +350,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "gstreamer-base"
+version = "0.9.0"
+source = "git+https://github.com/fengalin/gstreamer-rs.git?branch=cairo_pr_153#10f341afe9e7e00d43803d4fc342f3cefecb9dd3"
+dependencies = [
+ "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "glib 0.3.0 (git+https://github.com/fengalin/glib.git?branch=cairo_pr_153)",
+ "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
+ "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
+ "gstreamer 0.9.0 (git+https://github.com/fengalin/gstreamer-rs.git?branch=cairo_pr_153)",
+ "gstreamer-base-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)",
+ "gstreamer-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)",
+]
+
+[[package]]
 name = "gstreamer-base-sys"
 version = "0.3.0"
-source = "git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153#993824806ada7f787d7bd349a8eb96a936a97fac"
+source = "git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153#8a76bc6185a4e96b43667d7f03b65cf79866d1c1"
 dependencies = [
  "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
@@ -363,7 +379,7 @@ dependencies = [
 [[package]]
 name = "gstreamer-sys"
 version = "0.3.0"
-source = "git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153#993824806ada7f787d7bd349a8eb96a936a97fac"
+source = "git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153#8a76bc6185a4e96b43667d7f03b65cf79866d1c1"
 dependencies = [
  "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
@@ -730,6 +746,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum gstreamer-app-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)" = "<none>"
 "checksum gstreamer-audio 0.9.0 (git+https://github.com/fengalin/gstreamer-rs.git?branch=cairo_pr_153)" = "<none>"
 "checksum gstreamer-audio-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)" = "<none>"
+"checksum gstreamer-base 0.9.0 (git+https://github.com/fengalin/gstreamer-rs.git?branch=cairo_pr_153)" = "<none>"
 "checksum gstreamer-base-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)" = "<none>"
 "checksum gstreamer-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)" = "<none>"
 "checksum gtk 0.2.0 (git+https://github.com/fengalin/gtk.git?branch=cairo_pr_153)" = "<none>"
