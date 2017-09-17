@@ -91,10 +91,7 @@ macro_rules! build_audio_pipeline(
             ],
         ));
 
-        // TODO: make this configurable
-        appsink.set_property("ts-offset", &gst::Value::from(&-2_000_000_000i64)).unwrap();
-        //appsink.set_property("async", &gst::Value::from(&false)).unwrap();
-        //appsink.set_property("sync", &gst::Value::from(&false)).unwrap();
+        appsink.set_property("sync", &gst::Value::from(&false)).unwrap();
 
         // TODO: caps can change so it might be necessary to update accordingly
         let audio_buffer = Arc::new(Mutex::new(AudioBuffer::new(
