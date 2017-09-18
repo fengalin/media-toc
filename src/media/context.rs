@@ -256,6 +256,11 @@ impl Context {
         }
     }
 
+    pub fn seek(&self, position: u64) {
+        self.pipeline.seek_simple(gst::Format::Time, gst::SEEK_FLAG_FLUSH, position as i64)
+            .ok().unwrap();
+    }
+
     // TODO: handle errors
     fn build_pipeline(&mut self,
         buffering_duration: u64,

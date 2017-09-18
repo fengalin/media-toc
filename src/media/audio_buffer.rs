@@ -17,12 +17,17 @@ const SAMPLES_OFFSET: f64 = SAMPLES_NORM / 2f64;
 pub struct AudioBuffer {
     capacity: usize,
     pub sample_duration: f64,
+    sample_duration_u: u64,
     channels: usize,
     drain_size: usize,
 
     pub eos: bool,
 
     pub samples_offset: usize,
+    pub last_sample: usize,
+    pts_offset: u64,
+    first_pts: u64,
+    last_pts: u64,
     pub samples: VecDeque<f64>,
 
     samples_extractor_opt: Option<DoubleSampleExtractor>,
@@ -43,14 +48,15 @@ impl AudioBuffer {
         // assert_eq!(format, S16);
         // assert_eq!(layout, Interleaved);
 
-        let sample_duration = 1_000_000_000f64 / f64::from(rate);
-        let capacity = (size_duration as f64 / sample_duration) as usize;
+        let sample_duration_u = 1_000_000_000 / (rate as u64);
+        let capacity = (size_duration / sample_duration_u) as usize;
 
         let drain_size = capacity / 5;
 
         AudioBuffer {
             capacity: capacity,
-            sample_duration: sample_duration,
+            sample_duration: sample_duration_u as f64,
+            sample_duration_u: sample_duration_u,
             channels: structure.get::<i32>("channels")
                 .expect("Couldn't get channels from audio sample")
                 as usize,
@@ -59,6 +65,10 @@ impl AudioBuffer {
             eos: false,
 
             samples_offset: 0,
+            last_sample: 0,
+            pts_offset: 0,
+            first_pts: 0,
+            last_pts: 0,
             samples: VecDeque::with_capacity(capacity),
 
             samples_extractor_opt: Some(samples_extractor),
@@ -79,14 +89,33 @@ impl AudioBuffer {
         #[cfg(feature = "profiling-audio-buffer")]
         let before_drain = Utc::now();
 
-        if self.samples.len() + incoming_samples.len() > self.capacity
-        && self.samples_extractor_opt.as_ref().unwrap().samples_offset
-            > self.samples_offset + self.drain_size
+        let mut first_pts = buffer.get_pts() as u64;
+        if self.samples.is_empty() {
+            // initializing
+            self.pts_offset = first_pts;
+        }
+        first_pts -= self.pts_offset;
+
+        // Note: need to take a margin with last_pts comparison as streams
+        // tend to shift buffers back and forth
+        if first_pts < self.first_pts || first_pts > self.last_pts + 700_000 {
+            // seeking
+            println!("AudioBuffer seeking");
+            self.samples.clear();
+            self.samples_offset = (first_pts / self.sample_duration_u) as usize;
+            self.last_sample = self.samples_offset;
+            self.first_pts = first_pts;
+        } /*else if self.samples.len() + incoming_samples.len() > self.capacity
+            && self.samples_extractor_opt.as_ref().unwrap().samples_offset
+                > self.samples_offset + self.drain_size
         {   // buffer will reach capacity => drain a chunk of samples
             // only if we have samples in history
+            // TODO: it could be worse testing truncate instead
+            // (this would require reversing the buffer alimentation
+            // and iteration)
             self.samples.drain(..self.drain_size);
             self.samples_offset += self.drain_size;
-        }
+        }*/
 
         #[cfg(feature = "profiling-audio-buffer")]
         let before_storage = Utc::now();
@@ -129,6 +158,12 @@ impl AudioBuffer {
             self.samples.push_back(SAMPLES_OFFSET - norm_sample);
         };
 
+        self.last_sample += incoming_samples.len();
+
+        // resync first_pts for each buffer because each stream has its own
+        // rounding strategy
+        self.last_pts = first_pts + buffer.get_duration();
+
         #[cfg(feature = "profiling-audio-buffer")]
         let before_extract = Utc::now();
 
@@ -153,6 +188,9 @@ impl AudioBuffer {
     }
 
     pub fn iter(&self, first: usize, last: usize, step: usize) -> Iter {
+        if first < self.samples_offset {
+            println!("iter {}, {}", first, self.samples_offset);
+        }
         assert!(first >= self.samples_offset);
         let last = if last > first { last } else { first };
         Iter::new(self, first, last, step)
@@ -202,7 +240,7 @@ impl<'a> Iterator for Iter<'a> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        if self.idx == self.last {
+        if self.idx >= self.last {
             return (0, Some(0));
         }
 

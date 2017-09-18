@@ -90,7 +90,12 @@ impl WaveformBuffer {
 
             (
                 (first_visible_sample - state.samples_offset) / state.sample_step, // x_offset
-                (state.current_sample - first_visible_sample) / state.sample_step  // current_x
+                if state.current_sample > first_visible_sample {                   // current_x
+                    (state.current_sample - first_visible_sample) / state.sample_step
+                } else {
+                    // probably seeking => wait until buffer is updated
+                    0
+                }
             )
         } else {
             (0, 0)
@@ -128,7 +133,9 @@ impl SamplesExtractor for WaveformBuffer {
         let extracted_samples_window =
             (buffer_sample_window / sample_step) as i32;
 
-        let mut must_redraw = self.state.sample_step != sample_step;
+        let mut must_redraw = self.state.sample_step != sample_step
+            || first_sample < self.state.samples_offset // seek backward
+            || first_sample >= self.state.last_sample;  // seek foreward
 
         let working_image = {
             let mut can_reuse = false;
@@ -161,7 +168,7 @@ impl SamplesExtractor for WaveformBuffer {
         let cr = cairo::Context::new(&working_image);
         let (mut sample_iter, mut x) =
             if must_redraw {
-                // Initialization or resolution has changed
+                // Initialization or resolution has changed or seek requested
                 // redraw the whole range
                 self.state.sample_step = sample_step;
 

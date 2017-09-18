@@ -13,6 +13,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver};
 
 use gtk::prelude::*;
+use gtk::RangeExt;
 
 use ::media::{Context, ContextMessage};
 use ::media::ContextMessage::*;
@@ -22,13 +23,15 @@ use super::{AudioController, DoubleWaveformBuffer, InfoController, VideoControll
 pub struct MainController {
     window: gtk::ApplicationWindow,
     header_bar: gtk::HeaderBar,
-    play_pause_btn: gtk::ToolButton,
-    info_ctrl: InfoController,
     video_ctrl: VideoController,
+    info_ctrl: InfoController,
+    timeline_scale: gtk::Scale,
+    play_pause_btn: gtk::ToolButton,
     audio_ctrl: Rc<RefCell<AudioController>>,
     audio_drawingarea: gtk::DrawingArea,
 
     context: Option<Context>,
+    seeking: bool,
 
     this_opt: Option<Rc<RefCell<MainController>>>,
     keep_going: bool,
@@ -41,16 +44,21 @@ impl MainController {
         let audio_controller = AudioController::new(&builder);
         let audio_drawingarea = audio_controller.borrow().drawingarea.clone();
 
+        let info_controller = InfoController::new(&builder);
+        let timeline_scale = info_controller.timeline_scale.clone();
+
         let this = Rc::new(RefCell::new(MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
-            play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
-            info_ctrl: InfoController::new(&builder),
             video_ctrl: VideoController::new(&builder),
+            info_ctrl: info_controller,
+            timeline_scale: timeline_scale,
+            play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
             audio_ctrl: audio_controller,
             audio_drawingarea: audio_drawingarea,
 
             context: None,
+            seeking: false,
 
             this_opt: None,
             keep_going: true,
@@ -71,6 +79,12 @@ impl MainController {
             this_mut.window.set_titlebar(&this_mut.header_bar);
 
             let this_rc = Rc::clone(&this);
+            this_mut.timeline_scale.connect_change_value(move |_, _, value| {
+                this_rc.borrow_mut().seek(value as u64);
+                Inhibit(false)
+            });
+
+            let this_rc = Rc::clone(&this);
             this_mut.play_pause_btn.connect_clicked(move |_| {
                 this_rc.borrow_mut().play_pause();
             });
@@ -89,7 +103,7 @@ impl MainController {
         self.window.show_all();
     }
 
-    pub fn play_pause(&mut self) {
+    fn play_pause(&mut self) {
         let context =
             match self.context.take() {
                 Some(context) => context,
@@ -116,7 +130,7 @@ impl MainController {
         self.context = Some(context);
     }
 
-    pub fn stop(&mut self) {
+    fn stop(&mut self) {
         if let Some(context) = self.context.as_mut() {
             context.stop();
         };
@@ -128,6 +142,15 @@ impl MainController {
         self.audio_ctrl.borrow_mut().cleanup();
 
         self.play_pause_btn.set_icon_name("media-playback-start");
+    }
+
+    fn seek(&mut self, position: u64) {
+        self.seeking = true;
+        self.context.as_ref()
+            .expect("No context found while seeking in media")
+            .seek(position);
+        self.info_ctrl.seek(position);
+        self.audio_drawingarea.queue_draw();
     }
 
     fn select_media(&mut self) {
@@ -167,6 +190,7 @@ impl MainController {
                 match message {
                     AsyncDone => {
                         println!("Received AsyncDone");
+                        this_rc.borrow_mut().seeking = false;
                     },
                     InitDone => {
                         println!("Received InitDone");
@@ -247,8 +271,10 @@ impl MainController {
             #[cfg(feature = "profiling-tracker")]
             let before_tic = Utc::now();
 
-            this_mut.info_ctrl.tic(position);
-            this_mut.audio_drawingarea.queue_draw();
+            if !this_mut.seeking {
+                this_mut.info_ctrl.tic(position);
+                this_mut.audio_drawingarea.queue_draw();
+            }
 
             #[cfg(feature = "profiling-tracker")]
             let end = Utc::now();
@@ -275,12 +301,13 @@ impl MainController {
 
         let (ctx_tx, ui_rx) = channel();
 
+        self.seeking = false;
         self.keep_going = true;
         self.register_listener(500, ui_rx);
 
         match Context::new(
             filepath,
-            2_000_000_000,
+            20_000_000_000,
             DoubleWaveformBuffer::new(),
             self.video_ctrl.video_box.clone(),
             ctx_tx

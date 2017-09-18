@@ -18,7 +18,7 @@ pub struct InfoController {
     video_codec_lbl: gtk::Label,
     duration_lbl: gtk::Label,
     position_lbl: gtk::Label,
-    timeline_scale: gtk::Scale,
+    pub timeline_scale: gtk::Scale,
 
     chapter_treeview: gtk::TreeView,
     chapter_store: gtk::ListStore,
@@ -216,9 +216,14 @@ impl InfoController {
         let mut done_with_chapters = false;
 
         if let Some(current_iter) = self.chapter_iter.as_mut() {
-            if position >= self.chapter_store.get_value(current_iter, 2)
-                    .get::<u64>().unwrap() {
-                // passed the end of current chapter
+            if position < self.chapter_store.get_value(current_iter, 1)
+                    .get::<u64>().unwrap()
+            {   // before selected chapter
+                // (first chapter must start after the begining of the stream)
+                return;
+            } else if position >= self.chapter_store.get_value(current_iter, 2)
+                    .get::<u64>().unwrap()
+            {   // passed the end of current chapter
                 // unselect current chapter
                 self.chapter_treeview.get_selection()
                     .unselect_iter(current_iter);
@@ -241,6 +246,73 @@ impl InfoController {
 
         if done_with_chapters {
             self.chapter_iter = None;
+        }
+    }
+
+    pub fn seek(&mut self, position: u64) {
+        if let Some(first_iter) = self.chapter_store.get_iter_first() {
+            // chapters available => update with new position
+            let mut keep_going = true;
+
+            let current_iter =
+                if let Some(current_iter) = self.chapter_iter.take() {
+                    if position < self.chapter_store.get_value(&current_iter, 1)
+                            .get::<u64>().unwrap()
+                    {   // new position before current chapter's start
+                        // unselect current chapter
+                        self.chapter_treeview.get_selection()
+                            .unselect_iter(&current_iter);
+
+                        // rewind to first chapter
+                        first_iter
+                    } else if position >= self.chapter_store.get_value(&current_iter, 2)
+                            .get::<u64>().unwrap()
+                    {   // new position after current chapter's end
+                        // unselect current chapter
+                        self.chapter_treeview.get_selection()
+                            .unselect_iter(&current_iter);
+
+                        if !self.chapter_store.iter_next(&current_iter) {
+                            // no more chapters
+                            keep_going = false;
+                        }
+                        current_iter
+                    } else {
+                        // new position still in current chapter
+                        self.chapter_iter = Some(current_iter);
+                        return;
+                    }
+                } else {
+                    first_iter
+                };
+
+            let mut set_chapter = false;
+            while keep_going {
+                if position < self.chapter_store.get_value(&current_iter, 1)
+                        .get::<u64>().unwrap()
+                {   // new position before selected chapter's start
+                    set_chapter = true;
+                    keep_going = false;
+                } else if position >= self.chapter_store.get_value(&current_iter, 1)
+                        .get::<u64>().unwrap()
+                && position < self.chapter_store.get_value(&current_iter, 2)
+                        .get::<u64>().unwrap()
+                {   // after current start and before current end
+                    self.chapter_treeview.get_selection()
+                        .select_iter(&current_iter);
+                    set_chapter = true;
+                    keep_going = false;
+                } else {
+                    if !self.chapter_store.iter_next(&current_iter) {
+                        // no more chapters
+                        keep_going = false;
+                    }
+                }
+            }
+
+            if set_chapter {
+                self.chapter_iter = Some(current_iter);
+            }
         }
     }
 }

@@ -167,7 +167,7 @@ pub trait SamplesExtractor: Send {
             let sample_step = (
                 state.requested_step_duration as f64
                 / state.sample_duration
-            ).round() as usize;
+            ) as usize;
 
             if audio_buffer.eos {
                 state.eos = true;
@@ -188,6 +188,16 @@ pub trait SamplesExtractor: Send {
                         sample_step
                     )
                 }
+            } else if state.current_sample < audio_buffer.samples_offset
+                || state.current_sample > audio_buffer.last_sample
+            {
+                // seeking => need to update the extraction
+                // TODO: do this incrementally when applicable
+                (
+                    audio_buffer.samples_offset,
+                    audio_buffer.samples.len(),
+                    sample_step
+                )
             } else if state.current_sample > state.half_requested_sample_window
                 + audio_buffer.samples_offset
             {
@@ -214,14 +224,24 @@ pub trait SamplesExtractor: Send {
             }
         };
 
+        if sample_window < sample_step {
+            // not ready to extract anything
+            return;
+        }
+
         // align requested first pts in order to keep a steady
         // offset between redraws. This allows using the same samples
         // for a given requested_step_duration and avoiding flickering
         // between redraws
-        let first_sample =
+        let mut first_sample =
             first_visible_sample / sample_step * sample_step;
         let last_sample =
             (first_sample + sample_window) / sample_step * sample_step;
+        if first_sample < audio_buffer.samples_offset {
+            // first sample might be smaller than audio_buffer.samples_offset
+            // due to alignement on sample_step
+            first_sample += sample_step;
+        }
 
         self.update_extraction(
             audio_buffer,
