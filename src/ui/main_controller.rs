@@ -13,7 +13,6 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver};
 
 use gtk::prelude::*;
-use gtk::RangeExt;
 
 use ::media::{Context, ContextMessage};
 use ::media::ContextMessage::*;
@@ -25,7 +24,6 @@ pub struct MainController {
     header_bar: gtk::HeaderBar,
     video_ctrl: VideoController,
     info_ctrl: InfoController,
-    timeline_scale: gtk::Scale,
     play_pause_btn: gtk::ToolButton,
     audio_ctrl: Rc<RefCell<AudioController>>,
     audio_drawingarea: gtk::DrawingArea,
@@ -44,15 +42,11 @@ impl MainController {
         let audio_controller = AudioController::new(&builder);
         let audio_drawingarea = audio_controller.borrow().drawingarea.clone();
 
-        let info_controller = InfoController::new(&builder);
-        let timeline_scale = info_controller.timeline_scale.clone();
-
         let this = Rc::new(RefCell::new(MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
             video_ctrl: VideoController::new(&builder),
-            info_ctrl: info_controller,
-            timeline_scale: timeline_scale,
+            info_ctrl: InfoController::new(&builder),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
             audio_ctrl: audio_controller,
             audio_drawingarea: audio_drawingarea,
@@ -79,12 +73,6 @@ impl MainController {
             this_mut.window.set_titlebar(&this_mut.header_bar);
 
             let this_rc = Rc::clone(&this);
-            this_mut.timeline_scale.connect_change_value(move |_, _, value| {
-                this_rc.borrow_mut().seek(value as u64);
-                Inhibit(false)
-            });
-
-            let this_rc = Rc::clone(&this);
             this_mut.play_pause_btn.connect_clicked(move |_| {
                 this_rc.borrow_mut().play_pause();
             });
@@ -95,6 +83,8 @@ impl MainController {
         open_btn.connect_clicked(move |_| {
             this_rc.borrow_mut().select_media();
         });
+
+        this.borrow().info_ctrl.register_callbacks(&this);
 
         this
     }
@@ -144,7 +134,7 @@ impl MainController {
         self.play_pause_btn.set_icon_name("media-playback-start");
     }
 
-    fn seek(&mut self, position: u64) {
+    pub fn seek(&mut self, position: u64) {
         self.seeking = true;
         self.context.as_ref()
             .expect("No context found while seeking in media")

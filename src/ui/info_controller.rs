@@ -6,7 +6,7 @@ use std::cell::RefCell;
 
 use ::media::{Context, Timestamp};
 
-use super::{ImageSurface};
+use super::{ImageSurface, MainController};
 
 pub struct InfoController {
     drawingarea: gtk::DrawingArea,
@@ -66,8 +66,45 @@ impl InfoController {
         this.add_chapter_column("Start", 4, false);
         this.add_chapter_column("End", 5, false);
 
-        let thumbnail_weak = Rc::downgrade(&this.thumbnail);
-        this.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
+        this
+    }
+
+    fn add_chapter_column(&self, title: &str, col_id: i32, can_expand: bool) {
+        let col = gtk::TreeViewColumn::new();
+        col.set_title(title);
+        let renderer = gtk::CellRendererText::new();
+        col.pack_start(&renderer, true);
+        col.add_attribute(&renderer, "text", col_id);
+        if can_expand {
+            col.set_min_width(70);
+            col.set_expand(can_expand);
+        }
+        self.chapter_treeview.append_column(&col);
+    }
+
+    pub fn register_callbacks(&self, main_ctrl: &Rc<RefCell<MainController>>) {
+        // Scale seek
+        let main_ctrl_rc = Rc::clone(main_ctrl);
+        self.timeline_scale.connect_change_value(move |_, _, value| {
+            main_ctrl_rc.borrow_mut().seek(value as u64);
+            Inhibit(false)
+        });
+
+        // TreeView seek
+        let chapter_store = self.chapter_store.clone();
+        let main_ctrl_rc = Rc::clone(main_ctrl);
+        self.chapter_treeview.set_activate_on_single_click(true);
+        self.chapter_treeview.connect_row_activated(move |_, tree_path, _| {
+            if let Some(chapter_iter) = chapter_store.get_iter(tree_path) {
+                let position = chapter_store.get_value(&chapter_iter, 1)
+                                    .get::<u64>().unwrap();
+                main_ctrl_rc.borrow_mut().seek(position);
+            }
+        });
+
+        // Thumbnail draw
+        let thumbnail_weak = Rc::downgrade(&self.thumbnail);
+        self.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
             if let Some(thumbnail_rc) = thumbnail_weak.upgrade() {
                 let thumbnail_opt = thumbnail_rc.borrow();
                 if let Some(ref thumbnail) = *thumbnail_opt {
@@ -101,21 +138,6 @@ impl InfoController {
 
             Inhibit(true)
         });
-
-        this
-    }
-
-    fn add_chapter_column(&self, title: &str, col_id: i32, can_expand: bool) {
-        let col = gtk::TreeViewColumn::new();
-        col.set_title(title);
-        let renderer = gtk::CellRendererText::new();
-        col.pack_start(&renderer, true);
-        col.add_attribute(&renderer, "text", col_id);
-        if can_expand {
-            col.set_min_width(70);
-            col.set_expand(can_expand);
-        }
-        self.chapter_treeview.append_column(&col);
     }
 
     pub fn new_media(&mut self, context: &Context) {
@@ -250,6 +272,9 @@ impl InfoController {
     }
 
     pub fn seek(&mut self, position: u64) {
+        self.timeline_scale.set_value(position as f64);
+        self.position_lbl.set_text(&Timestamp::format(position));
+
         if let Some(first_iter) = self.chapter_store.get_iter_first() {
             // chapters available => update with new position
             let mut keep_going = true;
