@@ -21,15 +21,15 @@ pub struct DoubleSampleExtractor {
 
 impl DoubleSampleExtractor {
     // need 2 arguments for new as we can't clone buffers as they are known
-    // as SamplesExtractor which isn't Size
+    // as trait SamplesExtractor
     pub fn new(
-        buffer1: Box<SamplesExtractor>,
-        buffer2: Box<SamplesExtractor>
+        exposed_buffer: Arc<Mutex<Box<SamplesExtractor>>>,
+        working_buffer: Box<SamplesExtractor>
     ) -> DoubleSampleExtractor {
         DoubleSampleExtractor {
-            exposed_buffer_mtx: Arc::new(Mutex::new(buffer1)),
+            exposed_buffer_mtx: exposed_buffer,
             samples_offset: 0,
-            working_buffer: Some(buffer2),
+            working_buffer: Some(working_buffer),
         }
     }
 

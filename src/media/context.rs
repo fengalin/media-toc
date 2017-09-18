@@ -22,7 +22,7 @@ use std::sync::{Arc, Mutex};
 use std::i32;
 
 use super::{AlignedImage, AudioBuffer, Chapter, DoubleSampleExtractor, MediaInfo,
-            Timestamp, SamplesExtractor};
+            Timestamp};
 
 macro_rules! build_audio_pipeline(
     (
@@ -166,7 +166,6 @@ pub struct Context {
     pub name: String,
 
     pub info: Arc<Mutex<MediaInfo>>,
-    pub samples_extractor_mtx: Arc<Mutex<Box<SamplesExtractor>>>,
 }
 
 // FIXME: need to `release_request_pad` on the tee
@@ -193,7 +192,6 @@ impl Context {
             path: path,
 
             info: Arc::new(Mutex::new(MediaInfo::new())),
-            samples_extractor_mtx: Arc::clone(&samples_extractor.exposed_buffer_mtx),
         };
 
         ctx.build_pipeline(buffering_duration, samples_extractor, video_widget_box);

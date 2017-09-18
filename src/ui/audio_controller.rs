@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex};
 
 use ::media::{Context, SamplesExtractor};
 
-use super::WaveformBuffer;
+use super::{MainController, WaveformBuffer};
 
 pub struct AudioController {
     container: gtk::Container,
@@ -23,30 +23,27 @@ pub struct AudioController {
 
     is_active: bool,
     position: u64,
-    samples_extractor_mtx: Arc<Mutex<Box<SamplesExtractor>>>,
+    pub waveform_buffer_mtx: Arc<Mutex<Box<SamplesExtractor>>>,
 }
 
 impl AudioController {
-    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
-        let this = Rc::new(RefCell::new(AudioController {
+    pub fn new(builder: &gtk::Builder) -> Self {
+        AudioController {
             container: builder.get_object("audio-container").unwrap(),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
 
             is_active: false,
             position: 0,
-            samples_extractor_mtx: Arc::new(Mutex::new(Box::new(WaveformBuffer::new()))),
-        }));
-
-        {
-            let this_ref = this.borrow();
-            let this_rc = Rc::clone(&this);
-            this_ref.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
-                this_rc.borrow_mut()
-                    .draw(drawing_area, cairo_ctx).into()
-            });
+            waveform_buffer_mtx: Arc::new(Mutex::new(Box::new(WaveformBuffer::new()))),
         }
+    }
 
-        this
+    pub fn register_callbacks(&self, main_ctrl: &Rc<RefCell<MainController>>) {
+        // draw
+        let waveform_buffer_mtx = Arc::clone(&self.waveform_buffer_mtx);
+        self.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
+            AudioController::draw(&waveform_buffer_mtx, drawing_area, cairo_ctx).into()
+        });
     }
 
     pub fn cleanup(&mut self) {
@@ -64,7 +61,6 @@ impl AudioController {
         if has_audio {
             self.is_active = true;
             self.position = 0;
-            self.samples_extractor_mtx = Arc::clone(&context.samples_extractor_mtx);
 
             self.container.show();
         } else {
@@ -72,11 +68,17 @@ impl AudioController {
         }
     }
 
-    fn draw(&mut self, drawing_area: &gtk::DrawingArea, cr: &cairo::Context) -> Inhibit {
-        if !self.is_active {
-            return Inhibit(false);
+    pub fn tic(&self) {
+        if self.is_active {
+            self.drawingarea.queue_draw();
         }
+    }
 
+    fn draw(
+        waveform_buffer_mtx: &Arc<Mutex<Box<SamplesExtractor>>>,
+        drawing_area: &gtk::DrawingArea,
+        cr: &cairo::Context
+    ) -> Inhibit {
         #[cfg(feature = "profiling-audio-draw")]
         let before_init = Utc::now();
 
@@ -95,7 +97,7 @@ impl AudioController {
         let mut _before_image = Utc::now();
 
         let current_x = {
-            let waveform_buffer_grd = &mut *self.samples_extractor_mtx.lock()
+            let waveform_buffer_grd = &mut *waveform_buffer_mtx.lock()
                 .expect("Couldn't lock waveform buffer in audio controller draw");
             let waveform_buffer = waveform_buffer_grd
                 .as_mut_any().downcast_mut::<WaveformBuffer>()

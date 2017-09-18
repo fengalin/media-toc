@@ -5,6 +5,8 @@ use chrono::Utc;
 
 use std::any::Any;
 
+use std::sync::{Arc, Mutex};
+
 use ::media::{AudioBuffer, SAMPLES_NORM};
 
 use ::media::{DoubleSampleExtractor, SamplesExtractor};
@@ -14,10 +16,12 @@ pub const BACKGROUND_COLOR: (f64, f64, f64) = (0.2f64, 0.2235f64, 0.2314f64);
 
 pub struct DoubleWaveformBuffer {}
 impl DoubleWaveformBuffer {
-    pub fn new() -> DoubleSampleExtractor {
+    pub fn new(
+        exposed_mtx: &Arc<Mutex<Box<SamplesExtractor>>>
+    ) -> DoubleSampleExtractor {
         DoubleSampleExtractor::new(
-            Box::new(WaveformBuffer::new()),
-            Box::new(WaveformBuffer::new()),
+            Arc::clone(exposed_mtx),
+            Box::new(WaveformBuffer::new())
         )
     }
 }

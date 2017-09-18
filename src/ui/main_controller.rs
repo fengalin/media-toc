@@ -22,11 +22,11 @@ use super::{AudioController, DoubleWaveformBuffer, InfoController, VideoControll
 pub struct MainController {
     window: gtk::ApplicationWindow,
     header_bar: gtk::HeaderBar,
+    play_pause_btn: gtk::ToolButton,
+
     video_ctrl: VideoController,
     info_ctrl: InfoController,
-    play_pause_btn: gtk::ToolButton,
-    audio_ctrl: Rc<RefCell<AudioController>>,
-    audio_drawingarea: gtk::DrawingArea,
+    audio_ctrl: AudioController,
 
     context: Option<Context>,
     seeking: bool,
@@ -39,17 +39,14 @@ pub struct MainController {
 
 impl MainController {
     pub fn new(builder: gtk::Builder) -> Rc<RefCell<Self>> {
-        let audio_controller = AudioController::new(&builder);
-        let audio_drawingarea = audio_controller.borrow().drawingarea.clone();
-
         let this = Rc::new(RefCell::new(MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
+            play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
+
             video_ctrl: VideoController::new(&builder),
             info_ctrl: InfoController::new(&builder),
-            play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
-            audio_ctrl: audio_controller,
-            audio_drawingarea: audio_drawingarea,
+            audio_ctrl: AudioController::new(&builder),
 
             context: None,
             seeking: false,
@@ -76,6 +73,9 @@ impl MainController {
             this_mut.play_pause_btn.connect_clicked(move |_| {
                 this_rc.borrow_mut().play_pause();
             });
+
+            this_mut.info_ctrl.register_callbacks(&this);
+            this_mut.audio_ctrl.register_callbacks(&this);
         }
 
         let open_btn: gtk::Button = builder.get_object("open-btn").unwrap();
@@ -83,8 +83,6 @@ impl MainController {
         open_btn.connect_clicked(move |_| {
             this_rc.borrow_mut().select_media();
         });
-
-        this.borrow().info_ctrl.register_callbacks(&this);
 
         this
     }
@@ -129,7 +127,7 @@ impl MainController {
         self.remove_listener();
         self.remove_tracker();
 
-        self.audio_ctrl.borrow_mut().cleanup();
+        self.audio_ctrl.cleanup();
 
         self.play_pause_btn.set_icon_name("media-playback-start");
     }
@@ -140,7 +138,7 @@ impl MainController {
             .expect("No context found while seeking in media")
             .seek(position);
         self.info_ctrl.seek(position);
-        self.audio_drawingarea.queue_draw();
+        self.audio_ctrl.tic();
     }
 
     fn select_media(&mut self) {
@@ -196,7 +194,7 @@ impl MainController {
 
                         this_mut.info_ctrl.new_media(&context);
                         this_mut.video_ctrl.new_media(&context);
-                        this_mut.audio_ctrl.borrow_mut().new_media(&context);
+                        this_mut.audio_ctrl.new_media(&context);
 
                         this_mut.context = Some(context);
                     },
@@ -205,7 +203,7 @@ impl MainController {
 
                         let mut this_mut = this_rc.borrow_mut();
 
-                        this_mut.audio_drawingarea.queue_draw();
+                        this_mut.audio_ctrl.tic();
 
                         this_mut.play_pause_btn.set_icon_name("media-playback-start");
 
@@ -263,7 +261,7 @@ impl MainController {
 
             if !this_mut.seeking {
                 this_mut.info_ctrl.tic(position);
-                this_mut.audio_drawingarea.queue_draw();
+                this_mut.audio_ctrl.tic();
             }
 
             #[cfg(feature = "profiling-tracker")]
@@ -286,7 +284,7 @@ impl MainController {
         assert_eq!(self.listener_src, None);
 
         self.info_ctrl.cleanup();
-        self.audio_ctrl.borrow_mut().cleanup();
+        self.audio_ctrl.cleanup();
         self.header_bar.set_subtitle("");
 
         let (ctx_tx, ui_rx) = channel();
@@ -298,7 +296,7 @@ impl MainController {
         match Context::new(
             filepath,
             20_000_000_000,
-            DoubleWaveformBuffer::new(),
+            DoubleWaveformBuffer::new(&self.audio_ctrl.waveform_buffer_mtx),
             self.video_ctrl.video_box.clone(),
             ctx_tx
         ) {
