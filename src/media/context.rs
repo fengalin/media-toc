@@ -99,24 +99,23 @@ macro_rules! build_audio_pipeline(
             $buffering_duration,
             $samples_extractor,
         )));
-        let audio_buffer_clone = audio_buffer.clone();
+        let audio_buffer_eos = Arc::clone(&audio_buffer);
         appsink.set_callbacks(gst_app::AppSinkCallbacks::new(
             /* eos */
             move |_| {
-                audio_buffer_clone.lock().unwrap().handle_eos();
+                audio_buffer_eos.lock().unwrap().handle_eos();
             },
             /* new_preroll */
             |_| { gst::FlowReturn::Ok },
             /* new_samples */
             move |appsink| {
-                let sample = match appsink.pull_sample() {
-                    None => return gst::FlowReturn::Eos,
-                    Some(sample) => sample,
-                };
-
-                audio_buffer.lock().unwrap().push_gst_sample(sample);
-
-                gst::FlowReturn::Ok
+                match appsink.pull_sample() {
+                    Some(sample) => {
+                        audio_buffer.lock().unwrap().push_gst_sample(sample);
+                        gst::FlowReturn::Ok
+                    },
+                    None => gst::FlowReturn::Eos,
+                }
             },
         ));
     };

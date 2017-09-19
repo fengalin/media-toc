@@ -60,20 +60,15 @@ impl WaveformBuffer {
     }
 
     pub fn get_position_from_x(&mut self, x: f64) -> Option<u64> {
-        // FIXME: probably need to add the stream's offset to be really precise
-        if self.exposed_image.is_some() {
-            match self.get_first_visible_sample() {
-                Some(first_visible_sample) =>
-                    Some(
-                        (
-                            first_visible_sample as u64
-                            + (x as u64) * (self.state.sample_step as u64)
-                        ) * (self.state.sample_duration as u64)
-                    ),
-                None => None,
-            }
-        } else {
-            None
+        match self.get_first_visible_sample() {
+            Some(first_visible_sample) =>
+                Some(
+                    (
+                        first_visible_sample as u64
+                        + (x as u64) * (self.state.sample_step as u64)
+                    ) * (self.state.sample_duration as u64)
+                ),
+            None => None,
         }
     }
 
