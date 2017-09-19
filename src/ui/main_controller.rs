@@ -178,17 +178,14 @@ impl MainController {
             for message in ui_rx.try_iter() {
                 match message {
                     AsyncDone => {
-                        println!("Received AsyncDone");
                         this_rc.borrow_mut().seeking = false;
                         this_rc.borrow().audio_ctrl.tic();
                     },
                     InitDone => {
-                        println!("Received InitDone");
-
                         let mut this_mut = this_rc.borrow_mut();
 
                         let context = this_mut.context.take()
-                            .expect("... but no context available");
+                            .expect("MainController: InitDone but no context available");
 
                         this_mut.header_bar.set_subtitle(
                             Some(context.file_name.as_str())
@@ -201,8 +198,6 @@ impl MainController {
                         this_mut.context = Some(context);
                     },
                     Eos => {
-                        println!("Received Eos");
-
                         let mut this_mut = this_rc.borrow_mut();
 
                         this_mut.audio_ctrl.tic();

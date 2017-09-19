@@ -95,7 +95,6 @@ impl AudioBuffer {
         // tend to shift buffers back and forth
         if first_pts < self.first_pts || first_pts > self.last_pts + 700_000 {
             // seeking
-            println!("AudioBuffer seeking");
             self.samples.clear();
             self.samples_offset = (first_pts / self.sample_duration_u) as usize;
             self.last_sample = self.samples_offset;
