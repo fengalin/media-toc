@@ -44,6 +44,26 @@ impl AudioController {
         self.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
             AudioController::draw(&waveform_buffer_mtx, drawing_area, cairo_ctx).into()
         });
+
+        // click in drawing_area
+        let main_ctrl_rc = Rc::clone(main_ctrl);
+        let waveform_buffer_mtx = Arc::clone(&self.waveform_buffer_mtx);
+        self.drawingarea.connect_button_press_event(move |_, event_button| {
+            if event_button.get_button() == 1 {
+                if let Some(position) = {
+                    let waveform_buffer_grd = &mut *waveform_buffer_mtx.lock()
+                        .expect("Couldn't lock waveform buffer in audio controller draw");
+                    waveform_buffer_grd
+                        .as_mut_any().downcast_mut::<WaveformBuffer>()
+                        .expect("SamplesExtratctor is not a waveform buffer in audio controller draw")
+                        .get_position_from_x(event_button.get_position().0)
+                }
+                {
+                    main_ctrl_rc.borrow_mut().seek(position);
+                }
+            }
+            Inhibit(true)
+        });
     }
 
     pub fn cleanup(&mut self) {
@@ -111,29 +131,28 @@ impl AudioController {
             #[cfg(feature = "profiling-audio-draw")]
             let _before_cndt = Utc::now();
 
-            let (x_offset, current_x) = waveform_buffer.update_conditions(
-                    requested_duration,
-                    allocation.width,
-                    allocation.height,
-            );
+            match waveform_buffer.update_conditions(
+                        requested_duration,
+                        allocation.width,
+                        allocation.height,
+                )
+            {
+                Some((x_offset, current_x)) => {
+                    #[cfg(feature = "profiling-audio-draw")]
+                    let _before_image = Utc::now();
 
-            if current_x == 0 {
-                // not ready to render yet (probably still seeking)
-                return Inhibit(true);
+                    let image = match waveform_buffer.exposed_image.as_ref() {
+                        Some(image) => image,
+                        None => return Inhibit(false),
+                    };
+
+                    cr.set_source_surface(image, -(x_offset as f64), 0f64);
+                    cr.paint();
+
+                    current_x
+                },
+                None => return Inhibit(true),
             }
-
-            #[cfg(feature = "profiling-audio-draw")]
-            let _before_image = Utc::now();
-
-            let image = match waveform_buffer.exposed_image.as_ref() {
-                Some(image) => image,
-                None => return Inhibit(false),
-            };
-
-            cr.set_source_surface(image, -(x_offset as f64), 0f64);
-            cr.paint();
-
-            current_x
         };
 
         #[cfg(feature = "profiling-audio-draw")]

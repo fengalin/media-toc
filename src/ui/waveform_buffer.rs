@@ -59,60 +59,87 @@ impl WaveformBuffer {
         self.working_image = None;
     }
 
+    pub fn get_position_from_x(&mut self, x: f64) -> Option<u64> {
+        // FIXME: probably need to add the stream's offset to be really precise
+        if self.exposed_image.is_some() {
+            match self.get_first_visible_sample() {
+                Some(first_visible_sample) =>
+                    Some(
+                        (
+                            first_visible_sample as u64
+                            + (x as u64) * (self.state.sample_step as u64)
+                        ) * (self.state.sample_duration as u64)
+                    ),
+                None => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    fn get_first_visible_sample(&mut self) -> Option<usize> {
+        if self.exposed_image.is_some() {
+            let state = &mut self.state;
+            state.update_current_sample();
+
+            if state.eos
+            && state.current_sample + state.half_requested_sample_window > state.last_sample {
+                if self.buffer_sample_window > state.requested_sample_window {
+                    Some(state.last_sample - state.requested_sample_window)
+                } else {
+                    Some(state.samples_offset)
+                }
+            } else if state.current_sample > state.half_requested_sample_window
+                    + state.samples_offset {
+                Some(state.current_sample - state.half_requested_sample_window)
+            } else {
+                Some(state.samples_offset)
+            }
+        } else {
+            None
+        }
+    }
+
     pub fn update_conditions(&mut self,
         duration: u64,
         width: i32,
         height: i32,
-    ) -> (usize, usize) // (x_offset, current_x)
+    ) -> Option<(usize, usize)> // (x_offset, current_x)
     {
-        let state = &mut self.state;
+        {
+            let state = &mut self.state;
 
-        self.width = width;
-        self.height = height;
+            self.width = width;
+            self.height = height;
 
-        let width = width as u64;
-        // resolution
-        state.requested_step_duration =
-            if duration > width {
-                duration / width
-            } else {
-                1
-            };
-
-        state.requested_sample_window = (
-            duration as f64 / state.sample_duration
-        ).round() as usize;
-        state.half_requested_sample_window = state.requested_sample_window / 2;
-
-        if self.exposed_image.is_some() {
-            state.update_current_sample();
-
-            let first_visible_sample =
-                if state.eos
-                && state.current_sample + state.half_requested_sample_window > state.last_sample {
-                    if self.buffer_sample_window > state.requested_sample_window {
-                        state.last_sample - state.requested_sample_window
-                    } else {
-                        state.samples_offset
-                    }
-                } else if state.current_sample > state.half_requested_sample_window
-                        + state.samples_offset {
-                    state.current_sample - state.half_requested_sample_window
+            let width = width as u64;
+            // resolution
+            state.requested_step_duration =
+                if duration > width {
+                    duration / width
                 } else {
-                    state.samples_offset
+                    1
                 };
 
-            (
-                (first_visible_sample - state.samples_offset) / state.sample_step, // x_offset
-                if state.current_sample > first_visible_sample {                   // current_x
-                    (state.current_sample - first_visible_sample) / state.sample_step
+            state.requested_sample_window = (
+                duration as f64 / state.sample_duration
+            ).round() as usize;
+            state.half_requested_sample_window = state.requested_sample_window / 2;
+        }
+
+        match self.get_first_visible_sample() {
+            Some(first_visible_sample) => {
+                if self.state.current_sample > first_visible_sample {
+                    let state = &self.state;
+                    Some((
+                        (first_visible_sample - state.samples_offset) / state.sample_step, // x_offset
+                        (state.current_sample - first_visible_sample) / state.sample_step, // current_x
+                    ))
                 } else {
-                    // probably seeking => wait until buffer is updated
-                    0
+                    None
                 }
-            )
-        } else {
-            (0, 0)
+            },
+            None => None,
         }
     }
 }
