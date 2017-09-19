@@ -49,6 +49,16 @@ impl WaveformBuffer {
         }
     }
 
+    pub fn cleanup(&mut self) {
+        // clear for reuse
+        self.cleanup_state();
+        self.buffer_sample_window = 0;
+        self.width = 0;
+        self.height = 0;
+        self.exposed_image = None;
+        self.working_image = None;
+    }
+
     pub fn update_conditions(&mut self,
         duration: u64,
         width: i32,

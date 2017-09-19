@@ -133,12 +133,13 @@ impl MainController {
     }
 
     pub fn seek(&mut self, position: u64) {
-        self.seeking = true;
-        self.context.as_ref()
-            .expect("No context found while seeking in media")
-            .seek(position);
-        self.info_ctrl.seek(position);
-        self.audio_ctrl.tic();
+        if !self.seeking {
+            self.seeking = true;
+            self.context.as_ref()
+                .expect("No context found while seeking in media")
+                .seek(position);
+            self.info_ctrl.seek(position);
+        } // else already seeking, wait for AsyncDone
     }
 
     fn select_media(&mut self) {
@@ -179,6 +180,7 @@ impl MainController {
                     AsyncDone => {
                         println!("Received AsyncDone");
                         this_rc.borrow_mut().seeking = false;
+                        this_rc.borrow().audio_ctrl.tic();
                     },
                     InitDone => {
                         println!("Received InitDone");

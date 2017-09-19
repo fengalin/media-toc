@@ -49,24 +49,17 @@ impl DoubleSampleExtractor {
             .expect("DoubleSampleExtractor: failed to take working buffer while updating");
         working_buffer.extract_samples(audio_buffer);
 
-        if !audio_buffer.eos {
-            // swap buffers
-            {
-                let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock()
-                    .expect("DoubleSampleExtractor: failed to lock the exposed buffer for swap");
-                mem::swap(exposed_buffer_box, &mut working_buffer);
-            }
-
-            self.samples_offset = working_buffer.get_sample_offset();
-            self.working_buffer = Some(working_buffer);
-            // self.working_buffer is now the buffer previously in
-            // self.exposed_buffer_mtx
-        } else {
-            // replace buffer (last update)
+        // swap buffers
+        {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock()
-                .expect("DoubleSampleExtractor: failed to lock the exposed buffer for replace");
-            mem::replace(exposed_buffer_box, working_buffer);
+                .expect("DoubleSampleExtractor: failed to lock the exposed buffer for swap");
+            mem::swap(exposed_buffer_box, &mut working_buffer);
         }
+
+        self.samples_offset = working_buffer.get_sample_offset();
+        self.working_buffer = Some(working_buffer);
+        // self.working_buffer is now the buffer previously in
+        // self.exposed_buffer_mtx
     }
 }
 
@@ -134,6 +127,21 @@ pub trait SamplesExtractor: Send {
     fn get_extraction_state(&self) -> &SamplesExtractionState;
     fn get_extraction_state_mut(&mut self) -> &mut SamplesExtractionState;
 
+    fn cleanup_state(&mut self) {
+        // clear for reuse
+        let state = self.get_extraction_state_mut();
+        state.sample_duration = 0f64;
+        state.current_sample = 0;
+        state.samples_offset = 0;
+        state.last_sample = 0;
+        state.requested_sample_window = 0;
+        state.half_requested_sample_window = 0;
+        state.requested_step_duration = 0;
+        state.sample_step = 0;
+        state.eos = false;
+        state.audio_sink = None;
+    }
+
     fn set_audio_sink(&mut self, audio_sink: gst::Element) {
         self.get_extraction_state_mut().set_audio_sink(audio_sink);
     }
@@ -171,8 +179,15 @@ pub trait SamplesExtractor: Send {
 
             if audio_buffer.eos {
                 state.eos = true;
+                // reached the end of stream
+                // draw the end of the buffer to fit in the requested width
+                // and adjust current position
 
-                if audio_buffer.samples.len() > state.requested_sample_window {
+                if audio_buffer.samples_offset + audio_buffer.samples.len()
+                        > state.current_sample + state.requested_sample_window {
+                    #[cfg(feature = "profiling-samples-extractor")]
+                    println!("SamplesExtraction - EOS - large enough buffer");
+
                     let first_visible_sample =
                         state.current_sample - state.half_requested_sample_window;
                     (
@@ -182,50 +197,83 @@ pub trait SamplesExtractor: Send {
                         sample_step
                     )
                 } else {
+                    #[cfg(feature = "profiling-samples-extractor")]
+                    println!("SamplesExtraction - EOS - small buffer");
+
                     (
                         audio_buffer.samples_offset,
                         audio_buffer.samples.len(),
                         sample_step
                     )
                 }
-            } else if state.current_sample < audio_buffer.samples_offset
-                || state.current_sample > audio_buffer.last_sample
-            {
-                // seeking => need to update the extraction
-                // TODO: do this incrementally when applicable
-                (
-                    audio_buffer.samples_offset,
-                    audio_buffer.samples.len(),
-                    sample_step
-                )
-            } else if state.current_sample > state.half_requested_sample_window
-                + audio_buffer.samples_offset
-            {
-                // attempt to get a larger buffer in order to compensate
-                // for the delay when it will actually be drawn
-                let first_visible_sample =
-                    state.current_sample - state.half_requested_sample_window;
-                let available_duration =
-                    audio_buffer.samples_offset + audio_buffer.samples.len()
-                    - first_visible_sample;
-                (
-                    first_visible_sample,
-                    available_duration.min(
-                        state.requested_sample_window + state.half_requested_sample_window
-                    ),
-                    sample_step
-                )
             } else {
-                (
-                    audio_buffer.samples_offset,
-                    audio_buffer.samples.len(),
-                    sample_step
-                )
+                state.eos = false;
+
+                if state.current_sample < audio_buffer.samples_offset {
+                    // audio buffer starts after current position
+                    // seeking => wait until position and audio buffer are synced
+                    #[cfg(feature = "profiling-samples-extractor")]
+                    println!("SamplesExtraction - seeking - position before buffer");
+
+                    (
+                        audio_buffer.samples_offset,
+                        audio_buffer.samples.len(),
+                        sample_step
+                    )
+                } else if state.current_sample > audio_buffer.last_sample {
+                    // audio buffer ends after current position
+                    // seeking => update buffer as fast as possible
+                    #[cfg(feature = "profiling-samples-extractor")]
+                    println!("SamplesExtraction - seeking - position after buffer");
+
+                    (
+                        audio_buffer.samples_offset,
+                        audio_buffer.samples.len(),
+                        sample_step
+                    )
+                } else if state.current_sample >= state.half_requested_sample_window
+                    && state.current_sample >= audio_buffer.samples_offset
+                    && audio_buffer.samples_offset + audio_buffer.samples.len()
+                        > state.current_sample + state.half_requested_sample_window {
+                    // regular case where the position can be centerd on screen
+                    // attempt to get a larger buffer in order to compensate
+                    // for the delay when it will actually be drawn
+                    #[cfg(feature = "profiling-samples-extractor")]
+                    println!("SamplesExtraction - regular");
+
+                    let first_visible_sample =
+                        state.current_sample - state.half_requested_sample_window;
+                    let available_duration =
+                        audio_buffer.samples_offset + audio_buffer.samples.len()
+                        - first_visible_sample;
+                    (
+                        first_visible_sample,
+                        available_duration.min(
+                            state.requested_sample_window + state.half_requested_sample_window
+                        ),
+                        sample_step
+                    )
+                } else {
+                    // not enough samples for the requested width
+                    // draw buffer as fast as possible
+                    // and adjust current position
+                    #[cfg(feature = "profiling-samples-extractor")]
+                    println!("SamplesExtraction - not enough samples for requested width");
+
+                    (
+                        audio_buffer.samples_offset,
+                        audio_buffer.samples.len(),
+                        sample_step
+                    )
+                }
             }
         };
 
         if sample_window < sample_step {
             // not ready to extract anything
+            #[cfg(feature = "profiling-samples-extractor")]
+            println!("SamplesExtraction - not ready to extract");
+
             return;
         }
 
@@ -240,7 +288,10 @@ pub trait SamplesExtractor: Send {
         if first_sample < audio_buffer.samples_offset {
             // first sample might be smaller than audio_buffer.samples_offset
             // due to alignement on sample_step
-            first_sample += sample_step;
+            #[cfg(feature = "profiling-samples-extractor")]
+            println!("SamplesExtraction - fixing first sample");
+
+            first_sample = audio_buffer.samples_offset;
         }
 
         self.update_extraction(

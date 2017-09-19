@@ -25,7 +25,6 @@ pub struct AudioBuffer {
 
     pub samples_offset: usize,
     pub last_sample: usize,
-    pts_offset: u64,
     first_pts: u64,
     last_pts: u64,
     pub samples: VecDeque<f64>,
@@ -66,7 +65,6 @@ impl AudioBuffer {
 
             samples_offset: 0,
             last_sample: 0,
-            pts_offset: 0,
             first_pts: 0,
             last_pts: 0,
             samples: VecDeque::with_capacity(capacity),
@@ -89,12 +87,9 @@ impl AudioBuffer {
         #[cfg(feature = "profiling-audio-buffer")]
         let before_drain = Utc::now();
 
-        let mut first_pts = buffer.get_pts() as u64;
-        if self.samples.is_empty() {
-            // initializing
-            self.pts_offset = first_pts;
-        }
-        first_pts -= self.pts_offset;
+        self.eos = false;
+
+        let first_pts = buffer.get_pts() as u64;
 
         // Note: need to take a margin with last_pts comparison as streams
         // tend to shift buffers back and forth

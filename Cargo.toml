@@ -29,6 +29,7 @@ gstreamer-app = { git = "https://github.com/fengalin/gstreamer-rs.git", branch =
 profiling-audio-draw = []
 profiling-audio-buffer = []
 profiling-audio-queue = []
+profiling-samples-extractor = []
 profiling-tracker = []
 profiling-waveform-buffer = []
 default-features = []

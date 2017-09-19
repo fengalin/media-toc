@@ -48,7 +48,12 @@ impl AudioController {
 
     pub fn cleanup(&mut self) {
         self.is_active = false;
-        // force redraw to purge the double buffer
+        let mut waveform_buffer_grd = self.waveform_buffer_mtx.lock()
+            .expect("AudioController::cleanup couldn't lock waveform_buffer_mtx");
+        waveform_buffer_grd
+            .as_mut_any().downcast_mut::<WaveformBuffer>()
+            .expect("AudioController::cleanupSamplesExtratctor is not a waveform buffer")
+            .cleanup();
         self.drawingarea.queue_draw();
     }
 

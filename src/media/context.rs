@@ -207,10 +207,10 @@ impl Context {
     pub fn get_position(&mut self) -> u64 {
         let pipeline = self.pipeline.clone();
         self.position_element.get_or_insert_with(|| {
-            if let Some(audio) = pipeline.get_by_name("audio_playback_sink") {
-                audio
-            } else if let Some(video) = pipeline.get_by_name("video_sink") {
+            if let Some(video) = pipeline.get_by_name("video_sink") {
                 video
+            } else if let Some(audio) = pipeline.get_by_name("audio_playback_sink") {
+                audio
             } else {
                 panic!("No sink in pipeline");
             }
