@@ -117,6 +117,11 @@ impl AudioController {
                     allocation.height,
             );
 
+            if current_x == 0 {
+                // not ready to render yet (probably still seeking)
+                return Inhibit(true);
+            }
+
             #[cfg(feature = "profiling-audio-draw")]
             let _before_image = Utc::now();
 

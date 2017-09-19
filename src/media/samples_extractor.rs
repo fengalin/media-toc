@@ -289,9 +289,16 @@ pub trait SamplesExtractor: Send {
             // first sample might be smaller than audio_buffer.samples_offset
             // due to alignement on sample_step
             #[cfg(feature = "profiling-samples-extractor")]
-            println!("SamplesExtraction - fixing first sample");
+            println!("SamplesExtraction - attempting to fix first sample...");
 
-            first_sample = audio_buffer.samples_offset;
+            first_sample += sample_step;
+
+            if first_sample < audio_buffer.samples_offset {
+                #[cfg(feature = "profiling-samples-extractor")]
+                println!("SamplesExtraction - ... unable to fix first_sample yet");
+
+                return;
+            }
         }
 
         self.update_extraction(
