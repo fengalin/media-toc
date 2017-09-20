@@ -17,7 +17,7 @@ const SAMPLES_OFFSET: f64 = SAMPLES_NORM / 2f64;
 pub struct AudioBuffer {
     capacity: usize,
     pub sample_duration: f64,
-    sample_duration_u: u64,
+    pub sample_duration_u: u64,
     channels: usize,
     drain_size: usize,
 
@@ -93,7 +93,7 @@ impl AudioBuffer {
 
         // Note: need to take a margin with last_pts comparison as streams
         // tend to shift buffers back and forth
-        if first_pts < self.first_pts
+        if first_pts + 700_000 < self.last_pts
         || first_pts > self.last_pts + 700_000
         || self.samples.is_empty()
         {
@@ -155,7 +155,7 @@ impl AudioBuffer {
             self.samples.push_back(SAMPLES_OFFSET - norm_sample);
         };
 
-        self.last_sample += incoming_samples.len();
+        self.last_sample = self.samples_offset + self.samples.len();
 
         // resync first_pts for each buffer because each stream has its own
         // rounding strategy

@@ -134,6 +134,15 @@ impl MainController {
 
     pub fn seek(&mut self, position: u64) {
         if !self.seeking {
+        let context =
+            match self.context.take() {
+                Some(context) => context,
+                None => {
+                    self.select_media();
+                    return;
+                },
+            };
+
             self.seeking = true;
             self.context.as_ref()
                 .expect("No context found while seeking in media")
@@ -198,14 +207,10 @@ impl MainController {
                         this_mut.context = Some(context);
                     },
                     Eos => {
-                        let mut this_mut = this_rc.borrow_mut();
+                        let this = this_rc.borrow_mut();
 
-                        this_mut.audio_ctrl.tic();
-
-                        this_mut.play_pause_btn.set_icon_name("media-playback-start");
-
-                        this_mut.keep_going = false;
-                        keep_going = false;
+                        this.audio_ctrl.tic();
+                        this.play_pause_btn.set_icon_name("media-playback-start");
                     },
                     FailedToOpenMedia => {
                         eprintln!("ERROR: failed to open media");
@@ -292,7 +297,7 @@ impl MainController {
 
         match Context::new(
             filepath,
-            20_000_000_000,
+            5_000_000_000,
             DoubleWaveformBuffer::new(&self.audio_ctrl.waveform_buffer_mtx),
             self.video_ctrl.video_box.clone(),
             ctx_tx
