@@ -93,8 +93,10 @@ impl AudioBuffer {
 
         // Note: need to take a margin with last_pts comparison as streams
         // tend to shift buffers back and forth
-        if first_pts < self.first_pts || first_pts > self.last_pts + 700_000
-        || self.samples.is_empty() {
+        if first_pts < self.first_pts
+        || first_pts > self.last_pts + 700_000
+        || self.samples.is_empty()
+        {
             // seeking or initializing
             self.samples.clear();
             self.samples_offset = (first_pts / self.sample_duration_u) as usize;

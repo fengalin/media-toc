@@ -358,6 +358,7 @@ impl Context {
             // or can we reuse the inspector for subsequent plays?
             match msg.view() {
                 gst::MessageView::Eos(..) => {
+                    println!("EOS,0");
                     ctx_tx.send(ContextMessage::Eos)
                         .expect("Failed to notify UI");
                     return glib::Continue(false);

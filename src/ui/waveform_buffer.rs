@@ -75,7 +75,7 @@ impl WaveformBuffer {
     fn get_first_visible_sample(&mut self) -> Option<usize> {
         if self.exposed_image.is_some() {
             let state = &mut self.state;
-            state.update_current_sample();
+            state.query_current_sample();
 
             if state.eos
             && state.current_sample + state.half_requested_sample_window > state.last_sample {
@@ -166,12 +166,13 @@ impl SamplesExtractor for WaveformBuffer {
         let start = Utc::now();
 
         let buffer_sample_window = last_sample - first_sample;
-        let extracted_samples_window =
-            (buffer_sample_window / sample_step) as i32;
+        let extracted_samples_window = buffer_sample_window / sample_step;
 
         let mut must_redraw = self.state.sample_step != sample_step
-            || first_sample < self.state.samples_offset // seek backward
-            || first_sample >= self.state.last_sample;  // seek foreward
+            || first_sample + extracted_samples_window < self.state.samples_offset
+            || first_sample >= self.state.last_sample;
+
+        let extracted_samples_window = extracted_samples_window as i32;
 
         let working_image = {
             let mut can_reuse = false;
@@ -202,7 +203,7 @@ impl SamplesExtractor for WaveformBuffer {
         };
 
         let cr = cairo::Context::new(&working_image);
-        let (mut sample_iter, mut x) =
+        let (mut sample_iter, mut x, clear_limit) =
             if must_redraw {
                 // Initialization or resolution has changed or seek requested
                 // redraw the whole range
@@ -219,31 +220,55 @@ impl SamplesExtractor for WaveformBuffer {
                 (
                     audio_buffer.iter(first_sample, last_sample, sample_step),
                     0f64,
+                    0f64,
                 )
             } else {
-                // shift previous context
+                // can shift previous context
                 let previous_image = self.exposed_image.take()
                     .expect("WaveformBuffer: no exposed_image while updating");
 
-                let sample_step_offset =
-                    (first_sample - self.state.samples_offset) / sample_step;
-                cr.set_source_surface(
-                    &previous_image,
-                    -(sample_step_offset as f64),
-                    0f64
-                );
-                cr.paint();
+                let tuple =
+                    if first_sample < self.state.samples_offset {
+                        // append samples before previous first sample
+                        let sample_step_offset =
+                            (self.state.samples_offset - first_sample) / sample_step;
+                        cr.set_source_surface(
+                            &previous_image,
+                            sample_step_offset as f64,
+                            0f64
+                        );
 
+                        // prepare to add samples to prepend
+                        (
+                            audio_buffer.iter(first_sample, self.state.samples_offset, sample_step),
+                            0f64,
+                            sample_step_offset as f64,
+                        )
+                    } else {
+                        // append samples after previous last sample
+                        let sample_step_offset =
+                            (first_sample - self.state.samples_offset) / sample_step;
+                        cr.set_source_surface(
+                            &previous_image,
+                            -(sample_step_offset as f64),
+                            0f64
+                        );
+
+                        // prepare to add remaining samples
+                        (
+                            audio_buffer.iter(self.state.last_sample, last_sample, sample_step),
+                            (
+                                (self.state.last_sample - self.state.samples_offset) / sample_step
+                                - sample_step_offset
+                            ) as f64,
+                            f64::from(working_image.get_width()),
+                        )
+                    };
+
+                cr.paint();
                 self.exposed_image = Some(previous_image);
 
-                // prepare to add remaining samples
-                (
-                    audio_buffer.iter(self.state.last_sample, last_sample, sample_step),
-                    (
-                        (self.state.last_sample - self.state.samples_offset) / sample_step
-                        - sample_step_offset
-                    ) as f64,
-                )
+                tuple
             };
 
         cr.scale(1f64, f64::from(self.height) / SAMPLES_NORM);
@@ -255,7 +280,7 @@ impl SamplesExtractor for WaveformBuffer {
                 BACKGROUND_COLOR.1,
                 BACKGROUND_COLOR.2
             );
-            cr.rectangle(x, 0f64, f64::from(working_image.get_width()) - x, SAMPLES_NORM);
+            cr.rectangle(x, 0f64, clear_limit - x, SAMPLES_NORM);
             cr.fill();
         } // else brackgroung already set while clearing the image
 
