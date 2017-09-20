@@ -155,26 +155,8 @@ impl WaveformBuffer {
             None => None,
         }
     }
-}
 
-impl SamplesExtractor for WaveformBuffer {
-    fn as_mut_any(&mut self) -> &mut Any {
-        self
-    }
-
-    fn get_extraction_state(&self) -> &SamplesExtractionState {
-        &self.state
-    }
-
-    fn get_extraction_state_mut(&mut self) -> &mut SamplesExtractionState {
-        &mut self.state
-    }
-
-    fn can_extract(&self) -> bool {
-        self.state.requested_sample_window > 0
-    }
-
-    // This method must be called on a working buffer
+    // This function is called on a working buffer
     // which means that self.exposed_image image is the image
     // that was previously exposed to the UI
     // this also means that we can safely deal with both
@@ -373,6 +355,138 @@ impl SamplesExtractor for WaveformBuffer {
         println!("waveform-buffer,{},{}",
             start.time().format("%H:%M:%S%.6f"),
             end.time().format("%H:%M:%S%.6f"),
+        );
+    }
+}
+
+impl SamplesExtractor for WaveformBuffer {
+    fn as_mut_any(&mut self) -> &mut Any {
+        self
+    }
+
+    fn get_extraction_state(&self) -> &SamplesExtractionState {
+        &self.state
+    }
+
+    fn get_extraction_state_mut(&mut self) -> &mut SamplesExtractionState {
+        &mut self.state
+    }
+
+    fn can_extract(&self) -> bool {
+        self.state.requested_sample_window > 0
+    }
+
+    fn extract_samples(&mut self, audio_buffer: &AudioBuffer) {
+        let (first_visible_sample, last_sample, sample_step) = {
+            let can_extract = self.can_extract();
+
+            let state = self.get_extraction_state_mut();
+            state.sample_duration = audio_buffer.sample_duration;
+            state.sample_duration_u = audio_buffer.sample_duration_u;
+
+            if !can_extract {
+                return;
+            }
+
+            // use an integer number of samples per step
+            let sample_step = (
+                state.requested_step_duration / state.sample_duration_u
+            ) as usize;
+
+            if audio_buffer.samples.len() < sample_step {
+                // buffer too small to render
+                return;
+            }
+
+            // TODO: take advantage of the context:
+            // samples already rendered, cursor position, etc.
+
+            if state.seek_flag {
+                // seeking => force current sample query
+                //let previous_sample = state.current_sample;
+                state.query_current_sample();
+                // TODO: see how to smoothen the cursor's movements
+                // when a seek is performed within the window
+                // might be necessary to exchange data between buffers
+                // could also use the x position from the WaveformBuffer
+                // Note: this must be handle in the waveform buffer
+                // as it has to do with UI
+            }
+
+            if audio_buffer.eos {
+                // reached the end of stream
+                // draw the end of the buffer to fit in the requested width
+                // and adjust current position
+
+                if state.current_sample >= audio_buffer.samples_offset
+                && state.current_sample < audio_buffer.last_sample
+                && state.current_sample
+                    >= audio_buffer.samples_offset + state.half_requested_sample_window
+                {
+                    (
+                        state.current_sample - state.half_requested_sample_window,
+                        audio_buffer.last_sample,
+                        sample_step
+                    )
+                } else {
+                    (
+                        audio_buffer.samples_offset,
+                        audio_buffer.last_sample,
+                        sample_step
+                    )
+                }
+            } else {
+                if state.current_sample
+                    >= audio_buffer.samples_offset + state.half_requested_sample_window
+                && state.current_sample + state.half_requested_sample_window
+                    < audio_buffer.last_sample
+                {
+                    // regular case where the position can be centered on screen
+                    // attempt to get a larger buffer in order to compensate
+                    // for the delay when it will actually be drawn
+                    let first_visible_sample =
+                        state.current_sample - state.half_requested_sample_window;
+                    (
+                        first_visible_sample,
+                        audio_buffer.last_sample.min(
+                            first_visible_sample
+                            + state.requested_sample_window + state.half_requested_sample_window
+                        ),
+                        sample_step
+                    )
+                } else {
+                    // not enough samples for the requested window
+                    // around current position
+                    (
+                        audio_buffer.samples_offset,
+                        audio_buffer.last_sample.min(
+                            audio_buffer.samples_offset
+                            + state.requested_sample_window + state.half_requested_sample_window
+                        ),
+                        sample_step
+                    )
+                }
+            }
+        };
+
+        // align requested first sample in order to keep a steady
+        // offset between redraws. This allows using the same samples
+        // for a given requested_step_duration and avoiding flickering
+        // between redraws
+        let mut first_sample =
+            first_visible_sample / sample_step * sample_step;
+        if first_sample < audio_buffer.samples_offset {
+            // first sample might be smaller than audio_buffer.samples_offset
+            // due to alignement on sample_step
+
+            first_sample += sample_step;
+        }
+
+        self.update_extraction(
+            audio_buffer,
+            first_sample,
+            last_sample / sample_step * sample_step,
+            sample_step
         );
     }
 }

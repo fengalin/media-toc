@@ -134,15 +134,6 @@ impl MainController {
 
     pub fn seek(&mut self, position: u64) {
         if !self.seeking {
-        let context =
-            match self.context.take() {
-                Some(context) => context,
-                None => {
-                    self.select_media();
-                    return;
-                },
-            };
-
             self.seeking = true;
             self.context.as_ref()
                 .expect("No context found while seeking in media")

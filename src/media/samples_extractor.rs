@@ -44,9 +44,12 @@ impl DoubleSampleExtractor {
             .set_audio_sink(audio_sink.clone());
     }
 
-    pub fn extract_samples(&mut self, audio_buffer: &AudioBuffer) {
+    pub fn extract_samples(&mut self, audio_buffer: &AudioBuffer, is_seek: bool) {
         let mut working_buffer = self.working_buffer.take()
             .expect("DoubleSampleExtractor: failed to take working buffer while updating");
+        if is_seek {
+            working_buffer.set_seek_flag();
+        }
         working_buffer.extract_samples(audio_buffer);
 
         // swap buffers
@@ -56,6 +59,11 @@ impl DoubleSampleExtractor {
             mem::swap(exposed_buffer_box, &mut working_buffer);
         }
 
+        // also set seek flag for previously exposed buffer
+        // in preparation for next samples extraction
+        if is_seek {
+            working_buffer.set_seek_flag();
+        }
         self.samples_offset = working_buffer.get_sample_offset();
         self.working_buffer = Some(working_buffer);
         // self.working_buffer is now the buffer previously in
@@ -76,8 +84,9 @@ pub struct SamplesExtractionState {
     pub requested_sample_window: usize,
     pub half_requested_sample_window: usize,
     pub requested_step_duration: u64,
-
     pub sample_step: usize,
+
+    pub seek_flag: bool,
 
     audio_sink: Option<gst::Element>,
     position_query: gst::Query,
@@ -96,8 +105,9 @@ impl SamplesExtractionState {
             requested_sample_window: 0,
             half_requested_sample_window: 0,
             requested_step_duration: 0,
-
             sample_step: 0,
+
+            seek_flag: false,
 
             audio_sink: None,
             position_query: gst::Query::new_position(gst::Format::Time),
@@ -145,122 +155,16 @@ pub trait SamplesExtractor: Send {
         self.get_extraction_state_mut().set_audio_sink(audio_sink);
     }
 
-    fn can_extract(&self) -> bool;
+    fn set_seek_flag(&mut self) {
+        self.get_extraction_state_mut().seek_flag = true;
+    }
 
-    fn update_extraction(&mut self,
-        audio_buffer: &AudioBuffer,
-        first_sample: usize,
-        last_sample: usize,
-        sample_step: usize,
-    );
+    fn can_extract(&self) -> bool;
 
     fn get_sample_offset(&self) -> usize {
         let state = self.get_extraction_state();
         state.samples_offset
     }
 
-    fn extract_samples(&mut self, audio_buffer: &AudioBuffer) {
-        let (first_visible_sample, last_sample, sample_step) = {
-            let can_extract = self.can_extract();
-
-            let state = self.get_extraction_state_mut();
-            state.sample_duration = audio_buffer.sample_duration;
-            state.sample_duration_u = audio_buffer.sample_duration_u;
-
-            if !can_extract {
-                return;
-            }
-
-            // use an integer number of samples per step
-            let sample_step = (
-                state.requested_step_duration / state.sample_duration_u
-            ) as usize;
-
-            if audio_buffer.samples.len() < sample_step {
-                // buffer too small to render
-                return;
-            }
-
-            if state.current_sample < audio_buffer.samples_offset
-            || state.current_sample > audio_buffer.last_sample {
-                // probably seeking => force current sample query
-                state.query_current_sample();
-            }
-
-            if audio_buffer.eos {
-                // reached the end of stream
-                // draw the end of the buffer to fit in the requested width
-                // and adjust current position
-
-                if state.current_sample >= audio_buffer.samples_offset
-                && state.current_sample < audio_buffer.last_sample
-                && state.current_sample
-                    >= audio_buffer.samples_offset + state.half_requested_sample_window
-                {
-                    (
-                        state.current_sample - state.half_requested_sample_window,
-                        audio_buffer.last_sample,
-                        sample_step
-                    )
-                } else {
-                    (
-                        audio_buffer.samples_offset,
-                        audio_buffer.last_sample,
-                        sample_step
-                    )
-                }
-            } else {
-                if state.current_sample
-                    >= audio_buffer.samples_offset + state.half_requested_sample_window
-                && state.current_sample + state.half_requested_sample_window
-                    < audio_buffer.last_sample
-                {
-                    // regular case where the position can be centered on screen
-                    // attempt to get a larger buffer in order to compensate
-                    // for the delay when it will actually be drawn
-                    let first_visible_sample =
-                        state.current_sample - state.half_requested_sample_window;
-                    (
-                        first_visible_sample,
-                        audio_buffer.last_sample.min(
-                            first_visible_sample
-                            + state.requested_sample_window + state.half_requested_sample_window
-                        ),
-                        sample_step
-                    )
-                } else {
-                    // not enough samples for the requested window
-                    // around current position
-                    (
-                        audio_buffer.samples_offset,
-                        audio_buffer.last_sample.min(
-                            audio_buffer.samples_offset
-                            + state.requested_sample_window + state.half_requested_sample_window
-                        ),
-                        sample_step
-                    )
-                }
-            }
-        };
-
-        // align requested first sample in order to keep a steady
-        // offset between redraws. This allows using the same samples
-        // for a given requested_step_duration and avoiding flickering
-        // between redraws
-        let mut first_sample =
-            first_visible_sample / sample_step * sample_step;
-        if first_sample < audio_buffer.samples_offset {
-            // first sample might be smaller than audio_buffer.samples_offset
-            // due to alignement on sample_step
-
-            first_sample += sample_step;
-        }
-
-        self.update_extraction(
-            audio_buffer,
-            first_sample,
-            last_sample / sample_step * sample_step,
-            sample_step
-        );
-    }
+    fn extract_samples(&mut self, audio_buffer: &AudioBuffer);
 }

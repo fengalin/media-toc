@@ -93,26 +93,36 @@ impl AudioBuffer {
 
         // Note: need to take a margin with last_pts comparison as streams
         // tend to shift buffers back and forth
-        if first_pts + 700_000 < self.last_pts
-        || first_pts > self.last_pts + 700_000
-        || self.samples.is_empty()
-        {
-            // seeking or initializing
-            self.samples.clear();
-            self.samples_offset = (first_pts / self.sample_duration_u) as usize;
-            self.last_sample = self.samples_offset;
-            self.first_pts = first_pts;
-        } /*else if self.samples.len() + incoming_samples.len() > self.capacity
-            && self.samples_extractor_opt.as_ref().unwrap().samples_offset
-                > self.samples_offset + self.drain_size
-        {   // buffer will reach capacity => drain a chunk of samples
-            // only if we have samples in history
-            // TODO: it could be worse testing truncate instead
-            // (this would require reversing the buffer alimentation
-            // and iteration)
-            self.samples.drain(..self.drain_size);
-            self.samples_offset += self.drain_size;
-        }*/
+        let is_seek =
+            if first_pts + 700_000 < self.last_pts
+            || first_pts > self.last_pts + 700_000
+            || self.samples.is_empty()
+            {   // seeking or initializing
+                self.samples_offset = (first_pts / self.sample_duration_u) as usize;
+                self.last_sample = self.samples_offset;
+                self.first_pts = first_pts;
+
+                if !self.samples.is_empty() {
+                    // seeking => remove previous samples
+                    self.samples.clear();
+                    true
+                } else {
+                    false
+                }
+            /*} else if self.samples.len() + incoming_samples.len() > self.capacity
+                && self.samples_extractor_opt.as_ref().unwrap().samples_offset
+                    > self.samples_offset + self.drain_size
+            {   // buffer will reach capacity => drain a chunk of samples
+                // only if we have samples in history
+                // TODO: it could be worse testing truncate instead
+                // (this would require reversing the buffer alimentation
+                // and iteration)
+                self.samples.drain(..self.drain_size);
+                self.samples_offset += self.drain_size;
+                false*/
+            } else {
+                false
+            };
 
         #[cfg(feature = "profiling-audio-buffer")]
         let before_storage = Utc::now();
@@ -166,7 +176,7 @@ impl AudioBuffer {
 
         if !self.samples.is_empty() {
             let mut samples_extractor = self.samples_extractor_opt.take().unwrap();
-            samples_extractor.extract_samples(self);
+            samples_extractor.extract_samples(self, is_seek);
             self.samples_extractor_opt = Some(samples_extractor);
         }
 
@@ -198,7 +208,7 @@ impl AudioBuffer {
             self.eos = true;
 
             let mut samples_extractor = self.samples_extractor_opt.take().unwrap();
-            samples_extractor.extract_samples(self);
+            samples_extractor.extract_samples(self, false);
             self.samples_extractor_opt = Some(samples_extractor);
         }
     }
