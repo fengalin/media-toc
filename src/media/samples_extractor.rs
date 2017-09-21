@@ -15,7 +15,6 @@ use super::AudioBuffer;
 // conditions
 pub struct DoubleSampleExtractor {
     pub exposed_buffer_mtx: Arc<Mutex<Box<SamplesExtractor>>>,
-    pub first_sample: usize,
     working_buffer: Option<Box<SamplesExtractor>>,
 }
 
@@ -28,7 +27,6 @@ impl DoubleSampleExtractor {
     ) -> DoubleSampleExtractor {
         DoubleSampleExtractor {
             exposed_buffer_mtx: exposed_buffer,
-            first_sample: 0,
             working_buffer: Some(working_buffer),
         }
     }
@@ -44,11 +42,15 @@ impl DoubleSampleExtractor {
             .set_audio_sink(audio_sink.clone());
     }
 
-    pub fn extract_samples(&mut self, audio_buffer: &AudioBuffer, is_seek: bool) {
+    pub fn get_first_sample(&self) -> usize {
+        self.working_buffer.as_ref().unwrap().get_first_sample()
+    }
+
+    pub fn extract_samples(&mut self, audio_buffer: &AudioBuffer, first_sample_changed: bool) {
         let mut working_buffer = self.working_buffer.take()
             .expect("DoubleSampleExtractor: failed to take working buffer while updating");
-        if is_seek {
-            working_buffer.set_seek_flag();
+        if first_sample_changed {
+            working_buffer.set_first_sample_changed();
         }
         working_buffer.extract_samples(audio_buffer);
 
@@ -56,15 +58,17 @@ impl DoubleSampleExtractor {
         {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock()
                 .expect("DoubleSampleExtractor: failed to lock the exposed buffer for swap");
+            // get latest conditions from the previously exposed buffer
+            // in order to smoothen rendering between frames
+            working_buffer.update_concrete_state(exposed_buffer_box);
             mem::swap(exposed_buffer_box, &mut working_buffer);
         }
 
-        // also set seek flag for previously exposed buffer
+        // also set first_sample_changed flag for previously exposed buffer
         // in preparation for next samples extraction
-        if is_seek {
-            working_buffer.set_seek_flag();
+        if first_sample_changed {
+            working_buffer.set_first_sample_changed();
         }
-        self.first_sample = working_buffer.get_sample_offset();
         self.working_buffer = Some(working_buffer);
         // self.working_buffer is now the buffer previously in
         // self.exposed_buffer_mtx
@@ -77,17 +81,6 @@ pub struct SamplesExtractionState {
     pub sample_duration: f64,
     pub sample_duration_u: u64,
 
-    pub current_sample: usize,
-    pub first_sample: usize,
-    pub last_sample: usize,
-
-    pub requested_sample_window: usize,
-    pub half_requested_sample_window: usize,
-    pub requested_step_duration: u64,
-    pub sample_step: usize,
-
-    pub seek_flag: bool,
-
     audio_sink: Option<gst::Element>,
     position_query: gst::Query,
 }
@@ -98,17 +91,6 @@ impl SamplesExtractionState {
             sample_duration: 0f64,
             sample_duration_u: 0,
 
-            current_sample: 0,
-            first_sample: 0,
-            last_sample: 0,
-
-            requested_sample_window: 0,
-            half_requested_sample_window: 0,
-            requested_step_duration: 0,
-            sample_step: 0,
-
-            seek_flag: false,
-
             audio_sink: None,
             position_query: gst::Query::new_position(gst::Format::Time),
         }
@@ -116,18 +98,6 @@ impl SamplesExtractionState {
 
     pub fn set_audio_sink(&mut self, audio_sink: gst::Element) {
         self.audio_sink = Some(audio_sink);
-    }
-
-    pub fn query_current_sample(&mut self) {
-        self.audio_sink.as_ref()
-            .expect("DoubleSampleExtractor: no audio ref while querying position")
-            .query(self.position_query.get_mut().unwrap());
-        self.current_sample = (
-            match self.position_query.view() {
-                QueryView::Position(ref position) => position.get().1 as f64,
-                _ => unreachable!(),
-            } / self.sample_duration
-        ).round() as usize;
     }
 }
 
@@ -141,13 +111,6 @@ pub trait SamplesExtractor: Send {
         let state = self.get_extraction_state_mut();
         state.sample_duration = 0f64;
         state.sample_duration_u = 0;
-        state.current_sample = 0;
-        state.first_sample = 0;
-        state.last_sample = 0;
-        state.requested_sample_window = 0;
-        state.half_requested_sample_window = 0;
-        state.requested_step_duration = 0;
-        state.sample_step = 0;
         state.audio_sink = None;
     }
 
@@ -155,15 +118,26 @@ pub trait SamplesExtractor: Send {
         self.get_extraction_state_mut().set_audio_sink(audio_sink);
     }
 
-    fn set_seek_flag(&mut self) {
-        self.get_extraction_state_mut().seek_flag = true;
-    }
+    fn set_first_sample_changed(&mut self);
+    fn get_first_sample(&self) -> usize;
 
-    fn can_extract(&self) -> bool;
+    // update self with concrete state of other
+    // which is expected to be the same concrete type
+    // this update is intended at smoothening the specific
+    // extraction process by keeping conditions between frames
+    fn update_concrete_state(&mut self, other: &mut Box<SamplesExtractor>);
 
-    fn get_sample_offset(&self) -> usize {
-        let state = self.get_extraction_state();
-        state.first_sample
+    fn query_current_sample(&mut self) -> usize {
+        let state = &mut self.get_extraction_state_mut();
+        state.audio_sink.as_ref()
+            .expect("DoubleSampleExtractor: no audio ref while querying position")
+            .query(state.position_query.get_mut().unwrap());
+        (
+            match state.position_query.view() {
+                QueryView::Position(ref position) => position.get().1 as f64,
+                _ => unreachable!(),
+            } / state.sample_duration
+        ).round() as usize
     }
 
     fn extract_samples(&mut self, audio_buffer: &AudioBuffer);

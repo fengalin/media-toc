@@ -93,24 +93,59 @@ impl AudioBuffer {
 
         // Note: need to take a margin with last_pts comparison as streams
         // tend to shift buffers back and forth
-        let is_seek =
+        let first_sample_changed =
             if first_pts + 700_000 < self.last_pts
             || first_pts > self.last_pts + 700_000
             || self.samples.is_empty()
             {   // seeking or initializing
-                self.first_sample = (first_pts / self.sample_duration_u) as usize;
-                self.last_sample = self.first_sample;
-                self.first_pts = first_pts;
+                let last_pts = first_pts + buffer.get_duration();
+                if first_pts >= self.first_pts && last_pts <= self.last_pts {
+                    // seeking within current buffer
+                    // => nothing to do
+                    return;
+                }
 
                 if !self.samples.is_empty() {
-                    // seeking => remove previous samples
-                    self.samples.clear();
-                    true
+                    // seeking
+                    if first_pts > self.first_pts
+                    && first_pts < self.last_pts {
+                        // can merge from [self.last_pts, last_pts]
+                        println!("could merge from [self.last_pts: {}, last_pts: {}] (self.first_pts {}, first_pts {})", self.last_pts, last_pts, self.first_pts, first_pts);
+                        // return false when merge will be done, true for the moment
+                        self.samples.clear();
+                        self.first_sample = (first_pts / self.sample_duration_u) as usize;
+                        self.last_sample = self.first_sample;
+                        self.first_pts = first_pts;
+                        true
+                    }
+                    else if first_pts < self.first_pts
+                    && last_pts > self.first_pts
+                    {
+                        // can merge from [first_pts, self.first_pts]
+                        println!("could merge from [first_pts, self.first_pts]");
+                        self.samples.clear();
+                        self.first_sample = (first_pts / self.sample_duration_u) as usize;
+                        self.last_sample = self.first_sample;
+                        self.first_pts = first_pts;
+                        true
+                    } else {
+                        // can't merge with previous buffer
+                        println!("can't merge");
+                        self.samples.clear();
+                        self.first_sample = (first_pts / self.sample_duration_u) as usize;
+                        self.last_sample = self.first_sample;
+                        self.first_pts = first_pts;
+                        true
+                    }
                 } else {
-                    false
+                    // initializing
+                    self.first_sample = (first_pts / self.sample_duration_u) as usize;
+                    self.last_sample = self.first_sample;
+                    self.first_pts = first_pts;
+                    true
                 }
             /*} else if self.samples.len() + incoming_samples.len() > self.capacity
-                && self.samples_extractor_opt.as_ref().unwrap().first_sample
+                && self.samples_extractor_opt.as_ref().unwrap().get_first_sample()
                     > self.first_sample + self.drain_size
             {   // buffer will reach capacity => drain a chunk of samples
                 // only if we have samples in history
@@ -176,7 +211,7 @@ impl AudioBuffer {
 
         if !self.samples.is_empty() {
             let mut samples_extractor = self.samples_extractor_opt.take().unwrap();
-            samples_extractor.extract_samples(self, is_seek);
+            samples_extractor.extract_samples(self, first_sample_changed);
             self.samples_extractor_opt = Some(samples_extractor);
         }
 
