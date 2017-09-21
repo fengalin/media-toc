@@ -15,7 +15,7 @@ use super::AudioBuffer;
 // conditions
 pub struct DoubleSampleExtractor {
     pub exposed_buffer_mtx: Arc<Mutex<Box<SamplesExtractor>>>,
-    pub samples_offset: usize,
+    pub first_sample: usize,
     working_buffer: Option<Box<SamplesExtractor>>,
 }
 
@@ -28,7 +28,7 @@ impl DoubleSampleExtractor {
     ) -> DoubleSampleExtractor {
         DoubleSampleExtractor {
             exposed_buffer_mtx: exposed_buffer,
-            samples_offset: 0,
+            first_sample: 0,
             working_buffer: Some(working_buffer),
         }
     }
@@ -64,7 +64,7 @@ impl DoubleSampleExtractor {
         if is_seek {
             working_buffer.set_seek_flag();
         }
-        self.samples_offset = working_buffer.get_sample_offset();
+        self.first_sample = working_buffer.get_sample_offset();
         self.working_buffer = Some(working_buffer);
         // self.working_buffer is now the buffer previously in
         // self.exposed_buffer_mtx
@@ -78,7 +78,7 @@ pub struct SamplesExtractionState {
     pub sample_duration_u: u64,
 
     pub current_sample: usize,
-    pub samples_offset: usize,
+    pub first_sample: usize,
     pub last_sample: usize,
 
     pub requested_sample_window: usize,
@@ -99,7 +99,7 @@ impl SamplesExtractionState {
             sample_duration_u: 0,
 
             current_sample: 0,
-            samples_offset: 0,
+            first_sample: 0,
             last_sample: 0,
 
             requested_sample_window: 0,
@@ -142,7 +142,7 @@ pub trait SamplesExtractor: Send {
         state.sample_duration = 0f64;
         state.sample_duration_u = 0;
         state.current_sample = 0;
-        state.samples_offset = 0;
+        state.first_sample = 0;
         state.last_sample = 0;
         state.requested_sample_window = 0;
         state.half_requested_sample_window = 0;
@@ -163,7 +163,7 @@ pub trait SamplesExtractor: Send {
 
     fn get_sample_offset(&self) -> usize {
         let state = self.get_extraction_state();
-        state.samples_offset
+        state.first_sample
     }
 
     fn extract_samples(&mut self, audio_buffer: &AudioBuffer);

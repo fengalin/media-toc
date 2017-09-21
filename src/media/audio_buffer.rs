@@ -23,7 +23,7 @@ pub struct AudioBuffer {
 
     pub eos: bool,
 
-    pub samples_offset: usize,
+    pub first_sample: usize,
     pub last_sample: usize,
     first_pts: u64,
     last_pts: u64,
@@ -63,7 +63,7 @@ impl AudioBuffer {
 
             eos: false,
 
-            samples_offset: 0,
+            first_sample: 0,
             last_sample: 0,
             first_pts: 0,
             last_pts: 0,
@@ -98,8 +98,8 @@ impl AudioBuffer {
             || first_pts > self.last_pts + 700_000
             || self.samples.is_empty()
             {   // seeking or initializing
-                self.samples_offset = (first_pts / self.sample_duration_u) as usize;
-                self.last_sample = self.samples_offset;
+                self.first_sample = (first_pts / self.sample_duration_u) as usize;
+                self.last_sample = self.first_sample;
                 self.first_pts = first_pts;
 
                 if !self.samples.is_empty() {
@@ -110,15 +110,15 @@ impl AudioBuffer {
                     false
                 }
             /*} else if self.samples.len() + incoming_samples.len() > self.capacity
-                && self.samples_extractor_opt.as_ref().unwrap().samples_offset
-                    > self.samples_offset + self.drain_size
+                && self.samples_extractor_opt.as_ref().unwrap().first_sample
+                    > self.first_sample + self.drain_size
             {   // buffer will reach capacity => drain a chunk of samples
                 // only if we have samples in history
                 // TODO: it could be worse testing truncate instead
                 // (this would require reversing the buffer alimentation
                 // and iteration)
                 self.samples.drain(..self.drain_size);
-                self.samples_offset += self.drain_size;
+                self.first_sample += self.drain_size;
                 false*/
             } else {
                 false
@@ -165,7 +165,7 @@ impl AudioBuffer {
             self.samples.push_back(SAMPLES_OFFSET - norm_sample);
         };
 
-        self.last_sample = self.samples_offset + self.samples.len();
+        self.last_sample = self.first_sample + self.samples.len();
 
         // resync first_pts for each buffer because each stream has its own
         // rounding strategy
@@ -195,10 +195,10 @@ impl AudioBuffer {
     }
 
     pub fn iter(&self, first: usize, last: usize, step: usize) -> Iter {
-        if first < self.samples_offset {
-            println!("iter {}, {}", first, self.samples_offset);
+        if first < self.first_sample {
+            println!("iter {}, {}", first, self.first_sample);
         }
-        assert!(first >= self.samples_offset);
+        assert!(first >= self.first_sample);
         let last = if last > first { last } else { first };
         Iter::new(self, first, last, step)
     }
@@ -225,8 +225,8 @@ impl<'a> Iter<'a> {
     fn new(buffer: &'a AudioBuffer, first: usize, last: usize, step: usize) -> Iter<'a> {
         Iter {
             buffer: buffer,
-            idx: first - buffer.samples_offset,
-            last: buffer.samples.len().min(last - buffer.samples_offset),
+            idx: first - buffer.first_sample,
+            last: buffer.samples.len().min(last - buffer.first_sample),
             step: step,
         }
     }
