@@ -1,19 +1,22 @@
 # media-toc [![Build Status](https://travis-ci.org/fengalin/media-toc.svg?branch=master)](https://travis-ci.org/fengalin/media-toc) [![Build status](https://ci.appveyor.com/api/projects/status/eu9p6ggcflj89h3v?svg=true)](https://ci.appveyor.com/project/fengalin/media-toc)
 Media-TOC is an application to build a table of contents from a media file or
-to split a media file into chapters.
+to split a media file into chapters. It is primarily developped in Rust on Linux,
+it can be built on Windows and should also work on MacOS.
 
-**Important**: Media-TOC is in an early stage of development. Of course, you can
-[contribute](#contribute) to the project if you find it interesting.
+Media-TOC is not fonctional yet, see the [Status section](#status) below. Of course,
+you can [contribute](#contribute) to the project if you find it interesting.
 
-## Status
+## <a name='status'></a>Status
 At the moment, **Media-TOC** can:
 - Open a media file (audio, video - and image but that doesn't make much sense).
 - Display the video frame
 - Display the cover image if available.
 - Display metadata from the media.
-- Display chapters list and marks on the timeline at the begining of each chapter.
-- Play the media, draw the video, the audio waveform, play the audio and select
-the chapter in the list while playing.
+- Display chapters list and marks at the begining of each chapter on the timeline.
+- Play the audio and video, draw the audio waveform and select the chapter in the
+list while playing.
+- Seek in the media by clicking on the waveform, on the timeline or in the
+chapters list.
 
 ## <a name='ui'></a>Screenshots
 ![Media-TOC UI Video](assets/media-toc_video.png)
@@ -25,8 +28,7 @@ Contributions are welcomed.
 - If you wish to contribute to the code, please fork your own copy and submit a
 [pull request](https://github.com/fengalin/media-toc/pulls).
 
-# Design
-## Technologies
+# Technologies
 **Media-TOC** is developped in Rust and uses the following technologies:
 - **GTK-3** ([official documentation](https://developer.gnome.org/gtk3/stable/),
 [Rust binding](https://crates.io/crates/gtk)) and [Glade](https://glade.gnome.org/).
@@ -37,8 +39,7 @@ Contributions are welcomed.
 
 # Environment preparation
 ## Toolchain
-The nightly version is required for [this feature](https://doc.rust-lang.org/std/option/enum.Option.html#method.get_or_insert).
-
+Rust nightly version is required at the moment.
 ```
 $ curl https://sh.rustup.rs -sSf | sh
 ```
@@ -72,11 +73,15 @@ Note: for a 32bits system, use `mingw-w64-i686-...`
 ```
 pacman -S mingw-w64-x86_64-toolchain base-devel mingw-w64-x86_64-gtk3 \
     mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-plugins-base \
-    mingw-w64-x86_64-gst-plugins-good mingw-w64-x86_64-gst-plugins-bad \
+```
+For the execution, you will also need (opencv seems necessary to play a video,
+anyone knows which package can pull it?):
+```
+pacman -S mingw-w64-x86_64-gst-plugins-good mingw-w64-x86_64-gst-plugins-bad \
     mingw-w64-x86_64-gst-plugins-ugly
 ```
-Note: opencv seems necessary to play a video.
-- Rustup: launch the [rustup installer](https://www.rustup.rs/).
+
+- Launch the [rustup installer](https://www.rustup.rs/).
 When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
 `i686-pc-windows-gnu` for a 32bits system), then select `nightly`.
 - From a MSYS2 shell
