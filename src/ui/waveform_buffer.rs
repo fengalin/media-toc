@@ -193,10 +193,9 @@ impl WaveformBuffer {
                         // and discard any previous seek adjustment contraint
                         Some(self.first_sample)
                     }
-                } else if self.current_sample <= self.last_sample + 2 * self.sample_step {
+                } else if self.current_sample <= self.last_sample {
                     // current sample can fit in the second half of the window
                     // (take a margin due to rounding to sample_step)
-                    // TODO: check if the 2* is still necessary in the above condition
                     if self.buffer_sample_window >= self.requested_sample_window {
                         // buffer window is larger than requested_sample_window
                         // set last buffer to the right
@@ -323,6 +322,8 @@ impl WaveformBuffer {
             if must_redraw {
                 // Initialization or resolution has changed or seek requested
                 // redraw the whole range
+
+                println!("redraw");
 
                 // clear the image
                 cr.set_source_rgb(
