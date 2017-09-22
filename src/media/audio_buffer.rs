@@ -103,7 +103,7 @@ impl AudioBuffer {
 
         // Identify conditions for this incoming buffer:
         // 1. Incoming buffer fits at the end of current container.
-        // 2. Incoming buffer is already container within stored samples.
+        // 2. Incoming buffer is already contained within stored samples.
         //    Nothing to do.
         // 3. Incoming buffer overlaps with stored samples at the end.
         // 4. Incoming buffer overlaps with stored samples at the begining.
@@ -122,7 +122,7 @@ impl AudioBuffer {
                         // receiving next buffer in the same segment
                         self.last_buffer_last_sample
                     } else {
-                        // changing segment (seeking)
+                        // different segment (seeking)
                         self.segement_first_sample = segment_first_sample;
                         self.last_buffer_last_sample = segment_first_sample;
                         segment_first_sample
@@ -133,8 +133,8 @@ impl AudioBuffer {
                     // 1. append incoming buffer to the end of internal storage
                     //println!("AudioBuffer appending full incoming buffer to the end");
                     // self.first_sample unchanged
-                    self.last_sample += buffer_sample_len;
-                    self.last_buffer_last_sample = self.last_sample;
+                    self.last_sample = last_sample;
+                    self.last_buffer_last_sample = last_sample;
                     (false, 0, buffer_sample_len)
                 } else if first_sample >= self.first_sample
                 && last_sample <= self.last_sample {
