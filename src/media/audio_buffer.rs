@@ -17,16 +17,15 @@ const SAMPLES_OFFSET: f64 = SAMPLES_NORM / 2f64;
 pub struct AudioBuffer {
     capacity: usize,
     pub sample_duration: f64,
-    pub sample_duration_u: u64,
     channels: usize,
     drain_size: usize,
 
     pub eos: bool,
 
+    segement_first_sample: usize,
+    last_buffer_last_sample: usize,
     pub first_sample: usize,
     pub last_sample: usize,
-    first_pts: u64,
-    last_pts: u64,
     pub samples: VecDeque<f64>,
 
     samples_extractor_opt: Option<DoubleSampleExtractor>,
@@ -47,15 +46,14 @@ impl AudioBuffer {
         // assert_eq!(format, S16);
         // assert_eq!(layout, Interleaved);
 
-        let sample_duration_u = 1_000_000_000 / (rate as u64);
-        let capacity = (size_duration / sample_duration_u) as usize;
+        let sample_duration = 1_000_000_000f64 / (rate as f64);
+        let capacity = (size_duration as f64 / sample_duration) as usize;
 
         let drain_size = capacity / 5;
 
         AudioBuffer {
             capacity: capacity,
-            sample_duration: sample_duration_u as f64,
-            sample_duration_u: sample_duration_u,
+            sample_duration: sample_duration,
             channels: structure.get::<i32>("channels")
                 .expect("Couldn't get channels from audio sample")
                 as usize,
@@ -63,16 +61,25 @@ impl AudioBuffer {
 
             eos: false,
 
+            segement_first_sample: 0,
+            last_buffer_last_sample: 0,
             first_sample: 0,
             last_sample: 0,
-            first_pts: 0,
-            last_pts: 0,
             samples: VecDeque::with_capacity(capacity),
 
             samples_extractor_opt: Some(samples_extractor),
         }
     }
 
+    // Add samples from the GStreamer pipeline to the AudioBuffer
+    // This buffer stores the complete set of samples in a time frame
+    // in order to be able to represent the audio at any given precision.
+    // Samples are stores as f64 suitable for on screen rendering.
+    // This implementation also performs a downmix.
+    // TODO: make the representation dependent on the actual context
+    //       move this as a trait and make the sample normalization
+    //       part of a concrete object
+    // Incoming samples are merged to the existing buffer when possible
     pub fn push_gst_sample(&mut self, sample: gst::Sample) {
         #[cfg(feature = "profiling-audio-buffer")]
         let start = Utc::now();
@@ -89,85 +96,114 @@ impl AudioBuffer {
 
         self.eos = false;
 
-        let first_pts = buffer.get_pts() as u64;
+        let segment_first_sample = (
+            sample.get_segment().unwrap().get_start() as f64 / self.sample_duration
+        ) as usize;
+        let buffer_sample_len = incoming_samples.len() / self.channels;
 
-        // Note: need to take a margin with last_pts comparison as streams
-        // tend to shift buffers back and forth
-        let first_sample_changed =
-            if first_pts + 700_000 < self.last_pts
-            || first_pts > self.last_pts + 700_000
-            || self.samples.is_empty()
-            {   // seeking or initializing
-                let last_pts = first_pts + buffer.get_duration();
-                if first_pts >= self.first_pts && last_pts <= self.last_pts {
-                    // seeking within current buffer
-                    // => nothing to do
-                    return;
-                }
-
-                if !self.samples.is_empty() {
-                    // seeking
-                    if first_pts > self.first_pts
-                    && first_pts < self.last_pts {
-                        // can merge from [self.last_pts, last_pts]
-                        println!("could merge from [self.last_pts: {}, last_pts: {}] (self.first_pts {}, first_pts {})", self.last_pts, last_pts, self.first_pts, first_pts);
-                        // return false when merge will be done, true for the moment
-                        self.samples.clear();
-                        self.first_sample = (first_pts / self.sample_duration_u) as usize;
-                        self.last_sample = self.first_sample;
-                        self.first_pts = first_pts;
-                        true
-                    }
-                    else if first_pts < self.first_pts
-                    && last_pts > self.first_pts
-                    {
-                        // can merge from [first_pts, self.first_pts]
-                        println!("could merge from [first_pts, self.first_pts]");
-                        self.samples.clear();
-                        self.first_sample = (first_pts / self.sample_duration_u) as usize;
-                        self.last_sample = self.first_sample;
-                        self.first_pts = first_pts;
-                        true
+        // Identify conditions for this incoming buffer:
+        // 1. Incoming buffer fits at the end of current container.
+        // 2. Incoming buffer is already container within stored samples.
+        //    Nothing to do.
+        // 3. Incoming buffer overlaps with stored samples at the end.
+        // 4. Incoming buffer overlaps with stored samples at the begining.
+        //    Note: this changes the first sample and requires to extend
+        //    the internal container from the begining.
+        // 5. Incoming buffer doesn't overlap with current buffer. In order
+        //    not to let gaps between samples, the internal container is
+        //    cleared first.
+        // 6. The internal container is empty, import incoming buffer
+        //    completely.
+        let (first_sample_changed, first_sample_to_add_rel, last_sample_to_add_rel) =
+            if !self.samples.is_empty()
+            {   // not initializing
+                let first_sample =
+                    if segment_first_sample == self.segement_first_sample {
+                        // receiving next buffer in the same segment
+                        self.last_buffer_last_sample
                     } else {
-                        // can't merge with previous buffer
-                        println!("can't merge");
-                        self.samples.clear();
-                        self.first_sample = (first_pts / self.sample_duration_u) as usize;
-                        self.last_sample = self.first_sample;
-                        self.first_pts = first_pts;
-                        true
-                    }
-                } else {
-                    // initializing
-                    self.first_sample = (first_pts / self.sample_duration_u) as usize;
-                    self.last_sample = self.first_sample;
-                    self.first_pts = first_pts;
-                    true
+                        // changing segment (seeking)
+                        self.segement_first_sample = segment_first_sample;
+                        self.last_buffer_last_sample = segment_first_sample;
+                        segment_first_sample
+                    };
+                let last_sample = first_sample + buffer_sample_len;
+
+                if first_sample == self.last_sample {
+                    // 1. append incoming buffer to the end of internal storage
+                    //println!("AudioBuffer appending full incoming buffer to the end");
+                    // self.first_sample unchanged
+                    self.last_sample += buffer_sample_len;
+                    self.last_buffer_last_sample = self.last_sample;
+                    (false, 0, buffer_sample_len)
+                } else if first_sample >= self.first_sample
+                && last_sample <= self.last_sample {
+                    // 2. incoming buffer included in current container
+                    println!("AudioBuffer incoming buffer included in current container");
+                    self.last_buffer_last_sample = last_sample;
+                    return;
+                } else if first_sample > self.first_sample
+                && first_sample < self.last_sample
+                {   // 3. can append [self.last_sample, last_sample] to the end
+                    println!("AudioBuffer 3 append to the end [self.last_sample: {}, last_sample: {}] (self.first_sample {}, segment_first_sample {})", self.last_sample, last_sample, self.first_sample, segment_first_sample);
+                    // self.first_sample unchanged
+                    let previous_last_sample = self.last_sample;
+                    self.last_sample = last_sample;
+                    // self.first_pts unchanged
+                    self.last_buffer_last_sample = last_sample;
+                    (false, previous_last_sample - segment_first_sample, buffer_sample_len)
                 }
-            /*} else if self.samples.len() + incoming_samples.len() > self.capacity
-                && self.samples_extractor_opt.as_ref().unwrap().get_first_sample()
-                    > self.first_sample + self.drain_size
-            {   // buffer will reach capacity => drain a chunk of samples
-                // only if we have samples in history
-                // TODO: it could be worse testing truncate instead
-                // (this would require reversing the buffer alimentation
-                // and iteration)
-                self.samples.drain(..self.drain_size);
-                self.first_sample += self.drain_size;
-                false*/
+                else if last_sample < self.last_sample
+                && last_sample > self.first_sample
+                {   // 4. can insert [first_sample, self.first_sample] to the begining
+                    println!("AudioBuffer 4. insert to the begining [first_sample, self.first_sample]");
+                    let last_sample_to_add = self.first_sample;
+                    self.first_sample = first_sample;
+                    // self.last_sample unchanged
+                    self.last_buffer_last_sample = last_sample;
+                    (true, 0, last_sample_to_add - segment_first_sample)
+                } else {
+                    // 5. can't merge with previous buffer
+                    println!("AudioBuffer 5. can't merge self.first_sample {}, self.last_sample {}, segment_first_sample {}, last_sample {}", self.first_sample, self.last_sample, segment_first_sample, last_sample);
+                    self.samples.clear();
+                    self.first_sample = first_sample;
+                    self.last_sample = last_sample;
+                    self.last_buffer_last_sample = last_sample;
+                    (true, 0, buffer_sample_len)
+                }
             } else {
-                false
+                // 6. initializing
+                self.segement_first_sample = segment_first_sample;
+                self.first_sample = segment_first_sample;
+                self.last_sample = segment_first_sample + buffer_sample_len;
+                self.last_buffer_last_sample = self.last_sample;
+                (true, 0, buffer_sample_len)
             };
+
+        // TODO rehabilitate drain...
+        /*} else if self.samples.len() + incoming_samples.len() > self.capacity
+            && self.samples_extractor_opt.as_ref().unwrap().get_first_sample()
+                > self.first_sample + self.drain_size
+        {   // buffer will reach capacity => drain a chunk of samples
+            // only if we have samples in history
+            // TODO: it could be worse testing truncate instead
+            // (this would require reversing the buffer alimentation
+            // and iteration)
+            self.samples.drain(..self.drain_size);
+            self.first_sample += self.drain_size;
+            false*/
 
         #[cfg(feature = "profiling-audio-buffer")]
         let before_storage = Utc::now();
 
-        // normalize samples in range 0f64..1f64 ready to render
+        // normalize samples in range 0f64..SAMPLES_NORM ready to render
+        // TODO: this depends on the actual context (Waveform rendering)
+        // do this in a concrete implementation
 
         // FIXME: use gstreamer downmix
         // FIXME: select the channels using the position info
         // if more than 2 channels,
-        // Use 75% for first 2 channels (assumeing front left and front right)
+        // Use 75% for first 2 channels (assuming front left and front right)
         // Use 25% for the others
         let (front_norm_factor, others_norm_factor, front_channels) =
             if self.channels > 2 {
@@ -184,28 +220,48 @@ impl AudioBuffer {
                 )
             };
 
-        let mut norm_sample;
-        let mut index = 0;
-        while index < incoming_samples.len() {
-            norm_sample = 0f64;
+        // Update container using the conditions identified above
+        if !first_sample_changed || self.samples.is_empty()
+        {   // samples can be push back to the container
+            let mut norm_sample;
+            let mut index = first_sample_to_add_rel * self.channels;
+            let last = last_sample_to_add_rel * self.channels;
+            while index < last {
+                norm_sample = 0f64;
 
-            for _ in 0..front_channels {
-                norm_sample += f64::from(incoming_samples[index]) * front_norm_factor;
-                index += 1;
-            }
-            for _ in front_channels..self.channels {
-                norm_sample += f64::from(incoming_samples[index]) * others_norm_factor;
-                index += 1;
-            }
-            self.samples.push_back(SAMPLES_OFFSET - norm_sample);
-        };
+                for _ in 0..front_channels {
+                    norm_sample += f64::from(incoming_samples[index]) * front_norm_factor;
+                    index += 1;
+                }
+                for _ in front_channels..self.channels {
+                    norm_sample += f64::from(incoming_samples[index]) * others_norm_factor;
+                    index += 1;
+                }
+                self.samples.push_back(SAMPLES_OFFSET - norm_sample);
+            };
+        } else
+        {   // samples must be inserted at the begining
+            // => push front in reverse order
+            let mut norm_sample;
+            let mut index = last_sample_to_add_rel * self.channels - 1;
+            let first = first_sample_to_add_rel * self.channels;
+            while index >= first {
+                norm_sample = 0f64;
 
-        self.last_sample = self.first_sample + self.samples.len();
+                for _ in front_channels..self.channels {
+                    norm_sample += f64::from(incoming_samples[index]) * others_norm_factor;
+                    index -= 1;
+                }
+                for _ in 0..front_channels {
+                    norm_sample += f64::from(incoming_samples[index]) * front_norm_factor;
+                    index -= 1;
+                }
+                self.samples.push_front(SAMPLES_OFFSET - norm_sample);
+            };
+        }
 
-        // resync first_pts for each buffer because each stream has its own
-        // rounding strategy
-        self.last_pts = first_pts + buffer.get_duration();
 
+        // Trigger specific buffer extraction
         #[cfg(feature = "profiling-audio-buffer")]
         let before_extract = Utc::now();
 

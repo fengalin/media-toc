@@ -111,7 +111,7 @@ impl WaveformBuffer {
                 let sample_sought = first_visible_sample + (x as usize) * self.sample_step;
                 self.sample_sought = Some(sample_sought);
                 println!("first_sample_lock: {}, sample_sought {}", self.first_sample, sample_sought);
-                Some(sample_sought as u64 * self.state.sample_duration_u)
+                Some((sample_sought as f64 * self.state.sample_duration) as u64)
             },
             None => None,
         }
@@ -324,8 +324,6 @@ impl WaveformBuffer {
                 // Initialization or resolution has changed or seek requested
                 // redraw the whole range
 
-                println!("redraw");
-
                 // clear the image
                 cr.set_source_rgb(
                     BACKGROUND_COLOR.0,
@@ -507,9 +505,8 @@ impl SamplesExtractor for WaveformBuffer {
 
     fn extract_samples(&mut self, audio_buffer: &AudioBuffer) {
         let (first_visible_sample, last_sample, sample_step) = {
-            if self.state.sample_duration_u == 0 {
+            if self.state.sample_duration == 0f64 {
                 self.state.sample_duration = audio_buffer.sample_duration;
-                self.state.sample_duration_u = audio_buffer.sample_duration_u;
             }
 
             if self.requested_sample_window == 0 {
@@ -519,7 +516,7 @@ impl SamplesExtractor for WaveformBuffer {
 
             // use an integer number of samples per step
             let sample_step = (
-                self.requested_step_duration / self.state.sample_duration_u
+                self.requested_step_duration as f64 / self.state.sample_duration
             ) as usize;
 
             if audio_buffer.samples.len() < sample_step {
@@ -576,7 +573,7 @@ impl SamplesExtractor for WaveformBuffer {
                         )
                     } else {
                         // not able to merge buffer with current waveform
-                        println!("not able to merge");
+                        //println!("not able to merge");
                         (
                             audio_buffer.first_sample,
                             audio_buffer.last_sample

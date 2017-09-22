@@ -79,8 +79,6 @@ unsafe impl Sync for DoubleSampleExtractor {}
 
 pub struct SamplesExtractionState {
     pub sample_duration: f64,
-    pub sample_duration_u: u64,
-
     audio_sink: Option<gst::Element>,
     position_query: gst::Query,
 }
@@ -89,8 +87,6 @@ impl SamplesExtractionState {
     pub fn new() -> Self {
         SamplesExtractionState {
             sample_duration: 0f64,
-            sample_duration_u: 0,
-
             audio_sink: None,
             position_query: gst::Query::new_position(gst::Format::Time),
         }
@@ -110,7 +106,6 @@ pub trait SamplesExtractor: Send {
         // clear for reuse
         let state = self.get_extraction_state_mut();
         state.sample_duration = 0f64;
-        state.sample_duration_u = 0;
         state.audio_sink = None;
     }
 
