@@ -275,13 +275,12 @@ impl AudioBuffer {
         let end = Utc::now();
 
         #[cfg(feature = "profiling-audio-buffer")]
-        println!("audio-buffer,{},{},{},{},{},{}",
+        println!("audio-buffer,{},{},{},{},{}",
             start.time().format("%H:%M:%S%.6f"),
             before_drain.time().format("%H:%M:%S%.6f"),
             before_storage.time().format("%H:%M:%S%.6f"),
             before_extract.time().format("%H:%M:%S%.6f"),
             end.time().format("%H:%M:%S%.6f"),
-            index
         );
     }
 
