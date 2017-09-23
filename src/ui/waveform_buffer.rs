@@ -7,10 +7,10 @@ use std::any::Any;
 
 use std::sync::{Arc, Mutex};
 
-use ::media::{AudioBuffer, SAMPLES_NORM};
+use media::{AudioBuffer, SAMPLES_NORM};
 
-use ::media::{DoubleSampleExtractor, SamplesExtractor};
-use ::media::samples_extractor::SamplesExtractionState;
+use media::{DoubleSampleExtractor, SamplesExtractor};
+use media::samples_extractor::SamplesExtractionState;
 
 pub const BACKGROUND_COLOR: (f64, f64, f64) = (0.2f64, 0.2235f64, 0.2314f64);
 
@@ -42,6 +42,7 @@ pub struct WaveformBuffer {
     half_requested_sample_window: usize,
     requested_step_duration: u64,
     sample_step: usize,
+    sample_step_f: f64,
 
     width: i32,
     height: i32,
@@ -67,6 +68,7 @@ impl WaveformBuffer {
             half_requested_sample_window: 0,
             requested_step_duration: 0,
             sample_step: 0,
+            sample_step_f: 0f64,
 
             width: 0,
             height: 0,
@@ -92,6 +94,7 @@ impl WaveformBuffer {
         self.half_requested_sample_window = 0;
         self.requested_step_duration = 0;
         self.sample_step = 0;
+        self.sample_step_f = 0f64;
 
         self.width = 0;
         self.height = 0;
@@ -112,7 +115,7 @@ impl WaveformBuffer {
                 self.sample_sought = Some(sample_sought);
                 Some((sample_sought as f64 * self.state.sample_duration) as u64)
             },
-            None => None,
+            None => None
         }
     }
 
@@ -217,7 +220,7 @@ impl WaveformBuffer {
         duration: u64,
         width: i32,
         height: i32,
-    ) -> Option<(usize, usize)> // (x_offset, current_x)
+    ) -> Option<(f64, f64)> // (x_offset, current_x)
     {
         {
             self.width = width;
@@ -240,13 +243,12 @@ impl WaveformBuffer {
 
         match self.get_first_visible_sample() {
             Some(first_visible_sample) => {
+                let first_visible_sample_f = first_visible_sample as f64;
                 Some((
-                    (first_visible_sample - self.first_sample) / self.sample_step, // x_offset
-                    if self.current_sample > first_visible_sample { // current_x
-                        (self.current_sample - first_visible_sample) / self.sample_step
-                    } else {
-                        0
-                    },
+                    (first_visible_sample_f - self.first_sample as f64)
+                        / self.sample_step_f, // x_offset
+                    (self.current_sample as f64 - first_visible_sample_f)
+                        / self.sample_step_f, // current_x
                 ))
             },
             None => None,
@@ -323,6 +325,7 @@ impl WaveformBuffer {
                 cr.paint();
 
                 self.sample_step = sample_step;
+                self.sample_step_f = sample_step as f64;
                 self.first_sample = first_sample;
                 self.last_sample = last_sample;
 
@@ -344,6 +347,7 @@ impl WaveformBuffer {
 
                     if first_sample < self.first_sample {
                         // append samples before previous first sample
+                        println!("append samples before previous first sample");
 
                         let image_width_as_samples =
                             working_image.get_width() as usize * sample_step;
@@ -485,6 +489,7 @@ impl SamplesExtractor for WaveformBuffer {
             self.half_requested_sample_window = other.half_requested_sample_window;
             self.requested_step_duration = other.requested_step_duration;
             self.sample_step = other.sample_step;
+            self.sample_step_f = other.sample_step_f;
             self.width = other.width;
             self.height = other.height;
 

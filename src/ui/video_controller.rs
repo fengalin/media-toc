@@ -1,7 +1,7 @@
 extern crate gtk;
 use gtk::WidgetExt;
 
-use ::media::Context;
+use media::Context;
 
 pub struct VideoController {
     container: gtk::Container,

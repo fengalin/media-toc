@@ -14,8 +14,8 @@ use std::sync::mpsc::{channel, Receiver};
 
 use gtk::prelude::*;
 
-use ::media::{Context, ContextMessage};
-use ::media::ContextMessage::*;
+use media::{Context, ContextMessage};
+use media::ContextMessage::*;
 
 use super::{AudioController, DoubleWaveformBuffer, InfoController, VideoController};
 
@@ -178,8 +178,9 @@ impl MainController {
             for message in ui_rx.try_iter() {
                 match message {
                     AsyncDone => {
-                        this_rc.borrow_mut().seeking = false;
-                        this_rc.borrow().audio_ctrl.tic();
+                        let mut this_mut = this_rc.borrow_mut();
+                        this_mut.seeking = false;
+                        this_mut.audio_ctrl.tic();
                     },
                     InitDone => {
                         let mut this_mut = this_rc.borrow_mut();

@@ -35,7 +35,7 @@ dependencies = [
  "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -67,22 +67,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "cairo-rs"
 version = "0.2.0"
-source = "git+https://github.com/fengalin/cairo.git?branch=cairo_pr_153#7a941e7057bc61b19412e42df0ce7f69ecb3108a"
+source = "git+https://github.com/fengalin/cairo.git?branch=cairo_pr_153#a451af8dde59d166539058ea9387e96983171402"
 dependencies = [
  "c_vec 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cairo-sys-rs 0.4.0 (git+https://github.com/fengalin/cairo.git?branch=cairo_pr_153)",
  "glib 0.3.0 (git+https://github.com/fengalin/glib.git?branch=cairo_pr_153)",
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "winapi 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "cairo-sys-rs"
 version = "0.4.0"
-source = "git+https://github.com/fengalin/cairo.git?branch=cairo_pr_153#7a941e7057bc61b19412e42df0ce7f69ecb3108a"
+source = "git+https://github.com/fengalin/cairo.git?branch=cairo_pr_153#a451af8dde59d166539058ea9387e96983171402"
 dependencies = [
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "winapi 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -125,7 +125,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "deflate"
-version = "0.7.16"
+version = "0.7.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "adler32 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -164,7 +164,7 @@ dependencies = [
  "glib 0.3.0 (git+https://github.com/fengalin/glib.git?branch=cairo_pr_153)",
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "pango 0.2.0 (git+https://github.com/fengalin/pango?branch=cairo_pr_153)",
 ]
 
@@ -177,7 +177,7 @@ dependencies = [
  "glib 0.3.0 (git+https://github.com/fengalin/glib.git?branch=cairo_pr_153)",
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -189,7 +189,7 @@ dependencies = [
  "gio-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -204,7 +204,7 @@ dependencies = [
  "gio-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "pango-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -228,7 +228,7 @@ dependencies = [
  "glib 0.3.0 (git+https://github.com/fengalin/glib.git?branch=cairo_pr_153)",
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -239,7 +239,7 @@ dependencies = [
  "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -252,7 +252,7 @@ dependencies = [
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "lazy_static 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -261,7 +261,7 @@ version = "0.4.0"
 source = "git+https://github.com/fengalin/sys?branch=cairo_pr_153#31c6fd3f216fa09d07b52ec2288a5dbfcfe297e8"
 dependencies = [
  "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -272,7 +272,7 @@ source = "git+https://github.com/fengalin/sys?branch=cairo_pr_153#31c6fd3f216fa0
 dependencies = [
  "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -287,7 +287,7 @@ dependencies = [
  "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gstreamer-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)",
  "lazy_static 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-rational 0.1.39 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -305,7 +305,7 @@ dependencies = [
  "gstreamer-base 0.9.0 (git+https://github.com/fengalin/gstreamer-rs.git?branch=cairo_pr_153)",
  "gstreamer-base-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)",
  "gstreamer-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -316,7 +316,7 @@ dependencies = [
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gstreamer-base-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)",
  "gstreamer-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -345,7 +345,7 @@ dependencies = [
  "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gstreamer-base-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)",
  "gstreamer-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -372,7 +372,7 @@ dependencies = [
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gstreamer-sys 0.3.0 (git+https://github.com/fengalin/gstreamer-sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -384,7 +384,7 @@ dependencies = [
  "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -406,7 +406,7 @@ dependencies = [
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gtk-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "pango 0.2.0 (git+https://github.com/fengalin/pango?branch=cairo_pr_153)",
 ]
 
@@ -423,7 +423,7 @@ dependencies = [
  "gio-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "pango-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -484,7 +484,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "libc"
-version = "0.2.30"
+version = "0.2.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -568,7 +568,7 @@ name = "num_cpus"
 version = "1.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -585,7 +585,7 @@ dependencies = [
  "glib 0.3.0 (git+https://github.com/fengalin/glib.git?branch=cairo_pr_153)",
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "pango-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
 ]
 
@@ -597,7 +597,7 @@ dependencies = [
  "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
  "gobject-sys 0.4.0 (git+https://github.com/fengalin/sys?branch=cairo_pr_153)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -617,7 +617,7 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "deflate 0.7.16 (registry+https://github.com/rust-lang/crates.io-index)",
+ "deflate 0.7.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "inflate 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-iter 0.1.34 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -627,7 +627,7 @@ name = "rand"
 version = "0.3.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "magenta 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -647,7 +647,7 @@ dependencies = [
  "coco 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_cpus 1.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -673,7 +673,7 @@ version = "0.1.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "kernel32-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "redox_syscall 0.1.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "winapi 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -727,7 +727,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum color_quant 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a475fc4af42d83d28adf72968d9bcfaf035a1a9381642d8e85d8a04957767b0d"
 "checksum conv 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "78ff10625fd0ac447827aa30ea8b861fead473bb60aeb73af6c1c58caf0d1299"
 "checksum custom_derive 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "ef8ae57c4978a2acd8b869ce6b9ca1dfe817bff704c220209fdef2c0b75a01b9"
-"checksum deflate 0.7.16 (registry+https://github.com/rust-lang/crates.io-index)" = "c4b2a7e3365fa1e8afd32147b543adaa3390f0115e8af5884abc2f854052792b"
+"checksum deflate 0.7.17 (registry+https://github.com/rust-lang/crates.io-index)" = "4dddda59aaab719767ab11d3efd9a714e95b610c4445d4435765021e9d52dfb1"
 "checksum either 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "18785c1ba806c258137c937e44ada9ee7e69a37e3c72077542cd2f069d78562a"
 "checksum enum_primitive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "be4551092f4d519593039259a9ed8daedf0da12e5109c5280338073eaeb81180"
 "checksum futures 0.1.16 (registry+https://github.com/rust-lang/crates.io-index)" = "05a23db7bd162d4e8265968602930c476f688f0c180b44bdaf55e0cb2c687558"
@@ -757,7 +757,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum jpeg-decoder 0.1.13 (registry+https://github.com/rust-lang/crates.io-index)" = "2805ccb10ffe4d10e06ef68a158ff94c255211ecbae848fbde2146b098f93ce7"
 "checksum kernel32-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
 "checksum lazy_static 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)" = "3b37545ab726dd833ec6420aaba8231c5b320814b9029ad585555d2a03e94fbf"
-"checksum libc 0.2.30 (registry+https://github.com/rust-lang/crates.io-index)" = "2370ca07ec338939e356443dac2296f581453c35fe1e3a3ed06023c49435f915"
+"checksum libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)" = "d1419b2939a0bc44b77feb34661583c7546b532b192feab36249ab584b86856c"
 "checksum lzw 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7d947cbb889ed21c2a84be6ffbaebf5b4e0f4340638cba0444907e38b56be084"
 "checksum magenta 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4bf0336886480e671965f794bc9b6fce88503563013d1bfb7a502c81fe3ac527"
 "checksum magenta-sys 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "40d014c7011ac470ae28e2f76a02bfea4a8480f73e701353b49ad7a8d75f4699"

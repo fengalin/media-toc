@@ -13,9 +13,9 @@ use std::cell::RefCell;
 
 use std::sync::{Arc, Mutex};
 
-use ::media::{Context, SamplesExtractor};
+use media::{Context, SamplesExtractor};
 
-use super::{MainController, WaveformBuffer};
+use ui::{MainController, WaveformBuffer};
 
 pub struct AudioController {
     container: gtk::Container,
@@ -93,6 +93,14 @@ impl AudioController {
         }
     }
 
+    pub fn block_rendering(&mut self) {
+        self.is_active = false;
+    }
+
+    pub fn allow_rendering(&mut self) {
+        self.is_active = true;
+    }
+
     pub fn tic(&self) {
         if self.is_active {
             self.drawingarea.queue_draw();
@@ -146,7 +154,7 @@ impl AudioController {
                         None => return Inhibit(false),
                     };
 
-                    cr.set_source_surface(image, -(x_offset as f64), 0f64);
+                    cr.set_source_surface(image, -x_offset, 0f64);
                     cr.paint();
 
                     current_x
@@ -162,9 +170,8 @@ impl AudioController {
         cr.scale(1f64, f64::from(allocation.height));
         cr.set_source_rgb(1f64, 1f64, 0f64);
         cr.set_line_width(1f64);
-        let current_pos = current_x as f64;
-        cr.move_to(current_pos, 0f64);
-        cr.line_to(current_pos, 1f64);
+        cr.move_to(current_x, 0f64);
+        cr.line_to(current_x, 1f64);
         cr.stroke();
 
         #[cfg(feature = "profiling-audio-draw")]

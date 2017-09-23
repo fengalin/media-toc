@@ -4,7 +4,7 @@ use gtk::prelude::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use ::media::{Context, Timestamp};
+use media::{Context, Timestamp};
 
 use super::{ImageSurface, MainController};
 
