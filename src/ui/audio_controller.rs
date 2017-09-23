@@ -140,7 +140,7 @@ impl AudioController {
         #[cfg(feature = "profiling-audio-draw")]
         let mut _before_image = Utc::now();
 
-        let current_x = {
+        let current_x_opt = {
             let waveform_buffer_grd = &mut *waveform_buffer_mtx.lock()
                 .expect("Couldn't lock waveform buffer in audio controller draw");
             let waveform_buffer = waveform_buffer_grd
@@ -156,7 +156,7 @@ impl AudioController {
                         allocation.height,
                 )
             {
-                Some((x_offset, current_x)) => {
+                Some((x_offset, current_x_opt)) => {
                     #[cfg(feature = "profiling-audio-draw")]
                     let _before_image = Utc::now();
 
@@ -171,7 +171,7 @@ impl AudioController {
                     cr.set_source_surface(image, -x_offset, 0f64);
                     cr.paint();
 
-                    current_x
+                    current_x_opt
                 },
                 None => {
                     AudioController::clean_cairo_context(cr);
@@ -183,13 +183,15 @@ impl AudioController {
         #[cfg(feature = "profiling-audio-draw")]
         let before_pos = Utc::now();
 
-        // draw current pos
-        cr.scale(1f64, f64::from(allocation.height));
-        cr.set_source_rgb(1f64, 1f64, 0f64);
-        cr.set_line_width(1f64);
-        cr.move_to(current_x, 0f64);
-        cr.line_to(current_x, 1f64);
-        cr.stroke();
+        if let Some(current_x) = current_x_opt {
+            // draw current pos
+            cr.scale(1f64, f64::from(allocation.height));
+            cr.set_source_rgb(1f64, 1f64, 0f64);
+            cr.set_line_width(1f64);
+            cr.move_to(current_x, 0f64);
+            cr.line_to(current_x, 1f64);
+            cr.stroke();
+        }
 
         #[cfg(feature = "profiling-audio-draw")]
         let end = Utc::now();

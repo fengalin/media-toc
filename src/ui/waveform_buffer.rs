@@ -222,7 +222,7 @@ impl WaveformBuffer {
         duration: u64,
         width: i32,
         height: i32,
-    ) -> Option<(f64, f64)> // (x_offset, current_x)
+    ) -> Option<(f64, Option<f64>)> // (x_offset, current_x_opt)
     {
         {
             self.width = width;
@@ -250,8 +250,8 @@ impl WaveformBuffer {
                     Some((
                         (first_visible_sample_f - self.first_sample as f64)
                             / self.sample_step_f, // x_offset
-                        (self.current_sample as f64 - first_visible_sample_f)
-                            / self.sample_step_f, // current_x
+                        Some((self.current_sample as f64 - first_visible_sample_f)
+                            / self.sample_step_f), // current_x_opt
                     ))
                 },
                 None => None,
@@ -264,7 +264,7 @@ impl WaveformBuffer {
                     Some((
                         (first_visible_sample as f64 - self.first_sample as f64)
                             / self.sample_step_f, // x_offset
-                        -1f64, // current_x
+                        None, // current_x_opt
                     )),
                 None => None, // no lock, don't draw in order to avoid garbage
             }
