@@ -28,7 +28,7 @@ impl DoubleWaveformBuffer {
 
 pub struct WaveformBuffer {
     state: SamplesExtractionState,
-    first_sample_changed: bool,
+    is_seeking: bool,
 
     current_sample: usize,
     first_sample: usize,
@@ -53,7 +53,7 @@ impl WaveformBuffer {
     pub fn new() -> Self {
         WaveformBuffer {
             state: SamplesExtractionState::new(),
-            first_sample_changed: false,
+            is_seeking: false,
 
             current_sample: 0,
             first_sample: 0,
@@ -78,7 +78,7 @@ impl WaveformBuffer {
     pub fn cleanup(&mut self) {
         // clear for reuse
         self.cleanup_state();
-        self.first_sample_changed = false;
+        self.is_seeking = false;
 
         self.current_sample = 0;
         self.first_sample = 0;
@@ -110,7 +110,6 @@ impl WaveformBuffer {
                 self.first_sample_lock = Some(self.first_sample as i64);
                 let sample_sought = first_visible_sample + (x as usize) * self.sample_step;
                 self.sample_sought = Some(sample_sought);
-                println!("first_sample_lock: {}, sample_sought {}", self.first_sample, sample_sought);
                 Some((sample_sought as f64 * self.state.sample_duration) as u64)
             },
             None => None,
@@ -133,20 +132,12 @@ impl WaveformBuffer {
                     if center_offset < -(self.sample_step as i64) {
                         // cursor in first half of the window
                         // keep origin on the first sample upon seek
-                        println!("1st half offset: {}, first_sample_lock {}, lock first sample {}, current_sample: {}", center_offset, first_sample_lock, first_sample_lock, self.current_sample);
                         // this is in case we move to the 2d half
                         self.sample_sought = Some(self.current_sample);
-                        Some(
-                            if first_sample_lock >= 0 { // TODO: this should not be necessary
-                                (first_sample_lock as usize).max(self.first_sample)
-                            } else {
-                                self.first_sample
-                            }
-                        )
+                        Some((first_sample_lock as usize).max(self.first_sample))
                     } else if (center_offset as usize) < self.sample_step {
                         // reached the center => keep cursor there
                         self.first_sample_lock = None;
-                        println!("center offset: {} back to center", center_offset);
                         Some(
                             (
                                 self.current_sample
@@ -323,8 +314,6 @@ impl WaveformBuffer {
                 // Initialization or resolution has changed or seek requested
                 // redraw the whole range
 
-                println!("redraw");
-
                 // clear the image
                 cr.set_source_rgb(
                     BACKGROUND_COLOR.0,
@@ -355,7 +344,6 @@ impl WaveformBuffer {
 
                     if first_sample < self.first_sample {
                         // append samples before previous first sample
-                        println!("appending samples before previous first sample");
 
                         let image_width_as_samples =
                             working_image.get_width() as usize * sample_step;
@@ -385,7 +373,7 @@ impl WaveformBuffer {
 
                         let previous_first_sample = self.first_sample;
                         let previous_last_sample = self.last_sample;
-                        // Note: image width is such a way that samples in
+                        // Note: image width is such that samples in
                         // (first_sample, last_sample) can all be rendered
                         self.first_sample = first_sample;
                         self.last_sample = last_sample;
@@ -482,8 +470,8 @@ impl SamplesExtractor for WaveformBuffer {
         self.first_sample
     }
 
-    fn set_first_sample_changed(&mut self) {
-        self.first_sample_changed = true;
+    fn set_is_seeking(&mut self) {
+        self.is_seeking = true;
     }
 
     fn update_concrete_state(&mut self, other: &mut Box<SamplesExtractor>) {
@@ -525,7 +513,7 @@ impl SamplesExtractor for WaveformBuffer {
                 return;
             }
 
-            if self.first_sample_changed {
+            if self.is_seeking {
                 // upstream buffer's first sample has changed
                 //  => force current sample query
                 self.current_sample = self.query_current_sample();
@@ -538,14 +526,13 @@ impl SamplesExtractor for WaveformBuffer {
             )
             {   // seeking out of previous window
                 // clear previous seeking constraint in current window
-                println!("clearing first_sample_lock");
                 self.first_sample_lock = None;
                 self.sample_sought = None;
             } // else still in current window => don't worry
 
             // see how buffers can merge
             let (first_sample, last_sample) =
-                if !self.first_sample_changed {
+                if !self.is_seeking {
                     // samples appended at the end of the buffer
                     // might use them for current waveform
                     (
@@ -560,21 +547,23 @@ impl SamplesExtractor for WaveformBuffer {
                     {   // new origin further than current
                         // but buffer can be merged with current waveform
                         // or is contained in current waveform
+                        //println!("AudioWaveform seeking: can merge to the right");
                         (
                             self.first_sample,
                             audio_buffer.last_sample.max(self.last_sample)
                         )
                     } else if audio_buffer.first_sample < self.first_sample
                     && audio_buffer.last_sample >= self.first_sample
-                    {   // samples appended at the begining of the buffer
-                        // and can be merge with current waveform
+                    {   // current waveform overlaps with buffer on its left
+                        // or is contained in buffer
+                        //println!("AudioWaveform seeking: can merge to the left");
                         (
                             audio_buffer.first_sample,
                             audio_buffer.last_sample.max(self.last_sample)
                         )
                     } else {
                         // not able to merge buffer with current waveform
-                        //println!("not able to merge");
+                        //println!("AudioWaveform seeking: not able to merge");
                         (
                             audio_buffer.first_sample,
                             audio_buffer.last_sample
@@ -677,6 +666,6 @@ impl SamplesExtractor for WaveformBuffer {
             sample_step
         );
 
-        self.first_sample_changed = false;
+        self.is_seeking = false;
     }
 }

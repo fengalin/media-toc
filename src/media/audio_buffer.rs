@@ -114,18 +114,23 @@ impl AudioBuffer {
         //    cleared first.
         // 6. The internal container is empty, import incoming buffer
         //    completely.
-        let (first_sample_changed, first_sample_to_add_rel, last_sample_to_add_rel) =
+        let (
+            first_sample_changed,
+            is_seeking,
+            first_sample_to_add_rel,
+            last_sample_to_add_rel
+        ) =
             if !self.samples.is_empty()
             {   // not initializing
-                let first_sample =
+                let (first_sample, is_seeking) =
                     if segment_first_sample == self.segement_first_sample {
                         // receiving next buffer in the same segment
-                        self.last_buffer_last_sample
+                        (self.last_buffer_last_sample, false)
                     } else {
                         // different segment (seeking)
                         self.segement_first_sample = segment_first_sample;
                         self.last_buffer_last_sample = segment_first_sample;
-                        segment_first_sample
+                        (segment_first_sample, true)
                     };
                 let last_sample = first_sample + buffer_sample_len;
 
@@ -135,41 +140,37 @@ impl AudioBuffer {
                     // self.first_sample unchanged
                     self.last_sample = last_sample;
                     self.last_buffer_last_sample = last_sample;
-                    (false, 0, buffer_sample_len)
+                    (false, is_seeking, 0, buffer_sample_len)
                 } else if first_sample >= self.first_sample
                 && last_sample <= self.last_sample {
                     // 2. incoming buffer included in current container
-                    println!("AudioBuffer incoming buffer included in current container");
                     self.last_buffer_last_sample = last_sample;
-                    return;
+                    (false, is_seeking, 0, 0)
                 } else if first_sample > self.first_sample
                 && first_sample < self.last_sample
                 {   // 3. can append [self.last_sample, last_sample] to the end
-                    println!("AudioBuffer 3 append to the end [self.last_sample: {}, last_sample: {}] (self.first_sample {}, segment_first_sample {})", self.last_sample, last_sample, self.first_sample, segment_first_sample);
                     // self.first_sample unchanged
                     let previous_last_sample = self.last_sample;
                     self.last_sample = last_sample;
                     // self.first_pts unchanged
                     self.last_buffer_last_sample = last_sample;
-                    (false, previous_last_sample - segment_first_sample, buffer_sample_len)
+                    (false, is_seeking, previous_last_sample - segment_first_sample, buffer_sample_len)
                 }
                 else if last_sample < self.last_sample
                 && last_sample > self.first_sample
                 {   // 4. can insert [first_sample, self.first_sample] to the begining
-                    println!("AudioBuffer 4. insert to the begining [first_sample, self.first_sample]");
                     let last_sample_to_add = self.first_sample;
                     self.first_sample = first_sample;
                     // self.last_sample unchanged
                     self.last_buffer_last_sample = last_sample;
-                    (true, 0, last_sample_to_add - segment_first_sample)
+                    (true, is_seeking, 0, last_sample_to_add - segment_first_sample)
                 } else {
                     // 5. can't merge with previous buffer
-                    println!("AudioBuffer 5. can't merge self.first_sample {}, self.last_sample {}, segment_first_sample {}, last_sample {}", self.first_sample, self.last_sample, segment_first_sample, last_sample);
                     self.samples.clear();
                     self.first_sample = first_sample;
                     self.last_sample = last_sample;
                     self.last_buffer_last_sample = last_sample;
-                    (true, 0, buffer_sample_len)
+                    (true, is_seeking, 0, buffer_sample_len)
                 }
             } else {
                 // 6. initializing
@@ -177,7 +178,7 @@ impl AudioBuffer {
                 self.first_sample = segment_first_sample;
                 self.last_sample = segment_first_sample + buffer_sample_len;
                 self.last_buffer_last_sample = self.last_sample;
-                (true, 0, buffer_sample_len)
+                (true, false, 0, buffer_sample_len)
             };
 
         // TODO rehabilitate drain...
@@ -205,61 +206,62 @@ impl AudioBuffer {
         // if more than 2 channels,
         // Use 75% for first 2 channels (assuming front left and front right)
         // Use 25% for the others
-        let (front_norm_factor, others_norm_factor, front_channels) =
-            if self.channels > 2 {
-                (
-                    0.75f64 / 2f64 / f64::from(i16::MAX) * SAMPLES_NORM / 2f64,
-                    0.25f64 / ((self.channels - 2) as f64) / f64::from(i16::MAX) * SAMPLES_NORM / 2f64,
-                    2
-                )
-            } else {
-                (
-                    1f64 / (self.channels as f64) / f64::from(i16::MAX) * SAMPLES_OFFSET,
-                    0f64,
-                    self.channels
-                )
-            };
+        if last_sample_to_add_rel > 0 {
+            let (front_norm_factor, others_norm_factor, front_channels) =
+                if self.channels > 2 {
+                    (
+                        0.75f64 / 2f64 / f64::from(i16::MAX) * SAMPLES_NORM / 2f64,
+                        0.25f64 / ((self.channels - 2) as f64) / f64::from(i16::MAX) * SAMPLES_NORM / 2f64,
+                        2
+                    )
+                } else {
+                    (
+                        1f64 / (self.channels as f64) / f64::from(i16::MAX) * SAMPLES_OFFSET,
+                        0f64,
+                        self.channels
+                    )
+                };
 
-        // Update container using the conditions identified above
-        if !first_sample_changed || self.samples.is_empty()
-        {   // samples can be push back to the container
-            let mut norm_sample;
-            let mut index = first_sample_to_add_rel * self.channels;
-            let last = last_sample_to_add_rel * self.channels;
-            while index < last {
-                norm_sample = 0f64;
+            // Update container using the conditions identified above
+            if !first_sample_changed || self.samples.is_empty()
+            {   // samples can be push back to the container
+                let mut norm_sample;
+                let mut index = first_sample_to_add_rel * self.channels;
+                let last = last_sample_to_add_rel * self.channels;
+                while index < last {
+                    norm_sample = 0f64;
 
-                for _ in 0..front_channels {
-                    norm_sample += f64::from(incoming_samples[index]) * front_norm_factor;
-                    index += 1;
-                }
-                for _ in front_channels..self.channels {
-                    norm_sample += f64::from(incoming_samples[index]) * others_norm_factor;
-                    index += 1;
-                }
-                self.samples.push_back(SAMPLES_OFFSET - norm_sample);
-            };
-        } else
-        {   // samples must be inserted at the begining
-            // => push front in reverse order
-            let mut norm_sample;
-            let mut index = last_sample_to_add_rel * self.channels - 1;
-            let first = first_sample_to_add_rel * self.channels;
-            while index >= first {
-                norm_sample = 0f64;
+                    for _ in 0..front_channels {
+                        norm_sample += f64::from(incoming_samples[index]) * front_norm_factor;
+                        index += 1;
+                    }
+                    for _ in front_channels..self.channels {
+                        norm_sample += f64::from(incoming_samples[index]) * others_norm_factor;
+                        index += 1;
+                    }
+                    self.samples.push_back(SAMPLES_OFFSET - norm_sample);
+                };
+            } else
+            {   // samples must be inserted at the begining
+                // => push front in reverse order
+                let mut norm_sample;
+                let mut index = last_sample_to_add_rel * self.channels - 1;
+                let first = first_sample_to_add_rel * self.channels;
+                while index >= first {
+                    norm_sample = 0f64;
 
-                for _ in front_channels..self.channels {
-                    norm_sample += f64::from(incoming_samples[index]) * others_norm_factor;
-                    index -= 1;
-                }
-                for _ in 0..front_channels {
-                    norm_sample += f64::from(incoming_samples[index]) * front_norm_factor;
-                    index -= 1;
-                }
-                self.samples.push_front(SAMPLES_OFFSET - norm_sample);
-            };
+                    for _ in front_channels..self.channels {
+                        norm_sample += f64::from(incoming_samples[index]) * others_norm_factor;
+                        index -= 1;
+                    }
+                    for _ in 0..front_channels {
+                        norm_sample += f64::from(incoming_samples[index]) * front_norm_factor;
+                        index -= 1;
+                    }
+                    self.samples.push_front(SAMPLES_OFFSET - norm_sample);
+                };
+            }
         }
-
 
         // Trigger specific buffer extraction
         #[cfg(feature = "profiling-audio-buffer")]
@@ -267,7 +269,7 @@ impl AudioBuffer {
 
         if !self.samples.is_empty() {
             let mut samples_extractor = self.samples_extractor_opt.take().unwrap();
-            samples_extractor.extract_samples(self, first_sample_changed);
+            samples_extractor.extract_samples(self, is_seeking);
             self.samples_extractor_opt = Some(samples_extractor);
         }
 
