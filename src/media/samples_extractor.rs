@@ -46,12 +46,9 @@ impl DoubleSampleExtractor {
         self.working_buffer.as_ref().unwrap().get_first_sample()
     }
 
-    pub fn extract_samples(&mut self, audio_buffer: &AudioBuffer, is_seeking: bool) {
+    pub fn extract_samples(&mut self, audio_buffer: &AudioBuffer) {
         let mut working_buffer = self.working_buffer.take()
             .expect("DoubleSampleExtractor: failed to take working buffer while updating");
-        if is_seeking {
-            working_buffer.set_is_seeking();
-        }
         working_buffer.extract_samples(audio_buffer);
 
         // swap buffers
@@ -64,11 +61,6 @@ impl DoubleSampleExtractor {
             mem::swap(exposed_buffer_box, &mut working_buffer);
         }
 
-        // also set is_seeking flag for previously exposed buffer
-        // in preparation for next samples extraction
-        if is_seeking {
-            working_buffer.set_is_seeking();
-        }
         self.working_buffer = Some(working_buffer);
         // self.working_buffer is now the buffer previously in
         // self.exposed_buffer_mtx
@@ -113,7 +105,6 @@ pub trait SamplesExtractor: Send {
         self.get_extraction_state_mut().set_audio_sink(audio_sink);
     }
 
-    fn set_is_seeking(&mut self);
     fn get_first_sample(&self) -> usize;
 
     // update self with concrete state of other

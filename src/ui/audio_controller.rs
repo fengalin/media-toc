@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex};
 
 use media::{Context, SamplesExtractor};
 
-use ui::{MainController, WaveformBuffer};
+use ui::{BACKGROUND_COLOR, MainController, WaveformBuffer};
 
 pub struct AudioController {
     container: gtk::Container,
@@ -93,18 +93,28 @@ impl AudioController {
         }
     }
 
-    pub fn block_rendering(&mut self) {
-        self.is_active = false;
-    }
-
-    pub fn allow_rendering(&mut self) {
-        self.is_active = true;
+    pub fn seeking(&self) {
+        let waveform_buffer_grd = &mut *self.waveform_buffer_mtx.lock()
+            .expect("Couldn't lock waveform buffer in audio controller seeking");
+        waveform_buffer_grd
+            .as_mut_any().downcast_mut::<WaveformBuffer>()
+            .expect("SamplesExtratctor is not a waveform buffer in audio controller draw")
+            .start_seeking();
     }
 
     pub fn tic(&self) {
         if self.is_active {
             self.drawingarea.queue_draw();
         }
+    }
+
+    fn clean_cairo_context(cr: &cairo::Context) {
+        cr.set_source_rgb(
+            BACKGROUND_COLOR.0,
+            BACKGROUND_COLOR.1,
+            BACKGROUND_COLOR.2
+        );
+        cr.paint();
     }
 
     fn draw(
@@ -117,7 +127,8 @@ impl AudioController {
 
         let allocation = drawing_area.get_allocation();
         if allocation.width.is_negative() {
-            return Inhibit(false);
+            println!("negative allocation.width: {}", allocation.width);
+            return Inhibit(true);
         }
 
         let requested_duration = 2_000_000_000u64; // 2s
@@ -151,7 +162,10 @@ impl AudioController {
 
                     let image = match waveform_buffer.exposed_image.as_ref() {
                         Some(image) => image,
-                        None => return Inhibit(false),
+                        None => {
+                            AudioController::clean_cairo_context(cr);
+                            return Inhibit(true)
+                        },
                     };
 
                     cr.set_source_surface(image, -x_offset, 0f64);
@@ -159,7 +173,10 @@ impl AudioController {
 
                     current_x
                 },
-                None => return Inhibit(true),
+                None => {
+                    AudioController::clean_cairo_context(cr);
+                    return Inhibit(true)
+                },
             }
         };
 

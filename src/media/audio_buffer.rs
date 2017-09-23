@@ -116,21 +116,20 @@ impl AudioBuffer {
         //    completely.
         let (
             first_sample_changed,
-            is_seeking,
             first_sample_to_add_rel,
             last_sample_to_add_rel
         ) =
             if !self.samples.is_empty()
             {   // not initializing
-                let (first_sample, is_seeking) =
+                let first_sample =
                     if segment_first_sample == self.segement_first_sample {
                         // receiving next buffer in the same segment
-                        (self.last_buffer_last_sample, false)
+                        self.last_buffer_last_sample
                     } else {
-                        // different segment (seeking)
+                        // different segment (done seeking)
                         self.segement_first_sample = segment_first_sample;
                         self.last_buffer_last_sample = segment_first_sample;
-                        (segment_first_sample, true)
+                        segment_first_sample
                     };
                 let last_sample = first_sample + buffer_sample_len;
 
@@ -140,12 +139,12 @@ impl AudioBuffer {
                     // self.first_sample unchanged
                     self.last_sample = last_sample;
                     self.last_buffer_last_sample = last_sample;
-                    (false, is_seeking, 0, buffer_sample_len)
+                    (false, 0, buffer_sample_len)
                 } else if first_sample >= self.first_sample
                 && last_sample <= self.last_sample {
                     // 2. incoming buffer included in current container
                     self.last_buffer_last_sample = last_sample;
-                    (false, is_seeking, 0, 0)
+                    (false, 0, 0)
                 } else if first_sample > self.first_sample
                 && first_sample < self.last_sample
                 {   // 3. can append [self.last_sample, last_sample] to the end
@@ -154,7 +153,7 @@ impl AudioBuffer {
                     self.last_sample = last_sample;
                     // self.first_pts unchanged
                     self.last_buffer_last_sample = last_sample;
-                    (false, is_seeking, previous_last_sample - segment_first_sample, buffer_sample_len)
+                    (false, previous_last_sample - segment_first_sample, buffer_sample_len)
                 }
                 else if last_sample < self.last_sample
                 && last_sample > self.first_sample
@@ -163,14 +162,14 @@ impl AudioBuffer {
                     self.first_sample = first_sample;
                     // self.last_sample unchanged
                     self.last_buffer_last_sample = last_sample;
-                    (true, is_seeking, 0, last_sample_to_add - segment_first_sample)
+                    (true, 0, last_sample_to_add - segment_first_sample)
                 } else {
                     // 5. can't merge with previous buffer
                     self.samples.clear();
                     self.first_sample = first_sample;
                     self.last_sample = last_sample;
                     self.last_buffer_last_sample = last_sample;
-                    (true, is_seeking, 0, buffer_sample_len)
+                    (true, 0, buffer_sample_len)
                 }
             } else {
                 // 6. initializing
@@ -178,7 +177,7 @@ impl AudioBuffer {
                 self.first_sample = segment_first_sample;
                 self.last_sample = segment_first_sample + buffer_sample_len;
                 self.last_buffer_last_sample = self.last_sample;
-                (true, false, 0, buffer_sample_len)
+                (true, 0, buffer_sample_len)
             };
 
         // TODO rehabilitate drain...
@@ -269,7 +268,7 @@ impl AudioBuffer {
 
         if !self.samples.is_empty() {
             let mut samples_extractor = self.samples_extractor_opt.take().unwrap();
-            samples_extractor.extract_samples(self, is_seeking);
+            samples_extractor.extract_samples(self);
             self.samples_extractor_opt = Some(samples_extractor);
         }
 
@@ -300,7 +299,7 @@ impl AudioBuffer {
             self.eos = true;
 
             let mut samples_extractor = self.samples_extractor_opt.take().unwrap();
-            samples_extractor.extract_samples(self, false);
+            samples_extractor.extract_samples(self);
             self.samples_extractor_opt = Some(samples_extractor);
         }
     }

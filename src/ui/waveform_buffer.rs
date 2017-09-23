@@ -34,7 +34,7 @@ pub struct WaveformBuffer {
     first_sample: usize,
     last_sample: usize,
     buffer_sample_window: usize,
-    first_sample_lock: Option<i64>,
+    first_visible_sample_lock: Option<i64>,
     sample_sought: Option<usize>,
 
     pub was_exposed: bool,
@@ -60,7 +60,7 @@ impl WaveformBuffer {
             first_sample: 0,
             last_sample: 0,
             buffer_sample_window: 0,
-            first_sample_lock: None,
+            first_visible_sample_lock: None,
             sample_sought: None,
 
             was_exposed: false,
@@ -86,7 +86,7 @@ impl WaveformBuffer {
         self.first_sample = 0;
         self.last_sample = 0;
         self.buffer_sample_window = 0;
-        self.first_sample_lock = None;
+        self.first_visible_sample_lock = None;
         self.sample_sought = None;
 
         self.was_exposed = false;
@@ -106,13 +106,18 @@ impl WaveformBuffer {
         self.was_exposed = false;
     }
 
+    pub fn start_seeking(&mut self) {
+        self.is_seeking = true;
+    }
+
     // mark seek in window and return position if applicable
     pub fn seek_in_window(&mut self, x: f64) -> Option<u64> {
         match self.get_first_visible_sample() {
             Some(first_visible_sample) => {
-                self.first_sample_lock = Some(self.first_sample as i64);
+                self.first_visible_sample_lock = Some(first_visible_sample as i64);
                 let sample_sought = first_visible_sample + (x as usize) * self.sample_step;
                 self.sample_sought = Some(sample_sought);
+                self.start_seeking();
                 Some((sample_sought as f64 * self.state.sample_duration) as u64)
             },
             None => None
@@ -127,20 +132,20 @@ impl WaveformBuffer {
 
             if self.current_sample >= self.first_sample {
                 // current sample appears after first buffer sample
-                if let Some(first_sample_lock) = self.first_sample_lock {
+                if let Some(first_visible_sample) = self.first_visible_sample_lock {
                     // adapt according to the evolution of the position
                     let center_offset = self.current_sample as i64
                         - self.half_requested_sample_window as i64
-                        - first_sample_lock;
+                        - first_visible_sample;
                     if center_offset < -(self.sample_step as i64) {
                         // cursor in first half of the window
                         // keep origin on the first sample upon seek
                         // this is in case we move to the 2d half
                         self.sample_sought = Some(self.current_sample);
-                        Some((first_sample_lock as usize).max(self.first_sample))
+                        Some((first_visible_sample as usize).max(self.first_sample))
                     } else if (center_offset as usize) < self.sample_step {
                         // reached the center => keep cursor there
-                        self.first_sample_lock = None;
+                        self.first_visible_sample_lock = None;
                         Some(
                             (
                                 self.current_sample
@@ -158,7 +163,7 @@ impl WaveformBuffer {
                             None => previous_cursor,
                         };
                         let previous_offset =
-                            previous_cursor as i64 - first_sample_lock;
+                            previous_cursor as i64 - first_visible_sample;
                         let delta_cursor =
                             if self.current_sample >= previous_cursor {
                                 self.current_sample - previous_cursor
@@ -169,7 +174,7 @@ impl WaveformBuffer {
                             self.current_sample as i64
                             - previous_offset
                             + delta_cursor as i64 / 2;
-                        self.first_sample_lock = Some(next_first_sample);
+                        self.first_visible_sample_lock = Some(next_first_sample);
 
                         Some(self.first_sample.max(next_first_sample as usize))
                     }
@@ -184,7 +189,6 @@ impl WaveformBuffer {
                         // set origin to the first sample in the buffer
                         // current sample will be displayed between the origin
                         // and the center
-                        // and discard any previous seek adjustment contraint
                         Some(self.first_sample)
                     }
                 } else if self.current_sample <= self.last_sample {
@@ -193,12 +197,10 @@ impl WaveformBuffer {
                     if self.buffer_sample_window >= self.requested_sample_window {
                         // buffer window is larger than requested_sample_window
                         // set last buffer to the right
-                        // and discard any previous seek adjustment contraint
                         Some(self.last_sample - self.requested_sample_window)
                     } else {
                         // buffer window is smaller than requested_sample_window
                         // set first sample to the left
-                        // and discard any previous seek adjustment contraint
                         Some(self.first_sample)
                     }
                 } else {
@@ -241,17 +243,31 @@ impl WaveformBuffer {
             self.half_requested_sample_window = self.requested_sample_window / 2;
         }
 
-        match self.get_first_visible_sample() {
-            Some(first_visible_sample) => {
-                let first_visible_sample_f = first_visible_sample as f64;
-                Some((
-                    (first_visible_sample_f - self.first_sample as f64)
-                        / self.sample_step_f, // x_offset
-                    (self.current_sample as f64 - first_visible_sample_f)
-                        / self.sample_step_f, // current_x
-                ))
-            },
-            None => None,
+        if !self.is_seeking {
+            match self.get_first_visible_sample() {
+                Some(first_visible_sample) => {
+                    let first_visible_sample_f = first_visible_sample as f64;
+                    Some((
+                        (first_visible_sample_f - self.first_sample as f64)
+                            / self.sample_step_f, // x_offset
+                        (self.current_sample as f64 - first_visible_sample_f)
+                            / self.sample_step_f, // current_x
+                    ))
+                },
+                None => None,
+            }
+        } else {
+            // seeking
+            match self.first_visible_sample_lock {
+                Some(first_visible_sample) =>
+                    // first sample is locked => can draw in last state
+                    Some((
+                        (first_visible_sample as f64 - self.first_sample as f64)
+                            / self.sample_step_f, // x_offset
+                        -1f64, // current_x
+                    )),
+                None => None, // no lock, don't draw in order to avoid garbage
+            }
         }
     }
 
@@ -311,18 +327,11 @@ impl WaveformBuffer {
         };
 
         let cr = cairo::Context::new(&working_image);
+
         let (mut sample_iter, mut x, clear_limit) =
             if must_redraw {
                 // Initialization or resolution has changed or seek requested
                 // redraw the whole range
-
-                // clear the image
-                cr.set_source_rgb(
-                    BACKGROUND_COLOR.0,
-                    BACKGROUND_COLOR.1,
-                    BACKGROUND_COLOR.2
-                );
-                cr.paint();
 
                 self.sample_step = sample_step;
                 self.sample_step_f = sample_step as f64;
@@ -331,8 +340,8 @@ impl WaveformBuffer {
 
                 (
                     audio_buffer.iter(first_sample, last_sample, sample_step),
-                    0f64,
-                    0f64,
+                    0f64, // first x to draw
+                    f64::from(working_image.get_width()), // clear_limit
                 )
             } else {
                 // can reuse previous context
@@ -413,8 +422,8 @@ impl WaveformBuffer {
 
         cr.scale(1f64, f64::from(self.height) / SAMPLES_NORM);
 
-        if !must_redraw {
-            // fill the rest of the image with background color
+        if x < clear_limit {
+            // clear uneeded samples previously rendered
             cr.set_source_rgb(
                 BACKGROUND_COLOR.0,
                 BACKGROUND_COLOR.1,
@@ -474,15 +483,12 @@ impl SamplesExtractor for WaveformBuffer {
         self.first_sample
     }
 
-    fn set_is_seeking(&mut self) {
-        self.is_seeking = true;
-    }
-
     fn update_concrete_state(&mut self, other: &mut Box<SamplesExtractor>) {
         let other = other.as_mut_any().downcast_mut::<WaveformBuffer>()
             .expect("WaveformBuffer.update_concrete_state: unable to downcast other ");
         if other.was_exposed {
-            self.first_sample_lock = other.first_sample_lock;
+            self.is_seeking = other.is_seeking;
+            self.first_visible_sample_lock = other.first_visible_sample_lock;
             self.sample_sought = other.sample_sought;
             self.current_sample = other.current_sample;
             self.requested_sample_window = other.requested_sample_window;
@@ -524,28 +530,29 @@ impl SamplesExtractor for WaveformBuffer {
                 self.current_sample = self.query_current_sample();
             }
 
-            if self.first_sample_lock.is_some()
+            if self.first_visible_sample_lock.is_some()
             && (
                 self.current_sample < self.first_sample
                 || self.current_sample > self.last_sample
             )
             {   // seeking out of previous window
                 // clear previous seeking constraint in current window
-                self.first_sample_lock = None;
+                self.first_visible_sample_lock = None;
                 self.sample_sought = None;
             } // else still in current window => don't worry
 
             // see how buffers can merge
             let (first_sample, last_sample) =
                 if !self.is_seeking {
-                    // samples appended at the end of the buffer
+                    // samples appended at the end of the audio buffer
                     // might use them for current waveform
                     (
                         audio_buffer.first_sample,
                         audio_buffer.last_sample
                     )
                 } else {
-                    // buffer origin has changed
+                    // buffer origin has changed (done seeking)
+                    self.is_seeking = false;
 
                     if audio_buffer.first_sample >= self.first_sample
                     && audio_buffer.first_sample < self.last_sample
@@ -581,7 +588,7 @@ impl SamplesExtractor for WaveformBuffer {
                 // draw the end of the buffer to fit in the requested width
                 // and adjust current position
 
-                self.first_sample_lock = None;
+                self.first_visible_sample_lock = None;
 
                 if self.current_sample >= first_sample
                 && self.current_sample < last_sample
@@ -589,9 +596,9 @@ impl SamplesExtractor for WaveformBuffer {
                     >= first_sample + self.half_requested_sample_window
                 {   // can set last sample to the right
                     (
-                        if let Some(first_sample_lock) = self.first_sample_lock {
+                        if let Some(first_visible_sample) = self.first_visible_sample_lock {
                             // an in-window seek constraint is pending
-                            first_sample_lock as usize
+                            first_visible_sample as usize
                         } else {
                             self.current_sample - self.half_requested_sample_window
                         },
@@ -599,7 +606,7 @@ impl SamplesExtractor for WaveformBuffer {
                         sample_step
                     )
                 } else { // set first sample to the left
-                    self.first_sample_lock = None;
+                    self.first_visible_sample_lock = None;
                     self.sample_sought = None;
 
                     (
@@ -619,9 +626,9 @@ impl SamplesExtractor for WaveformBuffer {
                     // for the delay when it will actually be drawn
                     // and for potentiel seek backward
                     let first_visible_sample =
-                        if let Some(first_sample_lock) = self.first_sample_lock {
+                        if let Some(first_visible_sample) = self.first_visible_sample_lock {
                             // an in-window seek constraint is pending
-                            first_sample_lock as usize
+                            first_visible_sample as usize
                         } else {
                             self.current_sample - self.half_requested_sample_window
                         };
@@ -636,7 +643,7 @@ impl SamplesExtractor for WaveformBuffer {
                 } else {
                     // not enough samples for the requested window
                     // around current position
-                    self.first_sample_lock = None;
+                    self.first_visible_sample_lock = None;
                     self.sample_sought = None;
 
                     (
@@ -670,7 +677,5 @@ impl SamplesExtractor for WaveformBuffer {
             last_sample / sample_step * sample_step,
             sample_step
         );
-
-        self.is_seeking = false;
     }
 }

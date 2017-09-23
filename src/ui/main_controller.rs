@@ -133,13 +133,12 @@ impl MainController {
     }
 
     pub fn seek(&mut self, position: u64) {
-        if !self.seeking {
-            self.seeking = true;
-            self.context.as_ref()
-                .expect("No context found while seeking in media")
-                .seek(position);
-            self.info_ctrl.seek(position);
-        } // else already seeking, wait for AsyncDone
+        self.seeking = true;
+        self.context.as_ref()
+            .expect("No context found while seeking in media")
+            .seek(position);
+        self.info_ctrl.seek(position);
+        self.audio_ctrl.seeking();
     }
 
     fn select_media(&mut self) {
@@ -178,9 +177,7 @@ impl MainController {
             for message in ui_rx.try_iter() {
                 match message {
                     AsyncDone => {
-                        let mut this_mut = this_rc.borrow_mut();
-                        this_mut.seeking = false;
-                        this_mut.audio_ctrl.tic();
+                        this_rc.borrow_mut().seeking = false;
                     },
                     InitDone => {
                         let mut this_mut = this_rc.borrow_mut();
@@ -255,8 +252,8 @@ impl MainController {
 
             if !this_mut.seeking {
                 this_mut.info_ctrl.tic(position);
-                this_mut.audio_ctrl.tic();
             }
+            this_mut.audio_ctrl.tic();
 
             #[cfg(feature = "profiling-tracker")]
             let end = Utc::now();
@@ -285,7 +282,7 @@ impl MainController {
 
         self.seeking = false;
         self.keep_going = true;
-        self.register_listener(500, ui_rx);
+        self.register_listener(250, ui_rx);
 
         match Context::new(
             filepath,
