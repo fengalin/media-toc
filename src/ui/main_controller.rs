@@ -74,6 +74,7 @@ impl MainController {
                 this_rc.borrow_mut().play_pause();
             });
 
+            this_mut.video_ctrl.register_callbacks(&this);
             this_mut.info_ctrl.register_callbacks(&this);
             this_mut.audio_ctrl.register_callbacks(&this);
         }
