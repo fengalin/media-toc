@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex};
 
 use media::{Context, SamplesExtractor};
 
-use ui::{BACKGROUND_COLOR, MainController, WaveformBuffer};
+use super::{BACKGROUND_COLOR, MainController, WaveformBuffer};
 
 pub struct AudioController {
     container: gtk::Container,

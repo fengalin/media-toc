@@ -6,7 +6,7 @@ use std::cell::RefCell;
 
 use media::Context;
 
-use ui::MainController;
+use super::MainController;
 
 pub struct VideoController {
     container: gtk::Container,

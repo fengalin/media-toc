@@ -286,9 +286,9 @@ impl AudioBuffer {
     }
 
     pub fn iter(&self, first: usize, last: usize, step: usize) -> Iter {
-        if first < self.first_sample {
+        /*if first < self.first_sample {
             println!("iter {}, {}", first, self.first_sample);
-        }
+        }*/
         assert!(first >= self.first_sample);
         let last = if last > first { last } else { first };
         Iter::new(self, first, last, step)

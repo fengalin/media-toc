@@ -135,11 +135,10 @@ impl MainController {
 
     pub fn seek(&mut self, position: u64) {
         self.seeking = true;
+        self.audio_ctrl.seeking();
         self.context.as_ref()
             .expect("No context found while seeking in media")
             .seek(position);
-        self.info_ctrl.seek(position);
-        self.audio_ctrl.seeking();
     }
 
     fn select_media(&mut self) {
@@ -178,7 +177,12 @@ impl MainController {
             for message in ui_rx.try_iter() {
                 match message {
                     AsyncDone => {
-                        this_rc.borrow_mut().seeking = false;
+                        let mut this_mut = this_rc.borrow_mut();
+                        let position = this_mut.context.as_mut()
+                            .expect("No context in listener while getting position")
+                            .get_position();
+                        this_mut.info_ctrl.seek(position);
+                        this_mut.seeking = false;
                     },
                     InitDone => {
                         let mut this_mut = this_rc.borrow_mut();
@@ -242,18 +246,15 @@ impl MainController {
             let mut this_mut = this_rc.borrow_mut();
 
             #[cfg(feature = "profiling-tracker")]
-            let before_position = Utc::now();
-
-            let position = this_mut.context.as_mut()
-                .expect("No context in tracker")
-                .get_position();
-
-            #[cfg(feature = "profiling-tracker")]
             let before_tic = Utc::now();
 
             if !this_mut.seeking {
+                let position = this_mut.context.as_mut()
+                    .expect("No context in tracker while getting position")
+                    .get_position();
                 this_mut.info_ctrl.tic(position);
             }
+
             this_mut.audio_ctrl.tic();
 
             #[cfg(feature = "profiling-tracker")]
@@ -262,7 +263,6 @@ impl MainController {
             #[cfg(feature = "profiling-tracker")]
             println!("tracker,{},{},{},{},{}",
                 start.time().format("%H:%M:%S%.6f"),
-                before_position.time().format("%H:%M:%S%.6f"),
                 before_tic.time().format("%H:%M:%S%.6f"),
                 end.time().format("%H:%M:%S%.6f"),
                 position,
