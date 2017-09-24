@@ -260,11 +260,10 @@ impl MainController {
             let end = Utc::now();
 
             #[cfg(feature = "profiling-tracker")]
-            println!("tracker,{},{},{},{}",
+            println!("tracker,{},{},{}",
                 start.time().format("%H:%M:%S%.6f"),
                 before_tic.time().format("%H:%M:%S%.6f"),
                 end.time().format("%H:%M:%S%.6f"),
-                position,
             );
 
             glib::Continue(this_mut.keep_going)
