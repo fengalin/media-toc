@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use super::AudioBuffer;
 
 // DoubleSampleExtractor hosts two SampleExtractors
-// that can be swapped to implement a double buffer mechanism
+// that can be swapped to implement a double buffering mechanism
 // which selects a subset of samples depending on external
 // conditions
 pub struct DoubleSampleExtractor {

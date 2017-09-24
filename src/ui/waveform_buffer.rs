@@ -26,6 +26,19 @@ impl DoubleWaveformBuffer {
     }
 }
 
+// A WaveformBuffer hosts one of the two buffers of the double buffering
+// mechanism based on the SamplesExtractor trait.
+// It is responsible for preparing an up to date Waveform image which will be
+// diplayed upon UI request. Up to date signifies that the Waveform image
+// contains all the samples that can fit in the target window at the specified
+// resolution for current playback position.
+// Whenever possible, the WaveformBuffer attempts to have the Waveform scroll
+// between frames with current playback position in the middle so that the
+// user can seek forward or backward around current position.
+// Since the nominal update is such that the Waveform scrolls between updates,
+// two images are used. Whenever possible, the next image to expose to the UI
+// is initialized as a translation of previous image and updated with missing
+// samples.
 pub struct WaveformBuffer {
     state: SamplesExtractionState,
     is_seeking: bool,
@@ -124,6 +137,8 @@ impl WaveformBuffer {
         }
     }
 
+    // Update to current position and compute the first
+    // sample to present for display.
     fn get_first_visible_sample(&mut self) -> Option<usize> {
         if self.exposed_image.is_some() {
             self.was_exposed = true;
@@ -218,6 +233,12 @@ impl WaveformBuffer {
         }
     }
 
+    // This function is to be called as close as possible to
+    // the actual presentation of the waveform.
+    // It allows the UI to pass updates on the target dimensions
+    // and resolution.
+    // It also get the sample at current position in order to
+    // adapt the the image previously rendered in extract_samples
     pub fn update_conditions(&mut self,
         duration: u64,
         width: i32,
@@ -271,12 +292,15 @@ impl WaveformBuffer {
         }
     }
 
+    // Render the waveform within the provided limits.
     // This function is called on a working buffer
-    // which means that self.exposed_image image is the image
-    // that was previously exposed to the UI
-    // this also means that we can safely deal with both
-    // images since none of them is exposed at this very moment
-    fn update_extraction(&mut self,
+    // which means that self.exposed_image is the image
+    // that was previously exposed to the UI.
+    // This also means that we can safely deal with both
+    // images since none of them is exposed at this very moment.
+    // The rendering process reuses the previously rendered image
+    // whenever possible.
+    fn render(&mut self,
         audio_buffer: &AudioBuffer,
         first_sample: usize,
         last_sample: usize,
@@ -503,6 +527,11 @@ impl SamplesExtractor for WaveformBuffer {
         } // else: other has nothing new
     }
 
+    // This is the entry point for the update of the waveform.
+    // This function tries to merge the samples added to the AudioBuffer
+    // since last extraction and adapt to the evolvin conditions of
+    // the playback position and target rendering dimensions and
+    // resolution.
     fn extract_samples(&mut self, audio_buffer: &AudioBuffer) {
         let (first_visible_sample, last_sample, sample_step) = {
             if self.state.sample_duration == 0f64 {
@@ -671,7 +700,7 @@ impl SamplesExtractor for WaveformBuffer {
             first_sample += sample_step;
         }
 
-        self.update_extraction(
+        self.render(
             audio_buffer,
             first_sample,
             last_sample / sample_step * sample_step,
