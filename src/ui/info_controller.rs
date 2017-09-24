@@ -87,7 +87,7 @@ impl InfoController {
         let main_ctrl_rc = Rc::clone(main_ctrl);
         self.timeline_scale.connect_change_value(move |_, _, value| {
             main_ctrl_rc.borrow_mut().seek(value as u64);
-            Inhibit(false)
+            Inhibit(true)
         });
 
         // TreeView seek
@@ -311,12 +311,12 @@ impl InfoController {
                     first_iter
                 };
 
-            let mut set_chapter = false;
+            let mut set_chapter_iter = false;
             while keep_going {
                 if position < self.chapter_store.get_value(&current_iter, 1)
                         .get::<u64>().unwrap()
                 {   // new position before selected chapter's start
-                    set_chapter = true;
+                    set_chapter_iter = true;
                     keep_going = false;
                 } else if position >= self.chapter_store.get_value(&current_iter, 1)
                         .get::<u64>().unwrap()
@@ -325,7 +325,7 @@ impl InfoController {
                 {   // after current start and before current end
                     self.chapter_treeview.get_selection()
                         .select_iter(&current_iter);
-                    set_chapter = true;
+                    set_chapter_iter = true;
                     keep_going = false;
                 } else {
                     if !self.chapter_store.iter_next(&current_iter) {
@@ -335,7 +335,7 @@ impl InfoController {
                 }
             }
 
-            if set_chapter {
+            if set_chapter_iter {
                 self.chapter_iter = Some(current_iter);
             }
         }

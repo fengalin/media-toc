@@ -139,6 +139,10 @@ impl MainController {
         self.context.as_ref()
             .expect("No context found while seeking in media")
             .seek(position);
+        // update position eventhough the stream
+        // is not sync yet for the user to notice
+        // the seek request in being handled
+        self.info_ctrl.seek(position);
     }
 
     fn select_media(&mut self) {
@@ -177,12 +181,7 @@ impl MainController {
             for message in ui_rx.try_iter() {
                 match message {
                     AsyncDone => {
-                        let mut this_mut = this_rc.borrow_mut();
-                        let position = this_mut.context.as_mut()
-                            .expect("No context in listener while getting position")
-                            .get_position();
-                        this_mut.info_ctrl.seek(position);
-                        this_mut.seeking = false;
+                        this_rc.borrow_mut().seeking = false;
                     },
                     InitDone => {
                         let mut this_mut = this_rc.borrow_mut();
