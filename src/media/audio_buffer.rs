@@ -230,7 +230,8 @@ impl AudioBuffer {
 
         // drain internal buffer if necessary and possible
         if !first_sample_changed
-        && self.samples.len() + buffer_sample_len > self.capacity
+        && self.samples.len() + last_sample_to_add_rel - first_sample_to_add_rel
+            > self.capacity
         {   // don't drain if samples are to be added at the begining...
             // drain only if we have enough samples in history
             // TODO: it could be worth testing truncate instead
