@@ -74,6 +74,9 @@ impl MainController {
                 this_rc.borrow_mut().play_pause();
             });
 
+            // TODO: add key bindings to seek by steps
+            // play/pause, etc.
+
             this_mut.video_ctrl.register_callbacks(&this);
             this_mut.info_ctrl.register_callbacks(&this);
             this_mut.audio_ctrl.register_callbacks(&this);
@@ -285,7 +288,8 @@ impl MainController {
 
         match Context::new(
             filepath,
-            5_000_000_000,
+            //30_000_000_000, // 30s buffer_duration
+            10_000_000_000, // 10s buffer_duration
             DoubleWaveformBuffer::new(&self.audio_ctrl.waveform_buffer_mtx),
             self.video_ctrl.video_box.clone(),
             ctx_tx

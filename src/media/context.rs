@@ -29,12 +29,11 @@ macro_rules! build_audio_pipeline(
         $pipeline:expr,
         $src_pad:expr,
         $audio_sink:expr,
-        $buffering_duration:expr,
+        $buffer_duration:expr,
         $samples_extractor:expr
     ) =>
     {
         let playback_queue = gst::ElementFactory::make("queue", "playback_queue").unwrap();
-        playback_queue.set_property("max-size-time", &gst::Value::from(&$buffering_duration)).unwrap();
 
         let playback_convert = gst::ElementFactory::make("audioconvert", None).unwrap();
         let playback_resample = gst::ElementFactory::make("audioresample", None).unwrap();
@@ -44,10 +43,21 @@ macro_rules! build_audio_pipeline(
         ];
 
         let visu_queue = gst::ElementFactory::make("queue", "visu_queue").unwrap();
-        visu_queue.set_property("max-size-time", &gst::Value::from(&$buffering_duration)).unwrap();
+
+        // TODO: under heavy load, it might be necessary to set a larger queue
+        // not just using max-size-time, but also a bytes length
+        let queue_duration = 2_000_000_000u64;
+        playback_queue.set_property("max-size-time", &gst::Value::from(&queue_duration)).unwrap();
+        visu_queue.set_property("max-size-time", &gst::Value::from(&queue_duration)).unwrap();
+
         #[cfg(feature = "profiling-audio-queue")]
         visu_queue.connect("overrun", false, |_| {
-            println!("WARNING: audio visu queue OVERRUN");
+            println!("Audio visu queue OVERRUN");
+            None
+        }).ok().unwrap();
+        #[cfg(feature = "profiling-audio-queue")]
+        visu_queue.connect("underrun", false, |_| {
+            println!("Audio visu queue UNDERRUN");
             None
         }).ok().unwrap();
 
@@ -96,7 +106,7 @@ macro_rules! build_audio_pipeline(
         // TODO: caps can change so it might be necessary to update accordingly
         let audio_buffer = Arc::new(Mutex::new(AudioBuffer::new(
             &$src_pad.get_current_caps().unwrap(),
-            $buffering_duration,
+            $buffer_duration,
             $samples_extractor,
         )));
         let audio_buffer_eos = Arc::clone(&audio_buffer);
@@ -173,7 +183,7 @@ pub struct Context {
 impl Context {
     pub fn new(
         path: PathBuf,
-        buffering_duration: u64,
+        buffer_duration: u64,
         samples_extractor: DoubleSampleExtractor,
         video_widget_box: gtk::Box,
         ctx_tx: Sender<ContextMessage>,
@@ -193,7 +203,7 @@ impl Context {
             info: Arc::new(Mutex::new(MediaInfo::new())),
         };
 
-        ctx.build_pipeline(buffering_duration, samples_extractor, video_widget_box);
+        ctx.build_pipeline(buffer_duration, samples_extractor, video_widget_box);
 
         ctx.register_bus_inspector(ctx_tx);
 
@@ -260,7 +270,7 @@ impl Context {
 
     // TODO: handle errors
     fn build_pipeline(&mut self,
-        buffering_duration: u64,
+        buffer_duration: u64,
         samples_extractor: DoubleSampleExtractor,
         video_widget_box: gtk::Box,
     ) {
@@ -327,7 +337,7 @@ impl Context {
                     samples_extractor.set_audio_sink(&audio_sink);
 
                     build_audio_pipeline!(
-                        pipeline, src_pad, audio_sink, buffering_duration, samples_extractor
+                        pipeline, src_pad, audio_sink, buffer_duration, samples_extractor
                     );
                 }
             } else if name.starts_with("video/") {

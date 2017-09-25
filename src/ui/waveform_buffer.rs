@@ -140,13 +140,12 @@ impl WaveformBuffer {
     }
 
     // mark seek in window and return position if applicable
+    // seeking must be confirmed by calling seek
     pub fn seek_in_window(&mut self, x: f64) -> Option<u64> {
         match self.get_first_visible_sample() {
             Some(first_visible_sample) => {
-                self.is_seeking = true;
                 self.first_visible_sample_lock = Some(first_visible_sample as i64);
                 let sample_sought = first_visible_sample + (x as usize) * self.sample_step;
-                self.sample_sought = Some(sample_sought);
                 Some((sample_sought as f64 * self.state.sample_duration) as u64)
             },
             None => None
@@ -610,7 +609,8 @@ impl SamplesExtractor for WaveformBuffer {
 
         let (first_visible_sample, last_sample) = {
             if self.is_seeking {
-                // upstream buffer's first sample has changed
+                // was seeking but since we are receiving an new
+                // buffer, it means that sync is done
                 //  => force current sample query
                 self.current_sample = self.query_current_sample();
             }
@@ -618,7 +618,7 @@ impl SamplesExtractor for WaveformBuffer {
             if self.first_visible_sample_lock.is_some()
             && (
                 self.current_sample < self.first_sample
-                || self.current_sample > self.last_sample
+                || self.current_sample >= self.last_sample
             )
             {   // seeking out of previous window
                 // clear previous seeking constraint in current window
