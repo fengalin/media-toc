@@ -104,6 +104,10 @@ impl AudioBuffer {
         let buffer_sample_len = incoming_samples.len() / self.channels;
         let buffer_pts = buffer.get_pts();
 
+        // TODO: it seems that caps might change during playback.
+        // Segment gives access to caps, so it might be a way
+        // to monitor a caps modification
+
         // Identify conditions for this incoming buffer:
         // 1. Incoming buffer fits at the end of current container.
         // 2. Incoming buffer is already contained within stored samples.

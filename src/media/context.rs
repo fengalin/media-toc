@@ -24,130 +24,6 @@ use std::i32;
 use super::{AlignedImage, AudioBuffer, Chapter, DoubleSampleExtractor, MediaInfo,
             Timestamp};
 
-macro_rules! build_audio_pipeline(
-    (
-        $pipeline:expr,
-        $src_pad:expr,
-        $audio_sink:expr,
-        $buffer_duration:expr,
-        $samples_extractor:expr
-    ) =>
-    {
-        let playback_queue = gst::ElementFactory::make("queue", "playback_queue").unwrap();
-
-        let playback_convert = gst::ElementFactory::make("audioconvert", None).unwrap();
-        let playback_resample = gst::ElementFactory::make("audioresample", None).unwrap();
-        let playback_sink_pad = playback_queue.get_static_pad("sink").unwrap();
-        let playback_elements = &[
-            &playback_queue, &playback_convert, &playback_resample, &$audio_sink,
-        ];
-
-        let visu_queue = gst::ElementFactory::make("queue", "visu_queue").unwrap();
-
-        // TODO: under heavy load, it might be necessary to set a larger queue
-        // not just using max-size-time, but also a bytes length
-        let queue_duration = 2_000_000_000u64;
-        playback_queue.set_property("max-size-time", &gst::Value::from(&queue_duration)).unwrap();
-        visu_queue.set_property("max-size-time", &gst::Value::from(&queue_duration)).unwrap();
-
-        #[cfg(feature = "profiling-audio-queue")]
-        visu_queue.connect("overrun", false, |_| {
-            println!("Audio visu queue OVERRUN");
-            None
-        }).ok().unwrap();
-        #[cfg(feature = "profiling-audio-queue")]
-        visu_queue.connect("underrun", false, |_| {
-            println!("Audio visu queue UNDERRUN");
-            None
-        }).ok().unwrap();
-
-        let visu_convert = gst::ElementFactory::make("audioconvert", None).unwrap();
-        let visu_sink = gst::ElementFactory::make("appsink", "audio_visu_sink").unwrap();
-        let visu_sink_pad = visu_queue.get_static_pad("sink").unwrap();
-
-        {
-            let visu_elements = &[&visu_queue, &visu_convert, &visu_sink];
-            let tee = gst::ElementFactory::make("tee", "audio_tee").unwrap();
-            let mut elements = vec!(&tee);
-            elements.extend_from_slice(playback_elements);
-            elements.extend_from_slice(visu_elements);
-            $pipeline.add_many(elements.as_slice()).unwrap();
-
-            gst::Element::link_many(playback_elements).unwrap();
-            gst::Element::link_many(visu_elements).unwrap();
-
-            let tee_sink = tee.get_static_pad("sink").unwrap();
-            assert_eq!($src_pad.link(&tee_sink), gst::PadLinkReturn::Ok);
-
-            // TODO: requested pads must be released when done
-            let tee_playback_src_pad = tee.get_request_pad("src_%u").unwrap();
-            assert_eq!(tee_playback_src_pad.link(&playback_sink_pad), gst::PadLinkReturn::Ok);
-
-            let tee_visu_src_pad = tee.get_request_pad("src_%u").unwrap();
-            assert_eq!(tee_visu_src_pad.link(&visu_sink_pad), gst::PadLinkReturn::Ok);
-
-            for e in elements { e.sync_state_with_parent().unwrap(); }
-        }
-
-        let appsink = visu_sink.dynamic_cast::<gst_app::AppSink>()
-            .expect("Sink element is expected to be an appsink!");
-        appsink.set_caps(&Caps::new_simple(
-            "audio/x-raw",
-            &[
-                ("format", &gst_audio::AUDIO_FORMAT_S16.to_string()),
-                ("layout", &"interleaved"),
-                ("channels", &gst::IntRange::<i32>::new(1, i32::MAX)),
-                ("rate", &gst::IntRange::<i32>::new(1, i32::MAX)),
-            ],
-        ));
-
-        appsink.set_property("sync", &gst::Value::from(&false)).unwrap();
-
-        // TODO: caps can change so it might be necessary to update accordingly
-        let audio_buffer = Arc::new(Mutex::new(AudioBuffer::new(
-            &$src_pad.get_current_caps().unwrap(),
-            $buffer_duration,
-            $samples_extractor,
-        )));
-        let audio_buffer_eos = Arc::clone(&audio_buffer);
-        appsink.set_callbacks(gst_app::AppSinkCallbacks::new(
-            /* eos */
-            move |_| {
-                audio_buffer_eos.lock().unwrap().handle_eos();
-            },
-            /* new_preroll */
-            |_| { gst::FlowReturn::Ok },
-            /* new_samples */
-            move |appsink| {
-                match appsink.pull_sample() {
-                    Some(sample) => {
-                        audio_buffer.lock().unwrap().push_gst_sample(sample);
-                        gst::FlowReturn::Ok
-                    },
-                    None => gst::FlowReturn::Eos,
-                }
-            },
-        ));
-    };
-);
-
-macro_rules! build_video_pipeline(
-    ($pipeline:expr, $src_pad:expr, $video_sink:expr) => {
-        let queue = gst::ElementFactory::make("queue", None).unwrap();
-        let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
-        let scale = gst::ElementFactory::make("videoscale", None).unwrap();
-
-        let elements = &[&queue, &convert, &scale, &$video_sink];
-        $pipeline.add_many(elements).unwrap();
-        gst::Element::link_many(elements).unwrap();
-
-        for e in elements { e.sync_state_with_parent().unwrap(); }
-
-        let sink_pad = queue.get_static_pad("sink").unwrap();
-        assert_eq!($src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
-    };
-);
-
 macro_rules! assign_str_tag(
     ($target:expr, $tags:expr, $TagType:ty) => {
         if $target.is_empty() {
@@ -306,8 +182,6 @@ impl Context {
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
         let samples_extractor_mtx = Arc::new(Mutex::new(Some(samples_extractor)));
-        /*let audio_sink = self.audio_sink.clone();
-        let video_sink = self.video_sink.clone();*/
         let info_arc_mtx = Arc::clone(&self.info);
         src.connect_pad_added(move |_, src_pad| {
             let pipeline = &pipeline_clone;
@@ -336,8 +210,8 @@ impl Context {
 
                     samples_extractor.set_audio_sink(&audio_sink);
 
-                    build_audio_pipeline!(
-                        pipeline, src_pad, audio_sink, buffer_duration, samples_extractor
+                    Context::build_audio_pipeline(
+                        pipeline, src_pad, &audio_sink, buffer_duration, samples_extractor
                     );
                 }
             } else if name.starts_with("video/") {
@@ -352,20 +226,135 @@ impl Context {
                 };
 
                 if is_first {
-                    build_video_pipeline!(pipeline, src_pad, video_sink);
+                    Context::build_video_pipeline(pipeline, src_pad, &video_sink);
                 }
             }
         });
+    }
+
+    fn build_audio_pipeline (
+        pipeline: &gst::Pipeline,
+        src_pad: &gst::Pad,
+        audio_sink: &gst::Element,
+        buffer_duration: u64,
+        samples_extractor: DoubleSampleExtractor
+    ) {
+        let playback_queue = gst::ElementFactory::make("queue", "playback_queue").unwrap();
+
+        let playback_convert = gst::ElementFactory::make("audioconvert", None).unwrap();
+        let playback_resample = gst::ElementFactory::make("audioresample", None).unwrap();
+        let playback_sink_pad = playback_queue.get_static_pad("sink").unwrap();
+        let playback_elements = &[
+            &playback_queue, &playback_convert, &playback_resample, &audio_sink,
+        ];
+
+        let visu_queue = gst::ElementFactory::make("queue", "visu_queue").unwrap();
+
+        // TODO: under heavy load, it might be necessary to set a larger queue
+        // not just using max-size-time, but also a bytes length
+        let queue_duration = 2_000_000_000u64; // 2s
+        playback_queue.set_property("max-size-time", &gst::Value::from(&queue_duration)).unwrap();
+        visu_queue.set_property("max-size-time", &gst::Value::from(&queue_duration)).unwrap();
+
+        #[cfg(feature = "profiling-audio-queue")]
+        visu_queue.connect("overrun", false, |_| {
+            println!("Audio visu queue OVERRUN");
+            None
+        }).ok().unwrap();
+
+        let visu_convert = gst::ElementFactory::make("audioconvert", None).unwrap();
+        let visu_sink = gst::ElementFactory::make("appsink", "audio_visu_sink").unwrap();
+        let visu_sink_pad = visu_queue.get_static_pad("sink").unwrap();
+
+        {
+            let visu_elements = &[&visu_queue, &visu_convert, &visu_sink];
+            let tee = gst::ElementFactory::make("tee", "audio_tee").unwrap();
+            let mut elements = vec!(&tee);
+            elements.extend_from_slice(playback_elements);
+            elements.extend_from_slice(visu_elements);
+            pipeline.add_many(elements.as_slice()).unwrap();
+
+            gst::Element::link_many(playback_elements).unwrap();
+            gst::Element::link_many(visu_elements).unwrap();
+
+            let tee_sink = tee.get_static_pad("sink").unwrap();
+            assert_eq!(src_pad.link(&tee_sink), gst::PadLinkReturn::Ok);
+
+            // TODO: in C, requested pads must be released when done
+            // check if this also applies to the Rust binding
+            let tee_playback_src_pad = tee.get_request_pad("src_%u").unwrap();
+            assert_eq!(tee_playback_src_pad.link(&playback_sink_pad), gst::PadLinkReturn::Ok);
+
+            let tee_visu_src_pad = tee.get_request_pad("src_%u").unwrap();
+            assert_eq!(tee_visu_src_pad.link(&visu_sink_pad), gst::PadLinkReturn::Ok);
+
+            for e in elements { e.sync_state_with_parent().unwrap(); }
+        }
+
+        let appsink = visu_sink.dynamic_cast::<gst_app::AppSink>().unwrap();
+        appsink.set_caps(&Caps::new_simple(
+            "audio/x-raw",
+            &[
+                ("format", &gst_audio::AUDIO_FORMAT_S16.to_string()),
+                ("layout", &"interleaved"),
+                ("channels", &gst::IntRange::<i32>::new(1, i32::MAX)),
+                ("rate", &gst::IntRange::<i32>::new(1, i32::MAX)),
+            ],
+        ));
+
+        // get samples as fast as possible
+        appsink.set_property("sync", &gst::Value::from(&false)).unwrap();
+
+        let audio_buffer = Arc::new(Mutex::new(AudioBuffer::new(
+            &src_pad.get_current_caps().unwrap(),
+            buffer_duration,
+            samples_extractor,
+        )));
+        let audio_buffer_eos = Arc::clone(&audio_buffer);
+        appsink.set_callbacks(gst_app::AppSinkCallbacks::new(
+            /* eos */
+            move |_| {
+                audio_buffer_eos.lock().unwrap().handle_eos();
+            },
+            /* new_preroll */
+            |_| { gst::FlowReturn::Ok },
+            /* new_samples */
+            move |appsink| {
+                match appsink.pull_sample() {
+                    Some(sample) => {
+                        audio_buffer.lock().unwrap().push_gst_sample(sample);
+                        gst::FlowReturn::Ok
+                    },
+                    None => gst::FlowReturn::Eos,
+                }
+            },
+        ));
+    }
+
+    fn build_video_pipeline(
+        pipeline: &gst::Pipeline,
+        src_pad: &gst::Pad,
+        video_sink: &gst::Element
+    ) {
+        let queue = gst::ElementFactory::make("queue", None).unwrap();
+        let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
+        let scale = gst::ElementFactory::make("videoscale", None).unwrap();
+
+        let elements = &[&queue, &convert, &scale, &video_sink];
+        pipeline.add_many(elements).unwrap();
+        gst::Element::link_many(elements).unwrap();
+
+        for e in elements { e.sync_state_with_parent().unwrap(); }
+
+        let sink_pad = queue.get_static_pad("sink").unwrap();
+        assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
     }
 
     // Uses ctx_tx to notify the UI controllers about the inspection process
     fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
         let info_arc_mtx = Arc::clone(&self.info);
         let mut init_done = false;
-        let bus = self.pipeline.get_bus().unwrap();
-        bus.add_watch(move |_, msg| {
-            // TODO: exit when pipeline status is null
-            // or can we reuse the inspector for subsequent plays?
+        self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
                     ctx_tx.send(ContextMessage::Eos)

@@ -107,11 +107,13 @@ impl MainController {
 
         match context.get_state() {
             gst::State::Paused => {
+                println!("pipeline in paused state => attemp to play");
                 self.register_tracker(17); // 60 Hz
                 self.play_pause_btn.set_icon_name("media-playback-pause");
                 context.play().unwrap();
             }
             gst::State::Playing => {
+                println!("pipeline in playing state => attempt to pause");
                 context.pause().unwrap();
                 self.play_pause_btn.set_icon_name("media-playback-start");
                 self.remove_tracker();
