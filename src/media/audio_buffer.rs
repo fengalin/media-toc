@@ -119,32 +119,31 @@ impl AudioBuffer {
         //    completely.
         let (
             first_sample_changed,
-            was_seek,
             first_incoming_sample,
             first_sample_to_add_rel,
             last_sample_to_add_rel
         ) =
             if !self.samples.is_empty()
             {   // not initializing
-                let (first_incoming_sample, was_seek) =
+                let first_incoming_sample =
                     if segment_first_sample == self.segement_first_sample {
                         // receiving next buffer in the same segment
                         if buffer_pts > self.last_buffer_pts {
                             // ... and getting a more recent buffer than previous
                             // => assuming incoming buffer comes just after previous
-                            (self.last_buffer_last_sample, false)
+                            self.last_buffer_last_sample
                         } else {
                             // ... but incoming buffer is ealier in the stream
                             // => probably a seek back to the begining
                             // of current segment
                             // (e.g. seeking at the begining of current chapter)
-                            (segment_first_sample, true)
+                            segment_first_sample
                         }
                     } else {
                         // different segment (done seeking)
                         self.segement_first_sample = segment_first_sample;
                         self.last_buffer_last_sample = segment_first_sample;
-                        (segment_first_sample, true)
+                        segment_first_sample
                     };
                 let last_incoming_sample = first_incoming_sample + buffer_sample_len;
 
@@ -157,7 +156,6 @@ impl AudioBuffer {
 
                     (
                         false,                  // first_sample_changed
-                        was_seek,               // was_seek
                         first_incoming_sample,  // first_incoming_sample
                         0,                      // first_sample_to_add_rel
                         buffer_sample_len       // last_sample_to_add_rel
@@ -168,7 +166,6 @@ impl AudioBuffer {
                     self.last_buffer_last_sample = last_incoming_sample;
                     (
                         false,                  // first_sample_changed
-                        was_seek,               // was_seek
                         first_incoming_sample,  // first_incoming_sample
                         0,                      // first_sample_to_add_rel
                         0                       // last_sample_to_add_rel
@@ -183,7 +180,6 @@ impl AudioBuffer {
                     self.last_buffer_last_sample = last_incoming_sample;
                     (
                         false,                  // first_sample_changed
-                        was_seek,               // was_seek
                         first_incoming_sample,  // first_incoming_sample
                         previous_last_sample - segment_first_sample, // first_sample_to_add_rel
                         buffer_sample_len       // last_sample_to_add_rel
@@ -198,7 +194,6 @@ impl AudioBuffer {
                     self.last_buffer_last_sample = last_incoming_sample;
                     (
                         true,                   // first_sample_changed
-                        was_seek,               // was_seek
                         first_incoming_sample,  // first_incoming_sample
                         0,                      // first_sample_to_add_rel
                         last_sample_to_add - segment_first_sample // last_sample_to_add_rel
@@ -212,7 +207,6 @@ impl AudioBuffer {
                     self.last_buffer_last_sample = last_incoming_sample;
                     (
                         true,                   // first_sample_changed
-                        was_seek,               // was_seek
                         first_incoming_sample,  // first_incoming_sample
                         0,                      // first_sample_to_add_rel
                         buffer_sample_len       // last_sample_to_add_rel
@@ -226,7 +220,6 @@ impl AudioBuffer {
                 self.last_buffer_last_sample = self.last_sample;
                 (
                     true,                   // first_sample_changed
-                    false,                  // was_seek
                     segment_first_sample,   // first_incoming_sample
                     0,                      // first_sample_to_add_rel
                     buffer_sample_len       // last_sample_to_add_rel
@@ -248,18 +241,10 @@ impl AudioBuffer {
             let first_extractor_sample =
                 self.samples_extractor_opt.as_ref().unwrap()
                     .get_first_sample();
-            let drain_limit =
-                if !was_seek {
-                    // was not seeking, keep all samples after
-                    // first sample previously used by the extractor
-                    first_extractor_sample
-                } else {
-                    // was seeking, keep first sample that
-                    // might be necessary for next extraction
-                    first_extractor_sample.min(first_incoming_sample)
-                };
 
-            if drain_limit > self.first_sample + self.drain_size {
+            if first_extractor_sample.min(first_incoming_sample)
+                > self.first_sample + self.drain_size
+            {
                 //println!("draining... len before: {}", self.samples.len());
                 self.samples.drain(..self.drain_size);
                 self.first_sample += self.drain_size;
