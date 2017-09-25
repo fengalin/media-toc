@@ -93,13 +93,16 @@ impl AudioController {
         }
     }
 
-    pub fn seeking(&self) {
-        let waveform_buffer_grd = &mut *self.waveform_buffer_mtx.lock()
-            .expect("Couldn't lock waveform buffer in audio controller seeking");
-        waveform_buffer_grd
-            .as_mut_any().downcast_mut::<WaveformBuffer>()
-            .expect("SamplesExtratctor is not a waveform buffer in audio controller draw")
-            .start_seeking();
+    pub fn seek(&mut self, position: u64) {
+        {
+            let waveform_buffer_grd = &mut *self.waveform_buffer_mtx.lock()
+                .expect("Couldn't lock waveform buffer in audio controller seeking");
+            waveform_buffer_grd
+                .as_mut_any().downcast_mut::<WaveformBuffer>()
+                .expect("SamplesExtratctor is not a waveform buffer in audio controller draw")
+                .seek(position);
+        }
+        self.tic();
     }
 
     pub fn tic(&self) {

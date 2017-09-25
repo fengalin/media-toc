@@ -135,14 +135,14 @@ impl MainController {
 
     pub fn seek(&mut self, position: u64) {
         self.seeking = true;
-        self.audio_ctrl.seeking();
+        self.info_ctrl.seek(position);
+        self.audio_ctrl.seek(position);
         self.context.as_ref()
             .expect("No context found while seeking in media")
             .seek(position);
         // update position eventhough the stream
         // is not sync yet for the user to notice
         // the seek request in being handled
-        self.info_ctrl.seek(position);
     }
 
     fn select_media(&mut self) {

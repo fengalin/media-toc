@@ -119,7 +119,22 @@ impl WaveformBuffer {
         self.was_exposed = false;
     }
 
-    pub fn start_seeking(&mut self) {
+    pub fn seek(&mut self, position: u64) {
+        let sample_sought = (position as f64 / self.state.sample_duration) as usize;
+        self.sample_sought = Some(sample_sought);
+        if let Some(first_visible_sample_i) = self.first_visible_sample_lock {
+            self.first_visible_sample_lock = {
+                let first_visible_sample = first_visible_sample_i as usize;
+                if first_visible_sample <= sample_sought
+                && sample_sought < first_visible_sample + self.requested_sample_window
+                {   // first_visible_sample_lock is confirmed
+                    Some(first_visible_sample_i)
+                } else {
+                    // first_visible_sample_lock no longer applicable
+                    None
+                }
+            };
+        }
         self.is_seeking = true;
         self.was_exposed = true;
     }
@@ -128,10 +143,10 @@ impl WaveformBuffer {
     pub fn seek_in_window(&mut self, x: f64) -> Option<u64> {
         match self.get_first_visible_sample() {
             Some(first_visible_sample) => {
+                self.is_seeking = true;
                 self.first_visible_sample_lock = Some(first_visible_sample as i64);
                 let sample_sought = first_visible_sample + (x as usize) * self.sample_step;
                 self.sample_sought = Some(sample_sought);
-                self.start_seeking();
                 Some((sample_sought as f64 * self.state.sample_duration) as u64)
             },
             None => None
@@ -299,13 +314,30 @@ impl WaveformBuffer {
         } else {
             // seeking
             match self.first_visible_sample_lock {
-                Some(first_visible_sample) =>
-                    // first sample is locked => can draw in last state
+                Some(first_visible_sample) => {
+                    // first sample is locked
+                    // => can draw previous samples window and
+                    // move cursor to the position sought
+                    let sample_sought = self.sample_sought
+                        .expect("WaveformBuffer no sought position while updating conditions in seeking mode");
+                    let current_x_opt =
+                        if sample_sought > first_visible_sample as usize
+                        && sample_sought
+                            < first_visible_sample as usize + self.requested_sample_window
+                        {
+                            Some(
+                                (sample_sought - first_visible_sample as usize) as f64
+                                / self.sample_step_f
+                            )
+                        } else {
+                            None
+                        };
                     Some((
                         (first_visible_sample as f64 - self.first_sample as f64)
                             / self.sample_step_f, // x_offset
-                        None, // current_x_opt
-                    )),
+                        current_x_opt,
+                    ))
+                },
                 None => None, // no lock, don't draw in order to avoid garbage
             }
         }
