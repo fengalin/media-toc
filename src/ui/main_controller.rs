@@ -205,7 +205,7 @@ impl MainController {
                     Eos => {
                         let this = this_rc.borrow_mut();
 
-                        this.audio_ctrl.tic();
+                        this.audio_ctrl.tick();
                         this.play_pause_btn.set_icon_name("media-playback-start");
                     },
                     FailedToOpenMedia => {
@@ -248,16 +248,16 @@ impl MainController {
             let mut this_mut = this_rc.borrow_mut();
 
             #[cfg(feature = "profiling-tracker")]
-            let before_tic = Utc::now();
+            let before_tick = Utc::now();
 
             if !this_mut.seeking {
                 let position = this_mut.context.as_mut()
                     .expect("No context in tracker while getting position")
                     .get_position();
-                this_mut.info_ctrl.tic(position);
+                this_mut.info_ctrl.tick(position);
             }
 
-            this_mut.audio_ctrl.tic();
+            this_mut.audio_ctrl.tick();
 
             #[cfg(feature = "profiling-tracker")]
             let end = Utc::now();
@@ -265,7 +265,7 @@ impl MainController {
             #[cfg(feature = "profiling-tracker")]
             println!("tracker,{},{},{}",
                 start.time().format("%H:%M:%S%.6f"),
-                before_tic.time().format("%H:%M:%S%.6f"),
+                before_tick.time().format("%H:%M:%S%.6f"),
                 end.time().format("%H:%M:%S%.6f"),
             );
 

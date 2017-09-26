@@ -3,6 +3,7 @@ pub use self::aligned_image::AlignedImage;
 
 pub mod audio_buffer;
 pub use self::audio_buffer::{AudioBuffer, SAMPLES_NORM};
+pub use self::audio_buffer::Iter as AudioBufferIter;
 
 pub mod chapter;
 pub use self::chapter::Chapter;

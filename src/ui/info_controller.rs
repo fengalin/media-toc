@@ -231,7 +231,7 @@ impl InfoController {
         self.position_lbl.set_text("00:00.000");
     }
 
-    pub fn tic(&mut self, position: u64) {
+    pub fn tick(&mut self, position: u64) {
         self.timeline_scale.set_value(position as f64);
         self.position_lbl.set_text(&Timestamp::format(position));
 

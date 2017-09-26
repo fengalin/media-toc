@@ -7,12 +7,12 @@ use std::any::Any;
 
 use std::sync::{Arc, Mutex};
 
-use media::{AudioBuffer, SAMPLES_NORM};
+use media::AudioBuffer;
 
 use media::{DoubleSampleExtractor, SamplesExtractor};
 use media::samples_extractor::SamplesExtractionState;
 
-pub const BACKGROUND_COLOR: (f64, f64, f64) = (0.2f64, 0.2235f64, 0.2314f64);
+use super::WaveformRenderer;
 
 pub struct DoubleWaveformBuffer {}
 impl DoubleWaveformBuffer {
@@ -405,126 +405,86 @@ impl WaveformBuffer {
             }
         };
 
-        let cr = cairo::Context::new(&working_image);
+        let mut renderer = WaveformRenderer::new(&working_image);
 
-        let (mut sample_iter, mut x, clear_limit) =
-            if must_redraw {
-                // Initialization or resolution has changed or seek requested
-                // redraw the whole range
+        if must_redraw {
+            // Initialization or resolution has changed or seek requested
+            // redraw the whole range
+            renderer.draw_waveform(
+                audio_buffer.iter(first_sample, last_sample, sample_step),
+                0f64
+            );
 
-                self.sample_step = sample_step;
-                self.sample_step_f = sample_step as f64;
+            self.sample_step = sample_step;
+            self.sample_step_f = sample_step as f64;
+            self.first_sample = first_sample;
+            self.last_sample = last_sample;
+        } else {
+            // can reuse previous context
+            let previous_image = self.exposed_image.take()
+                .expect("WaveformBuffer: no exposed_image while updating");
+
+            // Note: condition first_sample >= self.self.first_sample
+            //                 && last_sample <= self.self.last_sample
+            // (traget extraction fits in previous extraction)
+            // already checked
+
+            if first_sample < self.first_sample {
+                // append samples before previous first sample
+                let image_width_as_samples =
+                    working_image.get_width() as usize * sample_step;
+
+                self.last_sample = self.last_sample.min(
+                    first_sample + image_width_as_samples
+                );
+
+                // shift previous image to the right
+                let image_offset = (
+                    (self.first_sample - first_sample) / sample_step
+                ) as f64;
+
+                println!(
+                    "WaveformBuffer: appending {} samples before previous first sample",
+                    self.first_sample - first_sample
+                );
+
+                renderer.copy_image(&previous_image, image_offset);
+                renderer.draw_waveform(
+                    audio_buffer.iter(first_sample, self.first_sample, sample_step),
+                    0f64
+                );
+
+                self.first_sample = first_sample;
+            } else {
+                // first_sample >= self.first_sample
+                // Note: due to previous conditions tested before,
+                // this also implies:
+                assert!(last_sample > self.last_sample);
+
+                // shift previous image to the left (if necessary)
+                let image_offset = -((
+                    (first_sample - self.first_sample) / sample_step
+                ) as f64);
+
+                renderer.copy_image(&previous_image, image_offset);
+
+                // append samples after previous last sample
+                let first_sample_to_draw = self.last_sample.max(first_sample);
+                let first_x_to_draw = (
+                    (first_sample_to_draw - self.first_sample) / sample_step
+                ) as f64 + image_offset;
+
+                renderer.draw_waveform(
+                    audio_buffer.iter(first_sample_to_draw, last_sample, sample_step),
+                    first_x_to_draw
+                );
+
                 self.first_sample = first_sample;
                 self.last_sample = last_sample;
-
-                (
-                    audio_buffer.iter(first_sample, last_sample, sample_step),
-                    0f64, // first x to draw
-                    f64::from(working_image.get_width()), // clear_limit
-                )
-            } else {
-                // can reuse previous context
-                let previous_image = self.exposed_image.take()
-                    .expect("WaveformBuffer: no exposed_image while updating");
-
-                let (image_offset, sample_iter, x, clear_limit) = {
-                    // Note: condition first_sample >= self.self.first_sample
-                    //                 && last_sample <= self.self.last_sample
-                    // (traget extraction fits in previous extraction)
-                    // already checked
-
-                    if first_sample < self.first_sample {
-                        // append samples before previous first sample
-                        println!("append samples before previous first sample");
-
-                        let image_width_as_samples =
-                            working_image.get_width() as usize * sample_step;
-
-                        let previous_first_sample = self.first_sample;
-                        self.first_sample = first_sample;
-                        self.last_sample = self.last_sample.min(
-                            first_sample + image_width_as_samples
-                        );
-
-                        // shift previous image to the right
-                        let image_offset = (
-                            (previous_first_sample - first_sample) / sample_step
-                        ) as f64;
-
-                        (
-                            image_offset,
-                            audio_buffer.iter(first_sample, previous_first_sample, sample_step), // sample_iter
-                            0f64, // first x to draw
-                            image_offset, // clear_limit
-                        )
-                    } else {
-                        // first_sample >= self.first_sample
-                        // Note: due to previous conditions tested before,
-                        // this also implies:
-                        assert!(last_sample > self.last_sample);
-
-                        let previous_first_sample = self.first_sample;
-                        let previous_last_sample = self.last_sample;
-                        // Note: image width is such that samples in
-                        // (first_sample, last_sample) can all be rendered
-                        self.first_sample = first_sample;
-                        self.last_sample = last_sample;
-
-                        // shift previous image to the left (if necessary)
-                        let image_offset = -((
-                            (first_sample - previous_first_sample) / sample_step
-                        ) as f64);
-
-                        // append samples after previous last sample
-                        let first_sample_to_draw = previous_last_sample.max(first_sample);
-
-                        // prepare to add remaining samples
-                        (
-                            image_offset,
-                            audio_buffer.iter(first_sample_to_draw, last_sample, sample_step), // sample_iter
-                            (
-                                (first_sample_to_draw - previous_first_sample) / sample_step
-                            ) as f64 + image_offset, // first x to draw
-                            f64::from(working_image.get_width()), // clear_limit
-                        )
-                    }
-                };
-
-                cr.set_source_surface(&previous_image, image_offset, 0f64);
-                cr.paint();
-
-                // set image back, will be swapped later
-                self.exposed_image = Some(previous_image);
-
-                (sample_iter, x, clear_limit)
-            };
-
-        cr.scale(1f64, f64::from(self.height) / SAMPLES_NORM);
-
-        if x < clear_limit {
-            // clear uneeded samples previously rendered
-            cr.set_source_rgb(
-                BACKGROUND_COLOR.0,
-                BACKGROUND_COLOR.1,
-                BACKGROUND_COLOR.2
-            );
-            cr.rectangle(x, 0f64, clear_limit - x, SAMPLES_NORM);
-            cr.fill();
-        } // else brackgroung already set while clearing the image
-
-        if sample_iter.size_hint().0 > 0 {
-            // Stroke selected samples
-            cr.set_line_width(0.5f64);
-            cr.set_source_rgb(0.8f64, 0.8f64, 0.8f64);
-
-            let mut sample_value = *sample_iter.next().unwrap();
-            for sample in sample_iter {
-                cr.move_to(x, sample_value);
-                x += 1f64;
-                sample_value = *sample;
-                cr.line_to(x, sample_value);
-                cr.stroke();
             }
+
+            // set image back, will be swapped later
+            self.exposed_image = Some(previous_image);
         }
 
         if let Some(previous_image) = self.exposed_image.take() {

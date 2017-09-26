@@ -1,5 +1,7 @@
 extern crate cairo;
 
+use glib::ObjectExt;
+
 extern crate gtk;
 use gtk::{Inhibit, WidgetExt};
 
@@ -44,6 +46,13 @@ impl AudioController {
         self.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
             AudioController::draw(&waveform_buffer_mtx, drawing_area, cairo_ctx).into()
         });
+
+        // widget size changed
+        /*self.drawingarea.connect("size-allocate", false, |drawingarea| {
+            println!("resized");
+            drawingarea[0].get::<gtk::DrawingArea>().unwrap().queue_draw();
+            None
+        }).ok().unwrap();*/
 
         // click in drawing_area
         let main_ctrl_rc = Rc::clone(main_ctrl);
@@ -102,10 +111,10 @@ impl AudioController {
                 .expect("SamplesExtratctor is not a waveform buffer in audio controller draw")
                 .seek(position);
         }
-        self.tic();
+        self.tick();
     }
 
-    pub fn tic(&self) {
+    pub fn tick(&self) {
         if self.is_active {
             self.drawingarea.queue_draw();
         }
