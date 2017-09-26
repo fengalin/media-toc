@@ -8,13 +8,11 @@ you can [contribute](#contribute) to the project if you find it interesting.
 
 ## <a name='status'></a>Status
 At the moment, **Media-TOC** can:
-- Open a media file (audio, video - and image but that doesn't make much sense).
-- Display the video frame
-- Display the cover image if available.
-- Display metadata from the media.
-- Display chapters list and marks at the begining of each chapter on the timeline.
-- Play the audio and video, draw the audio waveform and select the chapter in the
-list while playing.
+- Open a media file: display metadata from the media, the cover image, the first
+video frame, the chapters list and marks at the begining of each chapter on the
+timeline.
+- Play/Pause the audio and video, draw the audio waveform and select current
+chapter in the list while playing.
 - Seek in the media by clicking on the waveform, on the timeline or in the
 chapters list.
 
