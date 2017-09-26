@@ -250,9 +250,9 @@ impl Context {
 
         let visu_queue = gst::ElementFactory::make("queue", "visu_queue").unwrap();
 
-        // TODO: under heavy load, it might be necessary to set a larger queue
-        // not just using max-size-time, but also a bytes length
-        let queue_duration = 2_000_000_000u64; // 2s
+        // This is the buffer duration that will be queued in paused mode
+        // TODO: make this configurable
+        let queue_duration = 5_000_000_000u64; // 5s
         playback_queue.set_property("max-size-time", &gst::Value::from(&queue_duration)).unwrap();
         visu_queue.set_property("max-size-time", &gst::Value::from(&queue_duration)).unwrap();
 
@@ -304,6 +304,8 @@ impl Context {
 
         // get samples as fast as possible
         appsink.set_property("sync", &gst::Value::from(&false)).unwrap();
+        // and don't block pipeline when switching state
+        appsink.set_property("async", &gst::Value::from(&false)).unwrap();
 
         let audio_buffer = Arc::new(Mutex::new(AudioBuffer::new(
             &src_pad.get_current_caps().unwrap(),
@@ -313,11 +315,9 @@ impl Context {
         let audio_buffer_eos = Arc::clone(&audio_buffer);
         appsink.set_callbacks(gst_app::AppSinkCallbacks::new(
             /* eos */
-            move |_| {
-                audio_buffer_eos.lock().unwrap().handle_eos();
-            },
+            move |_| audio_buffer_eos.lock().unwrap().handle_eos(),
             /* new_preroll */
-            |_| { gst::FlowReturn::Ok },
+            |_| gst::FlowReturn::Ok,
             /* new_samples */
             move |appsink| {
                 match appsink.pull_sample() {
