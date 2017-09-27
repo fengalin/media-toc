@@ -21,8 +21,7 @@ use std::sync::{Arc, Mutex};
 
 use std::i32;
 
-use super::{AlignedImage, AudioBuffer, Chapter, DoubleSampleExtractor, MediaInfo,
-            Timestamp};
+use super::{AlignedImage, DoubleAudioBuffer, Chapter, MediaInfo, Timestamp};
 
 macro_rules! assign_str_tag(
     ($target:expr, $tags:expr, $TagType:ty) => {
@@ -59,8 +58,7 @@ pub struct Context {
 impl Context {
     pub fn new(
         path: PathBuf,
-        buffer_duration: u64,
-        samples_extractor: DoubleSampleExtractor,
+        dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
         video_widget_box: gtk::Box,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<Context, String>
@@ -79,7 +77,7 @@ impl Context {
             info: Arc::new(Mutex::new(MediaInfo::new())),
         };
 
-        ctx.build_pipeline(buffer_duration, samples_extractor, video_widget_box);
+        ctx.build_pipeline(dbl_audio_buffer_mtx, video_widget_box);
 
         ctx.register_bus_inspector(ctx_tx);
 
@@ -146,8 +144,7 @@ impl Context {
 
     // TODO: handle errors
     fn build_pipeline(&mut self,
-        buffer_duration: u64,
-        samples_extractor: DoubleSampleExtractor,
+        dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
         video_widget_box: gtk::Box,
     ) {
         let src = gst::ElementFactory::make("uridecodebin", "input").unwrap();
@@ -181,7 +178,6 @@ impl Context {
 
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
-        let samples_extractor_mtx = Arc::new(Mutex::new(Some(samples_extractor)));
         let info_arc_mtx = Arc::clone(&self.info);
         src.connect_pad_added(move |_, src_pad| {
             let pipeline = &pipeline_clone;
@@ -203,15 +199,8 @@ impl Context {
                 };
 
                 if is_first {
-                    let mut samples_extractor = samples_extractor_mtx.lock()
-                        .expect("Context::build_pipeline: couldn't lock samples_extractor_mtx")
-                        .take()
-                        .expect("Context::build_pipeline: samples_extractor already taken");
-
-                    samples_extractor.set_audio_sink(&audio_sink);
-
                     Context::build_audio_pipeline(
-                        pipeline, src_pad, &audio_sink, buffer_duration, samples_extractor
+                        pipeline, src_pad, &audio_sink, dbl_audio_buffer_mtx.clone()
                     );
                 }
             } else if name.starts_with("video/") {
@@ -236,8 +225,7 @@ impl Context {
         pipeline: &gst::Pipeline,
         src_pad: &gst::Pad,
         audio_sink: &gst::Element,
-        buffer_duration: u64,
-        samples_extractor: DoubleSampleExtractor
+        dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
     ) {
         let playback_queue = gst::ElementFactory::make("queue", "playback_queue").unwrap();
 
@@ -307,22 +295,34 @@ impl Context {
         // and don't block pipeline when switching state
         appsink.set_property("async", &gst::Value::from(&false)).unwrap();
 
-        let audio_buffer = Arc::new(Mutex::new(AudioBuffer::new(
-            &src_pad.get_current_caps().unwrap(),
-            buffer_duration,
-            samples_extractor,
-        )));
-        let audio_buffer_eos = Arc::clone(&audio_buffer);
+        {
+            dbl_audio_buffer_mtx.lock()
+                .expect("Context::build_audio_pipeline: couldn't lock dbl_audio_buffer_mtx")
+                .set_audio_caps_and_ref(
+                    &src_pad.get_current_caps().unwrap(),
+                    &audio_sink
+                );
+        }
+
+        let dbl_audio_buffer_mtx_eos = Arc::clone(&dbl_audio_buffer_mtx);
         appsink.set_callbacks(gst_app::AppSinkCallbacks::new(
             /* eos */
-            move |_| audio_buffer_eos.lock().unwrap().handle_eos(),
+            move |_| {
+                dbl_audio_buffer_mtx_eos.lock()
+                    .expect("appsink: eos: couldn't lock dbl_audio_buffer_mtx")
+                    .handle_eos();
+            },
             /* new_preroll */
             |_| gst::FlowReturn::Ok,
             /* new_samples */
             move |appsink| {
                 match appsink.pull_sample() {
                     Some(sample) => {
-                        audio_buffer.lock().unwrap().push_gst_sample(sample);
+                        {
+                            dbl_audio_buffer_mtx.lock()
+                                .expect("appsink: new_samples: couldn't lock dbl_audio_buffer_mtx")
+                                .push_gst_sample(sample);
+                        }
                         gst::FlowReturn::Ok
                     },
                     None => gst::FlowReturn::Eos,

@@ -17,7 +17,7 @@ use gtk::prelude::*;
 use media::{Context, ContextMessage};
 use media::ContextMessage::*;
 
-use super::{AudioController, DoubleWaveformBuffer, InfoController, VideoController};
+use super::{AudioController, InfoController, VideoController};
 
 pub struct MainController {
     window: gtk::ApplicationWindow,
@@ -288,9 +288,7 @@ impl MainController {
 
         match Context::new(
             filepath,
-            //30_000_000_000, // 30s buffer_duration
-            10_000_000_000, // 10s buffer_duration
-            DoubleWaveformBuffer::new(&self.audio_ctrl.waveform_buffer_mtx),
+            self.audio_ctrl.get_dbl_buffer_mtx(),
             self.video_ctrl.video_box.clone(),
             ctx_tx
         ) {

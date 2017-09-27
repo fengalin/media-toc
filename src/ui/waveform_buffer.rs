@@ -4,27 +4,28 @@ use std::any::Any;
 
 use std::sync::{Arc, Mutex};
 
-use media::AudioBuffer;
+use media::{AudioBuffer, DoubleAudioBuffer, SampleExtractor};
 
-use media::{DoubleSampleExtractor, SamplesExtractor};
 use media::samples_extractor::SamplesExtractionState;
 
 use super::WaveformImage;
 
 pub struct DoubleWaveformBuffer {}
+
 impl DoubleWaveformBuffer {
-    pub fn new(
-        exposed_mtx: &Arc<Mutex<Box<SamplesExtractor>>>
-    ) -> DoubleSampleExtractor {
-        DoubleSampleExtractor::new(
-            Arc::clone(exposed_mtx),
-            Box::new(WaveformBuffer::new())
-        )
+    pub fn new(buffer_duration: u64) -> Arc<Mutex<DoubleAudioBuffer>> {
+        Arc::new(Mutex::new(
+            DoubleAudioBuffer::new(
+                buffer_duration,
+                Box::new(WaveformBuffer::new()),
+                Box::new(WaveformBuffer::new())
+            )
+        ))
     }
 }
 
 // A WaveformBuffer hosts one of the two buffers of the double buffering
-// mechanism based on the SamplesExtractor trait.
+// mechanism based on the SampleExtractor trait.
 // It is responsible for preparing an up to date Waveform image which will be
 // diplayed upon UI request. Up to date signifies that the Waveform image
 // contains all the samples that can fit in the target window at the specified
@@ -65,21 +66,6 @@ impl WaveformBuffer {
             req_sample_window: 0,
             half_req_sample_window: 0,
         }
-    }
-
-    pub fn cleanup(&mut self) {
-        // clear for reuse
-        self.cleanup_state();
-        self.image.cleanup();
-
-        self.is_seeking = false;
-        self.current_sample = 0;
-        self.first_visible_sample_lock = None;
-        self.sample_sought = None;
-
-        self.was_exposed = false;
-        self.req_sample_window = 0;
-        self.half_req_sample_window = 0;
     }
 
     pub fn clear_exposed_status(&mut self) {
@@ -301,7 +287,7 @@ impl WaveformBuffer {
     }
 }
 
-impl SamplesExtractor for WaveformBuffer {
+impl SampleExtractor for WaveformBuffer {
     fn as_mut_any(&mut self) -> &mut Any {
         self
     }
@@ -318,7 +304,22 @@ impl SamplesExtractor for WaveformBuffer {
         self.image.first_sample
     }
 
-    fn update_concrete_state(&mut self, other: &mut Box<SamplesExtractor>) {
+    fn cleanup(&mut self) {
+        // clear for reuse
+        self.cleanup_state();
+        self.image.cleanup();
+
+        self.is_seeking = false;
+        self.current_sample = 0;
+        self.first_visible_sample_lock = None;
+        self.sample_sought = None;
+
+        self.was_exposed = false;
+        self.req_sample_window = 0;
+        self.half_req_sample_window = 0;
+    }
+
+    fn update_concrete_state(&mut self, other: &mut Box<SampleExtractor>) {
         let other = other.as_mut_any().downcast_mut::<WaveformBuffer>()
             .expect("WaveformBuffer.update_concrete_state: unable to downcast other ");
         if other.was_exposed {

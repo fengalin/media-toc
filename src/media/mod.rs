@@ -11,6 +11,9 @@ pub use self::chapter::Chapter;
 pub mod context;
 pub use self::context::{Context, ContextMessage};
 
+pub mod dbl_audio_buffer;
+pub use self::dbl_audio_buffer::DoubleAudioBuffer;
+
 pub mod media_info;
 pub use self::media_info::MediaInfo;
 
@@ -18,4 +21,4 @@ pub mod timestamp;
 pub use self::timestamp::Timestamp;
 
 pub mod samples_extractor;
-pub use self::samples_extractor::{DoubleSampleExtractor, SamplesExtractor};
+pub use self::samples_extractor::SampleExtractor;

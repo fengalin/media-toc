@@ -9,12 +9,11 @@ use std::i16;
 
 use std::collections::vec_deque::VecDeque;
 
-use super::{DoubleSampleExtractor};
-
 pub const SAMPLES_NORM: f64 = 450f64;
 const SAMPLES_OFFSET: f64 = SAMPLES_NORM / 2f64;
 
 pub struct AudioBuffer {
+    buffer_duration: u64,
     capacity: usize,
     pub sample_duration: f64,
     channels: usize,
@@ -28,37 +27,19 @@ pub struct AudioBuffer {
     pub first_sample: usize,
     pub last_sample: usize,
     pub samples: VecDeque<f64>,
-
-    samples_extractor_opt: Option<DoubleSampleExtractor>,
 }
 
 impl AudioBuffer {
     pub fn new(
-        caps: &gst::Caps,
         buffer_duration: u64,
-        samples_extractor: DoubleSampleExtractor,
     ) -> Self
     {
-        let structure = caps.get_structure(0)
-            .expect("Couldn't get structure from audio caps");
-        let rate = structure.get::<i32>("rate")
-            .expect("Couldn't get rate from audio caps");
-
-        // assert_eq!(format, S16);
-        // assert_eq!(layout, Interleaved);
-
-        let sample_duration = 1_000_000_000f64 / (rate as f64);
-        let capacity = (buffer_duration as f64 / sample_duration) as usize;
-
-        let drain_size = (1_000_000_000f64 / sample_duration) as usize; // 1s worth of samples
-
         AudioBuffer {
-            capacity: capacity,
-            sample_duration: sample_duration,
-            channels: structure.get::<i32>("channels")
-                .expect("Couldn't get channels from audio sample")
-                as usize,
-            drain_size: drain_size,
+            buffer_duration: buffer_duration,
+            capacity: 0,
+            sample_duration: 0f64,
+            channels: 0,
+            drain_size: 0,
 
             eos: false,
 
@@ -67,10 +48,26 @@ impl AudioBuffer {
             last_buffer_last_sample: 0,
             first_sample: 0,
             last_sample: 0,
-            samples: VecDeque::with_capacity(capacity),
-
-            samples_extractor_opt: Some(samples_extractor),
+            samples: VecDeque::new(),
         }
+    }
+
+    pub fn set_caps(&mut self, caps: &gst::Caps) {
+        let structure = caps.get_structure(0)
+            .expect("Couldn't get structure from audio caps");
+        let rate = structure.get::<i32>("rate")
+            .expect("Couldn't get rate from audio caps");
+
+        // assert_eq!(format, S16);
+        // assert_eq!(layout, Interleaved);
+        self.channels = structure.get::<i32>("channels")
+            .expect("Couldn't get channels from audio sample")
+            as usize;
+
+        self.sample_duration = 1_000_000_000f64 / (rate as f64);
+        self.capacity = (self.buffer_duration as f64 / self.sample_duration) as usize;
+        self.samples = VecDeque::with_capacity(self.capacity);
+        self.drain_size = (1_000_000_000f64 / self.sample_duration) as usize; // 1s worth of samples
     }
 
     // Add samples from the GStreamer pipeline to the AudioBuffer
@@ -82,7 +79,10 @@ impl AudioBuffer {
     //       move this as a trait and make the sample normalization
     //       part of a concrete object
     // Incoming samples are merged to the existing buffer when possible
-    pub fn push_gst_sample(&mut self, sample: gst::Sample) {
+    pub fn push_gst_sample(&mut self,
+        sample: gst::Sample,
+        first_sample_to_keep: usize,
+    ) {
         #[cfg(feature = "profiling-audio-buffer")]
         let start = Utc::now();
 
@@ -243,11 +243,8 @@ impl AudioBuffer {
             // and iteration)
 
             // Don't drain samples if they might be used by the extractor
-            let first_extractor_sample =
-                self.samples_extractor_opt.as_ref().unwrap()
-                    .get_first_sample();
-
-            if first_extractor_sample.min(first_incoming_sample)
+            // (limit known as argument first_sample_to_keep)
+            if first_sample_to_keep.min(first_incoming_sample)
                 > self.first_sample + self.drain_size
             {
                 //println!("draining... len before: {}", self.samples.len());
@@ -325,16 +322,6 @@ impl AudioBuffer {
             }
         }
 
-        // Trigger specific buffer extraction
-        #[cfg(feature = "profiling-audio-buffer")]
-        let before_extract = Utc::now();
-
-        if !self.samples.is_empty() {
-            let mut samples_extractor = self.samples_extractor_opt.take().unwrap();
-            samples_extractor.extract_samples(self);
-            self.samples_extractor_opt = Some(samples_extractor);
-        }
-
         #[cfg(feature = "profiling-audio-buffer")]
         let end = Utc::now();
 
@@ -343,9 +330,14 @@ impl AudioBuffer {
             start.time().format("%H:%M:%S%.6f"),
             before_drain.time().format("%H:%M:%S%.6f"),
             before_storage.time().format("%H:%M:%S%.6f"),
-            before_extract.time().format("%H:%M:%S%.6f"),
             end.time().format("%H:%M:%S%.6f"),
         );
+    }
+
+    pub fn handle_eos(&mut self) {
+        if !self.samples.is_empty() {
+            self.eos = true;
+        }
     }
 
     pub fn iter(&self, first: usize, last: usize, step: usize) -> Iter {
@@ -355,16 +347,6 @@ impl AudioBuffer {
         assert!(first >= self.first_sample);
         let last = if last > first { last } else { first };
         Iter::new(self, first, last, step)
-    }
-
-    pub fn handle_eos(&mut self) {
-        if !self.samples.is_empty() {
-            self.eos = true;
-
-            let mut samples_extractor = self.samples_extractor_opt.take().unwrap();
-            samples_extractor.extract_samples(self);
-            self.samples_extractor_opt = Some(samples_extractor);
-        }
     }
 }
 
