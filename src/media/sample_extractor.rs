@@ -5,15 +5,15 @@ use std::any::Any;
 
 use super::AudioBuffer;
 
-pub struct SamplesExtractionState {
+pub struct SampleExtractionState {
     pub sample_duration: f64,
     audio_sink: Option<gst::Element>,
     position_query: gst::Query,
 }
 
-impl SamplesExtractionState {
+impl SampleExtractionState {
     pub fn new() -> Self {
-        SamplesExtractionState {
+        SampleExtractionState {
             sample_duration: 0f64,
             audio_sink: None,
             position_query: gst::Query::new_position(gst::Format::Time),
@@ -27,8 +27,8 @@ impl SamplesExtractionState {
 
 pub trait SampleExtractor: Send {
     fn as_mut_any(&mut self) -> &mut Any;
-    fn get_extraction_state(&self) -> &SamplesExtractionState;
-    fn get_extraction_state_mut(&mut self) -> &mut SamplesExtractionState;
+    fn get_extraction_state(&self) -> &SampleExtractionState;
+    fn get_extraction_state_mut(&mut self) -> &mut SampleExtractionState;
 
     fn cleanup_state(&mut self) {
         // clear for reuse

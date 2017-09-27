@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use media::{AudioBuffer, DoubleAudioBuffer, SampleExtractor};
 
-use media::samples_extractor::SamplesExtractionState;
+use media::sample_extractor::SampleExtractionState;
 
 use super::WaveformImage;
 
@@ -39,7 +39,7 @@ impl DoubleWaveformBuffer {
 // samples.
 pub struct WaveformBuffer {
     image: WaveformImage,
-    state: SamplesExtractionState,
+    state: SampleExtractionState,
 
     is_seeking: bool,
     current_sample: usize,
@@ -54,7 +54,7 @@ pub struct WaveformBuffer {
 impl WaveformBuffer {
     pub fn new() -> Self {
         WaveformBuffer {
-            state: SamplesExtractionState::new(),
+            state: SampleExtractionState::new(),
             image: WaveformImage::new(),
 
             is_seeking: false,
@@ -292,11 +292,11 @@ impl SampleExtractor for WaveformBuffer {
         self
     }
 
-    fn get_extraction_state(&self) -> &SamplesExtractionState {
+    fn get_extraction_state(&self) -> &SampleExtractionState {
         &self.state
     }
 
-    fn get_extraction_state_mut(&mut self) -> &mut SamplesExtractionState {
+    fn get_extraction_state_mut(&mut self) -> &mut SampleExtractionState {
         &mut self.state
     }
 

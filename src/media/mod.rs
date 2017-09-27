@@ -20,5 +20,5 @@ pub use self::media_info::MediaInfo;
 pub mod timestamp;
 pub use self::timestamp::Timestamp;
 
-pub mod samples_extractor;
-pub use self::samples_extractor::SampleExtractor;
+pub mod sample_extractor;
+pub use self::sample_extractor::SampleExtractor;
