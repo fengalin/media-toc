@@ -162,23 +162,16 @@ impl AudioController {
             #[cfg(feature = "profiling-audio-draw")]
             let _before_cndt = Utc::now();
 
-            match waveform_buffer.update_conditions(
-                        requested_duration,
-                        allocation.width,
-                        allocation.height,
-                )
-            {
-                Some((x_offset, current_x_opt)) => {
+            waveform_buffer.update_condition(
+                requested_duration,
+                allocation.width,
+                allocation.height
+            );
+
+            match waveform_buffer.get_image() {
+                Some((image, x_offset, current_x_opt)) => {
                     #[cfg(feature = "profiling-audio-draw")]
                     let _before_image = Utc::now();
-
-                    let image = match waveform_buffer.exposed_image.as_ref() {
-                        Some(image) => image,
-                        None => {
-                            AudioController::clean_cairo_context(cr);
-                            return Inhibit(true)
-                        },
-                    };
 
                     cr.set_source_surface(image, -x_offset, 0f64);
                     cr.paint();
