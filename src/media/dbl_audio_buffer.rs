@@ -46,6 +46,8 @@ impl DoubleAudioBuffer {
     }
 
     pub fn cleanup(&mut self) {
+        self.audio_buffer.cleanup();
+
         {
             let exposed_buffer = &mut self.exposed_buffer_mtx.lock()
                 .expect("DoubleAudioBuffer: couldn't lock exposed_buffer_mtx while setting audio sink");
@@ -55,6 +57,7 @@ impl DoubleAudioBuffer {
         self.working_buffer.as_mut()
             .expect("DoubleAudioBuffer: couldn't get working_buffer while setting audio sink")
             .cleanup();
+        self.first_sample_to_keep = 0;
     }
 
     // Initialize buffer with audio stream capabilities

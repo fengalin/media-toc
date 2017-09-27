@@ -70,6 +70,20 @@ impl AudioBuffer {
         self.drain_size = (1_000_000_000f64 / self.sample_duration) as usize; // 1s worth of samples
     }
 
+    pub fn cleanup(&mut self) {
+        self.eos = false;
+        self.segement_first_sample = 0;
+        self.last_buffer_pts = 0;
+        self.last_buffer_last_sample = 0;
+        self.first_sample = 0;
+        self.last_sample = 0;
+        self.channels = 0;
+        self.sample_duration = 0f64;
+        self.capacity = 0;
+        self.samples.clear();
+        self.drain_size = 0;
+    }
+
     // Add samples from the GStreamer pipeline to the AudioBuffer
     // This buffer stores the complete set of samples in a time frame
     // in order to be able to represent the audio at any given precision.

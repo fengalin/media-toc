@@ -184,8 +184,7 @@ impl WaveformBuffer {
                             Some(next_first_sample)
                         }
                     }
-                }
-                else if self.current_sample + self.half_req_sample_window <= self.image.last_sample {
+                } else if self.current_sample + self.half_req_sample_window <= self.image.last_sample {
                     // current sample fits in the first half of the window with last sample further
                     if self.current_sample > self.image.first_sample + self.half_req_sample_window {
                         // current sample can be centered (scrolling)
@@ -221,17 +220,18 @@ impl WaveformBuffer {
     }
 
     // Update rendering conditions
+    // return true when an update is required
     pub fn update_condition(&mut self,
         duration: u64,
         width: i32,
         height: i32
-    ) {
-        self.image.update_dimensions(duration, width, height);
-
+    ) -> bool {
         self.req_sample_window = (
             duration as f64 / self.state.sample_duration
         ).round() as usize;
         self.half_req_sample_window = self.req_sample_window / 2;
+
+        self.image.update_dimensions(duration, width, height)
     }
 
     // Get the waveform as an image in current conditions.
@@ -348,7 +348,7 @@ impl SampleExtractor for WaveformBuffer {
         }
 
         if self.req_sample_window == 0 {
-            // not enough info to extract yet
+            // conditions not defined yet
             return;
         }
 
@@ -374,14 +374,13 @@ impl SampleExtractor for WaveformBuffer {
             // see how buffers can merge
             let (first_sample, last_sample) =
                 if !self.is_seeking {
-                    // samples appended at the end of the audio buffer
-                    // might use them for current waveform
+                    // not seeking => expose the whole buffer
                     (
                         audio_buffer.first_sample,
                         audio_buffer.last_sample
                     )
                 } else {
-                    // buffer origin has changed (done seeking)
+                    // seeking
                     self.is_seeking = false;
 
                     if audio_buffer.first_sample >= self.image.first_sample

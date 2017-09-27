@@ -20,6 +20,7 @@ pub struct WaveformImage {
     req_width: i32,
     req_height: i32,
     req_step_duration: u64,
+    force_redraw: bool,
 
     pub first_sample: usize,
     pub last_sample: usize,
@@ -46,6 +47,7 @@ impl WaveformImage {
             req_width: 0,
             req_height: 0,
             req_step_duration: 0,
+            force_redraw: false,
 
             first_sample: 0,
             last_sample: 0,
@@ -65,6 +67,7 @@ impl WaveformImage {
         self.req_width = 0;
         self.req_height = 0;
         self.req_step_duration = 0;
+        self.force_redraw = false;
 
         self.first_sample = 0;
         self.last_sample = 0;
@@ -73,7 +76,17 @@ impl WaveformImage {
         self.sample_step_f = 0f64;
     }
 
-    pub fn update_dimensions(&mut self, duration: u64, width: i32, height: i32) {
+    pub fn update_dimensions(&mut self,
+        duration: u64,
+        width: i32,
+        height: i32
+    ) -> bool {
+        // if the requested height is different from current height
+        // it might be necessary to force rendering when stream
+        // is paused or eos
+
+        self.force_redraw = self.req_height != height;
+
         self.req_width = width;
         self.req_height = height;
 
@@ -85,6 +98,8 @@ impl WaveformImage {
             } else {
                 1
             };
+
+        self.is_ready && self.force_redraw
     }
 
     pub fn is_ready(&self) -> bool {
@@ -101,6 +116,7 @@ impl WaveformImage {
         self.req_step_duration = other.req_step_duration;
         self.req_width = other.req_width;
         self.req_height = other.req_height;
+        self.force_redraw = other.force_redraw;
     }
 
     // Render the waveform within the provided limits.
@@ -145,7 +161,9 @@ impl WaveformImage {
 
         let extraction_samples_window = (last_sample - first_sample) / sample_step;
 
-        let mut must_redraw = self.exposed_image.is_none() || self.sample_step != sample_step;
+        let mut must_redraw = !self.is_ready || self.force_redraw
+            || self.sample_step != sample_step;
+
         if !must_redraw && first_sample >= self.first_sample
         && last_sample <= self.last_sample
         {   // traget extraction fits in previous extraction
@@ -161,25 +179,22 @@ impl WaveformImage {
             let mut can_reuse = false;
             let target_width = (extraction_samples_window as i32).max(self.req_width);
 
-            if let Some(ref working_image) = self.working_image {
-                if self.req_height != working_image.get_height() {
-                    // height has changed => scale samples amplitude accordingly
-                    must_redraw = true;
-                }
+            let working_image = self.working_image.take().unwrap();
+            if self.req_height != working_image.get_height() {
+                // height has changed => scale samples amplitude accordingly
+                must_redraw = true;
+                y_offset = (self.req_height - working_image.get_height()) as f64;
+            }
 
-                if target_width <= working_image.get_width()
-                && self.req_height <= working_image.get_height() {
-                    // expected dimensions fit in current working image => reuse it
-                    can_reuse = true;
-                    if self.req_height != working_image.get_height() {
-                        y_offset = (self.req_height - working_image.get_height()) as f64;
-                    }
-                }
+            if target_width <= working_image.get_width()
+            && self.req_height <= working_image.get_height() {
+                // expected dimensions fit in current working image => reuse it
+                can_reuse = true;
             }
 
             if can_reuse {
                 (
-                    self.working_image.take().unwrap(),
+                    working_image,
                     self.exposed_image.take().unwrap(),
                 )
             } else {
@@ -291,6 +306,7 @@ impl WaveformImage {
 
         self.sample_window = self.last_sample - self.first_sample;
         self.is_ready = true;
+        self.force_redraw = false;
 
         #[cfg(feature = "profiling-waveform-image")]
         let end = Utc::now();

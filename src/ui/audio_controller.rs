@@ -19,12 +19,17 @@ use media::{Context, DoubleAudioBuffer, SampleExtractor};
 
 use super::{BACKGROUND_COLOR, DoubleWaveformBuffer, MainController, WaveformBuffer};
 
+const INIT_REQ_DURATION: u64 = 2_000_000_000; // 2s
+
 pub struct AudioController {
     container: gtk::Container,
     pub drawingarea: gtk::DrawingArea,
 
     is_active: bool,
     position: u64,
+
+    // need Arc<Mutex> here until connect_size_allocate is implemented in gtk-rs
+    requested_duration_mtx: Arc<Mutex<u64>>,
 
     waveform_mtx: Arc<Mutex<Box<SampleExtractor>>>,
     dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
@@ -47,6 +52,7 @@ impl AudioController {
 
             is_active: false,
             position: 0,
+            requested_duration_mtx: Arc::new(Mutex::new(INIT_REQ_DURATION)),
             waveform_mtx: waveform_mtx,
             dbl_buffer_mtx: dbl_buffer_mtx,
         }
@@ -55,16 +61,29 @@ impl AudioController {
     pub fn register_callbacks(&self, main_ctrl: &Rc<RefCell<MainController>>) {
         // draw
         let waveform_mtx = Arc::clone(&self.waveform_mtx);
+        let requested_duration_mtx = Arc::clone(&self.requested_duration_mtx);
         self.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
-            AudioController::draw(&waveform_mtx, drawing_area, cairo_ctx).into()
+            AudioController::draw(
+                drawing_area,
+                cairo_ctx,
+                &waveform_mtx,
+                &requested_duration_mtx,
+            ).into()
         });
 
         // widget size changed
-        /*self.drawingarea.connect("size-allocate", false, |drawingarea| {
-            println!("resized");
-            drawingarea[0].get::<gtk::DrawingArea>().unwrap().queue_draw();
+        let waveform_mtx = Arc::clone(&self.waveform_mtx);
+        let requested_duration_mtx = Arc::clone(&self.requested_duration_mtx);
+        let dbl_buffer_mtx = Arc::clone(&self.dbl_buffer_mtx);
+        self.drawingarea.connect("size-allocate", false, move |drawingarea| {
+            AudioController::on_size_allocate(
+                drawingarea[0].get::<gtk::DrawingArea>().unwrap(),
+                &waveform_mtx,
+                &requested_duration_mtx,
+                &dbl_buffer_mtx,
+            );
             None
-        }).ok().unwrap();*/
+        }).ok().unwrap();
 
         // click in drawing_area
         let main_ctrl_rc = Rc::clone(main_ctrl);
@@ -144,20 +163,19 @@ impl AudioController {
     }
 
     fn draw(
+        drawingarea: &gtk::DrawingArea,
+        cr: &cairo::Context,
         waveform_mtx: &Arc<Mutex<Box<SampleExtractor>>>,
-        drawing_area: &gtk::DrawingArea,
-        cr: &cairo::Context
+        requested_duration_mtx: &Arc<Mutex<u64>>,
     ) -> Inhibit {
         #[cfg(feature = "profiling-audio-draw")]
         let before_init = Utc::now();
 
-        let allocation = drawing_area.get_allocation();
+        let allocation = drawingarea.get_allocation();
         if allocation.width.is_negative() {
             println!("negative allocation.width: {}", allocation.width);
             return Inhibit(true);
         }
-
-        let requested_duration = 2_000_000_000u64; // 2s
 
         #[cfg(feature = "profiling-audio-draw")]
         let before_lock = Utc::now();
@@ -177,7 +195,7 @@ impl AudioController {
             let _before_cndt = Utc::now();
 
             waveform_buffer.update_condition(
-                requested_duration,
+                *requested_duration_mtx.lock().unwrap(),
                 allocation.width,
                 allocation.height
             );
@@ -226,5 +244,35 @@ impl AudioController {
         );
 
        Inhibit(true)
+    }
+
+    fn on_size_allocate(
+        drawingarea: gtk::DrawingArea,
+        waveform_mtx: &Arc<Mutex<Box<SampleExtractor>>>,
+        requested_duration_mtx: &Arc<Mutex<u64>>,
+        dbl_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer>>,
+    ) {
+        let allocation = drawingarea.get_allocation();
+        let need_update = {
+            let waveform_grd = &mut *waveform_mtx.lock()
+                .expect("AudioController::draw: couldn't lock waveform_mtx");
+            waveform_grd
+                .as_mut_any().downcast_mut::<WaveformBuffer>()
+                .expect("AudioController::draw: SamplesExtratctor is not a WaveformBuffer")
+                .update_condition(
+                    *requested_duration_mtx.lock().unwrap(),
+                    allocation.width,
+                    allocation.height
+                )
+        };
+
+        if need_update {
+            // force buffer update in order to render the waveform
+            // in latest conditions
+            dbl_buffer_mtx.lock()
+                .expect("AudioController::size-allocate: couldn't lock dbl_buffer_mtx")
+                .update();
+            drawingarea.queue_draw();
+        }
     }
 }
