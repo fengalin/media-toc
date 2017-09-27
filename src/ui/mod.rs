@@ -16,5 +16,5 @@ use self::image_surface::ImageSurface;
 pub mod waveform_buffer;
 pub use self::waveform_buffer::{DoubleWaveformBuffer, WaveformBuffer};
 
-pub mod waveform_renderer;
-pub use self::waveform_renderer::{BACKGROUND_COLOR, WaveformRenderer};
+pub mod waveform_image;
+pub use self::waveform_image::{BACKGROUND_COLOR, WaveformRenderer};
