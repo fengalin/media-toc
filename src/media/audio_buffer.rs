@@ -11,7 +11,7 @@ use std::collections::vec_deque::VecDeque;
 
 use super::{DoubleSampleExtractor};
 
-pub const SAMPLES_NORM: f64 = 200f64;
+pub const SAMPLES_NORM: f64 = 450f64;
 const SAMPLES_OFFSET: f64 = SAMPLES_NORM / 2f64;
 
 pub struct AudioBuffer {

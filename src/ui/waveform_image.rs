@@ -16,7 +16,6 @@ pub struct WaveformImage {
     is_ready: bool,
     exposed_image: Option<cairo::ImageSurface>,
     working_image: Option<cairo::ImageSurface>,
-    image_offset: Option<f64>,
 
     req_width: i32,
     req_height: i32,
@@ -43,7 +42,6 @@ impl WaveformImage {
                     cairo::Format::Rgb24, INIT_WIDTH, INIT_HEIGHT
                 ).unwrap()
             ),
-            image_offset: None,
 
             req_width: 0,
             req_height: 0,
@@ -63,8 +61,6 @@ impl WaveformImage {
 
         // self.exposed_image & self.working_image
         // will be cleaned on next with draw
-
-        self.image_offset = None;
 
         self.req_width = 0;
         self.req_height = 0;
@@ -103,6 +99,8 @@ impl WaveformImage {
         self.sample_step = other.sample_step;
         self.sample_step_f = other.sample_step_f;
         self.req_step_duration = other.req_step_duration;
+        self.req_width = other.req_width;
+        self.req_height = other.req_height;
     }
 
     // Render the waveform within the provided limits.
@@ -213,11 +211,8 @@ impl WaveformImage {
         if must_redraw {
             // Initialization or resolution has changed or seek requested
             // redraw the whole range
-            self.image_offset = None;
-            self.draw(&cr,
+            self.redraw(&cr,
                 audio_buffer.iter(first_sample, last_sample, sample_step),
-                0f64,
-                working_image.get_width()
             );
 
             self.sample_step = sample_step;
@@ -250,11 +245,12 @@ impl WaveformImage {
                     self.first_sample - first_sample
                 );
 
-                self.copy_image(&cr, &previous_image, x_offset, y_offset);
-                self.draw(&cr,
-                    audio_buffer.iter(first_sample, self.first_sample, sample_step),
-                    0f64,
-                    working_image.get_width()
+                let prev_first_sample = self.first_sample;
+                self.append_left(&cr,
+                    &previous_image,
+                    x_offset,
+                    y_offset,
+                    audio_buffer.iter(first_sample, prev_first_sample, sample_step),
                 );
 
                 self.first_sample = first_sample;
@@ -265,21 +261,23 @@ impl WaveformImage {
                 assert!(last_sample > self.last_sample);
 
                 // shift previous image to the left (if necessary)
-                let x_offset = (
+                let x_offset = -((
                     (first_sample - self.first_sample) / sample_step
-                ) as f64;
-                self.copy_image(&cr, &previous_image, -x_offset, y_offset);
+                ) as f64);
 
                 // append samples after previous last sample
                 let first_sample_to_draw = self.last_sample.max(first_sample);
                 let first_x_to_draw = (
                     (first_sample_to_draw - self.first_sample) / sample_step
-                ) as f64 - x_offset;
+                ) as f64 + x_offset;
 
-                self.draw(&cr,
+                self.append_right(&cr,
+                    &previous_image,
+                    x_offset,
+                    y_offset,
                     audio_buffer.iter(first_sample_to_draw, last_sample, sample_step),
                     first_x_to_draw,
-                    working_image.get_width()
+                    working_image.get_width() // clear_limit
                 );
 
                 self.first_sample = first_sample;
@@ -304,47 +302,63 @@ impl WaveformImage {
         );
     }
 
-    fn copy_image(&mut self,
+    // redraw the whole sample range on a clean image
+    fn redraw(&mut self,
         cr: &cairo::Context,
-        previous_image: &cairo::ImageSurface,
-        image_offset: f64,
-        y_offset: f64
+        sample_iter: AudioBufferIter
     ) {
-        self.image_offset = Some(image_offset);
-        cr.set_source_surface(&previous_image, image_offset, y_offset);
+        cr.set_source_rgb(
+            BACKGROUND_COLOR.0,
+            BACKGROUND_COLOR.1,
+            BACKGROUND_COLOR.2
+        );
         cr.paint();
+
+        self.set_scale(&cr);
+        self.draw_samples(cr, sample_iter, 0f64);
     }
 
-    fn draw(&self,
+    fn append_left(&mut self,
+        cr: &cairo::Context,
+        previous_image: &cairo::ImageSurface,
+        x_offset: f64,
+        y_offset: f64,
+        sample_iter: AudioBufferIter,
+    ) {
+        cr.set_source_surface(previous_image, x_offset, y_offset);
+        cr.paint();
+
+        self.set_scale(&cr);
+        self.clear_area(&cr, 0f64, x_offset);
+        self.draw_samples(cr, sample_iter, 0f64);
+    }
+
+    fn append_right(&mut self,
+        cr: &cairo::Context,
+        previous_image: &cairo::ImageSurface,
+        x_offset: f64,
+        y_offset: f64,
+        sample_iter: AudioBufferIter,
+        first_x: f64,
+        clear_limit: i32,
+    ) {
+        cr.set_source_surface(previous_image, x_offset, y_offset);
+        cr.paint();
+
+        self.set_scale(&cr);
+        self.clear_area(&cr, first_x, f64::from(clear_limit));
+        self.draw_samples(cr, sample_iter, first_x);
+    }
+
+    fn set_scale(&self, cr: &cairo::Context) {
+        cr.scale(1f64, f64::from(self.req_height) / SAMPLES_NORM);
+    }
+
+    fn draw_samples(&self,
         cr: &cairo::Context,
         mut sample_iter: AudioBufferIter,
         first_x: f64,
-        width: i32,
     ) {
-        // clear what needs to be cleaned
-        {
-            let scale_y = f64::from(self.req_height) / SAMPLES_NORM;
-
-            match self.image_offset {
-                Some(image_offset) => { // image results from a copy a a previous image
-                    cr.scale(1f64, scale_y);
-
-                    if image_offset <= 0f64 && first_x > 0f64 {
-                        // image was shifted left => clear samples on the right
-                        self.clear_area(&cr, first_x, f64::from(width));
-                    } else {
-                        // image was shifted right => clear samples on the left
-                        self.clear_area(&cr, first_x, image_offset);
-                    }
-                },
-                None => { // draw image completely => set background
-                    self.clear_image(&cr);
-                    cr.scale(1f64, scale_y);
-                },
-            }
-        }
-
-        // render the requested samples
         if sample_iter.size_hint().0 > 0 {
             // Stroke selected samples
             cr.set_line_width(0.5f64);
@@ -360,15 +374,6 @@ impl WaveformImage {
                 cr.stroke();
             }
         }
-    }
-
-     fn clear_image(&self, cr: &cairo::Context) {
-        cr.set_source_rgb(
-            BACKGROUND_COLOR.0,
-            BACKGROUND_COLOR.1,
-            BACKGROUND_COLOR.2
-        );
-        cr.paint();
     }
 
     // clear samples previously rendered
