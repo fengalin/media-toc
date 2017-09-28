@@ -141,7 +141,7 @@ impl WaveformImage {
 
         // use an integer number of samples per step
         let sample_step_f = self.req_step_duration as f64 / sample_duration;
-        let sample_step = sample_step_f as usize;
+        let sample_step = (sample_step_f as usize).max(1);
 
         if audio_buffer.samples.len() < sample_step {
             // buffer too small to render
