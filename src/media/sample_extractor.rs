@@ -3,6 +3,8 @@ use gstreamer::{ElementExtManual, QueryView};
 
 use std::any::Any;
 
+use std::boxed::Box;
+
 use super::AudioBuffer;
 
 pub struct SampleExtractionState {
@@ -71,5 +73,5 @@ pub trait SampleExtractor: Send {
 
     // Refresh the extractionm in its current sample range
     // and position. E.g. change scale
-    fn refresh(&mut self, audio_buffer: &AudioBuffer);
+    fn refresh(&mut self, audio_buffer: &AudioBuffer, conditions: Box<Any>);
 }

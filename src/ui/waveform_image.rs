@@ -85,20 +85,22 @@ impl WaveformImage {
         // it might be necessary to force rendering when stream
         // is paused or eos
 
-        self.force_redraw =
-            self.req_height != height || self.req_width != width;
-
-        self.req_width = width;
-        self.req_height = height;
-
-        // resolution
-        let width = width as u64;
-        self.req_step_duration =
-            if duration > width {
-                duration / width
+        let width_f = width as u64;
+        let req_step_duration =
+            if duration > width_f {
+                duration / width_f
             } else {
                 1
             };
+
+        self.force_redraw =
+            self.req_height != height
+            || self.req_width != width
+            || self.req_step_duration != req_step_duration;
+
+        self.req_width = width;
+        self.req_height = height;
+        self.req_step_duration = req_step_duration;
 
         self.is_ready
     }
@@ -162,9 +164,7 @@ impl WaveformImage {
 
         let extraction_samples_window = (last_sample - first_sample) / sample_step;
 
-        let mut must_redraw = !self.is_ready || self.force_redraw
-            || self.sample_step != sample_step;
-
+        let mut must_redraw = !self.is_ready || self.force_redraw;
         if !must_redraw && first_sample >= self.first_sample
         && last_sample <= self.last_sample
         {   // traget extraction fits in previous extraction

@@ -1,5 +1,7 @@
 extern crate gstreamer as gst;
 
+use std::any::Any;
+
 use std::mem;
 
 use std::sync::{Arc, Mutex};
@@ -119,7 +121,9 @@ impl DoubleAudioBuffer {
     }
 
     // Refresh the working buffer with current conditions and swap.
-    pub fn refresh(&mut self) {
+    // Conditions must dynamically conform to a condition struct expected
+    // by the concrete implementation of the SampleExtractor.
+    pub fn refresh<T: Any + Clone>(&mut self, conditions: Box<T>) {
         let mut working_buffer = self.working_buffer.take()
             .expect("DoubleAudioBuffer::refresh: failed to take working buffer");
 
@@ -130,11 +134,14 @@ impl DoubleAudioBuffer {
             working_buffer.update_concrete_state(exposed_buffer_box);
 
             // refresh working buffer
-            working_buffer.refresh(&self.audio_buffer);
+            working_buffer.refresh(&self.audio_buffer, conditions.clone());
 
             // swap buffers
             mem::swap(exposed_buffer_box, &mut working_buffer);
         }
+
+        // working buffer is last exposed buffer
+        working_buffer.refresh(&self.audio_buffer, conditions);
 
         self.first_sample_to_keep = working_buffer.get_first_sample();
 
