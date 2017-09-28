@@ -81,22 +81,58 @@ impl DoubleAudioBuffer {
 
     pub fn handle_eos(&mut self) {
         self.audio_buffer.handle_eos();
-        self.update();
+        // extract last samples and swap
+        self.extract_samples();
+        // update second buffer too
+        self.extract_samples();
     }
 
     pub fn push_gst_sample(&mut self, sample: gst::Sample) {
         // store incoming samples
         self.audio_buffer.push_gst_sample(sample, self.first_sample_to_keep);
 
-        // update working buffer and swap
-        self.update();
+        // extract new samples and swap
+        self.extract_samples();
     }
 
-    // Update the working buffer and swap.
-    pub fn update(&mut self) {
+    // Update the working extractor with new samples and swap.
+    pub fn extract_samples(&mut self) {
         let mut working_buffer = self.working_buffer.take()
             .expect("DoubleSampleExtractor: failed to take working buffer while updating");
         working_buffer.extract_samples(&self.audio_buffer);
+
+        // swap buffers
+        {
+            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock()
+                .expect("DoubleSampleExtractor: failed to lock the exposed buffer for swap");
+            // get latest conditions from the previously exposed buffer
+            // in order to smoothen rendering between frames
+            working_buffer.update_concrete_state(exposed_buffer_box);
+            mem::swap(exposed_buffer_box, &mut working_buffer);
+        }
+
+        self.first_sample_to_keep = working_buffer.get_first_sample();
+
+        self.working_buffer = Some(working_buffer);
+        // self.working_buffer is now the buffer previously in
+        // self.exposed_buffer_mtx
+    }
+
+    // Refresh the working buffer with current conditions and swap.
+    pub fn refresh(&mut self) {
+        let mut working_buffer = self.working_buffer.take()
+            .expect("DoubleSampleExtractor: failed to take working buffer while updating");
+
+        // get latest conditions
+        {
+            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock()
+                .expect("DoubleSampleExtractor: failed to lock the exposed buffer for swap");
+            // get latest conditions from the previously exposed buffer
+            working_buffer.update_concrete_state(exposed_buffer_box);
+        }
+
+        // refresh working buffer
+        working_buffer.refresh(&self.audio_buffer);
 
         // swap buffers
         {

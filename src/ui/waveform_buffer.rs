@@ -464,4 +464,20 @@ impl SampleExtractor for WaveformBuffer {
             self.state.sample_duration
         );
     }
+
+    // Refresh the waveform in its current sample range
+    // and position
+    fn refresh(&mut self, audio_buffer: &AudioBuffer) {
+        // make sure current is up to date
+        self.current_sample = self.query_current_sample();
+
+        let first_sample = self.image.first_sample;
+        let last_sample = self.image.last_sample;
+        self.image.render(
+            audio_buffer,
+            first_sample,
+            last_sample,
+            self.state.sample_duration
+        );
+    }
 }

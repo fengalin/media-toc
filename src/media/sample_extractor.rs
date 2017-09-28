@@ -64,5 +64,12 @@ pub trait SampleExtractor: Send {
         ).round() as usize
     }
 
+    // Update the extractions taking account new
+    // samples added to the buffer and possibly a
+    // different position
     fn extract_samples(&mut self, audio_buffer: &AudioBuffer);
+
+    // Refresh the extractionm in its current sample range
+    // and position. E.g. change scale
+    fn refresh(&mut self, audio_buffer: &AudioBuffer);
 }

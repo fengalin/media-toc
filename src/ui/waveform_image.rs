@@ -85,7 +85,8 @@ impl WaveformImage {
         // it might be necessary to force rendering when stream
         // is paused or eos
 
-        self.force_redraw = self.req_height != height;
+        self.force_redraw =
+            self.req_height != height || self.req_width != width;
 
         self.req_width = width;
         self.req_height = height;
@@ -99,7 +100,7 @@ impl WaveformImage {
                 1
             };
 
-        self.is_ready && self.force_redraw
+        self.is_ready
     }
 
     pub fn is_ready(&self) -> bool {

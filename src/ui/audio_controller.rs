@@ -267,11 +267,11 @@ impl AudioController {
         };
 
         if need_update {
-            // force buffer update in order to render the waveform
+            // refresh the buffer in order to render the waveform
             // in latest conditions
             dbl_buffer_mtx.lock()
                 .expect("AudioController::size-allocate: couldn't lock dbl_buffer_mtx")
-                .update();
+                .refresh();
             drawingarea.queue_draw();
         }
     }
