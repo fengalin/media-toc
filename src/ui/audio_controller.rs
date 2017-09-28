@@ -20,7 +20,7 @@ use media::{Context, DoubleAudioBuffer, SampleExtractor};
 use super::{BACKGROUND_COLOR, DoubleWaveformBuffer, MainController,
             WaveformConditions, WaveformBuffer};
 
-const MIN_REQ_DURATION: u64  =    500_000_000; // 5 ms
+const MIN_REQ_DURATION: u64  =    500_000_000; // 500 ms
 const MAX_REQ_DURATION: u64  = 30_000_000_000; // 30 s
 const INIT_REQ_DURATION: u64 =  2_000_000_000; // 2 s
 const STEP_REQ_DURATION: u64 =  2;
@@ -165,6 +165,7 @@ impl AudioController {
                 .expect("AudioController::cleanup: Couldn't lock dbl_buffer_mtx")
                 .cleanup();
         }
+        *self.requested_duration_mtx.lock().unwrap() = INIT_REQ_DURATION;
         self.drawingarea.queue_draw();
     }
 

@@ -121,7 +121,7 @@ impl DoubleAudioBuffer {
     }
 
     // Refresh the working buffer with current conditions and swap.
-    // Conditions must dynamically conform to a condition struct expected
+    // Conditions concrete type must conform to a struct expected
     // by the concrete implementation of the SampleExtractor.
     pub fn refresh<T: Any + Clone>(&mut self, conditions: Box<T>) {
         let mut working_buffer = self.working_buffer.take()
