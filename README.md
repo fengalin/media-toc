@@ -15,6 +15,7 @@ timeline.
 chapter in the list while playing.
 - Seek in the media by clicking on the waveform, on the timeline or in the
 chapters list.
+- Zoom in/out the waveform on the time axis.
 
 ## <a name='ui'></a>Screenshots
 ![Media-TOC UI Video](assets/media-toc_video.png)
