@@ -19,7 +19,7 @@ use media::ContextMessage::*;
 
 use super::{AudioController, InfoController, VideoController};
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum ControllerState {
     Stopped,
     Paused,
@@ -107,6 +107,10 @@ impl MainController {
 
     pub fn show_all(&self) {
         self.window.show_all();
+    }
+
+    pub fn get_state(&self) -> ControllerState {
+        self.state.clone()
     }
 
     fn play_pause(&mut self) {
