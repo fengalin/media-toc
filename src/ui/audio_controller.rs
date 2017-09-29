@@ -20,9 +20,9 @@ use media::{Context, DoubleAudioBuffer, SampleExtractor};
 use super::{BACKGROUND_COLOR, DoubleWaveformBuffer, MainController,
             WaveformConditions, WaveformBuffer};
 
-const MIN_REQ_DURATION: u64  =     10_000_000; // 10 ms
-const MAX_REQ_DURATION: u64  = 30_000_000_000; // 30 s
-const INIT_REQ_DURATION: u64 =  2_000_000_000; // 2 s
+const MIN_REQ_DURATION: u64  =     15_625_000; // 15 ms
+const MAX_REQ_DURATION: u64  = 16_000_000_000; // 16 s
+const INIT_REQ_DURATION: u64 =  4_000_000_000; //  4 s
 const STEP_REQ_DURATION: u64 =  2;
 
 pub struct AudioController {
@@ -91,14 +91,15 @@ impl AudioController {
         let main_ctrl_rc = Rc::clone(main_ctrl);
         let waveform_mtx = Arc::clone(&self.waveform_mtx);
         self.drawingarea.connect_button_press_event(move |_, event_button| {
-            if event_button.get_button() == 1 {
+            let button = event_button.get_button();
+            if button == 1 || button == 2 {
                 if let Some(position) = {
                     let waveform_buffer_grd = &mut *waveform_mtx.lock()
                         .expect("Couldn't lock waveform buffer in audio controller draw");
                     waveform_buffer_grd
                         .as_mut_any().downcast_mut::<WaveformBuffer>()
                         .expect("SamplesExtratctor is not a waveform buffer in audio controller draw")
-                        .seek_in_window(event_button.get_position().0)
+                        .seek_in_window(event_button.get_position().0, (button == 1))
                 }
                 {
                     main_ctrl_rc.borrow_mut().seek(position);
