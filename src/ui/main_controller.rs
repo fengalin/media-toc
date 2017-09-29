@@ -19,6 +19,16 @@ use media::ContextMessage::*;
 
 use super::{AudioController, InfoController, VideoController};
 
+#[derive(PartialEq)]
+pub enum ControllerState {
+    Stopped,
+    Paused,
+    Playing,
+}
+
+const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
+const TRACKER_PERIOD:  u32 = 17;  //  17 ms (60 Hz)
+
 pub struct MainController {
     window: gtk::ApplicationWindow,
     header_bar: gtk::HeaderBar,
@@ -29,6 +39,8 @@ pub struct MainController {
     audio_ctrl: AudioController,
 
     context: Option<Context>,
+    state: ControllerState,
+    duration: u64,
     seeking: bool,
 
     this_opt: Option<Rc<RefCell<MainController>>>,
@@ -49,6 +61,8 @@ impl MainController {
             audio_ctrl: AudioController::new(&builder),
 
             context: None,
+            state: ControllerState::Stopped,
+            duration: 0,
             seeking: false,
 
             this_opt: None,
@@ -96,7 +110,7 @@ impl MainController {
     }
 
     fn play_pause(&mut self) {
-        let context =
+        let mut context =
             match self.context.take() {
                 Some(context) => context,
                 None => {
@@ -107,19 +121,29 @@ impl MainController {
 
         match context.get_state() {
             gst::State::Paused => {
-                self.register_tracker(17); // 60 Hz
-                self.play_pause_btn.set_icon_name("media-playback-pause");
-                context.play().unwrap();
+                if context.get_position() < self.duration {
+                    self.register_tracker(TRACKER_PERIOD);
+                    self.play_pause_btn.set_icon_name("media-playback-pause");
+                    self.state = ControllerState::Playing;
+                    context.play().unwrap();
+                    self.context = Some(context);
+                } else {
+                    self.context = Some(context);
+                    self.seek(0);
+                }
             }
             gst::State::Playing => {
                 context.pause().unwrap();
                 self.play_pause_btn.set_icon_name("media-playback-start");
                 self.remove_tracker();
+                self.state = ControllerState::Paused;
+                self.context = Some(context);
             },
-            state => println!("Can't play/pause in state {:?}", state),
+            state => {
+                println!("Can't play/pause in state {:?}", state);
+                self.context = Some(context);
+            },
         };
-
-        self.context = Some(context);
     }
 
     fn stop(&mut self) {
@@ -134,18 +158,29 @@ impl MainController {
         self.audio_ctrl.cleanup();
 
         self.play_pause_btn.set_icon_name("media-playback-start");
+
+        self.state = ControllerState::Stopped;
+        self.duration = 0;
     }
 
     pub fn seek(&mut self, position: u64) {
-        self.seeking = true;
-        self.info_ctrl.seek(position);
-        self.audio_ctrl.seek(position);
-        self.context.as_ref()
-            .expect("No context found while seeking in media")
-            .seek(position);
-        // update position eventhough the stream
-        // is not sync yet for the user to notice
-        // the seek request in being handled
+        if self.state != ControllerState::Stopped {
+            self.seeking = true;
+            // update position eventhough the stream
+            // is not sync yet for the user to notice
+            // the seek request in being handled
+            self.info_ctrl.seek(position);
+            self.audio_ctrl.seek(position);
+            self.context.as_ref()
+                .expect("MainController::seek no context")
+                .seek(position);
+
+            if self.state == ControllerState::Paused {
+                self.register_tracker(TRACKER_PERIOD);
+                self.play_pause_btn.set_icon_name("media-playback-pause");
+                self.context.as_mut().unwrap().play().unwrap();
+            }
+        }
     }
 
     fn select_media(&mut self) {
@@ -176,6 +211,10 @@ impl MainController {
         timeout: u32,
         ui_rx: Receiver<ContextMessage>,
     ) {
+        if self.listener_src.is_some() {
+            return;
+        }
+
         let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
 
         self.listener_src = Some(gtk::timeout_add(timeout, move || {
@@ -196,6 +235,8 @@ impl MainController {
                             Some(context.file_name.as_str())
                         );
 
+                        this_mut.duration = context.get_duration();
+
                         this_mut.info_ctrl.new_media(&context);
                         this_mut.video_ctrl.new_media(&context);
                         this_mut.audio_ctrl.new_media(&context);
@@ -203,10 +244,12 @@ impl MainController {
                         this_mut.context = Some(context);
                     },
                     Eos => {
-                        let this = this_rc.borrow_mut();
+                        let mut this = this_rc.borrow_mut();
 
                         this.audio_ctrl.tick();
                         this.play_pause_btn.set_icon_name("media-playback-start");
+                        this.state = ControllerState::Paused;
+                        this.remove_tracker();
                     },
                     FailedToOpenMedia => {
                         eprintln!("ERROR: failed to open media");
@@ -239,25 +282,40 @@ impl MainController {
     }
 
     fn register_tracker(&mut self, timeout: u32) {
+        if self.tracker_src.is_some() {
+            return;
+        }
+
         let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
 
         self.tracker_src = Some(gtk::timeout_add(timeout, move || {
             #[cfg(feature = "profiling-tracker")]
             let start = Utc::now();
 
+            let mut keep_going = true;
+
             let mut this_mut = this_rc.borrow_mut();
 
             #[cfg(feature = "profiling-tracker")]
             let before_tick = Utc::now();
 
-            if !this_mut.seeking {
-                let position = this_mut.context.as_mut()
-                    .expect("No context in tracker while getting position")
-                    .get_position();
-                this_mut.info_ctrl.tick(position);
-            }
-
+            let position = this_mut.context.as_mut()
+                .expect("MainController::tracker no context while getting position")
+                .get_position();
+            this_mut.info_ctrl.tick(position);
             this_mut.audio_ctrl.tick();
+
+            if position > this_mut.duration {
+                // this check is necessary as EOS is not sent
+                // after the first EOS even afte a seek
+                if let Some(context) = this_mut.context.as_mut() {
+                    context.pause().unwrap();
+                }
+                this_mut.play_pause_btn.set_icon_name("media-playback-start");
+                this_mut.state = ControllerState::Paused;
+                this_mut.tracker_src = None;
+                keep_going = false;
+            }
 
             #[cfg(feature = "profiling-tracker")]
             let end = Utc::now();
@@ -269,7 +327,7 @@ impl MainController {
                 end.time().format("%H:%M:%S%.6f"),
             );
 
-            glib::Continue(this_mut.keep_going)
+            glib::Continue(this_mut.keep_going && keep_going)
         }));
     }
 
@@ -284,7 +342,7 @@ impl MainController {
 
         self.seeking = false;
         self.keep_going = true;
-        self.register_listener(250, ui_rx);
+        self.register_listener(LISTENER_PERIOD, ui_rx);
 
         match Context::new(
             filepath,
