@@ -244,17 +244,8 @@ impl WaveformImage {
 
             if first_sample < self.first_sample {
                 // append samples before previous first sample
-                let image_width_as_samples =
-                    working_image.get_width() as usize * sample_step;
-
-                self.last_sample = self.last_sample.min(
-                    first_sample + image_width_as_samples
-                );
-
-                // shift previous image to the right
-                let x_offset = (
-                    (self.first_sample - first_sample) / sample_step
-                ) as f64;
+                let sample_offset = self.first_sample - first_sample;
+                let x_offset = sample_offset as f64 / self.sample_step_f;
 
                 println!(
                     "WaveformImage: appending {} samples before previous first sample",
@@ -270,15 +261,14 @@ impl WaveformImage {
                 );
 
                 self.first_sample = first_sample;
-            } else {
-                // first_sample >= self.first_sample
-                // Note: due to previous conditions tested before,
-                // this also implies:
-                assert!(last_sample > self.last_sample);
+                self.last_sample = self.last_sample + sample_offset;
+            }
 
+            if last_sample > self.last_sample {
                 // shift previous image to the left (if necessary)
+                // and append missing samples to the right
                 let x_offset = -((
-                    (first_sample - self.first_sample) / sample_step
+                    (first_sample - self.first_sample) / self.sample_step
                 ) as f64);
 
                 // append samples after previous last sample
@@ -402,5 +392,135 @@ impl WaveformImage {
         );
         cr.rectangle(first_x, 0f64, limit_x - first_x, SAMPLES_NORM);
         cr.fill();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate cairo;
+
+    extern crate gstreamer as gst;
+    extern crate gstreamer_audio as gst_audio;
+
+    use std::fs::{create_dir, File};
+    use std::io::ErrorKind;
+
+    use std::{i16, u16};
+
+    use media::AudioBuffer;
+    use ui::WaveformImage;
+
+    const OUT_DIR: &'static str = "target/test";
+    const SAMPLE_RATE: i32 = 300;
+
+    fn prepare_tests() {
+        match create_dir(&OUT_DIR) {
+            Ok(_) => (),
+            Err(error) => match error.kind() {
+                ErrorKind::AlreadyExists => (),
+                _ =>
+                    panic!("WaveformImage test: couldn't create directory {}",
+                        OUT_DIR
+                    ),
+            },
+        }
+    }
+
+    #[test]
+    fn multiple_renderings() {
+        gst::init().unwrap();
+
+        prepare_tests();
+
+        // AudioBuffer
+        let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
+        let caps = gst::Caps::new_simple(
+            "audio/x-raw",
+            &[
+                ("format", &gst_audio::AUDIO_FORMAT_S16.to_string()),
+                ("layout", &"interleaved"),
+                ("channels", &1),
+                ("rate", &SAMPLE_RATE),
+            ],
+        );
+        audio_buffer.set_caps(&caps);
+
+        // WaveformImage
+        let mut waveform = WaveformImage::new();
+        waveform.update_dimensions(
+            1_000_000_000, // 1s
+            SAMPLE_RATE,
+            SAMPLE_RATE
+        );
+
+        // Compute a buffer in the specified range
+        // which will be rendered as a diagonal on the Waveform image
+        // from left top corner to right bottom of the target image
+        // if all samples are rendered in the range [0:SAMPLE_RATE]
+        fn build_buffer(first_sample: usize, last_sample: usize) -> Vec<i16> {
+            let mut buffer: Vec<i16> = Vec::new();
+            let mut index = first_sample;
+            while index < last_sample {
+                buffer.push((
+                    i16::MAX as i32
+                    - (index as f64 / SAMPLE_RATE as f64 * u16::MAX as f64
+                    ) as i32
+                ) as i16);
+                index += 1;
+            }
+            buffer
+        }
+
+        fn render_with_samples(
+            waveform: &mut WaveformImage,
+            audio_buffer: &mut AudioBuffer,
+            caps: &gst::Caps,
+            first: usize,
+            last: usize,
+            segement_first_sample: usize,
+        ) {
+            audio_buffer.push_samples(
+                &build_buffer(first, last),
+                first,
+                segement_first_sample,
+                &caps
+            );
+            let first_sample_to_extract =
+                if audio_buffer.last_sample
+                    > audio_buffer.first_sample + SAMPLE_RATE as usize
+                {
+                    audio_buffer.last_sample - SAMPLE_RATE as usize
+                } else {
+                    audio_buffer.first_sample
+                };
+
+            waveform.render(&audio_buffer,
+                first_sample_to_extract,
+                audio_buffer.last_sample,
+                audio_buffer.sample_duration,
+            );
+
+            let image = waveform.get_image();
+
+            let mut output_file = File::create(
+                    format!(
+                        "{}/waveform_image_{:03}_{:03}.png", OUT_DIR,
+                        waveform.first_sample,
+                        waveform.last_sample
+                    )
+                ).expect("WaveformImage test: couldn't create output file");
+            image.write_to_png(&mut output_file)
+                .expect("WaveformImage test: couldn't write waveform image");
+        }
+
+        render_with_samples(&mut waveform, &mut audio_buffer, &caps, 100, 200, 100);
+        // overlap on the left
+        render_with_samples(&mut waveform, &mut audio_buffer, &caps,  50, 150, 50);
+        render_with_samples(&mut waveform, &mut audio_buffer, &caps,   0, 100, 0);
+        // appended to the right
+        render_with_samples(&mut waveform, &mut audio_buffer, &caps, 200, 300, 200);
+
+        // scrolling and overlaping on the right
+        render_with_samples(&mut waveform, &mut audio_buffer, &caps, 250, 350, 250);
     }
 }
