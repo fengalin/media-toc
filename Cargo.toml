@@ -32,3 +32,7 @@ profiling-audio-queue = []
 profiling-tracker = []
 profiling-waveform-image = []
 default-features = []
+
+[dev-dependencies]
+byteorder = "1"
+cairo-rs = { git = "https://github.com/gtk-rs/cairo.git", features = ["png"] }

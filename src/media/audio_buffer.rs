@@ -9,6 +9,9 @@ use std::i16;
 
 use std::collections::vec_deque::VecDeque;
 
+#[cfg(test)]
+use byteorder::{ByteOrder, LittleEndian};
+
 pub const SAMPLES_NORM: f64 = 450f64;
 const SAMPLES_OFFSET: f64 = SAMPLES_NORM / 2f64;
 
@@ -161,6 +164,11 @@ impl AudioBuffer {
                         // different segment (done seeking)
                         self.segement_first_sample = segment_first_sample;
                         self.last_buffer_last_sample = segment_first_sample;
+                        println!("seg: {}, last {}, buffer last {}",
+                            segment_first_sample,
+                            self.last_sample,
+                            segment_first_sample + buffer_sample_len
+                        );
                         segment_first_sample
                     };
                 let last_incoming_sample = first_incoming_sample + buffer_sample_len;
@@ -204,7 +212,7 @@ impl AudioBuffer {
                     )
                 }
                 else if last_incoming_sample < self.last_sample
-                && last_incoming_sample > self.first_sample
+                && last_incoming_sample >= self.first_sample
                 {   // 4. can insert [first_sample, self.first_sample] to the begining
                     let last_sample_to_add = self.first_sample;
                     self.first_sample = first_incoming_sample;
@@ -318,18 +326,18 @@ impl AudioBuffer {
             {   // samples must be inserted at the begining
                 // => push front in reverse order
                 let mut norm_sample;
-                let mut index = last_sample_to_add_rel * self.channels - 1;
+                let mut index = last_sample_to_add_rel * self.channels;
                 let first = first_sample_to_add_rel * self.channels;
-                while index >= first {
+                while index > first {
                     norm_sample = 0f64;
 
                     for _ in front_channels..self.channels {
-                        norm_sample += f64::from(incoming_samples[index]) * others_norm_factor;
                         index -= 1;
+                        norm_sample += f64::from(incoming_samples[index]) * others_norm_factor;
                     }
                     for _ in 0..front_channels {
-                        norm_sample += f64::from(incoming_samples[index]) * front_norm_factor;
                         index -= 1;
+                        norm_sample += f64::from(incoming_samples[index]) * front_norm_factor;
                     }
                     self.samples.push_front(SAMPLES_OFFSET - norm_sample);
                 };
@@ -361,6 +369,39 @@ impl AudioBuffer {
         assert!(first >= self.first_sample);
         let last = if last > first { last } else { first };
         Iter::new(self, first, last, step)
+    }
+
+    #[cfg(test)]
+    pub fn push_samples(&mut self,
+        samples: &[i16],
+        first_sample: usize,
+        segment_first_sample: usize,
+        caps: &gst::Caps,
+    ) {
+        let mut samples_u8 = Vec::with_capacity(samples.len() * 2);
+        let mut buf_u8 = [0; 2];
+        for &sample_i16 in samples {
+            LittleEndian::write_i16(&mut buf_u8, sample_i16);
+
+            samples_u8.push(buf_u8[0]);
+            samples_u8.push(buf_u8[1]);
+        };
+
+        let mut buffer = gst::Buffer::from_vec(samples_u8).unwrap();
+        buffer.get_mut().unwrap().set_pts(
+            (self.sample_duration * first_sample as f64) as u64 + 1
+        );
+
+        let mut segment = gst::Segment::new();
+        segment.set_start(
+            (self.sample_duration * segment_first_sample as f64) as u64 + 1
+        );
+
+        let self_first_sample = self.first_sample;
+        self.push_gst_sample(
+            gst::Sample::new(Some(buffer), Some(caps.clone()), Some(&segment), None),
+            self_first_sample // never drain buffer in this test
+        );
     }
 }
 
@@ -404,5 +445,84 @@ impl<'a> Iterator for Iter<'a> {
         let remaining = (self.last - self.idx) / self.step;
 
         (remaining, Some(remaining))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate gstreamer as gst;
+    extern crate gstreamer_audio as gst_audio;
+
+    use std::{i16, u16};
+
+    use media::AudioBuffer;
+
+    const SAMPLE_RATE: i32 = 300;
+
+    #[test]
+    fn multiple_gst_samples() {
+        gst::init().unwrap();
+
+        let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
+        let caps = gst::Caps::new_simple(
+            "audio/x-raw",
+            &[
+                ("format", &gst_audio::AUDIO_FORMAT_S16.to_string()),
+                ("layout", &"interleaved"),
+                ("channels", &1),
+                ("rate", &SAMPLE_RATE),
+            ],
+        );
+        audio_buffer.set_caps(&caps);
+
+        // Build a buffer in the specified range
+        // which would be rendered as a diagonal on a Waveform image
+        // from left top corner to right bottom of the target image
+        // if all samples are rendered in the range [0:SAMPLE_RATE]
+        fn build_buffer(first_sample: usize, last_sample: usize) -> Vec<i16> {
+            let mut buffer: Vec<i16> = Vec::new();
+            let mut index = first_sample;
+            while index < last_sample {
+                buffer.push((
+                    i16::MAX as i32
+                    - (index as f64 / SAMPLE_RATE as f64 * u16::MAX as f64
+                    ) as i32
+                ) as i16);
+                index += 1;
+            }
+            buffer
+        }
+
+        // samples [100:200]
+        audio_buffer.push_samples(&build_buffer(100, 200), 100, 100, &caps);
+        assert_eq!(audio_buffer.first_sample, 100);
+        assert_eq!(audio_buffer.last_sample, 200);
+
+        // samples [50:100]: appending to the begining
+        audio_buffer.push_samples(&build_buffer(50, 100), 50, 50, &caps);
+        assert_eq!(audio_buffer.first_sample, 50);
+        assert_eq!(audio_buffer.last_sample, 200);
+
+        // samples [0:75]: overlaping on the begining
+        audio_buffer.push_samples(&build_buffer(0, 75), 0, 0, &caps);
+        assert_eq!(audio_buffer.first_sample, 0);
+        assert_eq!(audio_buffer.last_sample, 200);
+
+        // samples [200:300]: appending to the end
+        // different segment than previous
+        audio_buffer.push_samples(&build_buffer(200, 300), 200, 200, &caps);
+        assert_eq!(audio_buffer.first_sample, 0);
+        assert_eq!(audio_buffer.last_sample, 300);
+
+        // samples [250:400]: overlaping on the end
+        audio_buffer.push_samples(&build_buffer(250, 400), 250, 250, &caps);
+        assert_eq!(audio_buffer.first_sample, 0);
+        assert_eq!(audio_buffer.last_sample, 400);
+
+        // samples [400:450]: appending to the end
+        // same segment as previous
+        audio_buffer.push_samples(&build_buffer(400, 450), 400, 250, &caps);
+        assert_eq!(audio_buffer.first_sample, 0);
+        assert_eq!(audio_buffer.last_sample, 450);
     }
 }

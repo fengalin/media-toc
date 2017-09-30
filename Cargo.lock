@@ -3,6 +3,7 @@ name = "media-toc"
 version = "0.1.0"
 dependencies = [
  "byte-slice-cast 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "byteorder 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cairo-rs 0.2.0 (git+https://github.com/gtk-rs/cairo.git)",
  "chrono 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib 0.3.0 (git+https://github.com/gtk-rs/glib.git)",

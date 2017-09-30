@@ -1,5 +1,8 @@
 #![feature(ord_max_min)]
 
+#[cfg(test)]
+extern crate byteorder;
+
 extern crate glib;
 extern crate gstreamer;
 extern crate gtk;
