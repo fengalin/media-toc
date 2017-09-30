@@ -260,6 +260,11 @@ impl WaveformBuffer {
     pub fn get_image(&mut self) -> Option<(&cairo::ImageSurface, f64, Option<f64>)> {
                                         // (image, x_offset, current_x_opt)
         if !self.is_seeking || self.first_visible_sample_lock.is_none() {
+            // FIXME: something missing from this conditions which was modified
+            // in commit 85b2f3fef3ca5f11dae69010590a6ecfa473216c
+            // in order to allow seeking and centering
+            // the problem now is that the cursor appears at a wrong position
+            // when seeking before moving to the expected position
             match self.get_first_visible_sample() {
                 Some(first_visible_sample) => {
                     let first_visible_sample_f = first_visible_sample as f64;
