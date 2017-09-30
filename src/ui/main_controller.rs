@@ -178,12 +178,6 @@ impl MainController {
             self.context.as_ref()
                 .expect("MainController::seek no context")
                 .seek(position);
-
-            if self.state == ControllerState::Paused {
-                self.register_tracker(TRACKER_PERIOD);
-                self.play_pause_btn.set_icon_name("media-playback-pause");
-                self.context.as_mut().unwrap().play().unwrap();
-            }
         }
     }
 
