@@ -88,14 +88,14 @@ impl AudioController {
         let waveform_mtx = Arc::clone(&self.waveform_mtx);
         self.drawingarea.connect_button_press_event(move |_, event_button| {
             let button = event_button.get_button();
-            if button == 1 || button == 2 {
+            if button == 1 {
                 if let Some(position) = {
                     let waveform_buffer_grd = &mut *waveform_mtx.lock()
                         .expect("Couldn't lock waveform buffer in audio controller draw");
                     waveform_buffer_grd
                         .as_mut_any().downcast_mut::<WaveformBuffer>()
                         .expect("SamplesExtratctor is not a waveform buffer in audio controller draw")
-                        .seek_in_window(event_button.get_position().0, (button == 1))
+                        .get_position_in_window(event_button.get_position().0)
                 }
                 {
                     main_ctrl_rc.borrow_mut().seek(position);
@@ -188,13 +188,21 @@ impl AudioController {
         }
     }
 
-    pub fn seek(&mut self, position: u64) {
+    pub fn seek(&mut self, position: u64, state: &ControllerState) {
         {
             self.waveform_mtx.lock()
                 .expect("AudioController::seek: Couldn't lock waveform_mtx")
                 .as_mut_any().downcast_mut::<WaveformBuffer>()
                 .expect("AudioController::seek: SamplesExtratctor is not a WaveformBuffer")
-                .seek(position);
+                .seek(position, *state == ControllerState::Playing);
+        }
+
+        if *state == ControllerState::Paused {
+            // refresh the buffer in order to render the waveform
+            // with samples that might not be rendered in current WaveformImage yet
+            self.dbl_buffer_mtx.lock()
+                .expect("AudioController::seek: couldn't lock dbl_buffer_mtx")
+                .refresh();
         }
         self.tick();
     }
@@ -311,7 +319,7 @@ impl AudioController {
                 // in latest conditions
                 dbl_buffer_mtx.lock()
                     .expect("AudioController::size-allocate: couldn't lock dbl_buffer_mtx")
-                    .refresh(
+                    .refresh_with_conditions(
                         Box::new(WaveformConditions::new(
                             requested_duration,
                             allocation.width,

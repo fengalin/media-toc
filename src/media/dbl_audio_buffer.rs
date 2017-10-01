@@ -107,7 +107,7 @@ impl DoubleAudioBuffer {
         {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock()
                 .expect("DoubleAudioBuffer::extract_samples: failed to lock the exposed buffer");
-            // get latest conditions from the previously exposed buffer
+            // get latest state from the previously exposed buffer
             // in order to smoothen rendering between frames
             working_buffer.update_concrete_state(exposed_buffer_box);
             mem::swap(exposed_buffer_box, &mut working_buffer);
@@ -120,28 +120,54 @@ impl DoubleAudioBuffer {
         // self.exposed_buffer_mtx
     }
 
-    // Refresh the working buffer with current conditions and swap.
-    // Conditions concrete type must conform to a struct expected
-    // by the concrete implementation of the SampleExtractor.
-    pub fn refresh<T: Any + Clone>(&mut self, conditions: Box<T>) {
+    pub fn refresh(&mut self) {
+        // refresh with current conditions
         let mut working_buffer = self.working_buffer.take()
             .expect("DoubleAudioBuffer::refresh: failed to take working buffer");
 
         {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock()
                 .expect("DoubleAudioBuffer:::refresh: failed to lock the exposed buffer");
-            // get latest conditions from the previously exposed buffer
+            // get latest state from the previously exposed buffer
             working_buffer.update_concrete_state(exposed_buffer_box);
 
             // refresh working buffer
-            working_buffer.refresh(&self.audio_buffer, conditions.clone());
+            working_buffer.refresh(&self.audio_buffer);
+
+            // swap buffers
+            mem::swap(exposed_buffer_box, &mut working_buffer);
+        }
+
+        self.first_sample_to_keep = working_buffer.get_first_sample();
+
+        self.working_buffer = Some(working_buffer);
+        // self.working_buffer is now the buffer previously in
+        // self.exposed_buffer_mtx
+    }
+
+    // Refresh the working buffer with the provided conditions and swap.
+    // Conditions concrete type must conform to a struct expected
+    // by the concrete implementation of the SampleExtractor.
+    pub fn refresh_with_conditions<T: Any + Clone>(&mut self, conditions: Box<T>) {
+        let mut working_buffer = self.working_buffer.take()
+            .expect("DoubleAudioBuffer::refresh: failed to take working buffer");
+
+        {
+            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock()
+                .expect("DoubleAudioBuffer:::refresh: failed to lock the exposed buffer");
+            // get latest state from the previously exposed buffer
+            working_buffer.update_concrete_state(exposed_buffer_box);
+
+            // refresh working buffer
+            working_buffer.refresh_with_conditions(&self.audio_buffer, conditions.clone());
 
             // swap buffers
             mem::swap(exposed_buffer_box, &mut working_buffer);
         }
 
         // working buffer is last exposed buffer
-        working_buffer.refresh(&self.audio_buffer, conditions);
+        // refresh with new conditions
+        working_buffer.refresh_with_conditions(&self.audio_buffer, conditions);
 
         self.first_sample_to_keep = working_buffer.get_first_sample();
 

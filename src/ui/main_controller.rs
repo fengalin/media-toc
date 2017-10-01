@@ -132,6 +132,7 @@ impl MainController {
                     context.play().unwrap();
                     self.context = Some(context);
                 } else {
+                    // Restart the stream from the begining
                     self.context = Some(context);
                     self.seek(0);
                 }
@@ -174,7 +175,7 @@ impl MainController {
             // is not sync yet for the user to notice
             // the seek request in being handled
             self.info_ctrl.seek(position);
-            self.audio_ctrl.seek(position);
+            self.audio_ctrl.seek(position, &self.state);
             self.context.as_ref()
                 .expect("MainController::seek no context")
                 .seek(position);

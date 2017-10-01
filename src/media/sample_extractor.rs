@@ -72,6 +72,10 @@ pub trait SampleExtractor: Send {
     fn extract_samples(&mut self, audio_buffer: &AudioBuffer);
 
     // Refresh the extractionm in its current sample range
-    // and position. E.g. change scale
-    fn refresh(&mut self, audio_buffer: &AudioBuffer, conditions: Box<Any>);
+    // and position.
+    fn refresh(&mut self, audio_buffer: &AudioBuffer);
+
+    // Refresh the extractionm in its current sample range
+    // and position but with new conditions. E.g. change scale
+    fn refresh_with_conditions(&mut self, audio_buffer: &AudioBuffer, conditions: Box<Any>);
 }

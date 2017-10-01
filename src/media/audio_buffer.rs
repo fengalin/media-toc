@@ -164,11 +164,6 @@ impl AudioBuffer {
                         // different segment (done seeking)
                         self.segement_first_sample = segment_first_sample;
                         self.last_buffer_last_sample = segment_first_sample;
-                        println!("seg: {}, last {}, buffer last {}",
-                            segment_first_sample,
-                            self.last_sample,
-                            segment_first_sample + buffer_sample_len
-                        );
                         segment_first_sample
                     };
                 let last_incoming_sample = first_incoming_sample + buffer_sample_len;

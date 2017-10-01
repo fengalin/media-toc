@@ -13,7 +13,7 @@ const INIT_WIDTH: i32 = 2000;
 const INIT_HEIGHT: i32 = 450;
 
 pub struct WaveformImage {
-    is_ready: bool,
+    pub is_ready: bool,
     exposed_image: Option<cairo::ImageSurface>,
     working_image: Option<cairo::ImageSurface>,
 
@@ -76,11 +76,7 @@ impl WaveformImage {
         self.sample_step_f = 0f64;
     }
 
-    pub fn update_dimensions(&mut self,
-        duration: u64,
-        width: i32,
-        height: i32
-    ) -> bool {
+    pub fn update_dimensions(&mut self, duration: u64, width: i32, height: i32) {
         // if the requested height is different from current height
         // it might be necessary to force rendering when stream
         // is paused or eos
@@ -101,8 +97,6 @@ impl WaveformImage {
         self.req_width = width;
         self.req_height = height;
         self.req_step_duration = req_step_duration;
-
-        self.is_ready
     }
 
     pub fn is_ready(&self) -> bool {
