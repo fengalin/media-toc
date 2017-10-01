@@ -71,13 +71,11 @@ impl AudioController {
         });
 
         // widget size changed
-        let main_ctrl_rc = Rc::clone(main_ctrl);
         let requested_duration = Rc::clone(&self.requested_duration);
         let dbl_buffer_mtx = Arc::clone(&self.dbl_buffer_mtx);
         self.drawingarea.connect_size_allocate(move |drawingarea, _| {
             AudioController::refresh(
                 drawingarea,
-                main_ctrl_rc.borrow().get_state(),
                 *requested_duration.borrow(),
                 &dbl_buffer_mtx,
             );
@@ -106,7 +104,6 @@ impl AudioController {
 
         // click zoom in
         let drawingarea = self.drawingarea.clone();
-        let main_ctrl_rc = Rc::clone(&main_ctrl);
         let requested_duration = Rc::clone(&self.requested_duration);
         let dbl_buffer_mtx = Arc::clone(&self.dbl_buffer_mtx);
         self.zoom_in_btn.connect_clicked(move |_| {
@@ -124,7 +121,6 @@ impl AudioController {
             if can_update {
                 AudioController::refresh(
                     &drawingarea,
-                    main_ctrl_rc.borrow().get_state(),
                     duration,
                     &dbl_buffer_mtx,
                 );
@@ -133,7 +129,6 @@ impl AudioController {
 
         // click zoom out
         let drawingarea = self.drawingarea.clone();
-        let main_ctrl_rc = Rc::clone(&main_ctrl);
         let requested_duration = Rc::clone(&self.requested_duration);
         let dbl_buffer_mtx = Arc::clone(&self.dbl_buffer_mtx);
         self.zoom_out_btn.connect_clicked(move |_| {
@@ -151,7 +146,6 @@ impl AudioController {
             if can_update {
                 AudioController::refresh(
                     &drawingarea,
-                    main_ctrl_rc.borrow().get_state(),
                     duration,
                     &dbl_buffer_mtx,
                 );
@@ -308,30 +302,24 @@ impl AudioController {
 
     fn refresh(
         drawingarea: &gtk::DrawingArea,
-        state: ControllerState,
         requested_duration: u64,
         dbl_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer>>,
     ) {
-        if state == ControllerState::Paused {
-            let allocation = drawingarea.get_allocation();
-            {
-                // refresh the buffer in order to render the waveform
-                // in latest conditions
-                dbl_buffer_mtx.lock()
-                    .expect("AudioController::size-allocate: couldn't lock dbl_buffer_mtx")
-                    .refresh_with_conditions(
-                        Box::new(WaveformConditions::new(
-                            requested_duration,
-                            allocation.width,
-                            allocation.height
-                        ))
-                    );
-            }
-
-            drawingarea.queue_draw();
+        let allocation = drawingarea.get_allocation();
+        {
+            // refresh the buffer in order to render the waveform
+            // in latest conditions
+            dbl_buffer_mtx.lock()
+                .expect("AudioController::size-allocate: couldn't lock dbl_buffer_mtx")
+                .refresh_with_conditions(
+                    Box::new(WaveformConditions::new(
+                        requested_duration,
+                        allocation.width,
+                        allocation.height
+                    ))
+                );
         }
-        // else:
-        //     - Playing: update will be done with playback
-        //     - Stopped: don't do anything
+
+        drawingarea.queue_draw();
     }
 }

@@ -109,10 +109,6 @@ impl MainController {
         self.window.show_all();
     }
 
-    pub fn get_state(&self) -> ControllerState {
-        self.state.clone()
-    }
-
     fn play_pause(&mut self) {
         let mut context =
             match self.context.take() {
