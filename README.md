@@ -4,7 +4,7 @@ to split a media file into chapters. It is primarily developped in Rust on Linux
 it can be built on Windows and should also work on MacOS.
 
 Media-TOC is not fonctional yet, see the [Status section](#status) below. Of course,
-you can [contribute](#contribute) to the project if you find it interesting.
+you can contribute to the project if you find it interesting.
 
 ## <a name='status'></a>Status
 At the moment, **Media-TOC** can:
@@ -21,18 +21,12 @@ chapters list.
 ![Media-TOC UI Video](assets/media-toc_video.png)
 ![Media-TOC UI Audio](assets/media-toc_audio.png)
 
-# <a name='contribute'></a>How to contribute
-Contributions are welcomed.
-- For a design or feature proposal or a bug report, you can [declare an issue](https://github.com/fengalin/media-toc/issues).
-- If you wish to contribute to the code, please fork your own copy and submit a
-[pull request](https://github.com/fengalin/media-toc/pulls).
-
 # Technologies
 **Media-TOC** is developped in Rust and uses the following technologies:
 - **GTK-3** ([official documentation](https://developer.gnome.org/gtk3/stable/),
-[Rust binding](https://crates.io/crates/gtk)) and [Glade](https://glade.gnome.org/).
+[Rust binding](http://gtk-rs.org/docs/gtk/)) and [Glade](https://glade.gnome.org/).
 - **Cairo** ([official documentation](https://www.cairographics.org/documentation/),
-[Rust binding](https://crates.io/crates/cairo-rs)).
+[Rust binding](http://gtk-rs.org/docs/cairo/index.html)).
 - **GStreamer** ([official documentation](https://gstreamer.freedesktop.org/documentation/),
 [Rust binding](https://github.com/sdroege/gstreamer-rs)).
 
