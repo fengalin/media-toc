@@ -95,7 +95,7 @@ impl AudioController {
                     waveform_buffer_grd
                         .as_mut_any().downcast_mut::<WaveformBuffer>()
                         .expect("SamplesExtratctor is not a waveform buffer in audio controller draw")
-                        .get_position_in_window(event_button.get_position().0)
+                        .get_position(event_button.get_position().0)
                 }
                 {
                     main_ctrl_rc.borrow_mut().seek(position);
