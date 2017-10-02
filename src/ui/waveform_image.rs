@@ -14,6 +14,8 @@ const INIT_HEIGHT: i32 = 450;
 
 pub struct WaveformImage {
     pub is_ready: bool,
+    pub shareable_state_changed: bool,
+
     exposed_image: Option<cairo::ImageSurface>,
     working_image: Option<cairo::ImageSurface>,
 
@@ -33,6 +35,8 @@ impl WaveformImage {
     pub fn new() -> Self {
         WaveformImage {
             is_ready: false,
+            shareable_state_changed: false,
+
             exposed_image: Some(
                 cairo::ImageSurface::create(
                     cairo::Format::Rgb24, INIT_WIDTH, INIT_HEIGHT
@@ -60,6 +64,7 @@ impl WaveformImage {
     pub fn cleanup(&mut self) {
         // clear for reuse
         self.is_ready = false;
+        self.shareable_state_changed = false;
 
         // self.exposed_image & self.working_image
         // will be cleaned on next with draw
@@ -94,6 +99,10 @@ impl WaveformImage {
             || self.req_width != width
             || self.req_step_duration != req_step_duration;
 
+        if self.force_redraw {
+            self.shareable_state_changed = true;
+        }
+
         self.req_width = width;
         self.req_height = height;
         self.req_step_duration = req_step_duration;
@@ -107,13 +116,15 @@ impl WaveformImage {
         self.exposed_image.as_ref().unwrap()
     }
 
-    pub fn update_from_other(&mut self, other: &WaveformImage) {
-        self.sample_step = other.sample_step;
-        self.sample_step_f = other.sample_step_f;
-        self.req_step_duration = other.req_step_duration;
-        self.req_width = other.req_width;
-        self.req_height = other.req_height;
-        self.force_redraw = other.force_redraw;
+    pub fn update_from_other(&mut self, other: &mut WaveformImage) {
+        if self.shareable_state_changed {
+            self.req_step_duration = other.req_step_duration;
+            self.req_width = other.req_width;
+            self.req_height = other.req_height;
+            self.force_redraw = other.force_redraw;
+
+            other.shareable_state_changed = false;
+        }
     }
 
     // Render the waveform within the provided limits.
@@ -145,16 +156,12 @@ impl WaveformImage {
         // Align requested first and last samples in order to keep a steady
         // offset between redraws. This allows using the same samples
         // for a given req_step_duration and avoiding flickering
-        // between redraws
+        // between redraws.
+        // Note: boundaries checks will be performed when the rendering process
+        // will take place.
         let mut first_sample =
             first_sample / sample_step * sample_step;
-        if first_sample < audio_buffer.first_sample {
-            // first sample might be smaller than audio_buffer.first_sample
-            // due to alignement on sample_step
-            first_sample += sample_step;
-        }
-
-        let last_sample = last_sample / sample_step * sample_step;
+        let mut last_sample = last_sample / sample_step * sample_step;
 
         let extraction_samples_window = (last_sample - first_sample) / sample_step;
 
@@ -220,7 +227,29 @@ impl WaveformImage {
 
         if must_redraw {
             // Initialization or resolution has changed or seek requested
-            // redraw the whole range
+            // redraw the whole range from the audio buffer
+
+            if first_sample < audio_buffer.first_sample {
+                // first sample might be smaller than audio_buffer.first_sample
+                // due to alignement on sample_step
+                first_sample += sample_step;
+                if first_sample >= last_sample {
+                    last_sample += sample_step;
+                    if last_sample > audio_buffer.last_sample {
+                        // can't re-draw with current range
+                        // reset WaveformImage state
+                        self.working_image = Some(working_image);
+                        self.exposed_image = Some(previous_image);
+                        self.first_sample = 0;
+                        self.last_sample = 0;
+                        self.sample_step = 0;
+                        self.sample_step_f = 0f64;
+                        self.is_ready = false;
+                        return;
+                    }
+                }
+            }
+
             self.redraw(&cr,
                 audio_buffer.iter(first_sample, last_sample, sample_step),
             );
@@ -238,13 +267,18 @@ impl WaveformImage {
 
             if first_sample < self.first_sample {
                 // append samples before previous first sample
+
+                if first_sample < audio_buffer.first_sample {
+                    // first sample might be smaller than audio_buffer.first_sample
+                    // due to alignement on sample_step
+                    first_sample += sample_step;
+                    if first_sample > last_sample {
+                        last_sample += sample_step;
+                    }
+                }
+
                 let sample_offset = self.first_sample - first_sample;
                 let x_offset = sample_offset as f64 / self.sample_step_f;
-
-                println!(
-                    "WaveformImage: appending {} samples before previous first sample",
-                    self.first_sample - first_sample
-                );
 
                 let prev_first_sample = self.first_sample;
                 self.append_left(&cr,
@@ -261,6 +295,7 @@ impl WaveformImage {
             if last_sample > self.last_sample {
                 // shift previous image to the left (if necessary)
                 // and append missing samples to the right
+
                 let x_offset = -((
                     (first_sample - self.first_sample) / self.sample_step
                 ) as f64);
