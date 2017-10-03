@@ -358,12 +358,18 @@ impl AudioBuffer {
     }
 
     pub fn iter(&self, first: usize, last: usize, step: usize) -> Iter {
-        /*if first < self.first_sample {
-            println!("iter {}, {}", first, self.first_sample);
-        }*/
         assert!(first >= self.first_sample);
         let last = if last > first { last } else { first };
         Iter::new(self, first, last, step)
+    }
+
+    #[cfg(test)]
+    pub fn get(&self, sample_idx: usize) -> Option<f64> {
+        if sample_idx >= self.first_sample {
+            self.samples.get(sample_idx - self.first_sample).map(|value| *value)
+        } else {
+            None
+        }
     }
 
     #[cfg(test)]
@@ -470,6 +476,13 @@ mod tests {
         );
         audio_buffer.set_caps(&caps);
 
+        fn get_value(index: usize) -> i16 {
+            (
+                i16::MAX as i32
+                - (index as f64 / SAMPLE_RATE as f64 * u16::MAX as f64) as i32
+            ) as i16
+        }
+
         // Build a buffer in the specified range
         // which would be rendered as a diagonal on a Waveform image
         // from left top corner to right bottom of the target image
@@ -478,46 +491,92 @@ mod tests {
             let mut buffer: Vec<i16> = Vec::new();
             let mut index = first_sample;
             while index < last_sample {
-                buffer.push((
-                    i16::MAX as i32
-                    - (index as f64 / SAMPLE_RATE as f64 * u16::MAX as f64
-                    ) as i32
-                ) as i16);
+                buffer.push(get_value(index));
                 index += 1;
             }
             buffer
         }
 
+        let samples_factor = 1f64 / f64::from(i16::MAX) * super::SAMPLES_OFFSET;
+
         // samples [100:200]
         audio_buffer.push_samples(&build_buffer(100, 200), 100, 100, &caps);
         assert_eq!(audio_buffer.first_sample, 100);
         assert_eq!(audio_buffer.last_sample, 200);
+        assert_eq!(
+            audio_buffer.get(audio_buffer.first_sample),
+            Some(super::SAMPLES_OFFSET - f64::from(get_value(100)) * samples_factor)
+        );
+        assert_eq!(
+            audio_buffer.get(audio_buffer.last_sample - 1),
+            Some(super::SAMPLES_OFFSET - f64::from(get_value(199)) * samples_factor)
+        );
 
         // samples [50:100]: appending to the begining
         audio_buffer.push_samples(&build_buffer(50, 100), 50, 50, &caps);
         assert_eq!(audio_buffer.first_sample, 50);
         assert_eq!(audio_buffer.last_sample, 200);
+        assert_eq!(
+            audio_buffer.get(audio_buffer.first_sample),
+            Some(super::SAMPLES_OFFSET - f64::from(get_value(50)) * samples_factor)
+        );
+        assert_eq!(
+            audio_buffer.get(audio_buffer.last_sample - 1),
+            Some(super::SAMPLES_OFFSET - f64::from(get_value(199)) * samples_factor)
+        );
 
         // samples [0:75]: overlaping on the begining
         audio_buffer.push_samples(&build_buffer(0, 75), 0, 0, &caps);
         assert_eq!(audio_buffer.first_sample, 0);
         assert_eq!(audio_buffer.last_sample, 200);
+        assert_eq!(
+            audio_buffer.get(audio_buffer.first_sample),
+            Some(super::SAMPLES_OFFSET - f64::from(get_value(0)) * samples_factor)
+        );
+        assert_eq!(
+            audio_buffer.get(audio_buffer.last_sample - 1),
+            Some(super::SAMPLES_OFFSET - f64::from(get_value(199)) * samples_factor)
+        );
 
         // samples [200:300]: appending to the end
         // different segment than previous
         audio_buffer.push_samples(&build_buffer(200, 300), 200, 200, &caps);
         assert_eq!(audio_buffer.first_sample, 0);
         assert_eq!(audio_buffer.last_sample, 300);
+        assert_eq!(
+            audio_buffer.get(audio_buffer.first_sample),
+            Some(super::SAMPLES_OFFSET - f64::from(get_value(0)) * samples_factor)
+        );
+        assert_eq!(
+            audio_buffer.get(audio_buffer.last_sample - 1),
+            Some(super::SAMPLES_OFFSET - f64::from(get_value(299)) * samples_factor)
+        );
 
         // samples [250:400]: overlaping on the end
         audio_buffer.push_samples(&build_buffer(250, 400), 250, 250, &caps);
         assert_eq!(audio_buffer.first_sample, 0);
         assert_eq!(audio_buffer.last_sample, 400);
+        assert_eq!(
+            audio_buffer.get(audio_buffer.first_sample),
+            Some(super::SAMPLES_OFFSET - f64::from(get_value(0)) * samples_factor)
+        );
+        assert_eq!(
+            audio_buffer.get(audio_buffer.last_sample - 1),
+            Some(super::SAMPLES_OFFSET - f64::from(get_value(399)) * samples_factor)
+        );
 
         // samples [400:450]: appending to the end
         // same segment as previous
         audio_buffer.push_samples(&build_buffer(400, 450), 400, 250, &caps);
         assert_eq!(audio_buffer.first_sample, 0);
         assert_eq!(audio_buffer.last_sample, 450);
+        assert_eq!(
+            audio_buffer.get(audio_buffer.first_sample),
+            Some(super::SAMPLES_OFFSET - f64::from(get_value(0)) * samples_factor)
+        );
+        assert_eq!(
+            audio_buffer.get(audio_buffer.last_sample - 1),
+            Some(super::SAMPLES_OFFSET - f64::from(get_value(449)) * samples_factor)
+        );
     }
 }
