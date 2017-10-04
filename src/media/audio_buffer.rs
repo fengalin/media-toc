@@ -12,7 +12,7 @@ use std::collections::vec_deque::VecDeque;
 #[cfg(test)]
 use byteorder::{ByteOrder, LittleEndian};
 
-pub const SAMPLES_NORM: f64 = 450f64;
+pub const SAMPLES_NORM: f64 = 500f64;
 const SAMPLES_OFFSET: f64 = SAMPLES_NORM / 2f64;
 
 pub struct AudioBuffer {

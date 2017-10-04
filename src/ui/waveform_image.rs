@@ -10,7 +10,7 @@ pub const BACKGROUND_COLOR: (f64, f64, f64) = (0.2f64, 0.2235f64, 0.2314f64);
 // initial image dimensions
 // will dynamically adapt if needed
 const INIT_WIDTH: i32 = 2000;
-const INIT_HEIGHT: i32 = 450;
+const INIT_HEIGHT: i32 = 500;
 
 pub struct WaveformImage {
     pub is_ready: bool,
@@ -154,11 +154,29 @@ impl WaveformImage {
         // offset between redraws. This allows using the same samples
         // for a given req_step_duration and avoiding flickering
         // between redraws.
-        // Note: boundaries checks will be performed when the rendering process
-        // will take place.
         let mut first_sample =
             first_sample / sample_step * sample_step;
         let mut last_sample = last_sample / sample_step * sample_step;
+        if first_sample < audio_buffer.first_sample {
+            // first sample might be smaller than audio_buffer.first_sample
+            // due to alignement on sample_step
+            first_sample += sample_step;
+            if first_sample >= last_sample {
+                last_sample += sample_step;
+                if first_sample >= audio_buffer.last_sample
+                || last_sample >= audio_buffer.last_sample {
+                    // can't draw with current range
+                    // reset WaveformImage state
+                    self.first_sample = 0;
+                    self.last_sample = 0;
+                    self.sample_step = 0;
+                    self.sample_step_f = 0f64;
+                    self.x_step = 0f64;
+                    self.is_ready = false;
+                    return;
+                }
+            }
+        }
 
         let extraction_samples_window = (last_sample - first_sample) / sample_step;
 
@@ -175,7 +193,8 @@ impl WaveformImage {
 
         let (working_image, previous_image) = {
             let mut can_reuse = false;
-            let target_width = (extraction_samples_window as i32).max(self.req_width);
+            let target_width =
+                (extraction_samples_window as i32).max(self.req_width).max(INIT_WIDTH);
             let working_image = self.working_image.take().unwrap();
 
             if target_width <= working_image.get_width()
@@ -218,29 +237,6 @@ impl WaveformImage {
         if must_redraw {
             // Initialization or resolution has changed or seek requested
             // redraw the whole range from the audio buffer
-
-            if first_sample < audio_buffer.first_sample {
-                // first sample might be smaller than audio_buffer.first_sample
-                // due to alignement on sample_step
-                first_sample += sample_step;
-                if first_sample >= last_sample {
-                    last_sample += sample_step;
-                    if last_sample > audio_buffer.last_sample {
-                        // can't re-draw with current range
-                        // reset WaveformImage state
-                        self.working_image = Some(working_image);
-                        self.exposed_image = Some(previous_image);
-                        self.first_sample = 0;
-                        self.last_sample = 0;
-                        self.sample_step = 0;
-                        self.sample_step_f = 0f64;
-                        self.x_step = 0f64;
-                        self.is_ready = false;
-                        return;
-                    }
-                }
-            }
-
             self.sample_step = sample_step;
             self.sample_step_f = sample_step_f;
             self.x_step =
@@ -261,28 +257,8 @@ impl WaveformImage {
             //                 && last_sample <= self.self.last_sample
             // (traget extraction fits in previous extraction)
             // already checked
-
-            // FIXME: There is something wrong with the y_offset after
-            // a seek. The unit test case doesn't exhibit it though...
-            let y_offset = 0f64;
-                /*if self.req_height == working_image.get_height() {
-                    0f64
-                } else {
-                    (self.req_height - working_image.get_height()) as f64
-                };*/
-
             if first_sample < self.first_sample {
                 // append samples before previous first sample
-
-                if first_sample < audio_buffer.first_sample {
-                    // first sample might be smaller than audio_buffer.first_sample
-                    // due to alignement on sample_step
-                    first_sample += sample_step;
-                    if first_sample > last_sample {
-                        last_sample += sample_step;
-                    }
-                }
-
                 let sample_offset = self.first_sample - first_sample;
                 let x_offset = (sample_offset as f64 / self.sample_step_f).round();
 
@@ -290,7 +266,6 @@ impl WaveformImage {
                 self.append_left(&cr,
                     &previous_image,
                     x_offset,
-                    y_offset,
                     audio_buffer.iter(first_sample, prev_first_sample, sample_step),
                 );
 
@@ -314,7 +289,6 @@ impl WaveformImage {
                 self.append_right(&cr,
                     &previous_image,
                     x_offset,
-                    y_offset,
                     audio_buffer.iter(first_sample_to_draw, last_sample, sample_step),
                     first_x_to_draw,
                     working_image.get_width() // clear_limit
@@ -363,10 +337,9 @@ impl WaveformImage {
         cr: &cairo::Context,
         previous_image: &cairo::ImageSurface,
         x_offset: f64,
-        y_offset: f64,
         sample_iter: AudioBufferIter,
     ) {
-        cr.set_source_surface(previous_image, x_offset, y_offset);
+        cr.set_source_surface(previous_image, x_offset, 0f64);
         cr.paint();
 
         self.set_scale(&cr);
@@ -378,12 +351,11 @@ impl WaveformImage {
         cr: &cairo::Context,
         previous_image: &cairo::ImageSurface,
         x_offset: f64,
-        y_offset: f64,
         sample_iter: AudioBufferIter,
         first_x: f64,
         clear_limit: i32,
     ) {
-        cr.set_source_surface(previous_image, x_offset, y_offset);
+        cr.set_source_surface(previous_image, x_offset, 0f64);
         cr.paint();
 
         self.set_scale(&cr);
