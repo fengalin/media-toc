@@ -23,7 +23,7 @@ pub struct DoubleAudioBuffer {
     audio_buffer: AudioBuffer,
     exposed_buffer_mtx: Arc<Mutex<Box<SampleExtractor>>>,
     working_buffer: Option<Box<SampleExtractor>>,
-    first_sample_to_keep: usize,
+    lower_to_keep: usize,
 }
 
 impl DoubleAudioBuffer {
@@ -38,7 +38,7 @@ impl DoubleAudioBuffer {
             audio_buffer: AudioBuffer::new(buffer_duration),
             exposed_buffer_mtx: Arc::new(Mutex::new(exposed_buffer)),
             working_buffer: Some(working_buffer),
-            first_sample_to_keep: 0,
+            lower_to_keep: 0,
         }
     }
 
@@ -59,7 +59,7 @@ impl DoubleAudioBuffer {
         self.working_buffer.as_mut()
             .expect("DoubleAudioBuffer: couldn't get working_buffer while setting audio sink")
             .cleanup();
-        self.first_sample_to_keep = 0;
+        self.lower_to_keep = 0;
     }
 
     // Initialize buffer with audio stream capabilities
@@ -91,7 +91,7 @@ impl DoubleAudioBuffer {
 
     pub fn push_gst_sample(&mut self, sample: gst::Sample) {
         // store incoming samples
-        self.audio_buffer.push_gst_sample(sample, self.first_sample_to_keep);
+        self.audio_buffer.push_gst_sample(sample, self.lower_to_keep);
 
         // extract new samples and swap
         self.extract_samples();
@@ -113,7 +113,7 @@ impl DoubleAudioBuffer {
             mem::swap(exposed_buffer_box, &mut working_buffer);
         }
 
-        self.first_sample_to_keep = working_buffer.get_first_sample();
+        self.lower_to_keep = working_buffer.get_lower();
 
         self.working_buffer = Some(working_buffer);
         // self.working_buffer is now the buffer previously in
@@ -138,7 +138,7 @@ impl DoubleAudioBuffer {
             mem::swap(exposed_buffer_box, &mut working_buffer);
         }
 
-        self.first_sample_to_keep = working_buffer.get_first_sample();
+        self.lower_to_keep = working_buffer.get_lower();
 
         self.working_buffer = Some(working_buffer);
         // self.working_buffer is now the buffer previously in
@@ -169,7 +169,7 @@ impl DoubleAudioBuffer {
         // refresh with new conditions
         working_buffer.refresh_with_conditions(&self.audio_buffer, conditions);
 
-        self.first_sample_to_keep = working_buffer.get_first_sample();
+        self.lower_to_keep = working_buffer.get_lower();
 
         self.working_buffer = Some(working_buffer);
         // self.working_buffer is now the buffer previously in

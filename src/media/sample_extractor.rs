@@ -45,7 +45,7 @@ pub trait SampleExtractor: Send {
         self.get_extraction_state_mut().set_audio_sink(audio_sink);
     }
 
-    fn get_first_sample(&self) -> usize;
+    fn get_lower(&self) -> usize;
 
     // update self with concrete state of other
     // which is expected to be the same concrete type

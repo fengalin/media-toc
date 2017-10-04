@@ -24,8 +24,8 @@ pub struct WaveformImage {
     req_step_duration: f64,
     force_redraw: bool,
 
-    pub first_sample: usize,
-    pub last_sample: usize,
+    pub lower: usize,
+    pub upper: usize,
     pub sample_window: usize,
     pub sample_step: usize,
     pub sample_step_f: f64,
@@ -54,8 +54,8 @@ impl WaveformImage {
             req_step_duration: 0f64,
             force_redraw: false,
 
-            first_sample: 0,
-            last_sample: 0,
+            lower: 0,
+            upper: 0,
             sample_window: 0,
             sample_step: 0,
             sample_step_f: 0f64,
@@ -76,8 +76,8 @@ impl WaveformImage {
         self.req_step_duration = 0f64;
         self.force_redraw = false;
 
-        self.first_sample = 0;
-        self.last_sample = 0;
+        self.lower = 0;
+        self.upper = 0;
         self.sample_window = 0;
         self.sample_step = 0;
         self.sample_step_f = 0f64;
@@ -134,8 +134,8 @@ impl WaveformImage {
     // whenever possible.
     pub fn render(&mut self,
         audio_buffer: &AudioBuffer,
-        first_sample: usize,
-        last_sample: usize,
+        lower: usize,
+        upper: usize,
         sample_duration: f64,
     ) {
         #[cfg(feature = "profiling-waveform-image")]
@@ -154,21 +154,21 @@ impl WaveformImage {
         // offset between redraws. This allows using the same samples
         // for a given req_step_duration and avoiding flickering
         // between redraws.
-        let mut first_sample =
-            first_sample / sample_step * sample_step;
-        let mut last_sample = last_sample / sample_step * sample_step;
-        if first_sample < audio_buffer.first_sample {
-            // first sample might be smaller than audio_buffer.first_sample
+        let mut lower =
+            lower / sample_step * sample_step;
+        let mut upper = upper / sample_step * sample_step;
+        if lower < audio_buffer.lower {
+            // first sample might be smaller than audio_buffer.lower
             // due to alignement on sample_step
-            first_sample += sample_step;
-            if first_sample >= last_sample {
-                last_sample += sample_step;
-                if first_sample >= audio_buffer.last_sample
-                || last_sample >= audio_buffer.last_sample {
+            lower += sample_step;
+            if lower >= upper {
+                upper += sample_step;
+                if lower >= audio_buffer.upper
+                || upper >= audio_buffer.upper {
                     // can't draw with current range
                     // reset WaveformImage state
-                    self.first_sample = 0;
-                    self.last_sample = 0;
+                    self.lower = 0;
+                    self.upper = 0;
                     self.sample_step = 0;
                     self.sample_step_f = 0f64;
                     self.x_step = 0f64;
@@ -178,15 +178,15 @@ impl WaveformImage {
             }
         }
 
-        let extraction_samples_window = (last_sample - first_sample) / sample_step;
+        let extraction_samples_window = (upper - lower) / sample_step;
 
         let mut must_redraw = !self.is_ready || self.force_redraw;
-        if !must_redraw && first_sample >= self.first_sample
-        && last_sample <= self.last_sample
+        if !must_redraw && lower >= self.lower
+        && upper <= self.upper
         {   // traget extraction fits in previous extraction
             return;
-        } else if first_sample + extraction_samples_window < self.first_sample
-            || first_sample > self.last_sample
+        } else if lower + extraction_samples_window < self.lower
+            || lower > self.upper
         {   // current samples extraction doesn't overlap with samples in previous image
             must_redraw = true;
         }
@@ -245,57 +245,57 @@ impl WaveformImage {
                 } else {
                     1f64
                 };
-            self.first_sample = first_sample;
-            self.last_sample = last_sample;
+            self.lower = lower;
+            self.upper = upper;
 
             self.redraw(&cr,
-                audio_buffer.iter(first_sample, last_sample, sample_step),
+                audio_buffer.iter(lower, upper, sample_step),
             );
         } else {
             // can reuse previous context
-            // Note: condition first_sample >= self.self.first_sample
-            //                 && last_sample <= self.self.last_sample
+            // Note: condition lower >= self.self.lower
+            //                 && upper <= self.self.upper
             // (traget extraction fits in previous extraction)
             // already checked
-            if first_sample < self.first_sample {
+            if lower < self.lower {
                 // append samples before previous first sample
-                let sample_offset = self.first_sample - first_sample;
+                let sample_offset = self.lower - lower;
                 let x_offset = (sample_offset as f64 / self.sample_step_f).round();
 
-                let prev_first_sample = self.first_sample;
+                let prev_lower = self.lower;
                 self.append_left(&cr,
                     &previous_image,
                     x_offset,
-                    audio_buffer.iter(first_sample, prev_first_sample, sample_step),
+                    audio_buffer.iter(lower, prev_lower, sample_step),
                 );
 
-                self.first_sample = first_sample;
-                self.last_sample += sample_offset;
+                self.lower = lower;
+                self.upper += sample_offset;
             }
 
-            if last_sample > self.last_sample {
+            if upper > self.upper {
                 // shift previous image to the left (if necessary)
                 // and append missing samples to the right
 
                 let x_offset = -(
-                    (first_sample - self.first_sample) as f64 / self.sample_step_f
+                    (lower - self.lower) as f64 / self.sample_step_f
                 ).round();
 
-                let first_sample_to_draw = self.last_sample.max(first_sample);
+                let lower_to_draw = self.upper.max(lower);
                 let first_x_to_draw = (
-                    (first_sample_to_draw - self.first_sample) as f64 / self.sample_step_f
+                    (lower_to_draw - self.lower) as f64 / self.sample_step_f
                 ).round() + x_offset;
 
                 self.append_right(&cr,
                     &previous_image,
                     x_offset,
-                    audio_buffer.iter(first_sample_to_draw, last_sample, sample_step),
+                    audio_buffer.iter(lower_to_draw, upper, sample_step),
                     first_x_to_draw,
                     working_image.get_width() // clear_limit
                 );
 
-                self.first_sample = first_sample;
-                self.last_sample = last_sample;
+                self.lower = lower;
+                self.upper = upper;
             }
         }
 
@@ -303,7 +303,7 @@ impl WaveformImage {
         self.working_image = Some(previous_image);
         self.exposed_image = Some(working_image);
 
-        self.sample_window = self.last_sample - self.first_sample;
+        self.sample_window = self.upper - self.lower;
         self.is_ready = true;
         self.force_redraw = false;
 
@@ -484,10 +484,10 @@ mod tests {
     // which will be rendered as a diagonal on the Waveform image
     // from left top corner to right bottom of the target image
     // if all samples are rendered in the range [0:SAMPLE_RATE]
-    fn build_buffer(first_sample: usize, last_sample: usize) -> Vec<i16> {
+    fn build_buffer(lower: usize, upper: usize) -> Vec<i16> {
         let mut buffer: Vec<i16> = Vec::new();
-        let mut index = first_sample;
-        while index < last_sample {
+        let mut index = lower;
+        while index < upper {
             buffer.push((
                 i16::MAX as i32
                 - (index as f64 / SAMPLE_DYN as f64 * u16::MAX as f64
@@ -505,27 +505,27 @@ mod tests {
         caps: &gst::Caps,
         first: usize,
         last: usize,
-        segement_first_sample: usize,
+        segement_lower: usize,
         req_sample_window: usize,
     ) {
         audio_buffer.push_samples(
             &build_buffer(first, last),
             first,
-            segement_first_sample,
+            segement_lower,
             &caps
         );
-        let first_sample_to_extract =
-            if audio_buffer.last_sample
-                > audio_buffer.first_sample + req_sample_window
+        let lower_to_extract =
+            if audio_buffer.upper
+                > audio_buffer.lower + req_sample_window
             {
-                audio_buffer.last_sample - req_sample_window
+                audio_buffer.upper - req_sample_window
             } else {
-                audio_buffer.first_sample
+                audio_buffer.lower
             };
 
         waveform.render(&audio_buffer,
-            first_sample_to_extract,
-            audio_buffer.last_sample,
+            lower_to_extract,
+            audio_buffer.upper,
             audio_buffer.sample_duration,
         );
 
@@ -535,8 +535,8 @@ mod tests {
                 format!(
                     "{}/waveform_image_{}_{:03}_{:03}.png", OUT_DIR,
                     prefix,
-                    waveform.first_sample,
-                    waveform.last_sample
+                    waveform.lower,
+                    waveform.upper
                 )
             ).expect("WaveformImage test: couldn't create output file");
         image.write_to_png(&mut output_file)

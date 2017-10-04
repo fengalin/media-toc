@@ -24,11 +24,11 @@ pub struct AudioBuffer {
 
     pub eos: bool,
 
-    segement_first_sample: usize,
+    segement_lower: usize,
     last_buffer_pts: u64,
-    last_buffer_last_sample: usize,
-    pub first_sample: usize,
-    pub last_sample: usize,
+    last_buffer_upper: usize,
+    pub lower: usize,
+    pub upper: usize,
     pub samples: VecDeque<f64>,
 }
 
@@ -46,11 +46,11 @@ impl AudioBuffer {
 
             eos: false,
 
-            segement_first_sample: 0,
+            segement_lower: 0,
             last_buffer_pts: 0,
-            last_buffer_last_sample: 0,
-            first_sample: 0,
-            last_sample: 0,
+            last_buffer_upper: 0,
+            lower: 0,
+            upper: 0,
             samples: VecDeque::new(),
         }
     }
@@ -75,11 +75,11 @@ impl AudioBuffer {
 
     pub fn cleanup(&mut self) {
         self.eos = false;
-        self.segement_first_sample = 0;
+        self.segement_lower = 0;
         self.last_buffer_pts = 0;
-        self.last_buffer_last_sample = 0;
-        self.first_sample = 0;
-        self.last_sample = 0;
+        self.last_buffer_upper = 0;
+        self.lower = 0;
+        self.upper = 0;
         self.channels = 0;
         self.sample_duration = 0f64;
         self.capacity = 0;
@@ -98,7 +98,7 @@ impl AudioBuffer {
     // Incoming samples are merged to the existing buffer when possible
     pub fn push_gst_sample(&mut self,
         sample: gst::Sample,
-        first_sample_to_keep: usize,
+        lower_to_keep: usize,
     ) {
         #[cfg(feature = "profiling-audio-buffer")]
         let start = Utc::now();
@@ -115,7 +115,7 @@ impl AudioBuffer {
 
         self.eos = false;
 
-        let segment_first_sample = (
+        let segment_lower = (
             sample.get_segment().unwrap().get_start() as f64 / self.sample_duration
         ) as usize;
         let buffer_sample_len = incoming_samples.len() / self.channels;
@@ -131,127 +131,127 @@ impl AudioBuffer {
         //    Nothing to do.
         // 3. Incoming buffer overlaps with stored samples at the end.
         // 4. Incoming buffer overlaps with stored samples at the begining.
-        //    Note: this changes the first sample and requires to extend
+        //    Note: this changes the lower sample and requires to extend
         //    the internal container from the begining.
         // 5. Incoming buffer doesn't overlap with current buffer. In order
         //    not to let gaps between samples, the internal container is
-        //    cleared first.
+        //    cleared lower.
         // 6. The internal container is empty, import incoming buffer
         //    completely.
         let (
-            first_sample_changed,
-            first_incoming_sample,
-            first_sample_to_add_rel,
-            last_sample_to_add_rel
+            lower_changed,
+            incoming_lower,
+            lower_to_add_rel,
+            upper_to_add_rel
         ) =
             if !self.samples.is_empty()
             {   // not initializing
-                let first_incoming_sample =
-                    if segment_first_sample == self.segement_first_sample {
+                let incoming_lower =
+                    if segment_lower == self.segement_lower {
                         // receiving next buffer in the same segment
                         if buffer_pts > self.last_buffer_pts {
                             // ... and getting a more recent buffer than previous
                             // => assuming incoming buffer comes just after previous
-                            self.last_buffer_last_sample
+                            self.last_buffer_upper
                         } else {
                             // ... but incoming buffer is ealier in the stream
                             // => probably a seek back to the begining
                             // of current segment
                             // (e.g. seeking at the begining of current chapter)
-                            segment_first_sample
+                            segment_lower
                         }
                     } else {
                         // different segment (done seeking)
-                        self.segement_first_sample = segment_first_sample;
-                        self.last_buffer_last_sample = segment_first_sample;
-                        segment_first_sample
+                        self.segement_lower = segment_lower;
+                        self.last_buffer_upper = segment_lower;
+                        segment_lower
                     };
-                let last_incoming_sample = first_incoming_sample + buffer_sample_len;
+                let incoming_upper = incoming_lower + buffer_sample_len;
 
-                if first_incoming_sample == self.last_sample {
+                if incoming_lower == self.upper {
                     // 1. append incoming buffer to the end of internal storage
                     //println!("AudioBuffer appending full incoming buffer to the end");
-                    // self.first_sample unchanged
-                    self.last_sample = last_incoming_sample;
-                    self.last_buffer_last_sample = last_incoming_sample;
+                    // self.lower unchanged
+                    self.upper = incoming_upper;
+                    self.last_buffer_upper = incoming_upper;
 
                     (
-                        false,                  // first_sample_changed
-                        first_incoming_sample,  // first_incoming_sample
-                        0,                      // first_sample_to_add_rel
-                        buffer_sample_len       // last_sample_to_add_rel
+                        false,                  // lower_changed
+                        incoming_lower,  // incoming_lower
+                        0,                      // lower_to_add_rel
+                        buffer_sample_len       // upper_to_add_rel
                     )
-                } else if first_incoming_sample >= self.first_sample
-                && last_incoming_sample <= self.last_sample {
+                } else if incoming_lower >= self.lower
+                && incoming_upper <= self.upper {
                     // 2. incoming buffer included in current container
-                    self.last_buffer_last_sample = last_incoming_sample;
+                    self.last_buffer_upper = incoming_upper;
                     (
-                        false,                  // first_sample_changed
-                        first_incoming_sample,  // first_incoming_sample
-                        0,                      // first_sample_to_add_rel
-                        0                       // last_sample_to_add_rel
+                        false,                  // lower_changed
+                        incoming_lower,  // incoming_lower
+                        0,                      // lower_to_add_rel
+                        0                       // upper_to_add_rel
                     )
-                } else if first_incoming_sample > self.first_sample
-                && first_incoming_sample < self.last_sample
-                {   // 3. can append [self.last_sample, last_sample] to the end
-                    // self.first_sample unchanged
-                    let previous_last_sample = self.last_sample;
-                    self.last_sample = last_incoming_sample;
+                } else if incoming_lower > self.lower
+                && incoming_lower < self.upper
+                {   // 3. can append [self.upper, upper] to the end
+                    // self.lower unchanged
+                    let previous_upper = self.upper;
+                    self.upper = incoming_upper;
                     // self.first_pts unchanged
-                    self.last_buffer_last_sample = last_incoming_sample;
+                    self.last_buffer_upper = incoming_upper;
                     (
-                        false,                  // first_sample_changed
-                        first_incoming_sample,  // first_incoming_sample
-                        previous_last_sample - segment_first_sample, // first_sample_to_add_rel
-                        buffer_sample_len       // last_sample_to_add_rel
+                        false,                  // lower_changed
+                        incoming_lower,  // incoming_lower
+                        previous_upper - segment_lower, // lower_to_add_rel
+                        buffer_sample_len       // upper_to_add_rel
                     )
                 }
-                else if last_incoming_sample < self.last_sample
-                && last_incoming_sample >= self.first_sample
-                {   // 4. can insert [first_sample, self.first_sample] to the begining
-                    let last_sample_to_add = self.first_sample;
-                    self.first_sample = first_incoming_sample;
-                    // self.last_sample unchanged
-                    self.last_buffer_last_sample = last_incoming_sample;
+                else if incoming_upper < self.upper
+                && incoming_upper >= self.lower
+                {   // 4. can insert [lower, self.lower] to the begining
+                    let upper_to_add = self.lower;
+                    self.lower = incoming_lower;
+                    // self.upper unchanged
+                    self.last_buffer_upper = incoming_upper;
                     (
-                        true,                   // first_sample_changed
-                        first_incoming_sample,  // first_incoming_sample
-                        0,                      // first_sample_to_add_rel
-                        last_sample_to_add - segment_first_sample // last_sample_to_add_rel
+                        true,                   // lower_changed
+                        incoming_lower,  // incoming_lower
+                        0,                      // lower_to_add_rel
+                        upper_to_add - segment_lower // upper_to_add_rel
                     )
                 } else {
                     // 5. can't merge with previous buffer
                     //println!("AudioBuffer: can't merge");
                     self.samples.clear();
-                    self.first_sample = first_incoming_sample;
-                    self.last_sample = last_incoming_sample;
-                    self.last_buffer_last_sample = last_incoming_sample;
+                    self.lower = incoming_lower;
+                    self.upper = incoming_upper;
+                    self.last_buffer_upper = incoming_upper;
                     (
-                        true,                   // first_sample_changed
-                        first_incoming_sample,  // first_incoming_sample
-                        0,                      // first_sample_to_add_rel
-                        buffer_sample_len       // last_sample_to_add_rel
+                        true,                   // lower_changed
+                        incoming_lower,  // incoming_lower
+                        0,                      // lower_to_add_rel
+                        buffer_sample_len       // upper_to_add_rel
                     )
                 }
             } else {
                 // 6. initializing
-                self.segement_first_sample = segment_first_sample;
-                self.first_sample = segment_first_sample;
-                self.last_sample = segment_first_sample + buffer_sample_len;
-                self.last_buffer_last_sample = self.last_sample;
+                self.segement_lower = segment_lower;
+                self.lower = segment_lower;
+                self.upper = segment_lower + buffer_sample_len;
+                self.last_buffer_upper = self.upper;
                 (
-                    true,                   // first_sample_changed
-                    segment_first_sample,   // first_incoming_sample
-                    0,                      // first_sample_to_add_rel
-                    buffer_sample_len       // last_sample_to_add_rel
+                    true,                   // lower_changed
+                    segment_lower,          // incoming_lower
+                    0,                      // lower_to_add_rel
+                    buffer_sample_len       // upper_to_add_rel
                 )
             };
 
         self.last_buffer_pts = buffer_pts;
 
         // drain internal buffer if necessary and possible
-        if !first_sample_changed
-        && self.samples.len() + last_sample_to_add_rel - first_sample_to_add_rel
+        if !lower_changed
+        && self.samples.len() + upper_to_add_rel - lower_to_add_rel
             > self.capacity
         {   // don't drain if samples are to be added at the begining...
             // drain only if we have enough samples in history
@@ -260,13 +260,13 @@ impl AudioBuffer {
             // and iteration)
 
             // Don't drain samples if they might be used by the extractor
-            // (limit known as argument first_sample_to_keep)
-            if first_sample_to_keep.min(first_incoming_sample)
-                > self.first_sample + self.drain_size
+            // (limit known as argument lower_to_keep)
+            if lower_to_keep.min(incoming_lower)
+                > self.lower + self.drain_size
             {
                 //println!("draining... len before: {}", self.samples.len());
                 self.samples.drain(..self.drain_size);
-                self.first_sample += self.drain_size;
+                self.lower += self.drain_size;
             }
         }
 
@@ -282,7 +282,7 @@ impl AudioBuffer {
         // if more than 2 channels,
         // Use 75% for first 2 channels (assuming front left and front right)
         // Use 25% for the others
-        if last_sample_to_add_rel > 0 {
+        if upper_to_add_rel > 0 {
             let (front_norm_factor, others_norm_factor, front_channels) =
                 if self.channels > 2 {
                     (
@@ -299,12 +299,12 @@ impl AudioBuffer {
                 };
 
             // Update container using the conditions identified above
-            if !first_sample_changed || self.samples.is_empty()
+            if !lower_changed || self.samples.is_empty()
             {   // samples can be push back to the container
                 let mut norm_sample;
-                let mut index = first_sample_to_add_rel * self.channels;
-                let last = last_sample_to_add_rel * self.channels;
-                while index < last {
+                let mut index = lower_to_add_rel * self.channels;
+                let upper = upper_to_add_rel * self.channels;
+                while index < upper {
                     norm_sample = 0f64;
 
                     for _ in 0..front_channels {
@@ -321,9 +321,9 @@ impl AudioBuffer {
             {   // samples must be inserted at the begining
                 // => push front in reverse order
                 let mut norm_sample;
-                let mut index = last_sample_to_add_rel * self.channels;
-                let first = first_sample_to_add_rel * self.channels;
-                while index > first {
+                let mut index = upper_to_add_rel * self.channels;
+                let lower = lower_to_add_rel * self.channels;
+                while index > lower {
                     norm_sample = 0f64;
 
                     for _ in front_channels..self.channels {
@@ -357,16 +357,16 @@ impl AudioBuffer {
         }
     }
 
-    pub fn iter(&self, first: usize, last: usize, step: usize) -> Iter {
-        assert!(first >= self.first_sample);
-        let last = if last > first { last } else { first };
-        Iter::new(self, first, last, step)
+    pub fn iter(&self, lower: usize, upper: usize, step: usize) -> Iter {
+        assert!(lower >= self.lower);
+        let upper = if upper > lower { upper } else { lower };
+        Iter::new(self, lower, upper, step)
     }
 
     #[cfg(test)]
     pub fn get(&self, sample_idx: usize) -> Option<f64> {
-        if sample_idx >= self.first_sample {
-            self.samples.get(sample_idx - self.first_sample).map(|value| *value)
+        if sample_idx >= self.lower {
+            self.samples.get(sample_idx - self.lower).map(|value| *value)
         } else {
             None
         }
@@ -375,8 +375,8 @@ impl AudioBuffer {
     #[cfg(test)]
     pub fn push_samples(&mut self,
         samples: &[i16],
-        first_sample: usize,
-        segment_first_sample: usize,
+        lower: usize,
+        segment_lower: usize,
         caps: &gst::Caps,
     ) {
         let mut samples_u8 = Vec::with_capacity(samples.len() * 2);
@@ -390,18 +390,18 @@ impl AudioBuffer {
 
         let mut buffer = gst::Buffer::from_vec(samples_u8).unwrap();
         buffer.get_mut().unwrap().set_pts(
-            (self.sample_duration * first_sample as f64) as u64 + 1
+            (self.sample_duration * lower as f64) as u64 + 1
         );
 
         let mut segment = gst::Segment::new();
         segment.set_start(
-            (self.sample_duration * segment_first_sample as f64) as u64 + 1
+            (self.sample_duration * segment_lower as f64) as u64 + 1
         );
 
-        let self_first_sample = self.first_sample;
+        let self_lower = self.lower;
         self.push_gst_sample(
             gst::Sample::new(Some(buffer), Some(caps.clone()), Some(&segment), None),
-            self_first_sample // never drain buffer in this test
+            self_lower // never drain buffer in this test
         );
     }
 }
@@ -409,16 +409,16 @@ impl AudioBuffer {
 pub struct Iter<'a> {
     buffer: &'a AudioBuffer,
     idx: usize,
-    last: usize,
+    upper: usize,
     step: usize,
 }
 
 impl<'a> Iter<'a> {
-    fn new(buffer: &'a AudioBuffer, first: usize, last: usize, step: usize) -> Iter<'a> {
+    fn new(buffer: &'a AudioBuffer, lower: usize, upper: usize, step: usize) -> Iter<'a> {
         Iter {
             buffer: buffer,
-            idx: first - buffer.first_sample,
-            last: buffer.samples.len().min(last - buffer.first_sample),
+            idx: lower - buffer.lower,
+            upper: buffer.samples.len().min(upper - buffer.lower),
             step: step,
         }
     }
@@ -428,7 +428,7 @@ impl<'a> Iterator for Iter<'a> {
     type Item = &'a f64;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.idx >= self.last {
+        if self.idx >= self.upper {
             return None;
         }
 
@@ -439,11 +439,11 @@ impl<'a> Iterator for Iter<'a> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        if self.idx >= self.last {
+        if self.idx >= self.upper {
             return (0, Some(0));
         }
 
-        let remaining = (self.last - self.idx) / self.step;
+        let remaining = (self.upper - self.idx) / self.step;
 
         (remaining, Some(remaining))
     }
@@ -487,10 +487,10 @@ mod tests {
         // which would be rendered as a diagonal on a Waveform image
         // from left top corner to right bottom of the target image
         // if all samples are rendered in the range [0:SAMPLE_RATE]
-        fn build_buffer(first_sample: usize, last_sample: usize) -> Vec<i16> {
+        fn build_buffer(lower: usize, upper: usize) -> Vec<i16> {
             let mut buffer: Vec<i16> = Vec::new();
-            let mut index = first_sample;
-            while index < last_sample {
+            let mut index = lower;
+            while index < upper {
                 buffer.push(get_value(index));
                 index += 1;
             }
@@ -501,81 +501,81 @@ mod tests {
 
         // samples [100:200]
         audio_buffer.push_samples(&build_buffer(100, 200), 100, 100, &caps);
-        assert_eq!(audio_buffer.first_sample, 100);
-        assert_eq!(audio_buffer.last_sample, 200);
+        assert_eq!(audio_buffer.lower, 100);
+        assert_eq!(audio_buffer.upper, 200);
         assert_eq!(
-            audio_buffer.get(audio_buffer.first_sample),
+            audio_buffer.get(audio_buffer.lower),
             Some(super::SAMPLES_OFFSET - f64::from(get_value(100)) * samples_factor)
         );
         assert_eq!(
-            audio_buffer.get(audio_buffer.last_sample - 1),
+            audio_buffer.get(audio_buffer.upper - 1),
             Some(super::SAMPLES_OFFSET - f64::from(get_value(199)) * samples_factor)
         );
 
         // samples [50:100]: appending to the begining
         audio_buffer.push_samples(&build_buffer(50, 100), 50, 50, &caps);
-        assert_eq!(audio_buffer.first_sample, 50);
-        assert_eq!(audio_buffer.last_sample, 200);
+        assert_eq!(audio_buffer.lower, 50);
+        assert_eq!(audio_buffer.upper, 200);
         assert_eq!(
-            audio_buffer.get(audio_buffer.first_sample),
+            audio_buffer.get(audio_buffer.lower),
             Some(super::SAMPLES_OFFSET - f64::from(get_value(50)) * samples_factor)
         );
         assert_eq!(
-            audio_buffer.get(audio_buffer.last_sample - 1),
+            audio_buffer.get(audio_buffer.upper - 1),
             Some(super::SAMPLES_OFFSET - f64::from(get_value(199)) * samples_factor)
         );
 
         // samples [0:75]: overlaping on the begining
         audio_buffer.push_samples(&build_buffer(0, 75), 0, 0, &caps);
-        assert_eq!(audio_buffer.first_sample, 0);
-        assert_eq!(audio_buffer.last_sample, 200);
+        assert_eq!(audio_buffer.lower, 0);
+        assert_eq!(audio_buffer.upper, 200);
         assert_eq!(
-            audio_buffer.get(audio_buffer.first_sample),
+            audio_buffer.get(audio_buffer.lower),
             Some(super::SAMPLES_OFFSET - f64::from(get_value(0)) * samples_factor)
         );
         assert_eq!(
-            audio_buffer.get(audio_buffer.last_sample - 1),
+            audio_buffer.get(audio_buffer.upper - 1),
             Some(super::SAMPLES_OFFSET - f64::from(get_value(199)) * samples_factor)
         );
 
         // samples [200:300]: appending to the end
         // different segment than previous
         audio_buffer.push_samples(&build_buffer(200, 300), 200, 200, &caps);
-        assert_eq!(audio_buffer.first_sample, 0);
-        assert_eq!(audio_buffer.last_sample, 300);
+        assert_eq!(audio_buffer.lower, 0);
+        assert_eq!(audio_buffer.upper, 300);
         assert_eq!(
-            audio_buffer.get(audio_buffer.first_sample),
+            audio_buffer.get(audio_buffer.lower),
             Some(super::SAMPLES_OFFSET - f64::from(get_value(0)) * samples_factor)
         );
         assert_eq!(
-            audio_buffer.get(audio_buffer.last_sample - 1),
+            audio_buffer.get(audio_buffer.upper - 1),
             Some(super::SAMPLES_OFFSET - f64::from(get_value(299)) * samples_factor)
         );
 
         // samples [250:400]: overlaping on the end
         audio_buffer.push_samples(&build_buffer(250, 400), 250, 250, &caps);
-        assert_eq!(audio_buffer.first_sample, 0);
-        assert_eq!(audio_buffer.last_sample, 400);
+        assert_eq!(audio_buffer.lower, 0);
+        assert_eq!(audio_buffer.upper, 400);
         assert_eq!(
-            audio_buffer.get(audio_buffer.first_sample),
+            audio_buffer.get(audio_buffer.lower),
             Some(super::SAMPLES_OFFSET - f64::from(get_value(0)) * samples_factor)
         );
         assert_eq!(
-            audio_buffer.get(audio_buffer.last_sample - 1),
+            audio_buffer.get(audio_buffer.upper - 1),
             Some(super::SAMPLES_OFFSET - f64::from(get_value(399)) * samples_factor)
         );
 
         // samples [400:450]: appending to the end
         // same segment as previous
         audio_buffer.push_samples(&build_buffer(400, 450), 400, 250, &caps);
-        assert_eq!(audio_buffer.first_sample, 0);
-        assert_eq!(audio_buffer.last_sample, 450);
+        assert_eq!(audio_buffer.lower, 0);
+        assert_eq!(audio_buffer.upper, 450);
         assert_eq!(
-            audio_buffer.get(audio_buffer.first_sample),
+            audio_buffer.get(audio_buffer.lower),
             Some(super::SAMPLES_OFFSET - f64::from(get_value(0)) * samples_factor)
         );
         assert_eq!(
-            audio_buffer.get(audio_buffer.last_sample - 1),
+            audio_buffer.get(audio_buffer.upper - 1),
             Some(super::SAMPLES_OFFSET - f64::from(get_value(449)) * samples_factor)
         );
     }
