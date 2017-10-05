@@ -87,7 +87,7 @@ impl WaveformBuffer {
 
     pub fn seek(&mut self, position: u64, is_playing: bool) {
         let sought_sample =
-            (position as f64 / self.state.sample_duration).round() as usize
+            (position as f64 / self.state.sample_duration) as usize
             / self.image.sample_step * self.image.sample_step;
         if is_playing {
             // stream is playing => let the cursor move from current position
@@ -126,10 +126,10 @@ impl WaveformBuffer {
     pub fn get_position(&mut self, x: f64) -> Option<u64> {
         match self.first_visible_sample {
             Some(first_visible_sample) => {
-                let sought_sample_f =
-                    first_visible_sample as f64 +
-                    (x * self.image.sample_step_f).round();
-                Some((sought_sample_f * self.state.sample_duration) as u64)
+                let sought_sample =
+                    first_visible_sample +
+                    self.image.sample_step * ((x / self.image.x_step) as usize);
+                Some((sought_sample as f64 * self.state.sample_duration) as u64)
             },
             None => None,
         }
@@ -259,7 +259,7 @@ impl WaveformBuffer {
     pub fn update_conditions(&mut self, duration: u64, width: i32, height: i32) {
         let req_sample_window = (
             duration as f64 / self.state.sample_duration
-        ).round() as usize;
+        ) as usize;
 
         if req_sample_window != self.req_sample_window {
             // sample window has changed => zoom
@@ -281,7 +281,7 @@ impl WaveformBuffer {
                             1f64
                             - req_sample_window as f64 / self.req_sample_window as f64
                         )
-                    ).round() as i64;
+                    ) as i64;
                 self.first_visible_sample_lock = Some(first_visible_sample_lock);
                 self.shareable_state_changed = true;
             }
@@ -305,7 +305,6 @@ impl WaveformBuffer {
         self.update_first_visible_sample();
         match self.first_visible_sample {
             Some(first_visible_sample) => {
-                let first_visible_sample_f = first_visible_sample as f64;
                 let current_x_opt =
                     if self.current_sample >= first_visible_sample
                     && self.current_sample
@@ -313,9 +312,9 @@ impl WaveformBuffer {
                     {
                         Some(
                             (
-                                (self.current_sample as f64 - first_visible_sample_f)
-                                / self.image.sample_step_f
-                            ).round()
+                                (self.current_sample - first_visible_sample)
+                                / self.image.sample_step
+                            ) as f64 * self.image.x_step
                         )
                     } else {
                         None
@@ -324,9 +323,9 @@ impl WaveformBuffer {
                 Some((
                     self.image.get_image(),
                     (
-                        (first_visible_sample_f - self.image.lower as f64)
-                            / self.image.sample_step_f
-                    ).round(), // x_offset
+                        (first_visible_sample - self.image.lower)
+                        / self.image.sample_step
+                    ) as f64 * self.image.x_step, // x_offset
                     current_x_opt,
                 ))
             },

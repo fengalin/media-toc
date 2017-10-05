@@ -32,7 +32,6 @@ pub struct WaveformImage {
 
     pub sample_window: usize,
     pub sample_step: usize,
-    pub sample_step_f: f64,
     pub x_step: f64,
 }
 
@@ -66,7 +65,6 @@ impl WaveformImage {
 
             sample_window: 0,
             sample_step: 0,
-            sample_step_f: 0f64,
             x_step: 0f64,
         }
     }
@@ -92,7 +90,6 @@ impl WaveformImage {
 
         self.sample_window = 0;
         self.sample_step = 0;
-        self.sample_step_f = 0f64;
         self.x_step = 0f64;
     }
 
@@ -181,7 +178,6 @@ impl WaveformImage {
                 self.first = None;
                 self.last = None;
                 self.sample_step = 0;
-                self.sample_step_f = 0f64;
                 self.x_step = 0f64;
                 self.is_ready = false;
                 return;
@@ -249,10 +245,9 @@ impl WaveformImage {
             // Initialization or resolution has changed or seek requested
             // redraw the whole range from the audio buffer
             self.sample_step = sample_step;
-            self.sample_step_f = sample_step_f;
             self.x_step =
-                if self.sample_step_f < 1f64 {
-                    (1f64 / self.sample_step_f).round()
+                if sample_step_f < 1f64 {
+                    (1f64 / sample_step_f).round()
                 } else {
                     1f64
                 };
@@ -428,7 +423,7 @@ impl WaveformImage {
                     cr.line_to(prev_first_x, prev_first_y);
                     cr.stroke();
                 } else {
-                    println!("prev_first_x {}, last_added_x {}, x_step {}, delta {}, x_offset {}",
+                    println!("append_left: excessive delta: prev_first_x {}, last_added_x {}, x_step {}, delta {}, x_offset {}",
                         prev_first_x, last_added_x, self.x_step, (prev_first_x - last_added_x).abs(), x_offset
                     );
                     println!("self.lower {}, lower {}", self.lower, lower);
@@ -502,9 +497,10 @@ impl WaveformImage {
                     cr.line_to(first_added_x, first_added_y);
                     cr.stroke();
                 } else {
-                    println!("x_offset {}, lower {}, self.lower {}, delta {}, delta samples {}",
-                        x_offset, lower, self.lower, (first_added_x - prev_last_x).abs(), (lower - self.lower)
+                    println!("append_right: excessive delta: x_offset {}, self.lower {}, delta {}, delta samples {}",
+                        x_offset, self.lower, (first_added_x - prev_last_x).abs(), (lower - self.lower)
                     );
+                    println!("lower {}, self.upper {}", lower, self.upper);
                 }
             }
 
