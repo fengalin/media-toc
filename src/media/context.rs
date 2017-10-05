@@ -138,7 +138,7 @@ impl Context {
     }
 
     pub fn seek(&self, position: u64) {
-        self.pipeline.seek_simple(gst::Format::Time, gst::SEEK_FLAG_FLUSH, position as i64)
+        self.pipeline.seek_simple(gst::Format::Time, gst::SeekFlags::FLUSH, position as i64)
             .ok().unwrap();
     }
 
