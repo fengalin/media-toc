@@ -363,7 +363,6 @@ impl AudioBuffer {
         Iter::new(self, lower, upper, step)
     }
 
-    #[cfg(test)]
     pub fn get(&self, sample_idx: usize) -> Option<f64> {
         if sample_idx >= self.lower {
             self.samples.get(sample_idx - self.lower).map(|value| *value)
