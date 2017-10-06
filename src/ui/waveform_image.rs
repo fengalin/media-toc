@@ -13,6 +13,7 @@ const INIT_WIDTH: i32 = 2000;
 const INIT_HEIGHT: i32 = 500;
 
 pub struct WaveformImage {
+    id: usize,
     pub is_ready: bool,
     pub shareable_state_changed: bool,
 
@@ -37,8 +38,9 @@ pub struct WaveformImage {
 }
 
 impl WaveformImage {
-    pub fn new() -> Self {
+    pub fn new(id: usize) -> Self {
         WaveformImage {
+            id: id,
             is_ready: false,
             shareable_state_changed: false,
 
@@ -278,7 +280,7 @@ impl WaveformImage {
                 } else {
                     // first sample position is unknown
                     // => force redraw
-                    println!("append left: first sample unknown => redrawing");
+                    println!("WaveformImage::append left({}): first sample unknown => redrawing", self.id);
                     self.redraw(&cr,
                         audio_buffer,
                         lower,
@@ -301,7 +303,7 @@ impl WaveformImage {
                 } else {
                     // last sample position is unknown
                     // => force redraw
-                    println!("append right: last sample unknown => redrawing");
+                    println!("WaveformImage::append right({}): last sample unknown => redrawing", self.id);
                     self.redraw(&cr,
                         audio_buffer,
                         lower,
@@ -367,7 +369,9 @@ impl WaveformImage {
             self.force_redraw = false;
         } else {
             self.force_redraw = true;
-            println!("WaveformImage::redraw: iter out of range {}, {}", lower, upper);
+            println!("WaveformImage::redraw({}): iter out of range {}, {}",
+                self.id, lower, upper
+            );
         }
     }
 
@@ -390,18 +394,17 @@ impl WaveformImage {
         self.last = match self.last {
             Some((mut x, y)) => {
                 x += x_offset;
-                if (x as i32) < previous_image.get_width() {
+                let last_pixel = (previous_image.get_width() - 1) as f64;
+                if x <= last_pixel {
                     // last still in image
                     Some((x, y))
                 } else {
                     // last out of image
                     // get sample which is now bound to last pixel
-                    self.get_sample_and_value_at(
-                            previous_image.get_width() as f64,
-                            audio_buffer
-                        ).map(|(sample, value)| {
+                    self.get_sample_and_value_at(last_pixel, audio_buffer)
+                        .map(|(sample, value)| {
                             self.upper = sample;
-                            (0f64, value)
+                            (last_pixel, value)
                         })
                 }
             },
@@ -428,8 +431,8 @@ impl WaveformImage {
 
             self.lower = lower;
         } else {
-            println!("WaveformImage::append_left: iter ({}, {}) out of range or empty",
-                lower, self.lower
+            println!("WaveformImage::append_left({}): iter ({}, {}) out of range or empty",
+                self.id, lower, self.lower
             );
         }
     }
@@ -469,23 +472,9 @@ impl WaveformImage {
 
         self.set_scale(&cr);
 
-        let (first_sample_to_draw, first_x_to_draw) =
-            if self.upper >= lower {
-                (
-                    self.upper,
-                    self.last
-                        .expect("WaveformImage::append_right last is not defined")
-                        .0
-                )
-            } else {
-                println!("WaveformImage::append_right: self.upper < lower: {}, {}",
-                    self.upper, lower
-                );
-                (
-                    lower,
-                    ((lower - self.lower) / self.sample_step * self.x_step) as f64
-                )
-            };
+        let first_sample_to_draw = self.upper.max(lower);
+        let first_x_to_draw =
+            ((first_sample_to_draw - self.lower) / self.sample_step * self.x_step) as f64;
 
         self.clear_area(&cr, first_x_to_draw, f64::from(previous_image.get_width()));
 
@@ -507,8 +496,8 @@ impl WaveformImage {
 
             self.upper = upper;
         } else {
-            println!("WaveformImage::append_right: iter ({}, {}) out of range or empty",
-                first_sample_to_draw, upper
+            println!("WaveformImage::append_right({}): iter ({}, {}) out of range or empty",
+                self.id, first_sample_to_draw, upper
             );
         }
     }
@@ -623,7 +612,7 @@ mod tests {
         audio_buffer.set_caps(&caps);
 
         // WaveformImage
-        let mut waveform = WaveformImage::new();
+        let mut waveform = WaveformImage::new(0);
         waveform.update_dimensions(
             1_000_000_000, // 1s
             width,
@@ -714,7 +703,7 @@ mod tests {
 
     #[test]
     fn link_between_draws() {
-        let (mut audio_buffer, caps, mut waveform) = init(1024);
+        let (mut audio_buffer, caps, mut waveform) = init(1512);
         let samples_window = SAMPLE_RATE as usize;
 
         render_with_samples("link_0", &mut waveform, &mut audio_buffer, &caps, 100, 200, 100, samples_window);

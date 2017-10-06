@@ -170,71 +170,81 @@ impl AudioBuffer {
 
                 if incoming_lower == self.upper {
                     // 1. append incoming buffer to the end of internal storage
-                    //println!("AudioBuffer appending full incoming buffer to the end");
+                    #[cfg(test)]
+                    println!("AudioBuffer case 1. appending to the end (full)");
                     // self.lower unchanged
                     self.upper = incoming_upper;
                     self.last_buffer_upper = incoming_upper;
 
                     (
-                        false,                  // lower_changed
-                        incoming_lower,  // incoming_lower
-                        0,                      // lower_to_add_rel
-                        buffer_sample_len       // upper_to_add_rel
+                        false,            // lower_changed
+                        incoming_lower,   // incoming_lower
+                        0,                // lower_to_add_rel
+                        buffer_sample_len // upper_to_add_rel
                     )
                 } else if incoming_lower >= self.lower
                 && incoming_upper <= self.upper {
                     // 2. incoming buffer included in current container
+                    #[cfg(test)]
+                    println!("AudioBuffer case 2. contained in current container");
                     self.last_buffer_upper = incoming_upper;
                     (
-                        false,                  // lower_changed
+                        false,           // lower_changed
                         incoming_lower,  // incoming_lower
-                        0,                      // lower_to_add_rel
-                        0                       // upper_to_add_rel
+                        0,               // lower_to_add_rel
+                        0                // upper_to_add_rel
                     )
                 } else if incoming_lower > self.lower
                 && incoming_lower < self.upper
                 {   // 3. can append [self.upper, upper] to the end
+                    #[cfg(test)]
+                    println!("AudioBuffer case 3. append to the end (partial)");
                     // self.lower unchanged
                     let previous_upper = self.upper;
                     self.upper = incoming_upper;
                     // self.first_pts unchanged
                     self.last_buffer_upper = incoming_upper;
                     (
-                        false,                  // lower_changed
-                        incoming_lower,  // incoming_lower
-                        previous_upper - segment_lower, // lower_to_add_rel
-                        buffer_sample_len       // upper_to_add_rel
+                        false,                           // lower_changed
+                        incoming_lower,                  // incoming_lower
+                        previous_upper - incoming_lower, // lower_to_add_rel
+                        buffer_sample_len                // upper_to_add_rel
                     )
                 }
                 else if incoming_upper < self.upper
                 && incoming_upper >= self.lower
-                {   // 4. can insert [lower, self.lower] to the begining
+                {   // 4. can insert [lower, self.lower] at the begining
+                    #[cfg(test)]
+                    println!("AudioBuffer case 4. insert at the begining");
                     let upper_to_add = self.lower;
                     self.lower = incoming_lower;
                     // self.upper unchanged
                     self.last_buffer_upper = incoming_upper;
                     (
-                        true,                   // lower_changed
-                        incoming_lower,  // incoming_lower
-                        0,                      // lower_to_add_rel
-                        upper_to_add - segment_lower // upper_to_add_rel
+                        true,                         // lower_changed
+                        incoming_lower,               // incoming_lower
+                        0,                            // lower_to_add_rel
+                        upper_to_add - incoming_lower // upper_to_add_rel
                     )
                 } else {
                     // 5. can't merge with previous buffer
-                    //println!("AudioBuffer: can't merge");
+                    #[cfg(test)]
+                    println!("AudioBuffer case 5. can't merge");
                     self.samples.clear();
                     self.lower = incoming_lower;
                     self.upper = incoming_upper;
                     self.last_buffer_upper = incoming_upper;
                     (
-                        true,                   // lower_changed
-                        incoming_lower,  // incoming_lower
-                        0,                      // lower_to_add_rel
-                        buffer_sample_len       // upper_to_add_rel
+                        true,               // lower_changed
+                        incoming_lower,     // incoming_lower
+                        0,                  // lower_to_add_rel
+                        buffer_sample_len   // upper_to_add_rel
                     )
                 }
             } else {
                 // 6. initializing
+                #[cfg(test)]
+                println!("AudioBuffer init");
                 self.segement_lower = segment_lower;
                 self.lower = segment_lower;
                 self.upper = segment_lower + buffer_sample_len;
@@ -429,14 +439,19 @@ impl<'a> Iterator for Iter<'a> {
     type Item = &'a f64;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.idx >= self.upper {
-            return None;
+        if self.idx < self.upper {
+            let item = self.buffer.samples.get(self.idx);
+            if item.is_none() {
+                println!("AudioBuffer::Iter::next item is none idx {}, upper {}, len {}, expected len {}",
+                    self.idx, self.upper, self.buffer.samples.len(), self.buffer.upper - self.buffer.lower
+                );
+            }
+            self.idx += self.step;
+
+            item
+        } else {
+            None
         }
-
-        let item = self.buffer.samples.get(self.idx);
-        self.idx += self.step;
-
-        item
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -500,7 +515,7 @@ mod tests {
 
         let samples_factor = 1f64 / f64::from(i16::MAX) * super::SAMPLES_OFFSET;
 
-        // samples [100:200]
+        println!("\n* samples [100:200] init");
         audio_buffer.push_samples(&build_buffer(100, 200), 100, 100, &caps);
         assert_eq!(audio_buffer.lower, 100);
         assert_eq!(audio_buffer.upper, 200);
@@ -513,7 +528,7 @@ mod tests {
             Some(super::SAMPLES_OFFSET - f64::from(get_value(199)) * samples_factor)
         );
 
-        // samples [50:100]: appending to the begining
+        println!("* samples [50:100]: appending to the begining");
         audio_buffer.push_samples(&build_buffer(50, 100), 50, 50, &caps);
         assert_eq!(audio_buffer.lower, 50);
         assert_eq!(audio_buffer.upper, 200);
@@ -526,7 +541,7 @@ mod tests {
             Some(super::SAMPLES_OFFSET - f64::from(get_value(199)) * samples_factor)
         );
 
-        // samples [0:75]: overlaping on the begining
+        println!("* samples [0:75]: overlaping on the begining");
         audio_buffer.push_samples(&build_buffer(0, 75), 0, 0, &caps);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 200);
@@ -539,8 +554,7 @@ mod tests {
             Some(super::SAMPLES_OFFSET - f64::from(get_value(199)) * samples_factor)
         );
 
-        // samples [200:300]: appending to the end
-        // different segment than previous
+        println!("* samples [200:300]: appending to the end - different segment");
         audio_buffer.push_samples(&build_buffer(200, 300), 200, 200, &caps);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 300);
@@ -553,8 +567,21 @@ mod tests {
             Some(super::SAMPLES_OFFSET - f64::from(get_value(299)) * samples_factor)
         );
 
-        // samples [250:400]: overlaping on the end
-        audio_buffer.push_samples(&build_buffer(250, 400), 250, 250, &caps);
+        println!("* samples [250:275]: contained in current - different segment");
+        audio_buffer.push_samples(&build_buffer(250, 275), 250, 250, &caps);
+        assert_eq!(audio_buffer.lower, 0);
+        assert_eq!(audio_buffer.upper, 300);
+        assert_eq!(
+            audio_buffer.get(audio_buffer.lower),
+            Some(super::SAMPLES_OFFSET - f64::from(get_value(0)) * samples_factor)
+        );
+        assert_eq!(
+            audio_buffer.get(audio_buffer.upper - 1),
+            Some(super::SAMPLES_OFFSET - f64::from(get_value(299)) * samples_factor)
+        );
+
+        println!("* samples [275:400]: overlaping on the end");
+        audio_buffer.push_samples(&build_buffer(275, 400), 275, 250, &caps);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 400);
         assert_eq!(
@@ -566,8 +593,7 @@ mod tests {
             Some(super::SAMPLES_OFFSET - f64::from(get_value(399)) * samples_factor)
         );
 
-        // samples [400:450]: appending to the end
-        // same segment as previous
+        println!("* samples [400:450]: appending to the end");
         audio_buffer.push_samples(&build_buffer(400, 450), 400, 250, &caps);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 450);

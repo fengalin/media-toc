@@ -19,8 +19,8 @@ impl DoubleWaveformBuffer {
         Arc::new(Mutex::new(
             DoubleAudioBuffer::new(
                 buffer_duration,
-                Box::new(WaveformBuffer::new()),
-                Box::new(WaveformBuffer::new())
+                Box::new(WaveformBuffer::new(1)),
+                Box::new(WaveformBuffer::new(2))
             )
         ))
     }
@@ -57,12 +57,12 @@ pub struct WaveformBuffer {
 }
 
 impl WaveformBuffer {
-    pub fn new() -> Self {
+    pub fn new(id: usize) -> Self {
         WaveformBuffer {
             state: SampleExtractionState::new(),
             shareable_state_changed: false,
 
-            image: WaveformImage::new(),
+            image: WaveformImage::new(id),
 
             is_seeking: false,
             previous_sample: 0,
