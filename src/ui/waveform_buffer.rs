@@ -96,16 +96,18 @@ impl WaveformBuffer {
             self.first_visible_sample_lock =
                 match self.first_visible_sample {
                     Some(first_visible_sample) => {
-                        if first_visible_sample <= sought_sample
+                        if first_visible_sample + self.req_sample_window < self.image.upper
+                        && first_visible_sample <= sought_sample
                         && sought_sample < first_visible_sample + self.req_sample_window
-                        {   // Sought sample is included in current window
+                        {   // Current window is large enough for req_sample_window
+                            // and sought sample is included in current window
                             // => lock the first sample so that the cursor appears
                             // at the sought position without abrutely scrolling
                             // the waveform.
                             Some(first_visible_sample as i64)
                         } else {
                             // Sought sample not in current window
-                            // => scroll directly to new position
+                            // or not enough samples for a constraint
                             None
                         }
                     },
@@ -114,6 +116,7 @@ impl WaveformBuffer {
             self.is_seeking = true;
         } else {
             // not playing => move directly to the sought position
+            self.first_visible_sample = None;
             self.first_visible_sample_lock = None;
             self.is_seeking = false;
         }
@@ -128,7 +131,7 @@ impl WaveformBuffer {
             Some(first_visible_sample) => {
                 let sought_sample =
                     first_visible_sample +
-                    self.image.sample_step * ((x / self.image.x_step) as usize);
+                    (x as usize) / self.image.x_step * self.image.sample_step;
                 Some((sought_sample as f64 * self.state.sample_duration) as u64)
             },
             None => None,
@@ -314,7 +317,8 @@ impl WaveformBuffer {
                             (
                                 (self.current_sample - first_visible_sample)
                                 / self.image.sample_step
-                            ) as f64 * self.image.x_step
+                                * self.image.x_step
+                            ) as f64
                         )
                     } else {
                         None
@@ -325,7 +329,8 @@ impl WaveformBuffer {
                     (
                         (first_visible_sample - self.image.lower)
                         / self.image.sample_step
-                    ) as f64 * self.image.x_step, // x_offset
+                         * self.image.x_step
+                    ) as f64, // x_offset
                     current_x_opt,
                 ))
             },
@@ -537,6 +542,9 @@ impl SampleExtractor for WaveformBuffer {
             upper_to_extract,
             self.state.sample_duration
         );
+
+        // first_visible_sample is no longer reliable
+        self.first_visible_sample = None;
     }
 
     fn refresh(&mut self, audio_buffer: &AudioBuffer) {
@@ -561,7 +569,10 @@ impl SampleExtractor for WaveformBuffer {
                 upper.min(lower_to_extract + 2 * self.req_sample_window),
                 self.state.sample_duration
             );
-        } // no need to refresh
+
+            // first_visible_sample is no longer reliable
+            self.first_visible_sample = None;
+       } // no need to refresh
     }
 
     // Refresh the waveform in its current sample range and position

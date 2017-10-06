@@ -358,8 +358,7 @@ impl AudioBuffer {
     }
 
     pub fn iter(&self, lower: usize, upper: usize, step: usize) -> Iter {
-        assert!(lower >= self.lower);
-        let upper = if upper > lower { upper } else { lower };
+        assert!(upper >= lower);
         Iter::new(self, lower, upper, step)
     }
 
@@ -414,10 +413,12 @@ pub struct Iter<'a> {
 
 impl<'a> Iter<'a> {
     fn new(buffer: &'a AudioBuffer, lower: usize, upper: usize, step: usize) -> Iter<'a> {
+        assert!(lower >= buffer.lower);
+        assert!(upper <= buffer.upper);
         Iter {
             buffer: buffer,
             idx: lower - buffer.lower,
-            upper: buffer.samples.len().min(upper - buffer.lower),
+            upper: upper - buffer.lower,
             step: step,
         }
     }
