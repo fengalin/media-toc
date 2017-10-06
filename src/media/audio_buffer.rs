@@ -357,9 +357,12 @@ impl AudioBuffer {
         }
     }
 
-    pub fn iter(&self, lower: usize, upper: usize, step: usize) -> Iter {
-        assert!(upper >= lower);
-        Iter::new(self, lower, upper, step)
+    pub fn iter(&self, lower: usize, upper: usize, step: usize) -> Option<Iter> {
+        if upper > lower && lower >= self.lower && upper <= self.upper {
+            Some(Iter::new(self, lower - self.lower, upper - self.lower, step))
+        } else {
+            None
+        }
     }
 
     pub fn get(&self, sample_idx: usize) -> Option<f64> {
@@ -386,7 +389,7 @@ impl AudioBuffer {
             samples_u8.push(buf_u8[1]);
         };
 
-        let mut buffer = gst::Buffer::from_vec(samples_u8).unwrap();
+        let buffer = gst::Buffer::from_vec(samples_u8).unwrap();
         buffer.get_mut().unwrap().set_pts(
             (self.sample_duration * lower as f64) as u64 + 1
         );
@@ -412,13 +415,11 @@ pub struct Iter<'a> {
 }
 
 impl<'a> Iter<'a> {
-    fn new(buffer: &'a AudioBuffer, lower: usize, upper: usize, step: usize) -> Iter<'a> {
-        assert!(lower >= buffer.lower);
-        assert!(upper <= buffer.upper);
+    fn new(buffer: &'a AudioBuffer, lower_idx: usize, upper_idx: usize, step: usize) -> Iter<'a> {
         Iter {
             buffer: buffer,
-            idx: lower - buffer.lower,
-            upper: upper - buffer.lower,
+            idx: lower_idx,
+            upper: upper_idx,
             step: step,
         }
     }
