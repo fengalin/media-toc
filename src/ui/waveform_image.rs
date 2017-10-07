@@ -5,7 +5,8 @@ use chrono::Utc;
 
 use media::{AudioBuffer, AudioBufferIter, SAMPLES_NORM};
 
-pub const BACKGROUND_COLOR: (f64, f64, f64) = (0.2f64, 0.2235f64, 0.2314f64);
+pub const BACKGROUND_COLOR:  (f64, f64, f64) = (0.2f64, 0.2235f64, 0.2314f64);
+pub const AMPLITUDE_0_COLOR: (f64, f64, f64) = (0.5f64, 0.5f64, 0f64);
 
 // initial image dimensions
 // will dynamically adapt if needed
@@ -360,9 +361,12 @@ impl WaveformImage {
         self.set_scale(&cr);
 
         if let Some(iter) = audio_buffer.iter(lower, upper, sample_step) {
-            let (first, last) = self.draw_samples(cr, iter, 0f64);
+            let (first, (last_x, last_y)) = self.draw_samples(cr, iter, 0f64);
+
+            self.draw_amplitude_0(cr, 0f64, last_x);
+
             self.first = Some(first);
-            self.last = Some(last);
+            self.last = Some((last_x, last_y));
 
             self.lower = lower;
             self.upper = upper;
@@ -419,6 +423,8 @@ impl WaveformImage {
                 self.draw_samples(cr, iter, 0f64);
 
             if let Some((prev_first_x, prev_first_y)) = self.first {
+                self.draw_amplitude_0(cr, 0f64, prev_first_x);
+
                 if (prev_first_x - last_added_x).abs() <= self.x_step_f {
                     // link new added samples with previous first sample
                     cr.move_to(last_added_x, last_added_y);
@@ -484,6 +490,8 @@ impl WaveformImage {
                 self.draw_samples(cr, iter, first_x_to_draw);
 
             if let Some((prev_last_x, prev_last_y)) = self.last {
+                self.draw_amplitude_0(cr, prev_last_x, last_added_x);
+
                 if (first_added_x - prev_last_x).abs() <= self.x_step_f {
                     // link new added samples with previous last sample
                     cr.move_to(prev_last_x, prev_last_y);
@@ -547,6 +555,21 @@ impl WaveformImage {
         }
 
         ((first_x, first_value), (x, sample_value))
+    }
+
+
+
+    // clear samples previously rendered
+    fn draw_amplitude_0(&self, cr: &cairo::Context, first_x: f64, last_x: f64) {
+        cr.set_source_rgb(
+            AMPLITUDE_0_COLOR.0,
+            AMPLITUDE_0_COLOR.1,
+            AMPLITUDE_0_COLOR.2
+        );
+
+        cr.move_to(first_x, SAMPLES_NORM / 2f64);
+        cr.line_to(last_x, SAMPLES_NORM / 2f64);
+        cr.stroke();
     }
 
     // clear samples previously rendered
