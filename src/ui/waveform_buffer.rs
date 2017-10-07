@@ -90,8 +90,8 @@ impl WaveformBuffer {
             (position as f64 / self.state.sample_duration) as usize
             / self.image.sample_step * self.image.sample_step;
         if is_playing {
-            // stream is playing => let the cursor move from current position
-            // to the sought position if possible
+            // stream is playing => let the cursor jump from current position
+            // to the sought position without shifting the waveform if possible
             self.update_first_visible_sample();
             self.first_visible_sample_lock =
                 match self.first_visible_sample {
@@ -115,7 +115,7 @@ impl WaveformBuffer {
                 };
             self.is_seeking = true;
         } else {
-            // not playing => move directly to the sought position
+            // not playing => jump directly to the sought position
             self.first_visible_sample = None;
             self.first_visible_sample_lock = None;
             self.is_seeking = false;

@@ -137,8 +137,11 @@ impl Context {
         }
     }
 
-    pub fn seek(&self, position: u64) {
-        self.pipeline.seek_simple(gst::Format::Time, gst::SeekFlags::FLUSH, position as i64)
+    pub fn seek(&self, position: u64, accurate: bool) {
+        let flags = gst::SeekFlags::FLUSH |
+            if accurate { gst::SeekFlags::ACCURATE }
+            else { gst::SeekFlags::KEY_UNIT };
+        self.pipeline.seek_simple(gst::Format::Time, flags, position as i64)
             .ok().unwrap();
     }
 

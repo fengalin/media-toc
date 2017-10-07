@@ -86,7 +86,7 @@ impl InfoController {
         // Scale seek
         let main_ctrl_rc = Rc::clone(main_ctrl);
         self.timeline_scale.connect_change_value(move |_, _, value| {
-            main_ctrl_rc.borrow_mut().seek(value as u64);
+            main_ctrl_rc.borrow_mut().seek(value as u64, false); // approximate (fast)
             Inhibit(true)
         });
 
@@ -98,7 +98,7 @@ impl InfoController {
             if let Some(chapter_iter) = chapter_store.get_iter(tree_path) {
                 let position = chapter_store.get_value(&chapter_iter, 1)
                                     .get::<u64>().unwrap();
-                main_ctrl_rc.borrow_mut().seek(position);
+                main_ctrl_rc.borrow_mut().seek(position, true); // accurate (slow)
             }
         });
 
@@ -141,11 +141,7 @@ impl InfoController {
     }
 
     pub fn new_media(&mut self, context: &Context) {
-        let duration = context.get_duration();
-        self.timeline_scale.set_range(0f64, duration as f64);
-        self.duration_lbl.set_label(
-            &format!("{}", Timestamp::format(duration))
-        );
+        self.update_duration(context.get_duration());
 
         self.chapter_store.clear();
 
@@ -229,6 +225,13 @@ impl InfoController {
         self.timeline_scale.clear_marks();
         self.timeline_scale.set_value(0f64);
         self.position_lbl.set_text("00:00.000");
+    }
+
+    pub fn update_duration(&self, duration: u64) {
+        self.timeline_scale.set_range(0f64, duration as f64);
+        self.duration_lbl.set_label(
+            &format!("{}", Timestamp::format(duration))
+        );
     }
 
     pub fn tick(&mut self, position: u64) {

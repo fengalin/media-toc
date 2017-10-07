@@ -96,7 +96,7 @@ impl AudioController {
                         .get_position(event_button.get_position().0)
                 }
                 {
-                    main_ctrl_rc.borrow_mut().seek(position);
+                    main_ctrl_rc.borrow_mut().seek(position, true); // accurate (slow)
                 }
             }
             Inhibit(true)
