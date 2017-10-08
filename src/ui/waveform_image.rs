@@ -229,37 +229,36 @@ impl WaveformImage {
                 println!("WaveformImage{}::render no overlap self.lower {}, self.upper {}",
                     self.id, self.lower, self.upper
                 );
-                println!("\t\t\tlower {}, upper {}",
-                    lower, upper
-                );
+                println!("\t\t\tlower {}, upper {}", lower, upper);
             }
         }
 
         let (working_image, previous_image) = {
-            let mut can_reuse = false;
             let target_width =
                 (extraction_samples_window as i32).max(self.req_width).max(INIT_WIDTH);
             let working_image = self.working_image.take().unwrap();
 
-            if self.force_redraw
-            && target_width <= self.image_width
-            && self.req_height == self.image_height {
-                // expected dimensions fit in current image => reuse it
-                can_reuse = true;
-            }
-
-            if can_reuse {
+            if target_width == self.image_width
+                && self.req_height == self.image_height
+            || self.force_redraw
+                && target_width <= self.image_width
+                && self.req_height == self.image_height
+            {   // expected dimensions fit in current image => reuse it
                 (
                     working_image,
                     self.exposed_image.take().unwrap(),
                 )
-            } else {
-                // can't reuse => create new images and force redraw
+            } else { // can't reuse => create new images and force redraw
                 self.force_redraw = true;
                 self.image_width = target_width;
                 self.image_width_f = target_width as f64;
                 self.image_height = self.req_height;
                 self.image_height_f = self.req_height as f64;
+
+                #[cfg(feature = "trace-waveform-rendering")]
+                println!("WaveformImage{}::render new images w {}, h {}",
+                    self.id, target_width, self.req_height
+                );
 
                 (
                     cairo::ImageSurface::create( // working_image
@@ -402,9 +401,7 @@ impl WaveformImage {
             Some((x, y)) => format!("({}, {})", x, y),
             None => "-".to_owned(),
         };
-        println!("\tx_step {}, first {}, last {}",
-            self.x_step, first, last
-        );
+        println!("\tx_step {}, first {}, last {}", self.x_step, first, last);
     }
 
     // Redraw the whole sample range on a clean image
