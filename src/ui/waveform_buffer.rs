@@ -86,6 +86,9 @@ impl WaveformBuffer {
     }
 
     pub fn seek(&mut self, position: u64, is_playing: bool) {
+        if !self.image.is_ready {
+            return;
+        }
         let sought_sample =
             (position as f64 / self.state.sample_duration) as usize
             / self.image.sample_step * self.image.sample_step;

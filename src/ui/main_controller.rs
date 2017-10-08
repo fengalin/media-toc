@@ -168,11 +168,6 @@ impl MainController {
     pub fn seek(&mut self, position: u64, accurate: bool) {
         if self.state != ControllerState::Stopped {
             self.seeking = true;
-            if self.state == ControllerState::EOS {
-                self.register_tracker();
-                self.play_pause_btn.set_icon_name("media-playback-pause");
-                self.state = ControllerState::Playing;
-            }
 
             // update position even though the stream
             // is not sync yet for the user to notice
@@ -183,6 +178,15 @@ impl MainController {
             self.context.as_ref()
                 .expect("MainController::seek no context")
                 .seek(position, accurate);
+
+            if self.state != ControllerState::Playing {
+                self.context.as_ref()
+                    .expect("MainController::seek no context")
+                    .play().unwrap();
+                self.register_tracker();
+                self.play_pause_btn.set_icon_name("media-playback-pause");
+                self.state = ControllerState::Playing;
+            }
         }
     }
 
@@ -248,6 +252,8 @@ impl MainController {
                         this_mut.audio_ctrl.new_media(&context);
 
                         this_mut.context = Some(context);
+
+                        this_mut.state = ControllerState::Paused;
                     },
                     Eos => {
                         let mut this_mut = this_rc.borrow_mut();
