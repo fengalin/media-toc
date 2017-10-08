@@ -15,7 +15,7 @@ extern crate url;
     feature = "profiling-audio-buffer",
     feature = "profiling-tracker",
     feature = "profiling-waveform-buffer",
-    feature = "profiling-waveform-image",
+    feature = "profile-waveform-image",
 ))]
 extern crate chrono;
 
