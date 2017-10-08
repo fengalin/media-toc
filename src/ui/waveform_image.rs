@@ -241,9 +241,10 @@ impl WaveformImage {
                 (extraction_samples_window as i32).max(self.req_width).max(INIT_WIDTH);
             let working_image = self.working_image.take().unwrap();
 
-            if target_width <= self.image_width
-            && self.req_height <= self.image_height {
-                // expected dimensions fit in current working image => reuse it
+            if self.force_redraw
+            && target_width <= self.image_width
+            && self.req_height == self.image_height {
+                // expected dimensions fit in current image => reuse it
                 can_reuse = true;
             }
 
