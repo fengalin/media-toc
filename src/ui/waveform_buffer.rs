@@ -152,6 +152,8 @@ impl WaveformBuffer {
                         // (resulting from an in window seek).
                         let (cursor_sample, previous_sample) =
                             match self.sought_sample {
+                                None =>
+                                    (self.current_sample, self.previous_sample),
                                 Some(sought_sample) => {
                                     if !self.is_seeking {
                                         // not seeking anymore
@@ -161,8 +163,6 @@ impl WaveformBuffer {
                                     }
                                     (sought_sample, sought_sample)
                                 },
-                                None =>
-                                    (self.current_sample, self.previous_sample),
                             };
                         let center_offset = cursor_sample as i64
                             - self.half_req_sample_window as i64
@@ -170,18 +170,15 @@ impl WaveformBuffer {
                         if center_offset < -(self.image.sample_step as i64) {
                             // cursor in first half of the window
                             // keep origin on the first sample upon seek
-                            // this is in case we move toward the center
                             Some((first_visible_sample_lock as usize).max(self.image.lower))
                         } else if (center_offset as usize) < 2 * self.image.sample_step {
                             // reached the center => keep cursor there
                             self.first_visible_sample_lock = None;
                             self.sought_sample = None;
                             self.shareable_state_changed = true;
-                            Some(
-                                self.image.lower.max(
-                                    cursor_sample - self.half_req_sample_window
-                                )
-                            )
+                            Some(self.image.lower.max(
+                                cursor_sample - self.half_req_sample_window
+                            ))
                         } else {
                             // cursor in second half of the window
                             if cursor_sample + self.half_req_sample_window
@@ -193,11 +190,10 @@ impl WaveformBuffer {
                                     previous_sample as i64 - first_visible_sample_lock;
                                 let delta_cursor =
                                     cursor_sample as i64 - previous_sample as i64;
-                                let next_lower =
-                                    (self.image.lower as i64).max(
-                                        cursor_sample as i64 - previous_offset
-                                        + delta_cursor
-                                    );
+                                let next_lower = (self.image.lower as i64).max(
+                                    cursor_sample as i64 - previous_offset
+                                    + delta_cursor
+                                );
 
                                 self.first_visible_sample_lock = Some(next_lower);
                                 self.shareable_state_changed = true;
