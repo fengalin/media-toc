@@ -27,7 +27,6 @@ pub struct WaveformImage {
 
     req_width: i32,
     req_height: i32,
-    req_step_duration: f64,
     force_redraw: bool,
 
     pub lower: usize,
@@ -37,6 +36,7 @@ pub struct WaveformImage {
     last: Option<(f64, f64)>,
 
     pub sample_window: usize,
+    pub sample_step_f: f64,
     pub sample_step: usize,
     x_step_f: f64,
     pub x_step: usize,
@@ -66,7 +66,6 @@ impl WaveformImage {
 
             req_width: 0,
             req_height: 0,
-            req_step_duration: 0f64,
             force_redraw: false,
 
             lower: 0,
@@ -76,6 +75,7 @@ impl WaveformImage {
             last: None,
 
             sample_window: 0,
+            sample_step_f: 0f64,
             sample_step: 0,
             x_step_f: 0f64,
             x_step: 0,
@@ -96,7 +96,6 @@ impl WaveformImage {
 
         self.req_width = 0;
         self.req_height = 0;
-        self.req_step_duration = 0f64;
         self.force_redraw = false;
 
         self.lower = 0;
@@ -106,19 +105,18 @@ impl WaveformImage {
         self.last = None;
 
         self.sample_window = 0;
+        self.sample_step_f = 0f64;
         self.sample_step = 0;
         self.x_step_f = 0f64;
         self.x_step = 0;
     }
 
-    pub fn update_dimensions(&mut self, duration: u64, width: i32, height: i32) {
+    pub fn update_dimensions(&mut self, sample_step_f: f64, width: i32, height: i32) {
         // if the requested height is different from current height
         // it might be necessary to force rendering when stream
         // is paused or eos
 
-        let req_step_duration = duration as f64 / width as f64;
-
-        let force_redraw = self.req_step_duration != req_step_duration
+        let force_redraw = self.sample_step_f != sample_step_f
             || self.req_width != width
             || self.req_height != height;
 
@@ -126,18 +124,26 @@ impl WaveformImage {
             self.shareable_state_changed = true;
 
             #[cfg(feature = "trace-waveform-rendering")]
-            println!("WaveformImage{}::upd.dim prev. f.redraw {}, w {}, h {}, stp dur. {}",
-                self.id, self.force_redraw, self.req_width, self.req_height, self.req_step_duration
+            println!("WaveformImage{}::upd.dim prev. f.redraw {}, w {}, h {}, sample_step_f. {}",
+                self.id, self.force_redraw, self.req_width, self.req_height, self.sample_step_f
             );
 
             self.force_redraw = force_redraw;
             self.req_width = width;
             self.req_height = height;
-            self.req_step_duration = req_step_duration;
+            self.sample_step_f = sample_step_f;
+            self.sample_step = (sample_step_f as usize).max(1);
+            self.x_step_f =
+                if sample_step_f < 1f64 {
+                    (1f64 / sample_step_f).round()
+                } else {
+                    1f64
+                };
+            self.x_step = self.x_step_f as usize;
 
             #[cfg(feature = "trace-waveform-rendering")]
-            println!("\t\t\tnew   f.redraw {}, w {}, h {}, stp dur. {}",
-                self.force_redraw, self.req_width, self.req_height, self.req_step_duration
+            println!("\t\t\tnew   f.redraw {}, w {}, h {}, sample_step_f. {}",
+                self.force_redraw, self.req_width, self.req_height, self.sample_step_f
             );
         }
     }
@@ -152,7 +158,10 @@ impl WaveformImage {
 
     pub fn update_from_other(&mut self, other: &mut WaveformImage) {
         if other.shareable_state_changed {
-            self.req_step_duration = other.req_step_duration;
+            self.sample_step_f = other.sample_step_f;
+            self.sample_step = other.sample_step;
+            self.x_step_f = other.x_step_f;
+            self.x_step = other.x_step;
             self.req_width = other.req_width;
             self.req_height = other.req_height;
 
@@ -172,16 +181,11 @@ impl WaveformImage {
         audio_buffer: &AudioBuffer,
         lower: usize,
         upper: usize,
-        sample_duration: f64,
     ) {
         #[cfg(feature = "profile-waveform-image")]
         let start = Utc::now();
 
-        // use an integer number of samples per step
-        let sample_step_f = self.req_step_duration / sample_duration;
-        let sample_step = (sample_step_f as usize).max(1);
-
-        if audio_buffer.samples.len() < sample_step {
+        if audio_buffer.samples.len() < self.sample_step {
             // buffer too small to render
             return;
         }
@@ -191,12 +195,12 @@ impl WaveformImage {
         // for a given req_step_duration and avoiding flickering
         // between redraws.
         let mut lower =
-            lower / sample_step * sample_step;
-        let upper = upper / sample_step * sample_step;
+            lower / self.sample_step * self.sample_step;
+        let upper = upper / self.sample_step * self.sample_step;
         if lower < audio_buffer.lower {
             // first sample might be smaller than audio_buffer.lower
             // due to alignement on sample_step
-            lower += sample_step;
+            lower += self.sample_step;
             if lower >= upper {
                 // can't draw with current range
                 // reset WaveformImage state
@@ -204,15 +208,12 @@ impl WaveformImage {
                 self.upper = 0;
                 self.first = None;
                 self.last = None;
-                self.sample_step = 0;
-                self.x_step_f = 0f64;
-                self.x_step = 0;
                 self.is_ready = false;
                 return;
             }
         }
 
-        let extraction_samples_window = (upper - lower) / sample_step;
+        let extraction_samples_window = (upper - lower) / self.sample_step;
 
         self.force_redraw |= !self.is_ready;
 
@@ -285,14 +286,6 @@ impl WaveformImage {
         if self.force_redraw {
             // Initialization or resolution has changed or seek requested
             // redraw the whole range from the audio buffer
-            self.sample_step = sample_step;
-            self.x_step_f =
-                if sample_step_f < 1f64 {
-                    (1f64 / sample_step_f).round()
-                } else {
-                    1f64
-                };
-            self.x_step = self.x_step_f as usize;
 
             self.redraw(&cr, audio_buffer, lower, upper);
         } else {
@@ -301,7 +294,6 @@ impl WaveformImage {
             //              && upper <= self.self.upper
             // (traget extraction fits in previous extraction)
             // already checked
-            assert_eq!(sample_step, self.sample_step);
 
             let must_copy =
                 if lower < self.lower {
@@ -757,7 +749,7 @@ mod tests {
         }
     }
 
-    fn init(width: i32) -> (AudioBuffer, gst::Caps, WaveformImage) {
+    fn init(sample_step_f: f64, width: i32) -> (AudioBuffer, gst::Caps, WaveformImage) {
         gst::init().unwrap();
 
         prepare_tests();
@@ -778,7 +770,7 @@ mod tests {
         // WaveformImage
         let mut waveform = WaveformImage::new(0);
         waveform.update_dimensions(
-            1_000_000_000, // 1s
+            sample_step_f, // 1 sample / px
             width,
             SAMPLE_DYN
         );
@@ -812,7 +804,7 @@ mod tests {
         first: usize,
         last: usize,
         segement_lower: usize,
-        req_sample_window: usize,
+        sample_window: usize,
         keep_the_end: bool,
     ) {
         println!("\n*** {}", prefix);
@@ -825,9 +817,9 @@ mod tests {
         );
         let lower_to_extract =
             if keep_the_end && audio_buffer.upper
-                > audio_buffer.lower + req_sample_window
+                > audio_buffer.lower + sample_window
             {
-                audio_buffer.upper - req_sample_window
+                audio_buffer.upper - sample_window
             } else {
                 audio_buffer.lower
             };
@@ -835,7 +827,6 @@ mod tests {
         waveform.render(&audio_buffer,
             lower_to_extract,
             audio_buffer.upper,
-            audio_buffer.sample_duration,
         );
 
         let image = waveform.get_image();
@@ -854,7 +845,7 @@ mod tests {
 
     #[test]
     fn additive_draws() {
-        let (mut audio_buffer, caps, mut waveform) = init(300);
+        let (mut audio_buffer, caps, mut waveform) = init(1f64, 300);
         let samples_window = SAMPLE_RATE as usize;
 
         render_with_samples("additive_0", &mut waveform, &mut audio_buffer, &caps,
@@ -876,7 +867,7 @@ mod tests {
 
     #[test]
     fn link_between_draws() {
-        let (mut audio_buffer, caps, mut waveform) = init(1512);
+        let (mut audio_buffer, caps, mut waveform) = init(1f64 / 5f64, 1480);
         let samples_window = SAMPLE_RATE as usize;
 
         render_with_samples("link_0", &mut waveform, &mut audio_buffer, &caps,
@@ -891,7 +882,7 @@ mod tests {
 
     #[test]
     fn seek() {
-        let (mut audio_buffer, caps, mut waveform) = init(300);
+        let (mut audio_buffer, caps, mut waveform) = init(1f64, 300);
         let samples_window = SAMPLE_RATE as usize;
 
         render_with_samples("seek_0", &mut waveform, &mut audio_buffer, &caps,
@@ -909,7 +900,7 @@ mod tests {
 
     #[test]
     fn oveflow() {
-        let (mut audio_buffer, caps, mut waveform) = init(1512);
+        let (mut audio_buffer, caps, mut waveform) = init(1f64 / 5f64, 1500);
         let samples_window = SAMPLE_RATE as usize;
 
         render_with_samples("oveflow_0", &mut waveform, &mut audio_buffer, &caps,

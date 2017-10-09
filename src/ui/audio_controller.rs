@@ -18,10 +18,11 @@ use media::{Context, DoubleAudioBuffer, SampleExtractor};
 use super::{BACKGROUND_COLOR, ControllerState, DoubleWaveformBuffer, MainController,
             WaveformConditions, WaveformBuffer};
 
-const MIN_REQ_DURATION: u64  =     15_625_000; // 15 ms
-const MAX_REQ_DURATION: u64  = 16_000_000_000; // 16 s
-const INIT_REQ_DURATION: u64 =  4_000_000_000; //  4 s
-const STEP_REQ_DURATION: u64 =  2;
+const BUFFER_DURATION:   u64 = 60_000_000_000;    // 60 s
+const MIN_REQ_DURATION:  f64 =      1_953_125f64; //  2 ms / 1000 px
+const MAX_REQ_DURATION:  f64 = 32_000_000_000f64; // 32 s  / 1000 px
+const INIT_REQ_DURATION: f64 =  4_000_000_000f64; //  4 s  / 1000 px
+const STEP_REQ_DURATION: f64 =  2f64;
 
 pub struct AudioController {
     container: gtk::Container,
@@ -31,7 +32,7 @@ pub struct AudioController {
 
     is_active: bool,
 
-    requested_duration: Rc<RefCell<u64>>,
+    requested_duration: Rc<RefCell<f64>>,
 
     waveform_mtx: Arc<Mutex<Box<SampleExtractor>>>,
     dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
@@ -39,7 +40,7 @@ pub struct AudioController {
 
 impl AudioController {
     pub fn new(builder: &gtk::Builder) -> Self {
-        let dbl_buffer_mtx = DoubleWaveformBuffer::new(MAX_REQ_DURATION);
+        let dbl_buffer_mtx = DoubleWaveformBuffer::new(BUFFER_DURATION);
         let waveform_mtx = dbl_buffer_mtx.lock()
             .expect("AudioController::new: couldn't lock dbl_buffer_mtx")
             .get_exposed_buffer_mtx();
@@ -220,7 +221,7 @@ impl AudioController {
         drawingarea: &gtk::DrawingArea,
         cr: &cairo::Context,
         waveform_mtx: &Arc<Mutex<Box<SampleExtractor>>>,
-        requested_duration: u64,
+        requested_duration: f64,
     ) -> Inhibit {
         #[cfg(feature = "profiling-audio-draw")]
         let before_init = Utc::now();
@@ -302,7 +303,7 @@ impl AudioController {
 
     fn refresh(
         drawingarea: &gtk::DrawingArea,
-        requested_duration: u64,
+        requested_duration: f64,
         dbl_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer>>,
     ) {
         let allocation = drawingarea.get_allocation();

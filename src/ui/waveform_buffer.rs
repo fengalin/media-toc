@@ -52,6 +52,7 @@ pub struct WaveformBuffer {
     first_visible_sample_lock: Option<i64>,
     sought_sample: Option<usize>,
 
+    duration_for_1000_samples: f64,
     req_sample_window: usize,
     half_req_sample_window: usize,
 }
@@ -71,6 +72,7 @@ impl WaveformBuffer {
             first_visible_sample_lock: None,
             sought_sample: None,
 
+            duration_for_1000_samples: 0f64,
             req_sample_window: 0,
             half_req_sample_window: 0,
         }
@@ -258,10 +260,27 @@ impl WaveformBuffer {
     }
 
     // Update rendering conditions
-    pub fn update_conditions(&mut self, duration: u64, width: i32, height: i32) {
-        let req_sample_window = (
-            duration as f64 / self.state.sample_duration
-        ) as usize;
+    pub fn update_conditions(&mut self,
+        duration_per_1000px: f64,
+        width: i32,
+        height: i32
+    ) {
+        // compute a sample step which will produce an interger number of
+        // samples per pixel or an integer number of pixels per samples
+        let sample_step_f =
+            if duration_per_1000px >= self.duration_for_1000_samples {
+                (duration_per_1000px / self.duration_for_1000_samples).floor()
+            } else {
+                1f64
+                / (self.duration_for_1000_samples / duration_per_1000px).ceil()
+            };
+
+        // force sample window to an even number of samples
+        // so that the cursor can be centered
+        // and make sure to cover at least the width requested
+        let half_req_sample_window =
+            (sample_step_f * (width as f64) / 2f64) as usize;
+        let req_sample_window = half_req_sample_window * 2;
 
         if req_sample_window != self.req_sample_window {
             // sample window has changed => zoom
@@ -277,12 +296,10 @@ impl WaveformBuffer {
                         Some(sought_sample) => sought_sample,
                         None => self.current_sample,
                     };
-                let first_visible_sample_lock = first_visible_sample_lock + (
-                    (cursor_sample as i64 - first_visible_sample_lock) as f64
-                        * (
-                            1f64
-                            - req_sample_window as f64 / self.req_sample_window as f64
-                        )
+                let first_visible_sample_lock = first_visible_sample_lock
+                    + (
+                        (cursor_sample as i64 - first_visible_sample_lock) as f64
+                        * (1f64 - sample_step_f / self.image.sample_step_f)
                     ) as i64;
                 self.first_visible_sample_lock = Some(first_visible_sample_lock);
                 self.shareable_state_changed = true;
@@ -294,9 +311,9 @@ impl WaveformBuffer {
         }
 
         self.req_sample_window = req_sample_window;
-        self.half_req_sample_window = self.req_sample_window / 2;
+        self.half_req_sample_window = half_req_sample_window;
 
-        self.image.update_dimensions(duration, width, height);
+        self.image.update_dimensions(sample_step_f, width, height);
     }
 
     // Get the waveform as an image in current conditions.
@@ -315,8 +332,8 @@ impl WaveformBuffer {
                         Some(
                             (
                                 (self.current_sample - first_visible_sample)
-                                / self.image.sample_step
                                 * self.image.x_step
+                                / self.image.sample_step
                             ) as f64
                         )
                     } else {
@@ -327,8 +344,8 @@ impl WaveformBuffer {
                     self.image.get_image(),
                     (
                         (first_visible_sample - self.image.lower)
+                        * self.image.x_step
                         / self.image.sample_step
-                         * self.image.x_step
                     ) as f64, // x_offset
                     current_x_opt,
                 ))
@@ -391,15 +408,15 @@ impl WaveformBuffer {
 // function of the SampleExtractor trait
 #[derive(Clone)]
 pub struct WaveformConditions {
-    pub duration: u64,
+    pub duration_per_1000px: f64,
     pub width: i32,
     pub height: i32
 }
 
 impl WaveformConditions {
-    pub fn new(duration: u64, width: i32, height: i32) -> Self {
+    pub fn new(duration_per_1000px: f64, width: i32, height: i32) -> Self {
         WaveformConditions {
-            duration: duration,
+            duration_per_1000px: duration_per_1000px,
             width: width,
             height: height
         }
@@ -437,6 +454,7 @@ impl SampleExtractor for WaveformBuffer {
         self.first_visible_sample_lock = None;
         self.sought_sample = None;
 
+        self.duration_for_1000_samples = 0f64;
         self.req_sample_window = 0;
         self.half_req_sample_window = 0;
     }
@@ -468,6 +486,7 @@ impl SampleExtractor for WaveformBuffer {
     fn extract_samples(&mut self, audio_buffer: &AudioBuffer) {
         if self.state.sample_duration == 0f64 {
             self.state.sample_duration = audio_buffer.sample_duration;
+            self.duration_for_1000_samples = audio_buffer.duration_for_1000_samples;
         }
 
         if self.req_sample_window == 0 {
@@ -539,7 +558,6 @@ impl SampleExtractor for WaveformBuffer {
             audio_buffer,
             lower_to_extract,
             upper_to_extract,
-            self.state.sample_duration
         );
 
         // first_visible_sample is no longer reliable
@@ -566,7 +584,6 @@ impl SampleExtractor for WaveformBuffer {
                 audio_buffer,
                 lower_to_extract,
                 upper.min(lower_to_extract + 2 * self.req_sample_window),
-                self.state.sample_duration
             );
 
             // first_visible_sample is no longer reliable
@@ -578,7 +595,7 @@ impl SampleExtractor for WaveformBuffer {
     fn refresh_with_conditions(&mut self, audio_buffer: &AudioBuffer, conditions: Box<Any>) {
         let cndt = conditions.downcast::<WaveformConditions>()
             .expect("WaveformBuffer::refresh conditions is not a WaveformConditions");
-        self.update_conditions(cndt.duration, cndt.width, cndt.height);
+        self.update_conditions(cndt.duration_per_1000px, cndt.width, cndt.height);
         self.refresh(&audio_buffer);
     }
 }

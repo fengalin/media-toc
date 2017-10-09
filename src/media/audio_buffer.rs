@@ -19,6 +19,7 @@ pub struct AudioBuffer {
     buffer_duration: u64,
     capacity: usize,
     pub sample_duration: f64,
+    pub duration_for_1000_samples: f64,
     channels: usize,
     drain_size: usize,
 
@@ -41,6 +42,7 @@ impl AudioBuffer {
             buffer_duration: buffer_duration,
             capacity: 0,
             sample_duration: 0f64,
+            duration_for_1000_samples: 0f64,
             channels: 0,
             drain_size: 0,
 
@@ -68,6 +70,7 @@ impl AudioBuffer {
             as usize;
 
         self.sample_duration = 1_000_000_000f64 / (rate as f64);
+        self.duration_for_1000_samples = 1_000_000_000_000f64 / (rate as f64);
         self.capacity = (self.buffer_duration as f64 / self.sample_duration) as usize;
         self.samples = VecDeque::with_capacity(self.capacity);
         self.drain_size = (1_000_000_000f64 / self.sample_duration) as usize; // 1s worth of samples
