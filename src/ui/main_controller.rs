@@ -22,6 +22,7 @@ use super::{AudioController, InfoController, VideoController};
 #[derive(Clone, PartialEq)]
 pub enum ControllerState {
     EOS,
+    Ready,
     Paused,
     Playing,
     Stopped,
@@ -179,10 +180,14 @@ impl MainController {
                 .expect("MainController::seek no context")
                 .seek(position, accurate);
 
-            if self.state != ControllerState::Playing {
-                self.context.as_ref()
-                    .expect("MainController::seek no context")
-                    .play().unwrap();
+            if self.state == ControllerState::EOS
+            || self.state == ControllerState::Ready
+            {
+                if self.state == ControllerState::Ready {
+                    self.context.as_ref()
+                        .expect("MainController::seek no context")
+                        .play().unwrap();
+                }
                 self.register_tracker();
                 self.play_pause_btn.set_icon_name("media-playback-pause");
                 self.state = ControllerState::Playing;
@@ -253,7 +258,7 @@ impl MainController {
 
                         this_mut.context = Some(context);
 
-                        this_mut.state = ControllerState::Paused;
+                        this_mut.state = ControllerState::Ready;
                     },
                     Eos => {
                         let mut this_mut = this_rc.borrow_mut();
