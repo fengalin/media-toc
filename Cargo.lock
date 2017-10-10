@@ -7,9 +7,9 @@ dependencies = [
  "cairo-rs 0.2.0 (git+https://github.com/gtk-rs/cairo.git)",
  "chrono 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib 0.3.0 (git+https://github.com/gtk-rs/glib.git)",
- "gstreamer 0.9.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
- "gstreamer-app 0.9.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
- "gstreamer-audio 0.9.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
+ "gstreamer 0.9.0 (git+https://github.com/fengalin/gstreamer-rs.git)",
+ "gstreamer-app 0.9.0 (git+https://github.com/fengalin/gstreamer-rs.git)",
+ "gstreamer-audio 0.9.0 (git+https://github.com/fengalin/gstreamer-rs.git)",
  "gtk 0.2.0 (git+https://github.com/gtk-rs/gtk.git)",
  "image 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -285,7 +285,7 @@ dependencies = [
 [[package]]
 name = "gstreamer"
 version = "0.9.0"
-source = "git+https://github.com/sdroege/gstreamer-rs.git#4b77c18b5b215f710b7494db4d19fa67a84e8d35"
+source = "git+https://github.com/fengalin/gstreamer-rs.git#274d5c5146b1aa090b7819ae0c13fccb7b5aba84"
 dependencies = [
  "bitflags 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib 0.3.0 (git+https://github.com/gtk-rs/glib.git)",
@@ -300,15 +300,15 @@ dependencies = [
 [[package]]
 name = "gstreamer-app"
 version = "0.9.0"
-source = "git+https://github.com/sdroege/gstreamer-rs.git#4b77c18b5b215f710b7494db4d19fa67a84e8d35"
+source = "git+https://github.com/fengalin/gstreamer-rs.git#274d5c5146b1aa090b7819ae0c13fccb7b5aba84"
 dependencies = [
  "bitflags 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib 0.3.0 (git+https://github.com/gtk-rs/glib.git)",
  "glib-sys 0.4.0 (git+https://github.com/gtk-rs/sys)",
  "gobject-sys 0.4.0 (git+https://github.com/gtk-rs/sys)",
- "gstreamer 0.9.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
+ "gstreamer 0.9.0 (git+https://github.com/fengalin/gstreamer-rs.git)",
  "gstreamer-app-sys 0.3.0 (git+https://github.com/sdroege/gstreamer-sys)",
- "gstreamer-base 0.9.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
+ "gstreamer-base 0.9.0 (git+https://github.com/fengalin/gstreamer-rs.git)",
  "gstreamer-base-sys 0.3.0 (git+https://github.com/sdroege/gstreamer-sys)",
  "gstreamer-sys 0.3.0 (git+https://github.com/sdroege/gstreamer-sys)",
  "libc 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -329,14 +329,14 @@ dependencies = [
 [[package]]
 name = "gstreamer-audio"
 version = "0.9.0"
-source = "git+https://github.com/sdroege/gstreamer-rs.git#4b77c18b5b215f710b7494db4d19fa67a84e8d35"
+source = "git+https://github.com/fengalin/gstreamer-rs.git#274d5c5146b1aa090b7819ae0c13fccb7b5aba84"
 dependencies = [
  "array-init 0.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "bitflags 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib 0.3.0 (git+https://github.com/gtk-rs/glib.git)",
  "glib-sys 0.4.0 (git+https://github.com/gtk-rs/sys)",
  "gobject-sys 0.4.0 (git+https://github.com/gtk-rs/sys)",
- "gstreamer 0.9.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
+ "gstreamer 0.9.0 (git+https://github.com/fengalin/gstreamer-rs.git)",
  "gstreamer-audio-sys 0.3.0 (git+https://github.com/sdroege/gstreamer-sys)",
  "gstreamer-sys 0.3.0 (git+https://github.com/sdroege/gstreamer-sys)",
 ]
@@ -358,13 +358,13 @@ dependencies = [
 [[package]]
 name = "gstreamer-base"
 version = "0.9.0"
-source = "git+https://github.com/sdroege/gstreamer-rs.git#4b77c18b5b215f710b7494db4d19fa67a84e8d35"
+source = "git+https://github.com/fengalin/gstreamer-rs.git#274d5c5146b1aa090b7819ae0c13fccb7b5aba84"
 dependencies = [
  "bitflags 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib 0.3.0 (git+https://github.com/gtk-rs/glib.git)",
  "glib-sys 0.4.0 (git+https://github.com/gtk-rs/sys)",
  "gobject-sys 0.4.0 (git+https://github.com/gtk-rs/sys)",
- "gstreamer 0.9.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
+ "gstreamer 0.9.0 (git+https://github.com/fengalin/gstreamer-rs.git)",
  "gstreamer-base-sys 0.3.0 (git+https://github.com/sdroege/gstreamer-sys)",
  "gstreamer-sys 0.3.0 (git+https://github.com/sdroege/gstreamer-sys)",
 ]
@@ -751,12 +751,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum glib 0.3.0 (git+https://github.com/gtk-rs/glib.git)" = "<none>"
 "checksum glib-sys 0.4.0 (git+https://github.com/gtk-rs/sys)" = "<none>"
 "checksum gobject-sys 0.4.0 (git+https://github.com/gtk-rs/sys)" = "<none>"
-"checksum gstreamer 0.9.0 (git+https://github.com/sdroege/gstreamer-rs.git)" = "<none>"
-"checksum gstreamer-app 0.9.0 (git+https://github.com/sdroege/gstreamer-rs.git)" = "<none>"
+"checksum gstreamer 0.9.0 (git+https://github.com/fengalin/gstreamer-rs.git)" = "<none>"
+"checksum gstreamer-app 0.9.0 (git+https://github.com/fengalin/gstreamer-rs.git)" = "<none>"
 "checksum gstreamer-app-sys 0.3.0 (git+https://github.com/sdroege/gstreamer-sys)" = "<none>"
-"checksum gstreamer-audio 0.9.0 (git+https://github.com/sdroege/gstreamer-rs.git)" = "<none>"
+"checksum gstreamer-audio 0.9.0 (git+https://github.com/fengalin/gstreamer-rs.git)" = "<none>"
 "checksum gstreamer-audio-sys 0.3.0 (git+https://github.com/sdroege/gstreamer-sys)" = "<none>"
-"checksum gstreamer-base 0.9.0 (git+https://github.com/sdroege/gstreamer-rs.git)" = "<none>"
+"checksum gstreamer-base 0.9.0 (git+https://github.com/fengalin/gstreamer-rs.git)" = "<none>"
 "checksum gstreamer-base-sys 0.3.0 (git+https://github.com/sdroege/gstreamer-sys)" = "<none>"
 "checksum gstreamer-sys 0.3.0 (git+https://github.com/sdroege/gstreamer-sys)" = "<none>"
 "checksum gtk 0.2.0 (git+https://github.com/gtk-rs/gtk.git)" = "<none>"
