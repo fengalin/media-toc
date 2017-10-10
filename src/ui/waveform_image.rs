@@ -213,8 +213,6 @@ impl WaveformImage {
             }
         }
 
-        let extraction_samples_window = (upper - lower) / self.sample_step;
-
         self.force_redraw |= !self.is_ready;
 
         if !self.force_redraw && lower >= self.lower
@@ -235,15 +233,16 @@ impl WaveformImage {
         }
 
         let (working_image, previous_image) = {
-            let target_width =
-                (extraction_samples_window as i32).max(self.req_width).max(INIT_WIDTH);
             let working_image = self.working_image.take().unwrap();
 
-            if target_width == self.image_width
-                && self.req_height == self.image_height
-            || self.force_redraw
+            let target_width = INIT_WIDTH
+                .max(self.req_width)
+                .max(((upper - lower) * self.x_step / self.sample_step) as i32);
+            if (target_width == self.image_width
+                && self.req_height == self.image_height)
+            || (self.force_redraw
                 && target_width <= self.image_width
-                && self.req_height == self.image_height
+                && self.req_height == self.image_height)
             {   // expected dimensions fit in current image => reuse it
                 (
                     working_image,
