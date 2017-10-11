@@ -11,22 +11,27 @@ pub struct Timestamp {
     pub h: u64,
 }
 
-
 impl Timestamp {
-    pub fn format(nano_total: u64) -> String {
+    pub fn format(nano_total: u64, with_micro: bool) -> String {
         let us_total = nano_total / 1_000;
         let ms_total = us_total / 1_000;
         let s_total = ms_total / 1_000;
         let m_total = s_total / 60;
         let h = m_total / 60;
 
+        let micro =
+            if with_micro {
+                format!(".{:03}", us_total % 1_000)
+            } else {
+                "".to_owned()
+            };
         if h == 0 {
-            format!("{:02}:{:02}.{:03}",
-                m_total % 60, s_total % 60, ms_total % 1_000
+            format!("{:02}:{:02}.{:03}{}",
+                m_total % 60, s_total % 60, ms_total % 1_000, micro
             ).to_owned()
         } else {
-            format!("{:02}:{:02}:{:02}.{:03}",
-                h, m_total % 60, s_total % 60, ms_total % 1_000
+            format!("{:02}:{:02}:{:02}.{:03}{}",
+                h, m_total % 60, s_total % 60, ms_total % 1_000, micro
             ).to_owned()
         }
     }

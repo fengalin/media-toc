@@ -8,7 +8,7 @@ use std::boxed::Box;
 use super::AudioBuffer;
 
 pub struct SampleExtractionState {
-    pub sample_duration: f64,
+    pub sample_duration: u64,
     audio_sink: Option<gst::Element>,
     position_query: gst::Query,
 }
@@ -16,7 +16,7 @@ pub struct SampleExtractionState {
 impl SampleExtractionState {
     pub fn new() -> Self {
         SampleExtractionState {
-            sample_duration: 0f64,
+            sample_duration: 0,
             audio_sink: None,
             position_query: gst::Query::new_position(gst::Format::Time),
         }
@@ -35,7 +35,7 @@ pub trait SampleExtractor: Send {
     fn cleanup_state(&mut self) {
         // clear for reuse
         let state = self.get_extraction_state_mut();
-        state.sample_duration = 0f64;
+        state.sample_duration = 0;
         state.audio_sink = None;
     }
 
@@ -53,17 +53,17 @@ pub trait SampleExtractor: Send {
     // extraction process by keeping conditions between frames
     fn update_concrete_state(&mut self, other: &mut Box<SampleExtractor>);
 
-    fn query_current_sample(&mut self) -> usize {
+    fn query_current_sample(&mut self) -> (u64, usize) { // (position, sample)
         let state = &mut self.get_extraction_state_mut();
         state.audio_sink.as_ref()
             .expect("DoubleSampleExtractor: no audio ref while querying position")
             .query(state.position_query.get_mut().unwrap());
-        (
+        let position =
             match state.position_query.view() {
-                QueryView::Position(ref position) => position.get().1 as f64,
+                QueryView::Position(ref position) => position.get().1 as u64,
                 _ => unreachable!(),
-            } / state.sample_duration
-        ).round() as usize
+            };
+        (position, (position / state.sample_duration) as usize)
     }
 
     // Update the extractions taking account new

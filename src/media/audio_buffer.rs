@@ -18,7 +18,7 @@ const SAMPLES_OFFSET: f64 = SAMPLES_NORM / 2f64;
 pub struct AudioBuffer {
     buffer_duration: u64,
     capacity: usize,
-    pub sample_duration: f64,
+    pub sample_duration: u64,
     pub duration_for_1000_samples: f64,
     channels: usize,
     drain_size: usize,
@@ -41,7 +41,7 @@ impl AudioBuffer {
         AudioBuffer {
             buffer_duration: buffer_duration,
             capacity: 0,
-            sample_duration: 0f64,
+            sample_duration: 0,
             duration_for_1000_samples: 0f64,
             channels: 0,
             drain_size: 0,
@@ -69,11 +69,11 @@ impl AudioBuffer {
             .expect("Couldn't get channels from audio sample")
             as usize;
 
-        self.sample_duration = 1_000_000_000f64 / (rate as f64);
+        self.sample_duration = 1_000_000_000 / (rate as u64);
         self.duration_for_1000_samples = 1_000_000_000_000f64 / (rate as f64);
-        self.capacity = (self.buffer_duration as f64 / self.sample_duration) as usize;
+        self.capacity = (self.buffer_duration / self.sample_duration) as usize;
         self.samples = VecDeque::with_capacity(self.capacity);
-        self.drain_size = (1_000_000_000f64 / self.sample_duration) as usize; // 1s worth of samples
+        self.drain_size = (1_000_000_000 / self.sample_duration) as usize; // 1s worth of samples
     }
 
     pub fn cleanup(&mut self) {
@@ -84,7 +84,8 @@ impl AudioBuffer {
         self.lower = 0;
         self.upper = 0;
         self.channels = 0;
-        self.sample_duration = 0f64;
+        self.sample_duration = 0;
+        self.duration_for_1000_samples = 0f64;
         self.capacity = 0;
         self.samples.clear();
         self.drain_size = 0;
@@ -119,7 +120,7 @@ impl AudioBuffer {
         self.eos = false;
 
         let segment_lower = (
-            sample.get_segment().unwrap().get_start() as f64 / self.sample_duration
+            sample.get_segment().unwrap().get_start() / self.sample_duration
         ) as usize;
         let buffer_sample_len = incoming_samples.len() / self.channels;
         let buffer_pts = buffer.get_pts();
@@ -404,12 +405,12 @@ impl AudioBuffer {
 
         let buffer = gst::Buffer::from_vec(samples_u8).unwrap();
         buffer.get_mut().unwrap().set_pts(
-            (self.sample_duration * lower as f64) as u64 + 1
+            self.sample_duration * (lower as u64) + 1
         );
 
         let mut segment = gst::Segment::new();
         segment.set_start(
-            (self.sample_duration * segment_lower as f64) as u64 + 1
+            self.sample_duration * (segment_lower as u64) + 1
         );
 
         let self_lower = self.lower;

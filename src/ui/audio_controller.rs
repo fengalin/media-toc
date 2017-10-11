@@ -13,7 +13,7 @@ use std::cell::RefCell;
 
 use std::sync::{Arc, Mutex};
 
-use media::{Context, DoubleAudioBuffer, SampleExtractor};
+use media::{Context, DoubleAudioBuffer, SampleExtractor, Timestamp};
 
 use super::{BACKGROUND_COLOR, ControllerState, DoubleWaveformBuffer, MainController,
             WaveformConditions, WaveformBuffer};
@@ -239,7 +239,7 @@ impl AudioController {
         #[cfg(feature = "profiling-audio-draw")]
         let mut _before_image = Utc::now();
 
-        let current_x_opt = {
+        let cursor_opt = {
             let waveform_grd = &mut *waveform_mtx.lock()
                 .expect("AudioController::draw: couldn't lock waveform_mtx");
             let waveform_buffer = waveform_grd
@@ -256,14 +256,14 @@ impl AudioController {
             );
 
             match waveform_buffer.get_image() {
-                Some((image, x_offset, current_x_opt)) => {
+                Some((image, x_offset, cursor_opt)) => {
                     #[cfg(feature = "profiling-audio-draw")]
                     let _before_image = Utc::now();
 
                     cr.set_source_surface(image, -x_offset, 0f64);
                     cr.paint();
 
-                    current_x_opt
+                    cursor_opt
                 },
                 None => {
                     AudioController::clean_cairo_context(cr);
@@ -275,13 +275,21 @@ impl AudioController {
         #[cfg(feature = "profiling-audio-draw")]
         let before_pos = Utc::now();
 
-        if let Some(current_x) = current_x_opt {
+        let height = f64::from(allocation.height);
+        cr.scale(1f64, 1f64);
+        cr.set_source_rgb(1f64, 1f64, 0f64);
+
+        cr.select_font_face("Sans", cairo::FontSlant::Normal, cairo::FontWeight::Normal);
+        cr.set_font_size(15f64);
+
+        if let Some((current_x, current_pos)) = cursor_opt {
             // draw current pos
-            cr.scale(1f64, f64::from(allocation.height));
-            cr.set_source_rgb(1f64, 1f64, 0f64);
+            cr.move_to(current_x + 10f64, 20f64);
+            cr.show_text(&format!("{}", Timestamp::format(current_pos, true)));
+
             cr.set_line_width(1f64);
             cr.move_to(current_x, 0f64);
-            cr.line_to(current_x, 1f64);
+            cr.line_to(current_x, height);
             cr.stroke();
         }
 

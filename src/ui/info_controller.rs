@@ -17,7 +17,6 @@ pub struct InfoController {
     audio_codec_lbl: gtk::Label,
     video_codec_lbl: gtk::Label,
     duration_lbl: gtk::Label,
-    position_lbl: gtk::Label,
     pub timeline_scale: gtk::Scale,
 
     chapter_treeview: gtk::TreeView,
@@ -40,7 +39,6 @@ impl InfoController {
             audio_codec_lbl: builder.get_object("audio_codec-lbl").unwrap(),
             video_codec_lbl: builder.get_object("video_codec-lbl").unwrap(),
             duration_lbl: builder.get_object("duration-lbl").unwrap(),
-            position_lbl: builder.get_object("position-lbl").unwrap(),
             timeline_scale: builder.get_object("timeline-scale").unwrap(),
 
             chapter_treeview: builder.get_object("chapter-treeview").unwrap(),
@@ -224,19 +222,17 @@ impl InfoController {
         self.chapter_store.clear();
         self.timeline_scale.clear_marks();
         self.timeline_scale.set_value(0f64);
-        self.position_lbl.set_text("00:00.000");
     }
 
     pub fn update_duration(&self, duration: u64) {
         self.timeline_scale.set_range(0f64, duration as f64);
         self.duration_lbl.set_label(
-            &format!("{}", Timestamp::format(duration))
+            &format!("{}", Timestamp::format(duration, false))
         );
     }
 
     pub fn tick(&mut self, position: u64) {
         self.timeline_scale.set_value(position as f64);
-        self.position_lbl.set_text(&Timestamp::format(position));
 
         let mut done_with_chapters = false;
 
@@ -276,7 +272,6 @@ impl InfoController {
 
     pub fn seek(&mut self, position: u64) {
         self.timeline_scale.set_value(position as f64);
-        self.position_lbl.set_text(&Timestamp::format(position));
 
         if let Some(first_iter) = self.chapter_store.get_iter_first() {
             // chapters available => update with new position

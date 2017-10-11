@@ -48,6 +48,7 @@ pub struct WaveformBuffer {
     is_seeking: bool,
     previous_sample: usize,
     current_sample: usize,
+    current_position: u64,
     first_visible_sample: Option<usize>,
     first_visible_sample_lock: Option<i64>,
     sought_sample: Option<usize>,
@@ -68,6 +69,7 @@ impl WaveformBuffer {
             is_seeking: false,
             previous_sample: 0,
             current_sample: 0,
+            current_position: 0,
             first_visible_sample: None,
             first_visible_sample_lock: None,
             sought_sample: None,
@@ -79,11 +81,12 @@ impl WaveformBuffer {
     }
 
     fn update_current_sample(&mut self) {
-        let current_sample = self.query_current_sample();
-        if self.previous_sample != current_sample {
+        let (position, sample) = self.query_current_sample();
+        if self.previous_sample != sample {
             self.shareable_state_changed = true;
             self.previous_sample = self.current_sample;
-            self.current_sample = current_sample;
+            self.current_sample = sample;
+            self.current_position = position;
         } // else don't override self.previous_sample
     }
 
@@ -91,8 +94,7 @@ impl WaveformBuffer {
         if !self.image.is_ready {
             return;
         }
-        let sought_sample =
-            (position as f64 / self.state.sample_duration) as usize
+        let sought_sample = (position / self.state.sample_duration) as usize
             / self.image.sample_step * self.image.sample_step;
         if is_playing {
             // stream is playing => let the cursor jump from current position
@@ -137,7 +139,7 @@ impl WaveformBuffer {
                 let sought_sample =
                     first_visible_sample +
                     (x as usize) / self.image.x_step * self.image.sample_step;
-                Some((sought_sample as f64 * self.state.sample_duration) as u64)
+                Some(sought_sample as u64 * self.state.sample_duration)
             },
             None => None,
         }
@@ -319,22 +321,26 @@ impl WaveformBuffer {
     // Get the waveform as an image in current conditions.
     // This function is to be called as close as possible to
     // the actual presentation of the waveform.
-    pub fn get_image(&mut self) -> Option<(&cairo::ImageSurface, f64, Option<f64>)> {
-                                        // (image, x_offset, current_x_opt)
+    pub fn get_image(&mut self
+    ) -> Option<(&cairo::ImageSurface, f64, Option<(f64, u64)>)> {
+                        // (image, x_offset, Optoin<(current_x, current_pos)>
         self.update_first_visible_sample();
         match self.first_visible_sample {
             Some(first_visible_sample) => {
-                let current_x_opt =
+                let cursor_opt =
                     if self.current_sample >= first_visible_sample
                     && self.current_sample
                         <= first_visible_sample + self.req_sample_window
                     {
                         Some(
                             (
-                                (self.current_sample - first_visible_sample)
-                                * self.image.x_step
-                                / self.image.sample_step
-                            ) as f64
+                                (
+                                    (self.current_sample - first_visible_sample)
+                                    * self.image.x_step
+                                    / self.image.sample_step
+                                ) as f64,
+                                self.current_position
+                            )
                         )
                     } else {
                         None
@@ -347,7 +353,7 @@ impl WaveformBuffer {
                         * self.image.x_step
                         / self.image.sample_step
                     ) as f64, // x_offset
-                    current_x_opt,
+                    cursor_opt, // Option<(current_x, current_pos)>
                 ))
             },
             None => None,
@@ -450,6 +456,7 @@ impl SampleExtractor for WaveformBuffer {
         self.is_seeking = false;
         self.previous_sample = 0;
         self.current_sample = 0;
+        self.current_position = 0;
         self.first_visible_sample = None;
         self.first_visible_sample_lock = None;
         self.sought_sample = None;
@@ -468,6 +475,7 @@ impl SampleExtractor for WaveformBuffer {
             self.sought_sample = other.sought_sample;
             self.previous_sample = other.previous_sample;
             self.current_sample = other.current_sample;
+            self.current_position = other.current_position;
 
             self.req_sample_window = other.req_sample_window;
             self.half_req_sample_window = other.half_req_sample_window;
@@ -484,7 +492,7 @@ impl SampleExtractor for WaveformBuffer {
     // the playback position and target rendering dimensions and
     // resolution.
     fn extract_samples(&mut self, audio_buffer: &AudioBuffer) {
-        if self.state.sample_duration == 0f64 {
+        if self.state.sample_duration == 0 {
             self.state.sample_duration = audio_buffer.sample_duration;
             self.duration_for_1000_samples = audio_buffer.duration_for_1000_samples;
         }
