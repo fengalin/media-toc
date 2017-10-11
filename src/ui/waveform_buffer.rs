@@ -56,6 +56,7 @@ pub struct WaveformBuffer {
     duration_for_1000_samples: f64,
     req_sample_window: usize,
     half_req_sample_window: usize,
+    width: f64,
 }
 
 impl WaveformBuffer {
@@ -77,6 +78,7 @@ impl WaveformBuffer {
             duration_for_1000_samples: 0f64,
             req_sample_window: 0,
             half_req_sample_window: 0,
+            width: 0f64,
         }
     }
 
@@ -280,11 +282,12 @@ impl WaveformBuffer {
         // force sample window to an even number of samples
         // so that the cursor can be centered
         // and make sure to cover at least the width requested
+        let width_f = width as f64;
         let half_req_sample_window =
-            (sample_step_f * (width as f64) / 2f64) as usize;
+            (sample_step_f * width_f / 2f64) as usize;
         let req_sample_window = half_req_sample_window * 2;
 
-        if req_sample_window != self.req_sample_window {
+        if width_f != self.width {
             // sample window has changed => zoom
 
             // first_visible_sample is no longer reliable
@@ -301,11 +304,13 @@ impl WaveformBuffer {
                 let first_visible_sample_lock = first_visible_sample_lock
                     + (
                         (cursor_sample as i64 - first_visible_sample_lock) as f64
-                        * (1f64 - sample_step_f / self.image.sample_step_f)
+                        * (1f64 - width_f / self.width)
                     ) as i64;
                 self.first_visible_sample_lock = Some(first_visible_sample_lock);
                 self.shareable_state_changed = true;
             }
+
+            self.width = width_f;
         }
 
         if req_sample_window != self.req_sample_window {
@@ -322,8 +327,13 @@ impl WaveformBuffer {
     // This function is to be called as close as possible to
     // the actual presentation of the waveform.
     pub fn get_image(&mut self
-    ) -> Option<(&cairo::ImageSurface, f64, Option<(f64, u64)>)> {
-                        // (image, x_offset, Optoin<(current_x, current_pos)>
+    ) -> Option<(
+            &cairo::ImageSurface, // image
+            f64, u64,             // x_offset, first_position
+            Option<(f64, u64)>,   // Option<(last_x, last_pos)>
+            Option<(f64, u64)>,   // Option<(current_x, current_pos)>
+        )>
+    {
         self.update_first_visible_sample();
         match self.first_visible_sample {
             Some(first_visible_sample) => {
@@ -346,13 +356,29 @@ impl WaveformBuffer {
                         None
                     };
 
+                let x_offset = (
+                    (first_visible_sample - self.image.lower)
+                    * self.image.x_step
+                    / self.image.sample_step
+                ) as f64;
+
+                let last_opt = self.image.last.map(|(last_x, _last_y)| {
+                    let last_x = (last_x - x_offset).min(self.width);
+                    (
+                        last_x,
+                        (
+                            first_visible_sample
+                            + (last_x as usize) / self.image.x_step
+                              * self.image.sample_step
+                        ) as u64 * self.state.sample_duration // last_pos
+                    )
+                });
+
                 Some((
                     self.image.get_image(),
-                    (
-                        (first_visible_sample - self.image.lower)
-                        * self.image.x_step
-                        / self.image.sample_step
-                    ) as f64, // x_offset
+                    x_offset,
+                    first_visible_sample as u64 * self.state.sample_duration, // first_position
+                    last_opt,   // Option<(last_x, last_pos)>
                     cursor_opt, // Option<(current_x, current_pos)>
                 ))
             },
@@ -464,6 +490,7 @@ impl SampleExtractor for WaveformBuffer {
         self.duration_for_1000_samples = 0f64;
         self.req_sample_window = 0;
         self.half_req_sample_window = 0;
+        self.width = 0f64;
     }
 
     fn update_concrete_state(&mut self, other: &mut Box<SampleExtractor>) {
@@ -479,6 +506,7 @@ impl SampleExtractor for WaveformBuffer {
 
             self.req_sample_window = other.req_sample_window;
             self.half_req_sample_window = other.half_req_sample_window;
+            self.width = other.width;
 
             other.shareable_state_changed = false;
         } // else: other has nothing new

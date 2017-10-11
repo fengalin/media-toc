@@ -33,7 +33,7 @@ pub struct WaveformImage {
     pub upper: usize,
 
     first: Option<(f64, f64)>,
-    last: Option<(f64, f64)>,
+    pub last: Option<(f64, f64)>,
 
     pub sample_window: usize,
     pub sample_step_f: f64,

@@ -239,7 +239,7 @@ impl AudioController {
         #[cfg(feature = "profiling-audio-draw")]
         let mut _before_image = Utc::now();
 
-        let cursor_opt = {
+        let (first_pos, last_opt, cursor_opt) = {
             let waveform_grd = &mut *waveform_mtx.lock()
                 .expect("AudioController::draw: couldn't lock waveform_mtx");
             let waveform_buffer = waveform_grd
@@ -256,14 +256,14 @@ impl AudioController {
             );
 
             match waveform_buffer.get_image() {
-                Some((image, x_offset, cursor_opt)) => {
+                Some((image, x_offset, first_pos, last_opt, cursor_opt)) => {
                     #[cfg(feature = "profiling-audio-draw")]
                     let _before_image = Utc::now();
 
                     cr.set_source_surface(image, -x_offset, 0f64);
                     cr.paint();
 
-                    cursor_opt
+                    (first_pos, last_opt, cursor_opt)
                 },
                 None => {
                     AudioController::clean_cairo_context(cr);
@@ -276,16 +276,40 @@ impl AudioController {
         let before_pos = Utc::now();
 
         let height = f64::from(allocation.height);
+        let width = f64::from(allocation.width);
         cr.scale(1f64, 1f64);
         cr.set_source_rgb(1f64, 1f64, 0f64);
+        cr.set_font_size(14f64);
 
-        cr.select_font_face("Sans", cairo::FontSlant::Normal, cairo::FontWeight::Normal);
-        cr.set_font_size(15f64);
+        // first position
+        let first_text = format!("{}", Timestamp::format(first_pos, false));
+        let first_text_width = 2f64 + cr.text_extents(&first_text).width;
+        cr.move_to(2f64, 30f64);
+        cr.show_text(&first_text);
+
+        // last position
+        if let Some((last_x, last_pos)) = last_opt {
+            let last_text = format!("{}", Timestamp::format(last_pos, false));
+            let last_text_width = 2f64 + cr.text_extents(&last_text).width;
+            if last_x + last_text_width > first_text_width + 10f64 {
+                // last test won't overlap with first text
+                cr.move_to(last_x - last_text_width, 30f64);
+                cr.show_text(&last_text);
+            }
+        }
 
         if let Some((current_x, current_pos)) = cursor_opt {
             // draw current pos
-            cr.move_to(current_x + 10f64, 20f64);
-            cr.show_text(&format!("{}", Timestamp::format(current_pos, true)));
+            let cursor_text = format!("{}", Timestamp::format(current_pos, true));
+            let cursor_text_width = 10f64 + cr.text_extents(&cursor_text).width;
+            let cursor_text_x =
+                if current_x + cursor_text_width < width {
+                    current_x + 10f64
+                } else {
+                    current_x - cursor_text_width
+                };
+            cr.move_to(cursor_text_x, 15f64);
+            cr.show_text(&cursor_text);
 
             cr.set_line_width(1f64);
             cr.move_to(current_x, 0f64);
