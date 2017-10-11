@@ -13,17 +13,17 @@ cairo-rs = { git = "https://github.com/gtk-rs/cairo.git" }
 gtk = { git = "https://github.com/gtk-rs/gtk.git", features = ["v3_10"] }
 glib = { git = "https://github.com/gtk-rs/glib.git" }
 
-#gstreamer = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
-#gstreamer-audio = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
-#gstreamer-app = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
+gstreamer = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
+gstreamer-audio = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
+gstreamer-app = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
 
 #cairo-rs = { git = "https://github.com/fengalin/cairo.git" }
 #gtk = { git = "https://github.com/fengalin/gtk.git", features = ["v3_10"] }
 #glib = { git = "https://github.com/fengalin/glib.git" }
 
-gstreamer = { git = "https://github.com/fengalin/gstreamer-rs.git", features = ["v1_10"] }
-gstreamer-audio = { git = "https://github.com/fengalin/gstreamer-rs.git", features = ["v1_10"] }
-gstreamer-app = { git = "https://github.com/fengalin/gstreamer-rs.git", features = ["v1_10"] }
+#gstreamer = { git = "https://github.com/fengalin/gstreamer-rs.git", features = ["v1_10"] }
+#gstreamer-audio = { git = "https://github.com/fengalin/gstreamer-rs.git", features = ["v1_10"] }
+#gstreamer-app = { git = "https://github.com/fengalin/gstreamer-rs.git", features = ["v1_10"] }
 
 [features]
 profiling-audio-draw = []
