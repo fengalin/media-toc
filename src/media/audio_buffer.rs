@@ -403,7 +403,7 @@ impl AudioBuffer {
             samples_u8.push(buf_u8[1]);
         };
 
-        let buffer = gst::Buffer::from_vec(samples_u8).unwrap();
+        let mut buffer = gst::Buffer::from_vec(samples_u8).unwrap();
         buffer.get_mut().unwrap().set_pts(
             self.sample_duration * (lower as u64) + 1
         );
