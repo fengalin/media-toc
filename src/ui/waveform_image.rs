@@ -408,7 +408,7 @@ impl WaveformImage {
             println!("WaveformImage{}::redraw smpl_stp {}, lower {}, upper {}",
                 self.id, self.sample_step, self.lower, self.upper
             );
-            self.trace_positions();
+            self.trace_positions(&self.first, &self.last);
         }
     }
 
@@ -425,14 +425,14 @@ impl WaveformImage {
             ) as f64;
 
         #[cfg(test)]
-        println!("append_left x_offset {}, self.lower {}, lower {}, buffer.lower {}",
-            x_offset, self.lower, lower, audio_buffer.lower
+        println!("append_left x_offset {}, lower {}, self.lower {}, buffer.lower {}",
+            x_offset, lower, self.lower, audio_buffer.lower
         );
 
         self.translate_previous(cr, previous_image, x_offset);
         self.set_scale(&cr);
 
-        self.first = self.first.take().map(|(x, y)| (x + x_offset, y));
+        self.first = self.first.take().map(|(x, values)| (x + x_offset, values));
         self.last = match self.last.take() {
             Some((x, y)) => {
                 let next_last_pixel = x + x_offset;
@@ -445,9 +445,9 @@ impl WaveformImage {
                     // which is now bound to last pixel in current image
                     let new_last_pixel = self.image_width_f - 1f64 - x_offset;
                     self.get_sample_and_values_at(new_last_pixel, audio_buffer)
-                        .map(|(sample, value)| {
+                        .map(|(sample, values)| {
                             self.upper = sample;
-                            (self.image_width_f, value)
+                            (self.image_width_f, values)
                         })
                 }
             },
@@ -466,14 +466,16 @@ impl WaveformImage {
                             last_added_x, &last_added_val,
                             prev_first_x, &prev_first_val,
                         );
-
                     } else {
                         #[cfg(any(test, feature = "trace-waveform-rendering"))]
                         {
                             println!("/!\\ WaveformImage{}::appd_left can't link [{}, {}], last added ({}, {:?}), upper {}",
-                                self.id, self.lower, lower, last_added_x, last_added_val, self.upper
+                                self.id, lower, self.lower, last_added_x, last_added_val, self.upper
                             );
-                            self.trace_positions();
+                            self.trace_positions(
+                                &Some((prev_first_x, prev_first_val)),
+                                &self.last
+                            );
                         }
                     }
 
@@ -484,9 +486,9 @@ impl WaveformImage {
                     #[cfg(any(test, feature = "trace-waveform-rendering"))]
                     {
                         println!("/!\\ WaveformImage{}::appd_left no prev first [{}, {}], upper {}",
-                            self.id, self.lower, lower, self.upper
+                            self.id, lower, self.lower, self.upper
                         );
-                        self.trace_positions();
+                        self.trace_positions(&self.first, &self.last);
                     }
                 }
 
@@ -502,7 +504,7 @@ impl WaveformImage {
         #[cfg(test)]
         {
             println!("exiting append_left self.lower {}, self.upper {}", self.lower, self.upper);
-            self.trace_positions();
+            self.trace_positions(&self.first, &self.last);
         }
     }
 
@@ -536,16 +538,16 @@ impl WaveformImage {
                             // first out of image
                             // get sample which is now bound to pixel at x == 0
                             self.get_sample_and_values_at(x_offset, audio_buffer)
-                                .map(|(sample, value)| {
+                                .map(|(sample, values)| {
                                     self.lower = sample;
-                                    (0f64, value)
+                                    (0f64, values)
                                 })
                         }
                     },
                     None => None,
                 };
 
-                self.last = self.last.take().map(|(x, y)| (x - x_offset, y));
+                self.last = self.last.take().map(|(x, values)| (x - x_offset, values));
             }
         }
 
@@ -558,11 +560,11 @@ impl WaveformImage {
         match self.draw_samples(cr, audio_buffer, first_sample_to_draw, upper, first_x_to_draw) {
             Some(((first_added_x, first_added_val), (last_added_x, last_added_val))) =>
             {
-                if let Some((prev_last_x, ref prev_last_val)) = self.last.take() {
+                if let Some((prev_last_x, prev_last_val)) = self.last.take() {
                     if (first_added_x - prev_last_x).abs() <= self.x_step_f {
                         // link new added samples with previous last sample
                         WaveformImage::link_samples(&cr,
-                            prev_last_x, prev_last_val,
+                            prev_last_x, &prev_last_val,
                             first_added_x, &first_added_val,
                         );
                     } else {
@@ -571,7 +573,10 @@ impl WaveformImage {
                             println!("/!\\ WaveformImage{}::appd_right can't link [{}, {}], first_added ({}, {:?}), upper {}",
                                 self.id, self.lower, lower, first_added_x, first_added_val, self.upper
                             );
-                            self.trace_positions();
+                            self.trace_positions(
+                                &self.first,
+                                &Some((prev_last_x, prev_last_val))
+                            );
                         }
                     }
 
@@ -584,7 +589,7 @@ impl WaveformImage {
                         println!("/!\\ WaveformImage{}::appd_right no prev last self.lower {}, lower {}, self.upper {}, upper {}",
                             self.id, self.lower, lower, self.upper, upper
                         );
-                        self.trace_positions();
+                        self.trace_positions(&self.first, &self.last);
                     }
                 }
 
@@ -600,7 +605,7 @@ impl WaveformImage {
         #[cfg(test)]
         {
             println!("exiting append_right self.lower {}, self.upper {}", self.lower, self.upper);
-            self.trace_positions();
+            self.trace_positions(&self.first, &self.last);
         }
     }
 
@@ -629,12 +634,15 @@ impl WaveformImage {
     }
 
     #[cfg(any(test, feature = "trace-waveform-rendering"))]
-    fn trace_positions(&self) {
-        let first = match self.first.as_ref() {
+    fn trace_positions(&self,
+        first: &Option<(f64, Vec<f64>)>,
+        last: &Option<(f64, Vec<f64>)>
+    ) {
+        let first = match first.as_ref() {
             Some(&(x, ref values)) => format!("({}, {:?})", x, values),
             None => "-".to_owned(),
         };
-        let last = match self.last.as_ref() {
+        let last = match last.as_ref() {
             Some(&(x, ref values)) => format!("({}, {:?})", x, values),
             None => "-".to_owned(),
         };
@@ -660,6 +668,9 @@ impl WaveformImage {
         from_x: f64, from_values: &[f64],
         to_x: f64, to_values: &[f64],
     ) {
+        #[cfg(test)]
+        cr.set_source_rgb(0f64, 0.8f64, 0f64);
+
         for channel in 0..from_values.len() {
             // FIXME: change color
             cr.move_to(from_x, from_values[channel]);
@@ -905,17 +916,17 @@ mod tests {
             100, 200, 100, samples_window, false);
         // overlap on the left and on the right
         render_with_samples("additive_1", &mut waveform, &mut audio_buffer, &caps,
-            50, 250, 50, samples_window, false);
+            50, 100, 50, samples_window, false);
         // overlap on the left
         render_with_samples("additive_2", &mut waveform, &mut audio_buffer, &caps,
             0, 100, 0, samples_window, false);
         // overlap on the right
         render_with_samples("additive_3", &mut waveform, &mut audio_buffer, &caps,
-            250, 290, 250, samples_window, true);
+            150, 340, 150, samples_window, true);
 
         // scrolling and overlaping on the right
         render_with_samples("additive_4", &mut waveform, &mut audio_buffer, &caps,
-              0, 100, 250, samples_window, true);
+              0, 200, 250, samples_window, true);
     }
 
     #[test]

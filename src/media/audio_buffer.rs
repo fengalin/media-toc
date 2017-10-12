@@ -224,7 +224,9 @@ impl AudioBuffer {
                 } else {
                     // 5. can't merge with previous buffer
                     #[cfg(test)]
-                    println!("AudioBuffer case 5. can't merge");
+                    println!("AudioBuffer case 5. can't merge self [{}, {}], incoming [{}, {}]",
+                        self.lower, self.upper, incoming_lower, incoming_upper
+                    );
                     self.samples.clear();
                     self.lower = incoming_lower;
                     self.upper = incoming_upper;
@@ -392,7 +394,6 @@ pub struct Iter<'a> {
     slice0: &'a [i16],
     slice0_len: usize,
     slice1: &'a [i16],
-    total_len: usize,
     idx: usize,
     upper: usize,
     step: usize,
@@ -409,14 +410,14 @@ impl<'a> Iter<'a> {
         if upper > lower
         && lower >= buffer.lower
         && upper <= buffer.upper
-        && channel < buffer.channels {
+        && channel < buffer.channels
+        {
             let slices = buffer.samples.as_slices();
             let len0 = slices.0.len();
             Some(Iter {
                 slice0: slices.0,
                 slice0_len: len0,
                 slice1: slices.1,
-                total_len: buffer.samples.len(),
                 idx: (lower - buffer.lower) * buffer.channels + channel,
                 upper: (upper - buffer.lower) * buffer.channels,
                 step: sample_step * buffer.channels,
@@ -424,7 +425,7 @@ impl<'a> Iter<'a> {
         } else {
             // out of bound TODO: return an error
             #[cfg(test)]
-            println!("AudioBuffer::Iter::new [{}, {}] out of bound [{}, {}]",
+            println!("AudioBuffer::Iter::new [{}, {}] out of bounds [{}, {}]",
                 lower, upper, buffer.lower, buffer.upper
             );
             None
@@ -436,21 +437,19 @@ impl<'a> Iterator for Iter<'a> {
     type Item = i16;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let item_opt =
+        if self.idx >= self.upper {
+            return None;
+        }
+
+        let item =
             if self.idx < self.slice0_len {
-                Some(self.slice0[self.idx])
-            } else if self.idx < self.total_len {
-                Some(self.slice1[self.idx - self.slice0_len])
+                self.slice0[self.idx]
             } else {
-                #[cfg(test)]
-                println!("AudioBuffer::Iter::next idx {} out of bound [0, {}]",
-                    self.idx, self.total_len
-                );
-                None
+                self.slice1[self.idx - self.slice0_len]
             };
 
         self.idx += self.step;
-        item_opt
+        Some(item)
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
