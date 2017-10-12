@@ -362,17 +362,18 @@ impl WaveformBuffer {
                     / self.image.sample_step
                 ) as f64;
 
-                let last_opt = self.image.last.map(|(last_x, _last_y)| {
-                    let last_x = (last_x - x_offset).min(self.width);
-                    (
-                        last_x,
+                let last_opt = self.image.last.as_ref()
+                    .map(|&(last_x, ref _last_y)| {
+                        let last_x = (last_x - x_offset).min(self.width);
                         (
-                            first_visible_sample
-                            + (last_x as usize) / self.image.x_step
-                              * self.image.sample_step
-                        ) as u64 * self.state.sample_duration // last_pos
-                    )
-                });
+                            last_x,
+                            (
+                                first_visible_sample
+                                + (last_x as usize) / self.image.x_step
+                                  * self.image.sample_step
+                            ) as u64 * self.state.sample_duration // last_pos
+                        )
+                    });
 
                 Some((
                     self.image.get_image(),

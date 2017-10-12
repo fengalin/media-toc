@@ -5,22 +5,17 @@ use chrono::Utc;
 
 use byte_slice_cast::AsSliceOf;
 
-use std::i16;
-
 use std::collections::vec_deque::VecDeque;
 
 #[cfg(test)]
 use byteorder::{ByteOrder, LittleEndian};
-
-pub const SAMPLES_NORM: f64 = 500f64;
-const SAMPLES_OFFSET: f64 = SAMPLES_NORM / 2f64;
 
 pub struct AudioBuffer {
     buffer_duration: u64,
     capacity: usize,
     pub sample_duration: u64,
     pub duration_for_1000_samples: f64,
-    channels: usize,
+    pub channels: usize,
     drain_size: usize,
 
     pub eos: bool,
@@ -30,7 +25,7 @@ pub struct AudioBuffer {
     last_buffer_upper: usize,
     pub lower: usize,
     pub upper: usize,
-    pub samples: VecDeque<f64>,
+    pub samples: VecDeque<i16>,
 }
 
 impl AudioBuffer {
@@ -71,9 +66,11 @@ impl AudioBuffer {
 
         self.sample_duration = 1_000_000_000 / (rate as u64);
         self.duration_for_1000_samples = 1_000_000_000_000f64 / (rate as f64);
-        self.capacity = (self.buffer_duration / self.sample_duration) as usize;
+        self.capacity =
+            (self.buffer_duration / self.sample_duration) as usize
+            * self.channels;
         self.samples = VecDeque::with_capacity(self.capacity);
-        self.drain_size = (1_000_000_000 / self.sample_duration) as usize; // 1s worth of samples
+        self.drain_size = rate as usize * self.channels; // 1s worth of samples
     }
 
     pub fn cleanup(&mut self) {
@@ -95,10 +92,6 @@ impl AudioBuffer {
     // This buffer stores the complete set of samples in a time frame
     // in order to be able to represent the audio at any given precision.
     // Samples are stores as f64 suitable for on screen rendering.
-    // This implementation also performs a downmix.
-    // TODO: make the representation dependent on the actual context
-    //       move this as a trait and make the sample normalization
-    //       part of a concrete object
     // Incoming samples are merged to the existing buffer when possible
     pub fn push_gst_sample(&mut self,
         sample: gst::Sample,
@@ -110,12 +103,10 @@ impl AudioBuffer {
         let buffer = sample.get_buffer()
             .expect("Couldn't get buffer from audio sample");
 
-        let map = buffer.map_readable().unwrap();
-        let incoming_samples = map.as_slice().as_slice_of::<i16>()
+        let buffer_map = buffer.map_readable();
+        let incoming_samples = buffer_map.as_ref().unwrap()
+            .as_slice().as_slice_of::<i16>()
             .expect("Couldn't get audio samples as i16");
-
-        #[cfg(feature = "profiling-audio-buffer")]
-        let before_drain = Utc::now();
 
         self.eos = false;
 
@@ -263,9 +254,13 @@ impl AudioBuffer {
 
         self.last_buffer_pts = buffer_pts;
 
+        #[cfg(feature = "profiling-audio-buffer")]
+        let before_drain = Utc::now();
+
         // drain internal buffer if necessary and possible
         if !lower_changed
-        && self.samples.len() + upper_to_add_rel - lower_to_add_rel
+        && self.samples.len()
+            + (upper_to_add_rel - lower_to_add_rel) * self.channels
             > self.capacity
         {   // don't drain if samples are to be added at the begining...
             // drain only if we have enough samples in history
@@ -276,80 +271,32 @@ impl AudioBuffer {
             // Don't drain samples if they might be used by the extractor
             // (limit known as argument lower_to_keep)
             if lower_to_keep.min(incoming_lower)
-                > self.lower + self.drain_size
+                > self.lower + self.drain_size / self.channels
             {
                 //println!("draining... len before: {}", self.samples.len());
                 self.samples.drain(..self.drain_size);
-                self.lower += self.drain_size;
+                self.lower += self.drain_size / self.channels;
             }
         }
 
         #[cfg(feature = "profiling-audio-buffer")]
         let before_storage = Utc::now();
 
-        // normalize samples in range 0f64..SAMPLES_NORM ready to render
-        // TODO: this depends on the actual context (Waveform rendering)
-        // do this in a concrete implementation
-
-        // FIXME: use gstreamer downmix
-        // FIXME: select the channels using the position info
-        // if more than 2 channels,
-        // Use 75% for first 2 channels (assuming front left and front right)
-        // Use 25% for the others
         if upper_to_add_rel > 0 {
-            let (front_norm_factor, others_norm_factor, front_channels) =
-                if self.channels > 2 {
-                    (
-                        0.75f64 / 2f64 / f64::from(i16::MAX) * SAMPLES_NORM / 2f64,
-                        0.25f64 / ((self.channels - 2) as f64) / f64::from(i16::MAX) * SAMPLES_NORM / 2f64,
-                        2
-                    )
-                } else {
-                    (
-                        1f64 / (self.channels as f64) / f64::from(i16::MAX) * SAMPLES_OFFSET,
-                        0f64,
-                        self.channels
-                    )
-                };
+            let lower_idx = lower_to_add_rel * self.channels;
+            let upper_idx = upper_to_add_rel * self.channels;
+            let sample_slice = &incoming_samples[lower_idx..upper_idx];
 
-            // Update container using the conditions identified above
-            if !lower_changed || self.samples.is_empty()
-            {   // samples can be push back to the container
-                let mut norm_sample;
-                let mut index = lower_to_add_rel * self.channels;
-                let upper = upper_to_add_rel * self.channels;
-                while index < upper {
-                    norm_sample = 0f64;
-
-                    for _ in 0..front_channels {
-                        norm_sample += f64::from(incoming_samples[index]) * front_norm_factor;
-                        index += 1;
-                    }
-                    for _ in front_channels..self.channels {
-                        norm_sample += f64::from(incoming_samples[index]) * others_norm_factor;
-                        index += 1;
-                    }
-                    self.samples.push_back(SAMPLES_OFFSET - norm_sample);
+            if !lower_changed || self.samples.is_empty() {
+                // samples can be pushed back to the containr
+                for sample_byte in sample_slice.iter() {
+                    self.samples.place_back() <- *sample_byte;
                 };
-            } else
-            {   // samples must be inserted at the begining
-                // => push front in reverse order
-                let mut norm_sample;
-                let mut index = upper_to_add_rel * self.channels;
-                let lower = lower_to_add_rel * self.channels;
-                while index > lower {
-                    norm_sample = 0f64;
-
-                    for _ in front_channels..self.channels {
-                        index -= 1;
-                        norm_sample += f64::from(incoming_samples[index]) * others_norm_factor;
-                    }
-                    for _ in 0..front_channels {
-                        index -= 1;
-                        norm_sample += f64::from(incoming_samples[index]) * front_norm_factor;
-                    }
-                    self.samples.push_front(SAMPLES_OFFSET - norm_sample);
-                };
+            } else {
+                let rev_sample_iter = sample_slice.iter().rev();
+                for sample_byte in rev_sample_iter {
+                    self.samples.place_front() <- *sample_byte;
+                }
             }
         }
 
@@ -371,17 +318,30 @@ impl AudioBuffer {
         }
     }
 
-    pub fn iter(&self, lower: usize, upper: usize, step: usize) -> Option<Iter> {
-        if upper > lower && lower >= self.lower && upper <= self.upper {
-            Some(Iter::new(self, lower - self.lower, upper - self.lower, step))
-        } else {
-            None
-        }
+    pub fn iter(&self,
+        lower: usize,
+        upper: usize,
+        sample_step: usize,
+        channel: usize,
+    ) -> Option<Iter> {
+        Iter::new(self, lower, upper, sample_step, channel)
     }
 
-    pub fn get(&self, sample_idx: usize) -> Option<f64> {
-        if sample_idx >= self.lower {
-            self.samples.get(sample_idx - self.lower).map(|value| *value)
+    pub fn get(&self, sample: usize) -> Option<&[i16]> {
+        if sample >= self.lower && sample < self.upper {
+            let slices = self.samples.as_slices();
+            let slice0_len = slices.0.len();
+            let mut idx = (sample - self.lower) * self.channels;
+            let last_idx = idx + self.channels;
+
+            if last_idx <= slice0_len {
+                Some(&slices.0[idx..last_idx])
+            } else if last_idx <= self.samples.len() {
+                idx -= slice0_len;
+                Some(&slices.1[idx..idx + self.channels])
+            } else {
+                None
+            }
         } else {
             None
         }
@@ -394,13 +354,20 @@ impl AudioBuffer {
         segment_lower: usize,
         caps: &gst::Caps,
     ) {
-        let mut samples_u8 = Vec::with_capacity(samples.len() * 2);
+        let mut samples_u8 = Vec::with_capacity(samples.len() * 2 * self.channels);
         let mut buf_u8 = [0; 2];
-        for &sample_i16 in samples {
-            LittleEndian::write_i16(&mut buf_u8, sample_i16);
 
-            samples_u8.push(buf_u8[0]);
-            samples_u8.push(buf_u8[1]);
+        let mut iter = samples.iter();
+        let mut value = iter.next();
+        while value.is_some() {
+            for _channel in 0..self.channels {
+                LittleEndian::write_i16(&mut buf_u8, *value.unwrap());
+
+                samples_u8.push(buf_u8[0]);
+                samples_u8.push(buf_u8[1]);
+
+                value = iter.next()
+            }
         };
 
         let mut buffer = gst::Buffer::from_vec(samples_u8).unwrap();
@@ -422,40 +389,68 @@ impl AudioBuffer {
 }
 
 pub struct Iter<'a> {
-    buffer: &'a AudioBuffer,
+    slice0: &'a [i16],
+    slice0_len: usize,
+    slice1: &'a [i16],
+    total_len: usize,
     idx: usize,
     upper: usize,
     step: usize,
 }
 
 impl<'a> Iter<'a> {
-    fn new(buffer: &'a AudioBuffer, lower_idx: usize, upper_idx: usize, step: usize) -> Iter<'a> {
-        Iter {
-            buffer: buffer,
-            idx: lower_idx,
-            upper: upper_idx,
-            step: step,
+    fn new(
+        buffer: &'a AudioBuffer,
+        lower: usize,
+        upper: usize,
+        sample_step: usize,
+        channel: usize,
+    ) -> Option<Iter<'a>> {
+        if upper > lower
+        && lower >= buffer.lower
+        && upper <= buffer.upper
+        && channel < buffer.channels {
+            let slices = buffer.samples.as_slices();
+            let len0 = slices.0.len();
+            Some(Iter {
+                slice0: slices.0,
+                slice0_len: len0,
+                slice1: slices.1,
+                total_len: buffer.samples.len(),
+                idx: (lower - buffer.lower) * buffer.channels + channel,
+                upper: (upper - buffer.lower) * buffer.channels,
+                step: sample_step * buffer.channels,
+            })
+        } else {
+            // out of bound TODO: return an error
+            #[cfg(test)]
+            println!("AudioBuffer::Iter::new [{}, {}] out of bound [{}, {}]",
+                lower, upper, buffer.lower, buffer.upper
+            );
+            None
         }
     }
 }
 
 impl<'a> Iterator for Iter<'a> {
-    type Item = &'a f64;
+    type Item = i16;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.idx < self.upper {
-            let item = self.buffer.samples.get(self.idx);
-            if item.is_none() {
-                println!("AudioBuffer::Iter::next item is none idx {}, upper {}, len {}, expected len {}",
-                    self.idx, self.upper, self.buffer.samples.len(), self.buffer.upper - self.buffer.lower
+        let item_opt =
+            if self.idx < self.slice0_len {
+                Some(self.slice0[self.idx])
+            } else if self.idx < self.total_len {
+                Some(self.slice1[self.idx - self.slice0_len])
+            } else {
+                #[cfg(test)]
+                println!("AudioBuffer::Iter::next idx {} out of bound [0, {}]",
+                    self.idx, self.total_len
                 );
-            }
-            self.idx += self.step;
+                None
+            };
 
-            item
-        } else {
-            None
-        }
+        self.idx += self.step;
+        item_opt
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -474,8 +469,6 @@ mod tests {
     extern crate gstreamer as gst;
     extern crate gstreamer_audio as gst_audio;
 
-    use std::{i16, u16};
-
     use media::AudioBuffer;
 
     const SAMPLE_RATE: i32 = 300;
@@ -490,34 +483,24 @@ mod tests {
             &[
                 ("format", &gst_audio::AUDIO_FORMAT_S16.to_string()),
                 ("layout", &"interleaved"),
-                ("channels", &1),
+                ("channels", &2),
                 ("rate", &SAMPLE_RATE),
             ],
         );
         audio_buffer.set_caps(&caps);
 
-        fn get_value(index: usize) -> i16 {
-            (
-                i16::MAX as i32
-                - (index as f64 / SAMPLE_RATE as f64 * u16::MAX as f64) as i32
-            ) as i16
-        }
-
-        // Build a buffer in the specified range
+        // Build a buffer 2 channels in the specified range
         // which would be rendered as a diagonal on a Waveform image
         // from left top corner to right bottom of the target image
         // if all samples are rendered in the range [0:SAMPLE_RATE]
         fn build_buffer(lower: usize, upper: usize) -> Vec<i16> {
             let mut buffer: Vec<i16> = Vec::new();
-            let mut index = lower;
-            while index < upper {
-                buffer.push(get_value(index));
-                index += 1;
+            for index in lower..upper {
+                buffer.push(index as i16);
+                buffer.push(-(index as i16)); // second channel <= opposite value
             }
             buffer
         }
-
-        let samples_factor = 1f64 / f64::from(i16::MAX) * super::SAMPLES_OFFSET;
 
         println!("\n* samples [100:200] init");
         audio_buffer.push_samples(&build_buffer(100, 200), 100, 100, &caps);
@@ -525,11 +508,11 @@ mod tests {
         assert_eq!(audio_buffer.upper, 200);
         assert_eq!(
             audio_buffer.get(audio_buffer.lower),
-            Some(super::SAMPLES_OFFSET - f64::from(get_value(100)) * samples_factor)
+            Some(&[100, -100][..])
         );
         assert_eq!(
             audio_buffer.get(audio_buffer.upper - 1),
-            Some(super::SAMPLES_OFFSET - f64::from(get_value(199)) * samples_factor)
+            Some(&[199, -199][..])
         );
 
         println!("* samples [50:100]: appending to the begining");
@@ -538,11 +521,11 @@ mod tests {
         assert_eq!(audio_buffer.upper, 200);
         assert_eq!(
             audio_buffer.get(audio_buffer.lower),
-            Some(super::SAMPLES_OFFSET - f64::from(get_value(50)) * samples_factor)
+            Some(&[50, -50][..])
         );
         assert_eq!(
             audio_buffer.get(audio_buffer.upper - 1),
-            Some(super::SAMPLES_OFFSET - f64::from(get_value(199)) * samples_factor)
+            Some(&[199, -199][..])
         );
 
         println!("* samples [0:75]: overlaping on the begining");
@@ -551,11 +534,11 @@ mod tests {
         assert_eq!(audio_buffer.upper, 200);
         assert_eq!(
             audio_buffer.get(audio_buffer.lower),
-            Some(super::SAMPLES_OFFSET - f64::from(get_value(0)) * samples_factor)
+            Some(&[0, 0][..])
         );
         assert_eq!(
             audio_buffer.get(audio_buffer.upper - 1),
-            Some(super::SAMPLES_OFFSET - f64::from(get_value(199)) * samples_factor)
+            Some(&[199, -199][..])
         );
 
         println!("* samples [200:300]: appending to the end - different segment");
@@ -564,11 +547,11 @@ mod tests {
         assert_eq!(audio_buffer.upper, 300);
         assert_eq!(
             audio_buffer.get(audio_buffer.lower),
-            Some(super::SAMPLES_OFFSET - f64::from(get_value(0)) * samples_factor)
+            Some(&[0, 0][..])
         );
         assert_eq!(
             audio_buffer.get(audio_buffer.upper - 1),
-            Some(super::SAMPLES_OFFSET - f64::from(get_value(299)) * samples_factor)
+            Some(&[299, -299][..])
         );
 
         println!("* samples [250:275]: contained in current - different segment");
@@ -577,11 +560,11 @@ mod tests {
         assert_eq!(audio_buffer.upper, 300);
         assert_eq!(
             audio_buffer.get(audio_buffer.lower),
-            Some(super::SAMPLES_OFFSET - f64::from(get_value(0)) * samples_factor)
+            Some(&[0, 0][..])
         );
         assert_eq!(
             audio_buffer.get(audio_buffer.upper - 1),
-            Some(super::SAMPLES_OFFSET - f64::from(get_value(299)) * samples_factor)
+            Some(&[299, -299][..])
         );
 
         println!("* samples [275:400]: overlaping on the end");
@@ -590,11 +573,11 @@ mod tests {
         assert_eq!(audio_buffer.upper, 400);
         assert_eq!(
             audio_buffer.get(audio_buffer.lower),
-            Some(super::SAMPLES_OFFSET - f64::from(get_value(0)) * samples_factor)
+            Some(&[0, 0][..])
         );
         assert_eq!(
             audio_buffer.get(audio_buffer.upper - 1),
-            Some(super::SAMPLES_OFFSET - f64::from(get_value(399)) * samples_factor)
+            Some(&[399, -399][..])
         );
 
         println!("* samples [400:450]: appending to the end");
@@ -603,11 +586,11 @@ mod tests {
         assert_eq!(audio_buffer.upper, 450);
         assert_eq!(
             audio_buffer.get(audio_buffer.lower),
-            Some(super::SAMPLES_OFFSET - f64::from(get_value(0)) * samples_factor)
+            Some(&[0, 0][..])
         );
         assert_eq!(
             audio_buffer.get(audio_buffer.upper - 1),
-            Some(super::SAMPLES_OFFSET - f64::from(get_value(449)) * samples_factor)
+            Some(&[449, -449][..])
         );
     }
 }
