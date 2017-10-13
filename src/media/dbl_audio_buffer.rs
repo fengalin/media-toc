@@ -1,4 +1,5 @@
 extern crate gstreamer as gst;
+extern crate gstreamer_audio as gst_audio;
 
 use std::any::Any;
 
@@ -6,7 +7,7 @@ use std::mem;
 
 use std::sync::{Arc, Mutex};
 
-use super::{AudioBuffer, SampleExtractor};
+use super::{AudioBuffer, AudioChannel, SampleExtractor};
 
 // The DoubleBuffer is reponsible for ensuring a thread safe double buffering
 // mechanism that receives samples from GStreamer, prepares an extraction of
@@ -68,17 +69,36 @@ impl DoubleAudioBuffer {
         caps: &gst::Caps,
         audio_ref: &gst::Element
     ) {
-        self.audio_buffer.set_caps(caps);
+        let audio_info = gst_audio::AudioInfo::from_caps(&caps)
+            .expect("DoubleAudioBuffer::set_audio_caps_and_ref unable to get AudioInfo");
+
+        let rate = audio_info.rate() as u64;
+        let channels = audio_info.channels() as usize;
+        self.audio_buffer.init(rate, channels);
+
+        let sample_duration = 1_000_000_000 / rate;
+        let duration_for_1000_samples = 1_000_000_000_000f64 / (rate as f64);
+
+        let mut channels: Vec<AudioChannel> = Vec::with_capacity(channels);
+        if let Some(positions) = audio_info.positions() {
+            for position in positions {
+                channels.push(AudioChannel::new(position));
+            }
+        };
 
         {
             let exposed_buffer = &mut self.exposed_buffer_mtx.lock()
                 .expect("DoubleAudioBuffer: couldn't lock exposed_buffer_mtx while setting audio sink");
             exposed_buffer.set_audio_sink(audio_ref.clone());
+            exposed_buffer.set_sample_duration(sample_duration, duration_for_1000_samples);
+            exposed_buffer.set_channels(&channels);
         }
 
-        self.working_buffer.as_mut()
-            .expect("DoubleAudioBuffer: couldn't get working_buffer while setting audio sink")
-            .set_audio_sink(audio_ref.clone());
+        let working_buffer = self.working_buffer.as_mut()
+            .expect("DoubleAudioBuffer: couldn't get working_buffer while setting audio sink");
+        working_buffer.set_audio_sink(audio_ref.clone());
+        working_buffer.set_sample_duration(sample_duration, duration_for_1000_samples);
+        working_buffer.set_channels(&channels);
     }
 
     pub fn handle_eos(&mut self) {

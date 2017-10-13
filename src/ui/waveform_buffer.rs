@@ -6,7 +6,7 @@ use std::boxed::Box;
 
 use std::sync::{Arc, Mutex};
 
-use media::{AudioBuffer, DoubleAudioBuffer, SampleExtractor};
+use media::{AudioBuffer, AudioChannel, DoubleAudioBuffer, SampleExtractor};
 
 use media::sample_extractor::SampleExtractionState;
 
@@ -53,7 +53,6 @@ pub struct WaveformBuffer {
     first_visible_sample_lock: Option<i64>,
     sought_sample: Option<usize>,
 
-    duration_for_1000_samples: f64,
     req_sample_window: usize,
     half_req_sample_window: usize,
     width: f64,
@@ -75,7 +74,6 @@ impl WaveformBuffer {
             first_visible_sample_lock: None,
             sought_sample: None,
 
-            duration_for_1000_samples: 0f64,
             req_sample_window: 0,
             half_req_sample_window: 0,
             width: 0f64,
@@ -272,11 +270,11 @@ impl WaveformBuffer {
         // compute a sample step which will produce an interger number of
         // samples per pixel or an integer number of pixels per samples
         let sample_step_f =
-            if duration_per_1000px >= self.duration_for_1000_samples {
-                (duration_per_1000px / self.duration_for_1000_samples).floor()
+            if duration_per_1000px >= self.state.duration_for_1000_samples {
+                (duration_per_1000px / self.state.duration_for_1000_samples).floor()
             } else {
                 1f64
-                / (self.duration_for_1000_samples / duration_per_1000px).ceil()
+                / (self.state.duration_for_1000_samples / duration_per_1000px).ceil()
             };
 
         // force sample window to an even number of samples
@@ -475,7 +473,7 @@ impl SampleExtractor for WaveformBuffer {
 
     fn cleanup(&mut self) {
         // clear for reuse
-        self.cleanup_state();
+        self.state.cleanup();
         self.shareable_state_changed = false;
 
         self.image.cleanup();
@@ -488,10 +486,13 @@ impl SampleExtractor for WaveformBuffer {
         self.first_visible_sample_lock = None;
         self.sought_sample = None;
 
-        self.duration_for_1000_samples = 0f64;
         self.req_sample_window = 0;
         self.half_req_sample_window = 0;
         self.width = 0f64;
+    }
+
+    fn set_channels(&mut self, channels: &[AudioChannel]) {
+        self.image.set_channels(channels);
     }
 
     fn update_concrete_state(&mut self, other: &mut Box<SampleExtractor>) {
@@ -521,11 +522,6 @@ impl SampleExtractor for WaveformBuffer {
     // the playback position and target rendering dimensions and
     // resolution.
     fn extract_samples(&mut self, audio_buffer: &AudioBuffer) {
-        if self.state.sample_duration == 0 {
-            self.state.sample_duration = audio_buffer.sample_duration;
-            self.duration_for_1000_samples = audio_buffer.duration_for_1000_samples;
-        }
-
         if self.req_sample_window == 0 {
             // conditions not defined yet
             return;

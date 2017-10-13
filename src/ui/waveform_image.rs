@@ -5,7 +5,7 @@ use std::i16;
 #[cfg(feature = "profile-waveform-image")]
 use chrono::Utc;
 
-use media::AudioBuffer;
+use media::{AudioBuffer, AudioChannel, AudioChannelSide};
 
 pub const BACKGROUND_COLOR:  (f64, f64, f64) = (0.2f64, 0.2235f64, 0.2314f64);
 pub const AMPLITUDE_0_COLOR: (f64, f64, f64) = (0.5f64, 0.5f64, 0f64);
@@ -24,6 +24,8 @@ pub struct WaveformImage {
     id: usize,
     pub is_ready: bool,
     pub shareable_state_changed: bool,
+
+    channel_colors: Vec<(f64, f64, f64)>,
 
     exposed_image: Option<cairo::ImageSurface>,
     working_image: Option<cairo::ImageSurface>,
@@ -55,6 +57,8 @@ impl WaveformImage {
             id: id,
             is_ready: false,
             shareable_state_changed: false,
+
+            channel_colors: Vec::new(),
 
             exposed_image: Some(
                 cairo::ImageSurface::create(
@@ -94,6 +98,8 @@ impl WaveformImage {
         self.is_ready = false;
         self.shareable_state_changed = false;
 
+        self.channel_colors.clear();
+
         // self.exposed_image & self.working_image
         // will be cleaned on next with draw
         self.image_width = 0;
@@ -116,6 +122,27 @@ impl WaveformImage {
         self.sample_step = 0;
         self.x_step_f = 0f64;
         self.x_step = 0;
+    }
+
+    pub fn set_channels(&mut self, channels: &[AudioChannel]) {
+        for channel in channels {
+            self.channel_colors.push(
+                match channel.side {
+                    AudioChannelSide::Center => {
+                        (0f64, channel.factor, 0f64)
+                    },
+                    AudioChannelSide::Left => {
+                        (channel.factor, channel.factor, channel.factor)
+                    },
+                    AudioChannelSide::NotLocalized => {
+                        (0f64, 0f64, channel.factor)
+                    },
+                    AudioChannelSide::Right => {
+                        (channel.factor, 0f64, 0f64)
+                    },
+                }
+            );
+        }
     }
 
     pub fn update_dimensions(&mut self, sample_step_f: f64, width: i32, height: i32) {
@@ -479,7 +506,7 @@ impl WaveformImage {
                 if let Some((prev_first_x, prev_first_val)) = self.first.take() {
                     if (prev_first_x - last_added_x).abs() <= self.x_step_f {
                         // link new added samples with previous first sample
-                        WaveformImage::link_samples(&cr,
+                        self.link_samples(&cr,
                             last_added_x, &last_added_val,
                             prev_first_x, &prev_first_val,
                         );
@@ -583,7 +610,7 @@ impl WaveformImage {
                 if let Some((prev_last_x, prev_last_val)) = self.last.take() {
                     if (first_added_x - prev_last_x).abs() <= self.x_step_f {
                         // link new added samples with previous last sample
-                        WaveformImage::link_samples(&cr,
+                        self.link_samples(&cr,
                             prev_last_x, &prev_last_val,
                             first_added_x, &first_added_val,
                         );
@@ -681,7 +708,13 @@ impl WaveformImage {
         cr.scale(1f64, self.image_height_f / SAMPLES_RANGE);
     }
 
-    fn link_samples(
+    fn set_channel_color(&self, cr: &cairo::Context, channel: usize) {
+        if let Some(&(red, green, blue)) = self.channel_colors.get(channel) {
+            cr.set_source_rgba(red, green, blue, 0.8f64);
+        }
+    }
+
+    fn link_samples(&self,
         cr: &cairo::Context,
         from_x: f64, from_values: &[f64],
         to_x: f64, to_values: &[f64],
@@ -690,7 +723,9 @@ impl WaveformImage {
         cr.set_source_rgb(0f64, 0.8f64, 0f64);
 
         for channel in 0..from_values.len() {
-            // FIXME: change color
+            #[cfg(not(test))]
+            self.set_channel_color(cr, channel);
+
             cr.move_to(from_x, from_values[channel]);
             cr.line_to(to_x, to_values[channel]);
             cr.stroke();
@@ -721,11 +756,11 @@ impl WaveformImage {
     {
         // Stroke selected samples
         cr.set_line_width(0.5f64);
-        cr.set_source_rgb(0.8f64, 0.8f64, 0.8f64);
 
         #[cfg(test)]
         {   // in test mode, draw marks at
             // the start and end of each chunk
+            cr.set_source_rgb(1f64, 1f64, 0f64);
             cr.move_to(first_x, 0f64);
             cr.line_to(first_x, SAMPLES_OFFSET);
             cr.stroke();
@@ -736,8 +771,6 @@ impl WaveformImage {
 
         let mut x = first_x;
         for channel in 0..audio_buffer.channels {
-            // TODO: change color depending on the channel position
-
             let mut sample_iter =
                 match audio_buffer.iter(lower, upper, self.sample_step, channel) {
                     Some(sample_iter) =>
@@ -748,6 +781,8 @@ impl WaveformImage {
                         },
                     None => return None,
                 };
+
+            self.set_channel_color(cr, channel);
 
             x = first_x;
             let mut sample_value =
@@ -769,7 +804,7 @@ impl WaveformImage {
         #[cfg(test)]
         {   // in test mode, draw marks at
             // the start and end of each chunk
-            cr.set_source_rgb(1f64, 0f64, 0f64);
+            cr.set_source_rgb(1f64, 0f64, 1f64);
             cr.move_to(x, SAMPLES_OFFSET);
             cr.line_to(x, SAMPLES_RANGE);
             cr.stroke();

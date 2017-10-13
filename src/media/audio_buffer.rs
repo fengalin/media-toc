@@ -14,7 +14,6 @@ pub struct AudioBuffer {
     buffer_duration: u64,
     capacity: usize,
     pub sample_duration: u64,
-    pub duration_for_1000_samples: f64,
     pub channels: usize,
     drain_size: usize,
 
@@ -37,7 +36,6 @@ impl AudioBuffer {
             buffer_duration: buffer_duration,
             capacity: 0,
             sample_duration: 0,
-            duration_for_1000_samples: 0f64,
             channels: 0,
             drain_size: 0,
 
@@ -52,20 +50,12 @@ impl AudioBuffer {
         }
     }
 
-    pub fn set_caps(&mut self, caps: &gst::Caps) {
-        let structure = caps.get_structure(0)
-            .expect("Couldn't get structure from audio caps");
-        let rate = structure.get::<i32>("rate")
-            .expect("Couldn't get rate from audio caps");
-
+    pub fn init(&mut self, rate: u64, channels: usize) {
         // assert_eq!(format, S16);
         // assert_eq!(layout, Interleaved);
-        self.channels = structure.get::<i32>("channels")
-            .expect("Couldn't get channels from audio sample")
-            as usize;
 
-        self.sample_duration = 1_000_000_000 / (rate as u64);
-        self.duration_for_1000_samples = 1_000_000_000_000f64 / (rate as f64);
+        self.sample_duration = 1_000_000_000 / rate;
+        self.channels = channels;
         self.capacity =
             (self.buffer_duration / self.sample_duration) as usize
             * self.channels;
@@ -82,7 +72,6 @@ impl AudioBuffer {
         self.upper = 0;
         self.channels = 0;
         self.sample_duration = 0;
-        self.duration_for_1000_samples = 0f64;
         self.capacity = 0;
         self.samples.clear();
         self.drain_size = 0;

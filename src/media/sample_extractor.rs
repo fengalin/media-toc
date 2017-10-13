@@ -5,10 +5,11 @@ use std::any::Any;
 
 use std::boxed::Box;
 
-use super::AudioBuffer;
+use super::{AudioBuffer, AudioChannel};
 
 pub struct SampleExtractionState {
     pub sample_duration: u64,
+    pub duration_for_1000_samples: f64,
     audio_sink: Option<gst::Element>,
     position_query: gst::Query,
 }
@@ -17,6 +18,7 @@ impl SampleExtractionState {
     pub fn new() -> Self {
         SampleExtractionState {
             sample_duration: 0,
+            duration_for_1000_samples: 0f64,
             audio_sink: None,
             position_query: gst::Query::new_position(gst::Format::Time),
         }
@@ -25,6 +27,13 @@ impl SampleExtractionState {
     pub fn set_audio_sink(&mut self, audio_sink: gst::Element) {
         self.audio_sink = Some(audio_sink);
     }
+
+    pub fn cleanup(&mut self) {
+        // clear for reuse
+        self.sample_duration = 0;
+        self.duration_for_1000_samples = 0f64;
+        self.audio_sink = None;
+    }
 }
 
 pub trait SampleExtractor: Send {
@@ -32,17 +41,18 @@ pub trait SampleExtractor: Send {
     fn get_extraction_state(&self) -> &SampleExtractionState;
     fn get_extraction_state_mut(&mut self) -> &mut SampleExtractionState;
 
-    fn cleanup_state(&mut self) {
-        // clear for reuse
-        let state = self.get_extraction_state_mut();
-        state.sample_duration = 0;
-        state.audio_sink = None;
-    }
-
     fn cleanup(&mut self);
 
     fn set_audio_sink(&mut self, audio_sink: gst::Element) {
         self.get_extraction_state_mut().set_audio_sink(audio_sink);
+    }
+
+    fn set_channels(&mut self, channels: &[AudioChannel]);
+
+    fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64) {
+        let state = self.get_extraction_state_mut();
+        state.sample_duration = per_sample;
+        state.duration_for_1000_samples = per_1000_samples;
     }
 
     fn get_lower(&self) -> usize;

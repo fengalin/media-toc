@@ -8,6 +8,7 @@ extern crate byteorder;
 
 extern crate glib;
 extern crate gstreamer;
+extern crate gstreamer_audio;
 extern crate gtk;
 
 extern crate byte_slice_cast;
