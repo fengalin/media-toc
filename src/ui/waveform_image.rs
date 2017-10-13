@@ -754,7 +754,6 @@ impl WaveformImage {
         first_x: f64,
     ) -> Option<((f64, Vec<f64>), (f64, Vec<f64>))>
     {
-        // Stroke selected samples
         cr.set_line_width(0.5f64);
 
         #[cfg(test)]
@@ -843,7 +842,6 @@ mod tests {
     extern crate cairo;
 
     extern crate gstreamer as gst;
-    extern crate gstreamer_audio as gst_audio;
 
     use std::fs::{create_dir, File};
     use std::io::ErrorKind;
