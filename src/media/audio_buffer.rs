@@ -419,7 +419,7 @@ impl<'a> Iter<'a> {
                 slice0_len: len0,
                 slice1: slices.1,
                 idx: (lower - buffer.lower) * buffer.channels + channel,
-                upper: (upper - buffer.lower) * buffer.channels,
+                upper: (upper - buffer.lower) * buffer.channels + channel,
                 step: sample_step * buffer.channels,
             })
         } else {
