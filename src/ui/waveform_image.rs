@@ -230,7 +230,7 @@ impl WaveformImage {
         {   // current samples extraction doesn't overlap with samples in previous image
             self.force_redraw = true;
 
-            #[cfg(feature = "trace-waveform-rendering")]
+            #[cfg(any(test, feature = "trace-waveform-rendering"))]
             {
                 println!("WaveformImage{}::render no overlap self.lower {}, self.upper {}",
                     self.id, self.lower, self.upper
@@ -262,7 +262,7 @@ impl WaveformImage {
                 self.image_height = self.req_height;
                 self.image_height_f = self.req_height as f64;
 
-                #[cfg(feature = "trace-waveform-rendering")]
+                #[cfg(any(test, feature = "trace-waveform-rendering"))]
                 println!("WaveformImage{}::render new images w {}, h {}",
                     self.id, target_width, self.req_height
                 );
@@ -432,7 +432,17 @@ impl WaveformImage {
         self.translate_previous(cr, previous_image, x_offset);
         self.set_scale(&cr);
 
-        self.first = self.first.take().map(|(x, values)| (x + x_offset, values));
+        self.first = match self.first.take() {
+            Some((mut x, values)) => {
+                x += x_offset;
+                self.clear_area(&cr, 0f64, x);
+                Some((x, values))
+            },
+            None => {
+                self.clear_area(&cr, 0f64, x_offset);
+                None
+            },
+        };
         self.last = match self.last.take() {
             Some((x, y)) => {
                 let next_last_pixel = x + x_offset;
@@ -443,18 +453,25 @@ impl WaveformImage {
                     // last out of image
                     // get sample from previous image
                     // which is now bound to last pixel in current image
-                    let new_last_pixel = self.image_width_f - 1f64 - x_offset;
-                    self.get_sample_and_values_at(new_last_pixel, audio_buffer)
-                        .map(|(sample, values)| {
-                            self.upper = sample;
-                            (self.image_width_f, values)
-                        })
+                    self.get_sample_and_values_at(
+                        self.image_width_f - 1f64 - x_offset,
+                        audio_buffer
+                    ).map(|(last_sample, values)| {
+                        self.upper = audio_buffer.upper.min(
+                                last_sample + self.sample_step
+                            );
+                        // align on the first pixel for the sample
+                        let new_last_pixel = (
+                            (self.image_width - 1) as usize
+                            / self.x_step * self.x_step
+                        ) as f64;
+                        self.clear_area(&cr, new_last_pixel, self.image_width_f);
+                        (new_last_pixel, values)
+                    })
                 }
             },
             None => None,
         };
-
-        self.clear_area(&cr, 0f64, x_offset);
 
         match self.draw_samples(cr, audio_buffer, lower, self.lower, 0f64) {
             Some(((first_added_x, first_added_val), (last_added_x, last_added_val))) =>
@@ -555,7 +572,10 @@ impl WaveformImage {
         let first_x_to_draw =
             ((first_sample_to_draw - self.lower) / self.sample_step * self.x_step) as f64;
 
-        self.clear_area(&cr, first_x_to_draw, f64::from(previous_image.get_width()));
+        match self.last.as_ref() {
+            Some(&(x, ref _values)) => self.clear_area(&cr, x, self.image_width_f),
+            None => self.clear_area(&cr, first_x_to_draw, self.image_width_f),
+        };
 
         match self.draw_samples(cr, audio_buffer, first_sample_to_draw, upper, first_x_to_draw) {
             Some(((first_added_x, first_added_val), (last_added_x, last_added_val))) =>
@@ -613,9 +633,7 @@ impl WaveformImage {
         x: f64,
         audio_buffer: &AudioBuffer
     ) -> Option<(usize, Vec<f64>)> {
-        let sample =
-            self.lower
-            + (x as usize) / self.x_step * self.sample_step;
+        let sample = self.lower + (x as usize) / self.x_step * self.sample_step;
 
         #[cfg(test)]
         {
@@ -869,9 +887,12 @@ mod tests {
         last: usize,
         segement_lower: usize,
         sample_window: usize,
-        keep_the_end: bool,
+        can_scroll: bool,
     ) {
         println!("\n*** {}", prefix);
+
+        let incoming_lower = segement_lower + first;
+        let incoming_upper = segement_lower + last;
 
         audio_buffer.push_samples(
             &build_buffer(first, last),
@@ -879,18 +900,48 @@ mod tests {
             segement_lower,
             &caps
         );
-        let lower_to_extract =
-            if keep_the_end && audio_buffer.upper
-                > audio_buffer.lower + sample_window
-            {
-                audio_buffer.upper - sample_window
+
+        let (lower_to_extract, upper_to_extract) =
+            if can_scroll {
+                // scrolling is allowed
+                // buffer fits in image completely
+                if incoming_upper > waveform.upper {
+                    // incoming samples extend waveform on the right
+                    if incoming_lower > waveform.lower {
+                        // incoming samples extend waveform on the right only
+                        if audio_buffer.upper > audio_buffer.lower + sample_window {
+                            (audio_buffer.upper - sample_window, audio_buffer.upper)
+                        } else {
+                            (audio_buffer.lower, audio_buffer.upper)
+                        }
+                    } else {
+                        // incoming samples extend waveform on both sides
+                        (audio_buffer.upper - sample_window, audio_buffer.upper)
+                    }
+                } else {
+                    // incoming samples ends before current waveform's end
+                    if incoming_lower >= waveform.lower {
+                        // incoming samples are contained in current waveform
+                        (waveform.lower, waveform.upper)
+                    } else {
+                        // incoming samples extend current waveform on the left only
+                        (incoming_lower, waveform.upper.min(incoming_lower + sample_window))
+                    }
+                }
             } else {
-                audio_buffer.lower
+                // scrolling not allowed
+                // => render a waveform that contains previous waveform
+                //    + incoming sample
+                (incoming_lower.min(waveform.lower), incoming_upper.max(waveform.upper))
             };
 
+
+        println!("Rendering: [{}, {}] incoming [{}, {}]",
+            lower_to_extract, upper_to_extract, incoming_lower, incoming_upper
+        );
         waveform.render(&audio_buffer,
             lower_to_extract,
-            audio_buffer.upper,
+            upper_to_extract,
         );
 
         let image = waveform.get_image();
@@ -913,14 +964,14 @@ mod tests {
         let samples_window = SAMPLE_RATE as usize;
 
         render_with_samples("additive_0", &mut waveform, &mut audio_buffer, &caps,
-            100, 200, 100, samples_window, false);
+            100, 200, 100, samples_window, true);
         // overlap on the left and on the right
         render_with_samples("additive_1", &mut waveform, &mut audio_buffer, &caps,
-            50, 100, 50, samples_window, false);
+            50, 100, 50, samples_window, true);
         // overlap on the left
         render_with_samples("additive_2", &mut waveform, &mut audio_buffer, &caps,
-            0, 100, 0, samples_window, false);
-        // overlap on the right
+            0, 100, 0, samples_window, true);
+        // scrolling and overlap on the right
         render_with_samples("additive_3", &mut waveform, &mut audio_buffer, &caps,
             150, 340, 150, samples_window, true);
 
@@ -935,10 +986,10 @@ mod tests {
         let samples_window = SAMPLE_RATE as usize;
 
         render_with_samples("link_0", &mut waveform, &mut audio_buffer, &caps,
-            100, 200, 100, samples_window, false);
+            100, 200, 100, samples_window, true);
         // append to the left
         render_with_samples("link_1", &mut waveform, &mut audio_buffer, &caps,
-            25, 125, 0, samples_window, false);
+            25, 125, 0, samples_window, true);
         // appended to the right
         render_with_samples("link_2", &mut waveform, &mut audio_buffer, &caps,
             175, 275, 200, samples_window, true);
@@ -950,7 +1001,7 @@ mod tests {
         let samples_window = SAMPLE_RATE as usize;
 
         render_with_samples("seek_0", &mut waveform, &mut audio_buffer, &caps,
-            0, 100, 100, samples_window, false);
+            0, 100, 100, samples_window, true);
         // seeking forward
         render_with_samples("seek_1", &mut waveform, &mut audio_buffer, &caps,
             0, 100, 500, samples_window, true);
@@ -968,12 +1019,12 @@ mod tests {
         let samples_window = SAMPLE_RATE as usize;
 
         render_with_samples("oveflow_0", &mut waveform, &mut audio_buffer, &caps,
-            0, 200, 150, samples_window, false);
+            0, 200, 250, samples_window, true);
         // overflow on the left
         render_with_samples("oveflow_1", &mut waveform, &mut audio_buffer, &caps,
-            0, 150,   0, samples_window, false);
+            0, 300,   0, samples_window, true);
         // overflow on the right
         render_with_samples("oveflow_2", &mut waveform, &mut audio_buffer, &caps,
-            0, 200, 350, samples_window, true);
+            0, 100, 400, samples_window, true);
     }
 }
