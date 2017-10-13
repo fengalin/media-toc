@@ -854,7 +854,7 @@ mod tests {
     use ui::WaveformImage;
 
     const OUT_DIR: &'static str = "target/test";
-    const SAMPLE_RATE: i32 = 300;
+    const SAMPLE_RATE: u64 = 300;
     const SAMPLE_DYN:  i32 = 300;
 
     fn prepare_tests() {
@@ -870,23 +870,14 @@ mod tests {
         }
     }
 
-    fn init(sample_step_f: f64, width: i32) -> (AudioBuffer, gst::Caps, WaveformImage) {
+    fn init(sample_step_f: f64, width: i32) -> (AudioBuffer, WaveformImage) {
         gst::init().unwrap();
 
         prepare_tests();
 
         // AudioBuffer
         let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
-        let caps = gst::Caps::new_simple(
-            "audio/x-raw",
-            &[
-                ("format", &gst_audio::AUDIO_FORMAT_S16.to_string()),
-                ("layout", &"interleaved"),
-                ("channels", &2),
-                ("rate", &SAMPLE_RATE),
-            ],
-        );
-        audio_buffer.set_caps(&caps);
+        audio_buffer.init(SAMPLE_RATE, 2); //2 channels
 
         // WaveformImage
         let mut waveform = WaveformImage::new(0);
@@ -896,7 +887,7 @@ mod tests {
             SAMPLE_DYN
         );
 
-        (audio_buffer, caps, waveform)
+        (audio_buffer, waveform)
     }
 
     // Build a buffer 2 channels in the specified range
@@ -917,7 +908,6 @@ mod tests {
         prefix: &str,
         waveform: &mut WaveformImage,
         audio_buffer: &mut AudioBuffer,
-        caps: &gst::Caps,
         first: usize,
         last: usize,
         segement_lower: usize,
@@ -933,7 +923,6 @@ mod tests {
             &build_buffer(first, last),
             first,
             segement_lower,
-            &caps
         );
 
         let (lower_to_extract, upper_to_extract) =
@@ -995,71 +984,71 @@ mod tests {
 
     #[test]
     fn additive_draws() {
-        let (mut audio_buffer, caps, mut waveform) = init(1f64, 300);
+        let (mut audio_buffer, mut waveform) = init(1f64, 300);
         let samples_window = SAMPLE_RATE as usize;
 
-        render_with_samples("additive_0", &mut waveform, &mut audio_buffer, &caps,
+        render_with_samples("additive_0", &mut waveform, &mut audio_buffer,
             100, 200, 100, samples_window, true);
         // overlap on the left and on the right
-        render_with_samples("additive_1", &mut waveform, &mut audio_buffer, &caps,
+        render_with_samples("additive_1", &mut waveform, &mut audio_buffer,
             50, 100, 50, samples_window, true);
         // overlap on the left
-        render_with_samples("additive_2", &mut waveform, &mut audio_buffer, &caps,
+        render_with_samples("additive_2", &mut waveform, &mut audio_buffer,
             0, 100, 0, samples_window, true);
         // scrolling and overlap on the right
-        render_with_samples("additive_3", &mut waveform, &mut audio_buffer, &caps,
+        render_with_samples("additive_3", &mut waveform, &mut audio_buffer,
             150, 340, 150, samples_window, true);
 
         // scrolling and overlaping on the right
-        render_with_samples("additive_4", &mut waveform, &mut audio_buffer, &caps,
+        render_with_samples("additive_4", &mut waveform, &mut audio_buffer,
               0, 200, 250, samples_window, true);
     }
 
     #[test]
     fn link_between_draws() {
-        let (mut audio_buffer, caps, mut waveform) = init(1f64 / 5f64, 1480);
+        let (mut audio_buffer, mut waveform) = init(1f64 / 5f64, 1480);
         let samples_window = SAMPLE_RATE as usize;
 
-        render_with_samples("link_0", &mut waveform, &mut audio_buffer, &caps,
+        render_with_samples("link_0", &mut waveform, &mut audio_buffer,
             100, 200, 100, samples_window, true);
         // append to the left
-        render_with_samples("link_1", &mut waveform, &mut audio_buffer, &caps,
+        render_with_samples("link_1", &mut waveform, &mut audio_buffer,
             25, 125, 0, samples_window, true);
         // appended to the right
-        render_with_samples("link_2", &mut waveform, &mut audio_buffer, &caps,
+        render_with_samples("link_2", &mut waveform, &mut audio_buffer,
             175, 275, 200, samples_window, true);
     }
 
     #[test]
     fn seek() {
-        let (mut audio_buffer, caps, mut waveform) = init(1f64, 300);
+        let (mut audio_buffer, mut waveform) = init(1f64, 300);
         let samples_window = SAMPLE_RATE as usize;
 
-        render_with_samples("seek_0", &mut waveform, &mut audio_buffer, &caps,
+        render_with_samples("seek_0", &mut waveform, &mut audio_buffer,
             0, 100, 100, samples_window, true);
         // seeking forward
-        render_with_samples("seek_1", &mut waveform, &mut audio_buffer, &caps,
+        render_with_samples("seek_1", &mut waveform, &mut audio_buffer,
             0, 100, 500, samples_window, true);
         // additional samples
-        render_with_samples("seek_2", &mut waveform, &mut audio_buffer, &caps,
+        render_with_samples("seek_2", &mut waveform, &mut audio_buffer,
             100, 200, 600, samples_window, true);
         // additional samples
-        render_with_samples("seek_3", &mut waveform, &mut audio_buffer, &caps,
+        render_with_samples("seek_3", &mut waveform, &mut audio_buffer,
             200, 300, 700, samples_window, true);
     }
 
     #[test]
     fn oveflow() {
-        let (mut audio_buffer, caps, mut waveform) = init(1f64 / 5f64, 1500);
+        let (mut audio_buffer, mut waveform) = init(1f64 / 5f64, 1500);
         let samples_window = SAMPLE_RATE as usize;
 
-        render_with_samples("oveflow_0", &mut waveform, &mut audio_buffer, &caps,
+        render_with_samples("oveflow_0", &mut waveform, &mut audio_buffer,
             0, 200, 250, samples_window, true);
         // overflow on the left
-        render_with_samples("oveflow_1", &mut waveform, &mut audio_buffer, &caps,
+        render_with_samples("oveflow_1", &mut waveform, &mut audio_buffer,
             0, 300,   0, samples_window, true);
         // overflow on the right
-        render_with_samples("oveflow_2", &mut waveform, &mut audio_buffer, &caps,
+        render_with_samples("oveflow_2", &mut waveform, &mut audio_buffer,
             0, 100, 400, samples_window, true);
     }
 }

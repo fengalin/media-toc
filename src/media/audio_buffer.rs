@@ -8,11 +8,15 @@ use byte_slice_cast::AsSliceOf;
 use std::collections::vec_deque::VecDeque;
 
 #[cfg(test)]
+extern crate gstreamer_audio as gst_audio;
+
+#[cfg(test)]
 use byteorder::{ByteOrder, LittleEndian};
 
 pub struct AudioBuffer {
     buffer_duration: u64,
     capacity: usize,
+    rate: u64,
     pub sample_duration: u64,
     pub channels: usize,
     drain_size: usize,
@@ -35,6 +39,7 @@ impl AudioBuffer {
         AudioBuffer {
             buffer_duration: buffer_duration,
             capacity: 0,
+            rate: 0,
             sample_duration: 0,
             channels: 0,
             drain_size: 0,
@@ -54,6 +59,7 @@ impl AudioBuffer {
         // assert_eq!(format, S16);
         // assert_eq!(layout, Interleaved);
 
+        self.rate = rate;
         self.sample_duration = 1_000_000_000 / rate;
         self.channels = channels;
         self.capacity =
@@ -64,17 +70,18 @@ impl AudioBuffer {
     }
 
     pub fn cleanup(&mut self) {
+        self.capacity = 0;
+        self.rate = 0;
+        self.sample_duration = 0;
+        self.channels = 0;
+        self.drain_size = 0;
         self.eos = false;
         self.segement_lower = 0;
         self.last_buffer_pts = 0;
         self.last_buffer_upper = 0;
         self.lower = 0;
         self.upper = 0;
-        self.channels = 0;
-        self.sample_duration = 0;
-        self.capacity = 0;
         self.samples.clear();
-        self.drain_size = 0;
     }
 
     // Add samples from the GStreamer pipeline to the AudioBuffer
@@ -343,7 +350,6 @@ impl AudioBuffer {
         samples: &[i16],
         lower: usize,
         segment_lower: usize,
-        caps: &gst::Caps,
     ) {
         let mut samples_u8 = Vec::with_capacity(samples.len() * 2 * self.channels);
         let mut buf_u8 = [0; 2];
@@ -372,6 +378,17 @@ impl AudioBuffer {
         );
 
         let self_lower = self.lower;
+
+        let caps = gst::Caps::new_simple(
+            "audio/x-raw",
+            &[
+                ("format", &gst_audio::AUDIO_FORMAT_S16.to_string()),
+                ("layout", &"interleaved"),
+                ("channels", &(self.channels as i32)),
+                ("rate", &(self.rate as i32)),
+            ],
+        );
+
         self.push_gst_sample(
             gst::Sample::new(Some(buffer), Some(caps.clone()), Some(&segment), None),
             self_lower // never drain buffer in this test
@@ -455,27 +472,17 @@ impl<'a> Iterator for Iter<'a> {
 #[cfg(test)]
 mod tests {
     extern crate gstreamer as gst;
-    extern crate gstreamer_audio as gst_audio;
 
     use media::AudioBuffer;
 
-    const SAMPLE_RATE: i32 = 300;
+    const SAMPLE_RATE: u64 = 300;
 
     #[test]
     fn multiple_gst_samples() {
         gst::init().unwrap();
 
         let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
-        let caps = gst::Caps::new_simple(
-            "audio/x-raw",
-            &[
-                ("format", &gst_audio::AUDIO_FORMAT_S16.to_string()),
-                ("layout", &"interleaved"),
-                ("channels", &2),
-                ("rate", &SAMPLE_RATE),
-            ],
-        );
-        audio_buffer.set_caps(&caps);
+        audio_buffer.init(SAMPLE_RATE, 2); //2 channels
 
         // Build a buffer 2 channels in the specified range
         // which would be rendered as a diagonal on a Waveform image
@@ -491,7 +498,7 @@ mod tests {
         }
 
         println!("\n* samples [100:200] init");
-        audio_buffer.push_samples(&build_buffer(100, 200), 100, 100, &caps);
+        audio_buffer.push_samples(&build_buffer(100, 200), 100, 100);
         assert_eq!(audio_buffer.lower, 100);
         assert_eq!(audio_buffer.upper, 200);
         assert_eq!(
@@ -504,7 +511,7 @@ mod tests {
         );
 
         println!("* samples [50:100]: appending to the begining");
-        audio_buffer.push_samples(&build_buffer(50, 100), 50, 50, &caps);
+        audio_buffer.push_samples(&build_buffer(50, 100), 50, 50);
         assert_eq!(audio_buffer.lower, 50);
         assert_eq!(audio_buffer.upper, 200);
         assert_eq!(
@@ -517,7 +524,7 @@ mod tests {
         );
 
         println!("* samples [0:75]: overlaping on the begining");
-        audio_buffer.push_samples(&build_buffer(0, 75), 0, 0, &caps);
+        audio_buffer.push_samples(&build_buffer(0, 75), 0, 0);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 200);
         assert_eq!(
@@ -530,7 +537,7 @@ mod tests {
         );
 
         println!("* samples [200:300]: appending to the end - different segment");
-        audio_buffer.push_samples(&build_buffer(200, 300), 200, 200, &caps);
+        audio_buffer.push_samples(&build_buffer(200, 300), 200, 200);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 300);
         assert_eq!(
@@ -543,7 +550,7 @@ mod tests {
         );
 
         println!("* samples [250:275]: contained in current - different segment");
-        audio_buffer.push_samples(&build_buffer(250, 275), 250, 250, &caps);
+        audio_buffer.push_samples(&build_buffer(250, 275), 250, 250);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 300);
         assert_eq!(
@@ -556,7 +563,7 @@ mod tests {
         );
 
         println!("* samples [275:400]: overlaping on the end");
-        audio_buffer.push_samples(&build_buffer(275, 400), 275, 250, &caps);
+        audio_buffer.push_samples(&build_buffer(275, 400), 275, 250);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 400);
         assert_eq!(
@@ -569,7 +576,7 @@ mod tests {
         );
 
         println!("* samples [400:450]: appending to the end");
-        audio_buffer.push_samples(&build_buffer(400, 450), 400, 250, &caps);
+        audio_buffer.push_samples(&build_buffer(400, 450), 400, 250);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 450);
         assert_eq!(
