@@ -290,9 +290,11 @@ impl AudioController {
         // last position
         if let Some((last_x, last_pos)) = last_opt {
             let last_text = format!("{}", Timestamp::format(last_pos, false));
-            let last_text_width = 2f64 + cr.text_extents(&last_text).width;
+            // align to a 5px multiple box in order to avoid flickering
+            let last_text_width =
+                (cr.text_extents(&last_text).width / 5f64).ceil() * 5f64;
             if last_x + last_text_width > first_text_width + 10f64 {
-                // last test won't overlap with first text
+                // last text won't overlap with first text
                 cr.move_to(last_x - last_text_width, 30f64);
                 cr.show_text(&last_text);
             }
@@ -301,10 +303,10 @@ impl AudioController {
         if let Some((current_x, current_pos)) = cursor_opt {
             // draw current pos
             let cursor_text = format!("{}", Timestamp::format(current_pos, true));
-            let cursor_text_width = 10f64 + cr.text_extents(&cursor_text).width;
+            let cursor_text_width = 5f64 + cr.text_extents(&cursor_text).width;
             let cursor_text_x =
                 if current_x + cursor_text_width < width {
-                    current_x + 10f64
+                    current_x + 5f64
                 } else {
                     current_x - cursor_text_width
                 };
