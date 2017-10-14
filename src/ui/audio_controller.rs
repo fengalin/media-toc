@@ -290,11 +290,12 @@ impl AudioController {
         // last position
         if let Some((last_x, last_pos)) = last_opt {
             let last_text = format!("{}", Timestamp::format(last_pos, false));
-            // align to a 5px multiple box in order to avoid flickering
-            let last_text_width =
-                (cr.text_extents(&last_text).width / 5f64).ceil() * 5f64;
+            let last_text_width = cr.text_extents(&last_text).width;
             if last_x + last_text_width > first_text_width + 10f64 {
                 // last text won't overlap with first text
+                // align actual width to a 15px multiple box in order to avoid
+                // variations due to actual size of individual digits
+                let last_text_width = (last_text_width / 15f64).ceil() * 15f64;
                 cr.move_to(last_x - last_text_width, 30f64);
                 cr.show_text(&last_text);
             }
