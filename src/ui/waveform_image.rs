@@ -710,7 +710,7 @@ impl WaveformImage {
 
     fn set_channel_color(&self, cr: &cairo::Context, channel: usize) {
         if let Some(&(red, green, blue)) = self.channel_colors.get(channel) {
-            cr.set_source_rgba(red, green, blue, 0.8f64);
+            cr.set_source_rgba(red, green, blue, 0.68f64);
         }
     }
 
@@ -754,7 +754,14 @@ impl WaveformImage {
         first_x: f64,
     ) -> Option<((f64, Vec<f64>), (f64, Vec<f64>))>
     {
-        cr.set_line_width(0.5f64);
+        if self.x_step == 1 {
+            cr.set_line_width(1f64);
+        } else if self.x_step < 4 {
+            cr.set_line_width(1.5f64);
+        } else {
+            cr.set_line_join(cairo::LineJoin::Bevel);
+            cr.set_line_width(2f64);
+        }
 
         #[cfg(test)]
         {   // in test mode, draw marks at
@@ -786,17 +793,16 @@ impl WaveformImage {
             x = first_x;
             let mut sample_value =
                 WaveformImage::convert_sample(sample_iter.next().unwrap());
+            cr.move_to(x, sample_value);
             first_values.push(sample_value);
 
             for sample in sample_iter {
-                cr.move_to(x, sample_value);
                 x += self.x_step_f;
-                sample_value =
-                    WaveformImage::convert_sample(sample);
+                sample_value = WaveformImage::convert_sample(sample);
                 cr.line_to(x, sample_value);
-                cr.stroke();
             }
 
+            cr.stroke();
             last_values.push(sample_value);
         }
 
@@ -814,6 +820,7 @@ impl WaveformImage {
 
     // clear samples previously rendered
     fn draw_amplitude_0(&self, cr: &cairo::Context, first_x: f64, last_x: f64) {
+        cr.set_line_width(1f64);
         cr.set_source_rgb(
             AMPLITUDE_0_COLOR.0,
             AMPLITUDE_0_COLOR.1,
