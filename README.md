@@ -1,5 +1,5 @@
 # media-toc [![Build Status](https://travis-ci.org/fengalin/media-toc.svg?branch=master)](https://travis-ci.org/fengalin/media-toc) [![Build status](https://ci.appveyor.com/api/projects/status/eu9p6ggcflj89h3v?svg=true)](https://ci.appveyor.com/project/fengalin/media-toc)
-media-tOC is an application to build a table of contents from a media file or
+media-toc is an application to build a table of contents from a media file or
 to split a media file into chapters. It is primarily developped in Rust on Linux,
 it can be built on Windows and should also work on MacOS.
 
@@ -18,8 +18,13 @@ chapters list.
 - Zoom in/out the waveform on the time axis.
 
 ## <a name='ui'></a>Screenshots
+### UI with a video file
 ![media-toc UI Video](assets/media-toc_video.png)
+
+### UI with an audio file
 ![media-toc UI Audio](assets/media-toc_audio.png)
+
+### Waveform showing 5.1 audio channels
 ![media-toc Waveform 5.1 audio channels](assets/waveform_5.1_audio_channels.png)
 
 # Technologies
