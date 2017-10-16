@@ -1,15 +1,15 @@
 # media-toc [![Build Status](https://travis-ci.org/fengalin/media-toc.svg?branch=master)](https://travis-ci.org/fengalin/media-toc) [![Build status](https://ci.appveyor.com/api/projects/status/eu9p6ggcflj89h3v?svg=true)](https://ci.appveyor.com/project/fengalin/media-toc)
 media-toc is an application to build a table of contents from a media file or
-to split a media file into chapters. It is primarily developped in Rust on Linux,
+to split a media file into chapters. It is primarily developed in Rust on Linux,
 it can be built on Windows and should also work on MacOS.
 
-media-tOC is not fonctional yet, see the [Status section](#status) below. Of course,
+media-toc is not functional yet, see the [Status section](#status) below. Of course,
 you can contribute to the project if you find it interesting.
 
 ## <a name='status'></a>Status
 At the moment, **media-toc** can:
 - Open a media file: display metadata from the media, the cover image, the first
-video frame, the chapters list and marks at the begining of each chapter on the
+video frame, the chapters list and marks at the beginning of each chapter on the
 timeline.
 - Play/Pause the audio and video, draw the audio waveform and select current
 chapter in the list while playing.
@@ -28,7 +28,7 @@ chapters list.
 ![media-toc Waveform 5.1 audio channels](assets/waveform_5.1_audio_channels.png)
 
 # Technologies
-**media-toc** is developped in Rust and uses the following technologies:
+**media-toc** is developed in Rust and uses the following technologies:
 - **GTK-3** ([official documentation](https://developer.gnome.org/gtk3/stable/),
 [Rust binding](http://gtk-rs.org/docs/gtk/)) and [Glade](https://glade.gnome.org/).
 - **Cairo** ([official documentation](https://www.cairographics.org/documentation/),
