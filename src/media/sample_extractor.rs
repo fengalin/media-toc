@@ -9,7 +9,7 @@ use super::{AudioBuffer, AudioChannel};
 
 pub struct SampleExtractionState {
     pub sample_duration: u64,
-    pub duration_for_1000_samples: f64,
+    pub duration_per_1000_samples: f64,
     audio_sink: Option<gst::Element>,
     position_query: gst::Query,
 }
@@ -18,7 +18,7 @@ impl SampleExtractionState {
     pub fn new() -> Self {
         SampleExtractionState {
             sample_duration: 0,
-            duration_for_1000_samples: 0f64,
+            duration_per_1000_samples: 0f64,
             audio_sink: None,
             position_query: gst::Query::new_position(gst::Format::Time),
         }
@@ -31,7 +31,7 @@ impl SampleExtractionState {
     pub fn cleanup(&mut self) {
         // clear for reuse
         self.sample_duration = 0;
-        self.duration_for_1000_samples = 0f64;
+        self.duration_per_1000_samples = 0f64;
         self.audio_sink = None;
     }
 }
@@ -49,11 +49,7 @@ pub trait SampleExtractor: Send {
 
     fn set_channels(&mut self, channels: &[AudioChannel]);
 
-    fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64) {
-        let state = self.get_extraction_state_mut();
-        state.sample_duration = per_sample;
-        state.duration_for_1000_samples = per_1000_samples;
-    }
+    fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64);
 
     fn get_lower(&self) -> usize;
 

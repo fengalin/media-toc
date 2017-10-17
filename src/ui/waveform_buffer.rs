@@ -35,10 +35,6 @@ impl DoubleWaveformBuffer {
 // Whenever possible, the WaveformBuffer attempts to have the Waveform scroll
 // between frames with current playback position in the middle so that the
 // user can seek forward or backward around current position.
-// Since the nominal update is such that the Waveform scrolls between updates,
-// two images are used. Whenever possible, the next image to expose to the UI
-// is initialized as a translation of previous image and updated with missing
-// samples.
 pub struct WaveformBuffer {
     state: SampleExtractionState,
     shareable_state_changed: bool,
@@ -53,9 +49,11 @@ pub struct WaveformBuffer {
     first_visible_sample_lock: Option<i64>,
     sought_sample: Option<usize>,
 
+    req_duration_per_1000px: f64,
+    width: f64,
+    sample_step_f: f64,
     req_sample_window: usize,
     half_req_sample_window: usize,
-    width: f64,
 }
 
 impl WaveformBuffer {
@@ -74,9 +72,11 @@ impl WaveformBuffer {
             first_visible_sample_lock: None,
             sought_sample: None,
 
+            req_duration_per_1000px: 0f64,
+            width: 0f64,
+            sample_step_f: 0f64,
             req_sample_window: 0,
             half_req_sample_window: 0,
-            width: 0f64,
         }
     }
 
@@ -250,9 +250,9 @@ impl WaveformBuffer {
                             Some(self.image.lower)
                         }
                     }
-                }
-                else {
+                } else {
                     // current sample appears before buffer first sample
+                    println!("WaveformBuffer: current sample appears before buffer first sample");
                     None
                 }
             } else {
@@ -267,26 +267,19 @@ impl WaveformBuffer {
         width: i32,
         height: i32
     ) {
-        // compute a sample step which will produce an interger number of
-        // samples per pixel or an integer number of pixels per samples
-        let sample_step_f =
-            if duration_per_1000px >= self.state.duration_for_1000_samples {
-                (duration_per_1000px / self.state.duration_for_1000_samples).floor()
+        let mut have_changed =
+            if duration_per_1000px == self.req_duration_per_1000px {
+                false
             } else {
-                1f64
-                / (self.state.duration_for_1000_samples / duration_per_1000px).ceil()
+                self.req_duration_per_1000px = duration_per_1000px;
+                self.update_sample_step();
+                true
             };
 
-        // force sample window to an even number of samples
-        // so that the cursor can be centered
-        // and make sure to cover at least the width requested
         let width_f = width as f64;
-        let half_req_sample_window =
-            (sample_step_f * width_f / 2f64) as usize;
-        let req_sample_window = half_req_sample_window * 2;
-
         if width_f != self.width {
-            // sample window has changed => zoom
+            // window width has changed => zoom
+            have_changed |= true;
 
             // first_visible_sample is no longer reliable
             self.first_visible_sample = None;
@@ -311,14 +304,44 @@ impl WaveformBuffer {
             self.width = width_f;
         }
 
-        if req_sample_window != self.req_sample_window {
-            self.shareable_state_changed = true;
+        if have_changed {
+            // width / zoom have changed
+            self.update_sample_window();
         }
+
+        self.image.update_dimensions(self.sample_step_f, width, height);
+    }
+
+    fn update_sample_step(&mut self) {
+        // compute a sample step which will produce an interger number of
+        // samples per pixel or an integer number of pixels per samples
+
+        self.sample_step_f =
+            if self.req_duration_per_1000px >= self.state.duration_per_1000_samples {
+                (self.req_duration_per_1000px / self.state.duration_per_1000_samples).floor()
+            } else {
+                1f64
+                / (self.state.duration_per_1000_samples / self.req_duration_per_1000px).ceil()
+            };
+        self.shareable_state_changed = true;
+    }
+
+    fn update_sample_window(&mut self) {
+        // force sample window to an even number of samples
+        // so that the cursor can be centered
+        // and make sure to cover at least the width requested
+        let half_req_sample_window =
+            (self.sample_step_f * self.width / 2f64) as usize;
+        let req_sample_window = half_req_sample_window * 2;
+
+        #[cfg(feature = "trace-waveform-buffer")]
+        println!("WaveformBuffer{}::update_sample_window smpl.window prev. {}, new {}",
+            self.image.id, self.req_sample_window, req_sample_window
+        );
 
         self.req_sample_window = req_sample_window;
         self.half_req_sample_window = half_req_sample_window;
-
-        self.image.update_dimensions(sample_step_f, width, height);
+        self.shareable_state_changed = true;
     }
 
     // Get the waveform as an image in current conditions.
@@ -486,9 +509,18 @@ impl SampleExtractor for WaveformBuffer {
         self.first_visible_sample_lock = None;
         self.sought_sample = None;
 
+        self.req_duration_per_1000px = 0f64;
+        self.width = 0f64;
+        self.sample_step_f = 0f64;
         self.req_sample_window = 0;
         self.half_req_sample_window = 0;
-        self.width = 0f64;
+    }
+
+
+    fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64) {
+        self.state.sample_duration = per_sample;
+        self.state.duration_per_1000_samples = per_1000_samples;
+        self.update_sample_step();
     }
 
     fn set_channels(&mut self, channels: &[AudioChannel]) {
@@ -506,9 +538,11 @@ impl SampleExtractor for WaveformBuffer {
             self.current_sample = other.current_sample;
             self.current_position = other.current_position;
 
+            self.req_duration_per_1000px = other.req_duration_per_1000px;
+            self.width = other.width;
+            self.sample_step_f = other.sample_step_f;
             self.req_sample_window = other.req_sample_window;
             self.half_req_sample_window = other.half_req_sample_window;
-            self.width = other.width;
 
             other.shareable_state_changed = false;
         } // else: other has nothing new

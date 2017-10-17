@@ -32,6 +32,7 @@ profiling-audio-queue = []
 profiling-tracker = []
 profile-waveform-image = []
 trace-waveform-rendering = []
+trace-waveform-buffer = []
 default-features = []
 
 [dev-dependencies]

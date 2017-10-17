@@ -21,7 +21,7 @@ const SAMPLES_OFFSET: f64 = SAMPLES_RANGE / 2f64;
 const SAMPLES_SCALE_FACTOR: f64 = SAMPLES_OFFSET / (i16::MAX as f64);
 
 pub struct WaveformImage {
-    id: usize,
+    pub id: usize,
     pub is_ready: bool,
     pub shareable_state_changed: bool,
 
@@ -125,6 +125,9 @@ impl WaveformImage {
     }
 
     pub fn set_channels(&mut self, channels: &[AudioChannel]) {
+        #[cfg(feature = "trace-waveform-rendering")]
+        println!("WaveformImage{}::set_channels {}", self.id, channels.len());
+
         for channel in channels {
             self.channel_colors.push(
                 match channel.side {
