@@ -33,6 +33,7 @@ profiling-tracker = []
 profile-waveform-image = []
 trace-waveform-rendering = []
 trace-waveform-buffer = []
+trace-audio_buffer = []
 default-features = []
 
 [dev-dependencies]
