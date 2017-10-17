@@ -518,9 +518,14 @@ impl SampleExtractor for WaveformBuffer {
 
 
     fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64) {
+        #[cfg(feature = "trace-waveform-buffer")]
+        println!("WaveformBuffer{}::set_sample_duration per_sample {}",
+            self.image.id, per_sample
+        );
         self.state.sample_duration = per_sample;
         self.state.duration_per_1000_samples = per_1000_samples;
         self.update_sample_step();
+        self.update_sample_window();
     }
 
     fn set_channels(&mut self, channels: &[AudioChannel]) {
