@@ -228,7 +228,10 @@ impl AudioController {
 
         let allocation = drawingarea.get_allocation();
         if allocation.width.is_negative() {
-            println!("negative allocation.width: {}", allocation.width);
+            #[cfg(feature = "trace-audio_controller")]
+            println!("AudioController::draw negative allocation.width: {}", allocation.width);
+
+            AudioController::clean_cairo_context(cr);
             return Inhibit(true);
         }
 
@@ -267,6 +270,10 @@ impl AudioController {
                 },
                 None => {
                     AudioController::clean_cairo_context(cr);
+
+                    #[cfg(feature = "trace-audio_controller")]
+                    println!("AudioController::draw no image");
+
                     return Inhibit(true)
                 },
             }
