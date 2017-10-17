@@ -89,7 +89,7 @@ impl AudioBuffer {
     // in order to be able to represent the audio at any given precision.
     // Samples are stores as f64 suitable for on screen rendering.
     // Incoming samples are merged to the existing buffer when possible
-    // Returns: number of samples added
+    // Returns: number of samples received
     pub fn push_gst_sample(&mut self,
         sample: gst::Sample,
         lower_to_keep: usize,
@@ -316,7 +316,7 @@ impl AudioBuffer {
             end.time().format("%H:%M:%S%.6f"),
         );
 
-        upper_to_add_rel - lower_to_add_rel // nb of samples added
+        buffer_sample_len // nb of samples received
     }
 
     pub fn handle_eos(&mut self) {
