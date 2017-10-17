@@ -238,16 +238,22 @@ impl WaveformImage {
             // first sample might be smaller than audio_buffer.lower
             // due to alignement on sample_step
             lower += self.sample_step;
-            if lower >= upper {
-                // can't draw with current range
-                // reset WaveformImage state
-                self.lower = 0;
-                self.upper = 0;
-                self.first = None;
-                self.last = None;
-                self.is_ready = false;
-                return;
-            }
+        }
+
+        if lower >= upper {
+            // can't draw current range
+            // reset WaveformImage state
+            #[cfg(any(test, feature = "trace-waveform-rendering"))]
+            println!("WaveformImage{}::render lower {} greater or equal upper {}",
+                self.id, lower, upper
+            );
+
+            self.lower = 0;
+            self.upper = 0;
+            self.first = None;
+            self.last = None;
+            self.is_ready = false;
+            return;
         }
 
         self.force_redraw |= !self.is_ready;
