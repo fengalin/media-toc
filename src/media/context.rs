@@ -247,7 +247,7 @@ impl Context {
         playback_queue.set_property("max-size-time", &gst::Value::from(&queue_duration)).unwrap();
         visu_queue.set_property("max-size-time", &gst::Value::from(&queue_duration)).unwrap();
 
-        #[cfg(feature = "profiling-audio-queue")]
+        #[cfg(feature = "trace-audio-queue")]
         visu_queue.connect("overrun", false, |_| {
             println!("Audio visu queue OVERRUN");
             None
@@ -306,6 +306,11 @@ impl Context {
                     &audio_sink
                 );
         }
+
+        #[cfg(feature = "trace-audio-caps")]
+        visu_sink_pad.connect_property_caps_notify( |pad| {
+            println!("{:?}", pad.get_property_caps());
+        });
 
         let dbl_audio_buffer_mtx_eos = Arc::clone(&dbl_audio_buffer_mtx);
         appsink.set_callbacks(gst_app::AppSinkCallbacks::new(
