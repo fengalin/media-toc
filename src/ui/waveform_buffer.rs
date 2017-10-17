@@ -252,7 +252,10 @@ impl WaveformBuffer {
                     }
                 } else {
                     // current sample appears before buffer first sample
-                    println!("WaveformBuffer: current sample appears before buffer first sample");
+                    #[cfg(feature = "trace-waveform-buffer")]
+                    println!("WaveformBuffer{}::update_first_visible_sample current sample {} appears before buffer first sample {}",
+                        self.image.id, self.current_sample, self.image.lower
+                    );
                     None
                 }
             } else {
@@ -420,8 +423,8 @@ impl WaveformBuffer {
             self.is_seeking = false;
 
             if audio_buffer.lower <= self.image.lower
-            && audio_buffer.upper >= self.image.upper {
-                // waveform contained in buffer
+            && audio_buffer.upper >= self.image.upper
+            {   // waveform contained in buffer
                 //println!("AudioWaveform seeking: waveform contained in buffer");
                 (
                     audio_buffer.lower,
@@ -578,14 +581,13 @@ impl SampleExtractor for WaveformBuffer {
         }
 
         let (lower_to_extract, upper_to_extract) =
-            if self.current_sample
-                >= lower + self.half_req_sample_window
-            && self.current_sample + self.half_req_sample_window
-                < upper
-            {   // Nominal case where the position can be centered on screen.
+            if self.current_sample >= lower
+            && self.current_sample < upper
+            {   // Nominal case where current position in contained
+                // in the available sample range
                 // Don't worry about possible first sample constraint here
                 // it will be dealt with when the image is actually drawn on screen.
-                let first_to_extract =
+                let lower_to_extract =
                     if let Some(first_visible_sample) = self.first_visible_sample_lock {
                         // an in-window seek constraint is pending
                         first_visible_sample as usize
@@ -595,14 +597,14 @@ impl SampleExtractor for WaveformBuffer {
                         lower
                     };
 
-                let last_to_extract =
+                let upper_to_extract =
                     if !audio_buffer.eos {
                         // Not the end of the stream yet:
                         // attempt to get a larger buffer in order to compensate
                         // for the delay when it will actually be drawn
                         // and for potential seek forward without lock
                         upper.min(
-                            first_to_extract
+                            lower_to_extract
                             + self.req_sample_window + self.half_req_sample_window
                         )
                     } else {
@@ -614,15 +616,34 @@ impl SampleExtractor for WaveformBuffer {
                         upper
                     };
                 (
-                    first_to_extract,
-                    last_to_extract,
+                    lower_to_extract,
+                    upper_to_extract,
+                )
+            } else if self.current_sample > upper {
+                // current_sample is after the end of the available samples
+                // use a window with last known samples so that
+                // we will catch up with the stream as soon as new
+                // samples get available
+                let lower_to_extract =
+                    if upper > self.req_sample_window {
+                        upper - self.req_sample_window
+                    } else {
+                        lower
+                    };
+
+                (
+                    lower.max(lower_to_extract),
+                    upper,
                 )
             } else {
-                // not enough samples for the requested window
-                // around current position
+                // current_sample is before the
+                // begining of the available samples
+                // use a window with first known samples so that
+                // we will catch up with the stream as soon as new
+                // samples get available
                 (
                     lower,
-                    upper,
+                    upper.min(lower + self.req_sample_window),
                 )
             };
 
