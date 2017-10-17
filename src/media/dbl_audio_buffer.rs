@@ -9,6 +9,8 @@ use std::sync::{Arc, Mutex};
 
 use super::{AudioBuffer, AudioChannel, SampleExtractor};
 
+const EXTRACTION_THRESHOLD: usize = 1024;
+
 // The DoubleBuffer is reponsible for ensuring a thread safe double buffering
 // mechanism that receives samples from GStreamer, prepares an extraction of
 // these samples and presents the most recent extraction to an external
@@ -22,6 +24,7 @@ use super::{AudioBuffer, AudioChannel, SampleExtractor};
 // are swapped.
 pub struct DoubleAudioBuffer {
     audio_buffer: AudioBuffer,
+    samples_since_last_extract: usize,
     exposed_buffer_mtx: Arc<Mutex<Box<SampleExtractor>>>,
     working_buffer: Option<Box<SampleExtractor>>,
     lower_to_keep: usize,
@@ -37,6 +40,7 @@ impl DoubleAudioBuffer {
     ) -> DoubleAudioBuffer {
         DoubleAudioBuffer {
             audio_buffer: AudioBuffer::new(buffer_duration),
+            samples_since_last_extract: 0,
             exposed_buffer_mtx: Arc::new(Mutex::new(exposed_buffer)),
             working_buffer: Some(working_buffer),
             lower_to_keep: 0,
@@ -50,6 +54,7 @@ impl DoubleAudioBuffer {
 
     pub fn cleanup(&mut self) {
         self.audio_buffer.cleanup();
+        self.samples_since_last_extract = 0;
 
         {
             let exposed_buffer = &mut self.exposed_buffer_mtx.lock()
@@ -111,10 +116,14 @@ impl DoubleAudioBuffer {
 
     pub fn push_gst_sample(&mut self, sample: gst::Sample) {
         // store incoming samples
-        self.audio_buffer.push_gst_sample(sample, self.lower_to_keep);
+        self.samples_since_last_extract +=
+            self.audio_buffer.push_gst_sample(sample, self.lower_to_keep);
 
-        // extract new samples and swap
-        self.extract_samples();
+        if self.samples_since_last_extract >= EXTRACTION_THRESHOLD {
+            // extract new samples and swap
+            self.extract_samples();
+            self.samples_since_last_extract = 0;
+        }
     }
 
     // Update the working extractor with new samples and swap.

@@ -89,10 +89,11 @@ impl AudioBuffer {
     // in order to be able to represent the audio at any given precision.
     // Samples are stores as f64 suitable for on screen rendering.
     // Incoming samples are merged to the existing buffer when possible
+    // Returns: number of samples added
     pub fn push_gst_sample(&mut self,
         sample: gst::Sample,
         lower_to_keep: usize,
-    ) {
+    ) -> usize {
         #[cfg(feature = "profiling-audio-buffer")]
         let start = Utc::now();
 
@@ -314,6 +315,8 @@ impl AudioBuffer {
             before_storage.time().format("%H:%M:%S%.6f"),
             end.time().format("%H:%M:%S%.6f"),
         );
+
+        upper_to_add_rel - lower_to_add_rel // nb of samples added
     }
 
     pub fn handle_eos(&mut self) {
