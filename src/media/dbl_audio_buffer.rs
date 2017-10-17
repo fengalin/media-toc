@@ -110,8 +110,6 @@ impl DoubleAudioBuffer {
         self.audio_buffer.handle_eos();
         // extract last samples and swap
         self.extract_samples();
-        // update second buffer too
-        self.extract_samples();
     }
 
     pub fn push_gst_sample(&mut self, sample: gst::Sample) {
