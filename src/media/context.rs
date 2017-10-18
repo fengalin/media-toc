@@ -64,7 +64,9 @@ pub struct Context {
 // FIXME: might need to `release_request_pad` on the tee
 impl Drop for Context {
     fn drop(&mut self) {
-        self.pipeline.remove(&*VIDEO_SINK).unwrap();
+        if let Some(video_sink) = self.pipeline.get_by_name("video_sink") {
+            self.pipeline.remove(&video_sink).unwrap();
+        }
     }
 }
 
