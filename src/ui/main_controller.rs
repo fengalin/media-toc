@@ -384,7 +384,6 @@ impl MainController {
         match Context::new(
             filepath,
             self.audio_ctrl.get_dbl_buffer_mtx(),
-            self.video_ctrl.video_box.clone(),
             ctx_tx
         ) {
             Ok(context) => {

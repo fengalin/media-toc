@@ -7,10 +7,11 @@ extern crate gstreamer_audio as gst_audio;
 extern crate gstreamer_app as gst_app;
 
 extern crate glib;
-use glib::{Cast, ObjectExt, ToValue};
+use glib::{Cast, ObjectExt};
 
 extern crate gtk;
-use gtk::{BoxExt, ContainerExt};
+
+extern crate lazy_static;
 
 use url::Url;
 
@@ -33,6 +34,14 @@ macro_rules! assign_str_tag(
     };
 );
 
+// The video_sink must be created in the main UI thread
+// as it contains a gtk::Widget
+// GLGTKSink not used because it causes flickerings on Xorg systems.
+lazy_static! {
+    static ref VIDEO_SINK: gst::Element =
+        ElementFactory::make("gtksink", "video_sink").unwrap();
+}
+
 pub enum ContextMessage {
     AsyncDone,
     Eos,
@@ -52,18 +61,20 @@ pub struct Context {
     pub info: Arc<Mutex<MediaInfo>>,
 }
 
-// FIXME: need to `release_request_pad` on the tee
-// maybe this should be done in a `drop`. At least, it
-// should be done before the pipeline is reconstructed
+// FIXME: might need to `release_request_pad` on the tee
+impl Drop for Context {
+    fn drop(&mut self) {
+        self.pipeline.remove(&*VIDEO_SINK).unwrap();
+    }
+}
+
 impl Context {
     pub fn new(
         path: PathBuf,
         dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
-        video_widget_box: gtk::Box,
         ctx_tx: Sender<ContextMessage>,
-    ) -> Result<Context, String>
-    {
-        println!("\n\n* Attempting to open {:?}", path);
+    ) -> Result<Context, String> {
+        println!("\n\n* Opening {:?}...", path);
 
         let mut ctx = Context {
             pipeline: gst::Pipeline::new("pipeline"),
@@ -77,14 +88,19 @@ impl Context {
             info: Arc::new(Mutex::new(MediaInfo::new())),
         };
 
-        ctx.build_pipeline(dbl_audio_buffer_mtx, video_widget_box);
-
+        ctx.build_pipeline(dbl_audio_buffer_mtx, (*VIDEO_SINK).clone());
         ctx.register_bus_inspector(ctx_tx);
 
         match ctx.pause() {
             Ok(_) => Ok(ctx),
             Err(error) => Err(error),
         }
+    }
+
+    pub fn get_video_widget() -> gtk::Widget {
+        let widget_val = (*VIDEO_SINK).get_property("widget").unwrap();
+        widget_val.get::<gtk::Widget>()
+            .expect("Failed to get GstGtkWidget glib::Value as gtk::Widget")
     }
 
     pub fn get_position(&mut self) -> u64 {
@@ -148,7 +164,7 @@ impl Context {
     // TODO: handle errors
     fn build_pipeline(&mut self,
         dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
-        video_widget_box: gtk::Box,
+        video_sink: gst::Element,
     ) {
         let src = gst::ElementFactory::make("uridecodebin", "input").unwrap();
         let url = match Url::from_file_path(self.path.as_path()) {
@@ -158,26 +174,7 @@ impl Context {
         src.set_property("uri", &gst::Value::from(&url)).unwrap();
         self.pipeline.add(&src).unwrap();
 
-        // audio sink init
         let audio_sink = gst::ElementFactory::make("autoaudiosink", "audio_playback_sink").unwrap();
-
-        // video sink init
-        let (video_sink, widget_val) = if let Some(gtkglsink) = ElementFactory::make("gtkglsink", None) {
-            let glsinkbin = ElementFactory::make("glsinkbin", "video_sink").unwrap();
-            glsinkbin.set_property("sink", &gtkglsink.to_value()).unwrap();
-            let widget_val = gtkglsink.get_property("widget").unwrap();
-            (glsinkbin, widget_val)
-        } else {
-            let sink = ElementFactory::make("gtksink", "video_sink").unwrap();
-            let widget_val = sink.get_property("widget").unwrap();
-            (sink, widget_val)
-        };
-        for child in video_widget_box.get_children() {
-            video_widget_box.remove(&child);
-        }
-        let widget = widget_val.get::<gtk::Widget>()
-            .expect("Failed to get GstGtkWidget glib::Value as gtk::Widget");
-        video_widget_box.pack_start(&widget, true, true, 0);
 
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
@@ -202,7 +199,7 @@ impl Context {
                 };
 
                 if is_first {
-                    Context::build_audio_pipeline(
+                    Context::build_audio_queue(
                         pipeline, src_pad, &audio_sink, dbl_audio_buffer_mtx.clone()
                     );
                 }
@@ -218,13 +215,13 @@ impl Context {
                 };
 
                 if is_first {
-                    Context::build_video_pipeline(pipeline, src_pad, &video_sink);
+                    Context::build_video_queue(pipeline, src_pad, &video_sink);
                 }
             }
         });
     }
 
-    fn build_audio_pipeline (
+    fn build_audio_queue (
         pipeline: &gst::Pipeline,
         src_pad: &gst::Pad,
         audio_sink: &gst::Element,
@@ -339,16 +336,16 @@ impl Context {
         ));
     }
 
-    fn build_video_pipeline(
+    fn build_video_queue(
         pipeline: &gst::Pipeline,
         src_pad: &gst::Pad,
-        video_sink: &gst::Element
+        video_sink: &gst::Element,
     ) {
         let queue = gst::ElementFactory::make("queue", None).unwrap();
         let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
         let scale = gst::ElementFactory::make("videoscale", None).unwrap();
 
-        let elements = &[&queue, &convert, &scale, &video_sink];
+        let elements = &[&queue, &convert, &scale, video_sink];
         pipeline.add_many(elements).unwrap();
         gst::Element::link_many(elements).unwrap();
 

@@ -17,7 +17,7 @@ pub struct InfoController {
     audio_codec_lbl: gtk::Label,
     video_codec_lbl: gtk::Label,
     duration_lbl: gtk::Label,
-    pub timeline_scale: gtk::Scale,
+    timeline_scale: gtk::Scale,
 
     chapter_treeview: gtk::TreeView,
     chapter_store: gtk::ListStore,

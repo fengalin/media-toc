@@ -5,13 +5,16 @@
 
 #[cfg(test)]
 extern crate byteorder;
+extern crate byte_slice_cast;
 
 extern crate glib;
 extern crate gstreamer;
 extern crate gstreamer_audio;
 extern crate gtk;
 
-extern crate byte_slice_cast;
+#[macro_use]
+extern crate lazy_static;
+
 extern crate url;
 
 #[cfg(any(

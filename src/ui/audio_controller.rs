@@ -25,7 +25,7 @@ const INIT_REQ_DURATION: f64 =  4_000_000_000f64; //  4 s  / 1000 px
 const STEP_REQ_DURATION: f64 =  2f64;
 
 pub struct AudioController {
-    container: gtk::Container,
+    container: gtk::Box,
     drawingarea: gtk::DrawingArea,
     zoom_in_btn: gtk::ToolButton,
     zoom_out_btn: gtk::ToolButton,

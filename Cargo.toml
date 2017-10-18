@@ -7,6 +7,7 @@ authors = ["fengalin <fengalin@free.fr>"]
 byte-slice-cast = "^0"
 chrono = "^0"
 image = "^0"
+lazy_static = "^0"
 url = "^1"
 
 cairo-rs = { git = "https://github.com/gtk-rs/cairo.git" }

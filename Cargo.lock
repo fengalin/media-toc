@@ -12,6 +12,7 @@ dependencies = [
  "gstreamer-audio 0.9.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
  "gtk 0.2.0 (git+https://github.com/gtk-rs/gtk.git)",
  "image 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lazy_static 0.2.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
