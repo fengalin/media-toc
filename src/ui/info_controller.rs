@@ -66,7 +66,6 @@ impl InfoController {
         this.cleanup();
 
         this.chapter_treeview.set_model(Some(&this.chapter_store));
-        this.add_chapter_column("Id", ID_COL as i32, false);
         this.add_chapter_column("Title", TITLE_COL as i32, true);
         this.add_chapter_column("Start", START_STR_COL as i32, false);
         this.add_chapter_column("End", END_STR_COL as i32, false);
@@ -196,12 +195,11 @@ impl InfoController {
             self.chapter_iter = None;
 
             // FIX for sample.mkv video: generate ids (TODO: remove)
-            for (id, chapter) in info.chapters.iter().enumerate() {
+            for chapter in info.chapters.iter() {
                 self.chapter_store.insert_with_values(
                     None, None,
-                    &[ID_COL, START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
+                    &[START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
                     &[
-                        &((id+1) as u32),
                         &chapter.start.nano_total,
                         &chapter.end.nano_total,
                         &chapter.title(),
@@ -408,9 +406,8 @@ impl InfoController {
                     let new_iter = self.chapter_store.insert_after(None, current_iter);
                     self.chapter_store.set(
                         &new_iter,
-                        &[ID_COL, START_COL, START_STR_COL, END_COL, END_STR_COL],
+                        &[START_COL, START_STR_COL, END_COL, END_STR_COL],
                         &[
-                            &99,
                             &position,
                             &Timestamp::format(position, false),
                             &current_end,
@@ -442,9 +439,8 @@ impl InfoController {
                         // what are they in the real world?
                         self.chapter_store.set(
                             &new_iter,
-                            &[ID_COL, START_COL, START_STR_COL, END_COL, END_STR_COL],
+                            &[START_COL, START_STR_COL, END_COL, END_STR_COL],
                             &[
-                                &0,
                                 &position,
                                 &Timestamp::format(position, false),
                                 &current_first_start,
