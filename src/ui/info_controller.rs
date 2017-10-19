@@ -532,7 +532,8 @@ impl InfoController {
             self.chapter_iter = Some(new_iter);
         } else {
             self.chapter_treeview.get_selection().unselect_all();
-            self.chapter_iter = None;
+            // set iter to first if any
+            self.chapter_iter = self.chapter_store.get_iter_first();
         }
 
         self.update_marks();
