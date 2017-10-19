@@ -110,7 +110,12 @@ impl InfoController {
 
         let main_ctrl_rc = Rc::clone(main_ctrl);
         self.add_chapter_btn.connect_clicked(move |_| {
-            main_ctrl_rc.borrow_mut().new_chapter();
+            main_ctrl_rc.borrow_mut().add_chapter();
+        });
+
+        let main_ctrl_rc = Rc::clone(main_ctrl);
+        self.del_chapter_btn.connect_clicked(move |_| {
+            main_ctrl_rc.borrow_mut().remove_chapter();
         });
 
         // Thumbnail draw
@@ -188,16 +193,10 @@ impl InfoController {
                 if !info.video_codec.is_empty() { &info.video_codec } else { "-" }
             );
 
-            self.timeline_scale.clear_marks();
             self.chapter_iter = None;
 
             // FIX for sample.mkv video: generate ids (TODO: remove)
             for (id, chapter) in info.chapters.iter().enumerate() {
-                self.timeline_scale.add_mark(
-                    chapter.start.nano_total as f64,
-                    gtk::PositionType::Top,
-                    None
-                );
                 self.chapter_store.insert_with_values(
                     None, None,
                     &[ID_COL, START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
@@ -212,6 +211,8 @@ impl InfoController {
                 );
             }
 
+            self.update_marks();
+
             self.chapter_iter = self.chapter_store.get_iter_first();
         }
 
@@ -221,6 +222,25 @@ impl InfoController {
         }
         else {
             self.drawingarea.hide();
+        }
+    }
+
+    fn update_marks(&self) {
+        self.timeline_scale.clear_marks();
+
+        if let Some(chapter_iter) = self.chapter_store.get_iter_first() {
+            let mut keep_going = true;
+            while keep_going {
+                let start =
+                    self.chapter_store.get_value(&chapter_iter, START_COL as i32)
+                        .get::<u64>().unwrap();
+                self.timeline_scale.add_mark(
+                    start as f64,
+                    gtk::PositionType::Top,
+                    None
+                );
+                keep_going = self.chapter_store.iter_next(&chapter_iter);
+            }
         }
     }
 
@@ -461,5 +481,64 @@ impl InfoController {
         // set chapter's iter as new
         self.chapter_treeview.get_selection().select_iter(&new_iter);
         self.chapter_iter = Some(new_iter);
+        self.update_marks();
+    }
+
+    pub fn remove_chapter(&mut self, position: u64) {
+        let new_iter_opt = match self.chapter_iter {
+            Some(ref current_iter) => {
+                // stream has chapters
+                let current_start =
+                    self.chapter_store.get_value(current_iter, START_COL as i32)
+                        .get::<u64>().unwrap();
+                let current_end =
+                    self.chapter_store.get_value(current_iter, END_COL as i32)
+                        .get::<u64>().unwrap();
+                if position >= current_start && position < current_end {
+                    // current position matches currently selected chapter
+                    let current_end_str =
+                        self.chapter_store.get_value(current_iter, END_STR_COL as i32)
+                            .get::<String>().unwrap();
+
+                    let previous_chapter = current_iter.clone();
+                    let has_previous_chapter =
+                        self.chapter_store.iter_previous(&previous_chapter);
+
+                    self.chapter_store.remove(current_iter);
+
+                    if has_previous_chapter {
+                        // update previous chapter
+                        self.chapter_store.set(
+                            &previous_chapter,
+                            &[END_COL, END_STR_COL],
+                            &[&current_end, &current_end_str],
+                        );
+                        Some(previous_chapter)
+                    } else {
+                        None
+                    }
+                } else {
+                    // current position is before or after current chapter
+                    // => this can occurs if the start of the first chapter
+                    //    doesn't match the beginning of the stream
+                    return;
+                }
+            },
+            None => {
+                // No chapter
+                return;
+            },
+        };
+
+        if let Some(new_iter) = new_iter_opt {
+            // set chapter's iter as new
+            self.chapter_treeview.get_selection().select_iter(&new_iter);
+            self.chapter_iter = Some(new_iter);
+        } else {
+            self.chapter_treeview.get_selection().unselect_all();
+            self.chapter_iter = None;
+        }
+
+        self.update_marks();
     }
 }

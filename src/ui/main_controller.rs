@@ -195,11 +195,18 @@ impl MainController {
         }
     }
 
-    pub fn new_chapter(&mut self) {
+    pub fn add_chapter(&mut self) {
         let position = self.context.as_mut()
             .expect("MainController::new_chapter no context while getting position")
             .get_position();
         self.info_ctrl.add_chapter(position);
+    }
+
+    pub fn remove_chapter(&mut self) {
+        let position = self.context.as_mut()
+            .expect("MainController::remove_chapter no context while getting position")
+            .get_position();
+        self.info_ctrl.remove_chapter(position);
     }
 
     fn select_media(&mut self) {
