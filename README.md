@@ -51,18 +51,18 @@ need the following packages installed on your OS:
 
 ### Fedora
 ```
-sudo dnf install gtk3-devel glib2-devel gstreamer1-devel gstreamer1-plugins-base-devel
+sudo dnf install gtk3-devel glib2-devel gstreamer1-devel gstreamer1-plugins-base-devel gstreamer1-plugins-good gstreamer1-plugins-bad-free-gtk
 ```
 
 ### Debian & Unbuntu
 ```
-sudo apt-get install libgtk-3-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+sudo apt-get install libgtk-3-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
 ```
 
 ### MacOS
 *Needs confirmation*
 ```
-brew install gtk+3 gstreamer-1.0-devel
+brew install gtk+3 gstreamer-1.0-devel gstreamer-1.0-plugins-good gstreamer-1.0-plugins-bad
 ```
 
 ### Windows
@@ -71,7 +71,7 @@ brew install gtk+3 gstreamer-1.0-devel
 Note: for a 32bits system, use `mingw-w64-i686-...`
 ```
 pacman -S mingw-w64-x86_64-toolchain base-devel mingw-w64-x86_64-gtk3 \
-    mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-plugins-base \
+    mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-plugins-base
 ```
 For the execution, you will also need (opencv seems necessary to play a video,
 anyone knows which package can pull it?):

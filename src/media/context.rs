@@ -39,7 +39,8 @@ macro_rules! assign_str_tag(
 // GLGTKSink not used because it causes flickerings on Xorg systems.
 lazy_static! {
     static ref VIDEO_SINK: gst::Element =
-        ElementFactory::make("gtksink", "video_sink").unwrap();
+        ElementFactory::make("gtksink", "video_sink")
+            .expect("Couldn't find GStreamer GTK video sink. Please install gstreamer1-plugins-bad-free-gtk or gstreamer1.0-plugins-bad, depenging on your distribution.");
 }
 
 pub enum ContextMessage {
