@@ -20,7 +20,7 @@ pub struct InfoController {
     timeline_scale: gtk::Scale,
 
     chapter_treeview: gtk::TreeView,
-    chapter_store: gtk::ListStore,
+    chapter_store: gtk::TreeStore,
     chapter_iter: Option<gtk::TreeIter>,
 
     thumbnail: Rc<RefCell<Option<ImageSurface>>>,
@@ -42,15 +42,7 @@ impl InfoController {
             timeline_scale: builder.get_object("timeline-scale").unwrap(),
 
             chapter_treeview: builder.get_object("chapter-treeview").unwrap(),
-            // columns: Id, Start, End, Title, StartStr, EndStr
-            chapter_store: gtk::ListStore::new(&[
-                gtk::Type::I32,
-                gtk::Type::U64,
-                gtk::Type::U64,
-                gtk::Type::String,
-                gtk::Type::String,
-                gtk::Type::String
-            ]),
+            chapter_store: builder.get_object("chapters-tree-store").unwrap(),
             chapter_iter: None,
 
             thumbnail: Rc::new(RefCell::new(None)),
@@ -66,6 +58,7 @@ impl InfoController {
 
         this
     }
+
 
     fn add_chapter_column(&self, title: &str, col_id: i32, can_expand: bool) {
         let col = gtk::TreeViewColumn::new();
@@ -186,7 +179,8 @@ impl InfoController {
                     None
                 );
                 self.chapter_store.insert_with_values(
-                    None, &[0, 1, 2, 3, 4, 5],
+                    None, None,
+                    &[0, 1, 2, 3, 4, 5],
                     &[
                         &((id+1) as u32),
                         &chapter.start.nano_total,
