@@ -32,124 +32,93 @@ pub struct AudioController {
 
     is_active: bool,
 
-    requested_duration: Rc<RefCell<f64>>,
+    requested_duration: f64,
 
     waveform_mtx: Arc<Mutex<Box<SampleExtractor>>>,
     dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
 }
 
 impl AudioController {
-    pub fn new(builder: &gtk::Builder) -> Self {
+    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
         let dbl_buffer_mtx = DoubleWaveformBuffer::new(BUFFER_DURATION);
         let waveform_mtx = dbl_buffer_mtx.lock()
             .expect("AudioController::new: couldn't lock dbl_buffer_mtx")
             .get_exposed_buffer_mtx();
 
-        AudioController {
+        Rc::new(RefCell::new(AudioController {
             container: builder.get_object("audio-container").unwrap(),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
             zoom_in_btn: builder.get_object("audio_zoom_in-toolbutton").unwrap(),
             zoom_out_btn: builder.get_object("audio_zoom_out-toolbutton").unwrap(),
 
             is_active: false,
-            requested_duration: Rc::new(RefCell::new(INIT_REQ_DURATION)),
+            requested_duration: INIT_REQ_DURATION,
             waveform_mtx: waveform_mtx,
             dbl_buffer_mtx: dbl_buffer_mtx,
-        }
+        }))
     }
 
-    pub fn register_callbacks(&self, main_ctrl: &Rc<RefCell<MainController>>) {
+    pub fn register_callbacks(
+        this_rc: &Rc<RefCell<Self>>,
+        main_ctrl: &Rc<RefCell<MainController>>
+    ) {
+        let this = this_rc.borrow();
+
         // draw
-        let waveform_mtx = Arc::clone(&self.waveform_mtx);
-        let requested_duration = Rc::clone(&self.requested_duration);
-        self.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
-            AudioController::draw(
-                drawing_area,
-                cairo_ctx,
-                &waveform_mtx,
-                *requested_duration.borrow(),
-            ).into()
+        let this_clone = Rc::clone(&this_rc);
+        this.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
+            this_clone.borrow_mut().draw(drawing_area, cairo_ctx).into()
         });
 
         // widget size changed
-        let requested_duration = Rc::clone(&self.requested_duration);
-        let dbl_buffer_mtx = Arc::clone(&self.dbl_buffer_mtx);
-        self.drawingarea.connect_size_allocate(move |drawingarea, _| {
-            AudioController::refresh(
-                drawingarea,
-                *requested_duration.borrow(),
-                &dbl_buffer_mtx,
-            );
+        let this_clone = Rc::clone(&this_rc);
+        this.drawingarea.connect_size_allocate(move |_, _| {
+            this_clone.borrow_mut().refresh();
         });
 
         // click in drawing_area
-        let main_ctrl_rc = Rc::clone(&main_ctrl);
-        let waveform_mtx = Arc::clone(&self.waveform_mtx);
-        self.drawingarea.connect_button_press_event(move |_, event_button| {
+        let main_ctrl_clone = Rc::clone(&main_ctrl);
+        let this_clone = Rc::clone(&this_rc);
+        this.drawingarea.connect_button_press_event(move |_, event_button| {
             let button = event_button.get_button();
             if button == 1 {
                 if let Some(position) = {
-                    let waveform_buffer_grd = &mut *waveform_mtx.lock()
-                        .expect("Couldn't lock waveform buffer in audio controller draw");
+                    let mut this = this_clone.borrow_mut();
+                    let waveform_buffer_grd = &mut *this.waveform_mtx.lock()
+                            .expect("Couldn't lock waveform buffer in audio controller draw");
                     waveform_buffer_grd
                         .as_mut_any().downcast_mut::<WaveformBuffer>()
                         .expect("SamplesExtratctor is not a waveform buffer in audio controller draw")
                         .get_position(event_button.get_position().0)
                 }
                 {
-                    main_ctrl_rc.borrow_mut().seek(position, true); // accurate (slow)
+                    main_ctrl_clone.borrow_mut().seek(position, true); // accurate (slow)
                 }
             }
             Inhibit(true)
         });
 
         // click zoom in
-        let drawingarea = self.drawingarea.clone();
-        let requested_duration = Rc::clone(&self.requested_duration);
-        let dbl_buffer_mtx = Arc::clone(&self.dbl_buffer_mtx);
-        self.zoom_in_btn.connect_clicked(move |_| {
-            let (can_update, duration) = {
-                let mut duration_grd = requested_duration.borrow_mut();
-                *duration_grd /= STEP_REQ_DURATION;
-                if *duration_grd >= MIN_REQ_DURATION {
-                    (true, *duration_grd)
-                } else {
-                    *duration_grd = MIN_REQ_DURATION;
-                    (false, *duration_grd)
-                }
-            };
-
-            if can_update {
-                AudioController::refresh(
-                    &drawingarea,
-                    duration,
-                    &dbl_buffer_mtx,
-                );
+        let this_clone = Rc::clone(&this_rc);
+        this.zoom_in_btn.connect_clicked(move |_| {
+            let mut this = this_clone.borrow_mut();
+            this.requested_duration /= STEP_REQ_DURATION;
+            if this.requested_duration >= MIN_REQ_DURATION {
+                this.refresh();
+            } else {
+                this.requested_duration = MIN_REQ_DURATION;
             }
         });
 
         // click zoom out
-        let drawingarea = self.drawingarea.clone();
-        let requested_duration = Rc::clone(&self.requested_duration);
-        let dbl_buffer_mtx = Arc::clone(&self.dbl_buffer_mtx);
-        self.zoom_out_btn.connect_clicked(move |_| {
-            let (can_update, duration) = {
-                let mut duration_grd = requested_duration.borrow_mut();
-                *duration_grd *= STEP_REQ_DURATION;
-                if *duration_grd <= MAX_REQ_DURATION {
-                    (true, *duration_grd)
-                } else {
-                    *duration_grd = MAX_REQ_DURATION;
-                    (false, *duration_grd)
-                }
-            };
-
-            if can_update {
-                AudioController::refresh(
-                    &drawingarea,
-                    duration,
-                    &dbl_buffer_mtx,
-                );
+        let this_clone = Rc::clone(&this_rc);
+        this.zoom_out_btn.connect_clicked(move |_| {
+            let mut this = this_clone.borrow_mut();
+            this.requested_duration *= STEP_REQ_DURATION;
+            if this.requested_duration <= MAX_REQ_DURATION {
+                this.refresh();
+            } else {
+                this.requested_duration = MAX_REQ_DURATION;
             }
         });
     }
@@ -161,7 +130,7 @@ impl AudioController {
                 .expect("AudioController::cleanup: Couldn't lock dbl_buffer_mtx")
                 .cleanup();
         }
-        *self.requested_duration.borrow_mut() = INIT_REQ_DURATION;
+        self.requested_duration = INIT_REQ_DURATION;
         self.drawingarea.queue_draw();
     }
 
@@ -208,7 +177,7 @@ impl AudioController {
         }
     }
 
-    fn clean_cairo_context(cr: &cairo::Context) {
+    fn clean_cairo_context(&self, cr: &cairo::Context) {
         cr.set_source_rgb(
             BACKGROUND_COLOR.0,
             BACKGROUND_COLOR.1,
@@ -217,21 +186,19 @@ impl AudioController {
         cr.paint();
     }
 
-    fn draw(
+    fn draw(&mut self,
         drawingarea: &gtk::DrawingArea,
         cr: &cairo::Context,
-        waveform_mtx: &Arc<Mutex<Box<SampleExtractor>>>,
-        requested_duration: f64,
     ) -> Inhibit {
         #[cfg(feature = "profiling-audio-draw")]
         let before_init = Utc::now();
 
         let allocation = drawingarea.get_allocation();
         if allocation.width.is_negative() {
-            #[cfg(feature = "trace-audio_controller")]
+            #[cfg(feature = "trace-audio-controller")]
             println!("AudioController::draw negative allocation.width: {}", allocation.width);
 
-            AudioController::clean_cairo_context(cr);
+            self.clean_cairo_context(cr);
             return Inhibit(true);
         }
 
@@ -243,7 +210,7 @@ impl AudioController {
         let mut _before_image = Utc::now();
 
         let (first_pos, last_opt, cursor_opt) = {
-            let waveform_grd = &mut *waveform_mtx.lock()
+            let waveform_grd = &mut *self.waveform_mtx.lock()
                 .expect("AudioController::draw: couldn't lock waveform_mtx");
             let waveform_buffer = waveform_grd
                 .as_mut_any().downcast_mut::<WaveformBuffer>()
@@ -253,7 +220,7 @@ impl AudioController {
             let _before_cndt = Utc::now();
 
             waveform_buffer.update_conditions(
-                requested_duration,
+                self.requested_duration,
                 allocation.width,
                 allocation.height
             );
@@ -269,9 +236,9 @@ impl AudioController {
                     (first_pos, last_opt, cursor_opt)
                 },
                 None => {
-                    AudioController::clean_cairo_context(cr);
+                    self.clean_cairo_context(cr);
 
-                    #[cfg(feature = "trace-audio_controller")]
+                    #[cfg(feature = "trace-audio-controller")]
                     println!("AudioController::draw no image");
 
                     return Inhibit(true)
@@ -343,16 +310,13 @@ impl AudioController {
        Inhibit(true)
     }
 
-    fn refresh(
-        drawingarea: &gtk::DrawingArea,
-        requested_duration: f64,
-        dbl_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer>>,
-    ) {
-        let allocation = drawingarea.get_allocation();
+    fn refresh(&mut self) {
+        let allocation = self.drawingarea.get_allocation();
         {
             // refresh the buffer in order to render the waveform
             // in latest conditions
-            dbl_buffer_mtx.lock()
+            let requested_duration = self.requested_duration;
+            self.dbl_buffer_mtx.lock()
                 .expect("AudioController::size-allocate: couldn't lock dbl_buffer_mtx")
                 .refresh_with_conditions(
                     Box::new(WaveformConditions::new(
@@ -363,6 +327,6 @@ impl AudioController {
                 );
         }
 
-        drawingarea.queue_draw();
+        self.drawingarea.queue_draw();
     }
 }

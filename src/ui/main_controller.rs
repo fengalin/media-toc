@@ -37,8 +37,8 @@ pub struct MainController {
     play_pause_btn: gtk::ToolButton,
 
     video_ctrl: VideoController,
-    info_ctrl: InfoController,
-    audio_ctrl: AudioController,
+    info_ctrl: Rc<RefCell<InfoController>>,
+    audio_ctrl: Rc<RefCell<AudioController>>,
 
     context: Option<Context>,
     state: ControllerState,
@@ -94,8 +94,8 @@ impl MainController {
             // play/pause, etc.
 
             this_mut.video_ctrl.register_callbacks(&this);
-            this_mut.info_ctrl.register_callbacks(&this);
-            this_mut.audio_ctrl.register_callbacks(&this);
+            InfoController::register_callbacks(&this_mut.info_ctrl, &this);
+            AudioController::register_callbacks(&this_mut.audio_ctrl, &this);
         }
 
         let open_btn: gtk::Button = builder.get_object("open-btn").unwrap();
@@ -158,7 +158,7 @@ impl MainController {
         self.remove_listener();
         self.remove_tracker();
 
-        self.audio_ctrl.cleanup();
+        self.audio_ctrl.borrow_mut().cleanup();
 
         self.play_pause_btn.set_icon_name("media-playback-start");
 
@@ -173,8 +173,8 @@ impl MainController {
             // update position even though the stream
             // is not sync yet for the user to notice
             // the seek request in being handled
-            self.info_ctrl.seek(position);
-            self.audio_ctrl.seek(position, &self.state);
+            self.info_ctrl.borrow_mut().seek(position);
+            self.audio_ctrl.borrow_mut().seek(position, &self.state);
 
             self.context.as_ref()
                 .expect("MainController::seek no context")
@@ -195,18 +195,10 @@ impl MainController {
         }
     }
 
-    pub fn add_chapter(&mut self) {
-        let position = self.context.as_mut()
-            .expect("MainController::new_chapter no context while getting position")
-            .get_position();
-        self.info_ctrl.add_chapter(position);
-    }
-
-    pub fn remove_chapter(&mut self) {
-        let position = self.context.as_mut()
-            .expect("MainController::remove_chapter no context while getting position")
-            .get_position();
-        self.info_ctrl.remove_chapter(position);
+    pub fn get_position(&mut self) -> u64 {
+        self.context.as_mut()
+            .expect("MainController::get_position no context")
+            .get_position()
     }
 
     fn select_media(&mut self) {
@@ -266,9 +258,9 @@ impl MainController {
                             Some(context.file_name.as_str())
                         );
 
-                        this_mut.info_ctrl.new_media(&context);
                         this_mut.video_ctrl.new_media(&context);
-                        this_mut.audio_ctrl.new_media(&context);
+                        this_mut.info_ctrl.borrow_mut().new_media(&context);
+                        this_mut.audio_ctrl.borrow_mut().new_media(&context);
 
                         this_mut.context = Some(context);
 
@@ -276,15 +268,17 @@ impl MainController {
                     },
                     Eos => {
                         let mut this_mut = this_rc.borrow_mut();
-                        let position = this_mut.context.as_mut()
-                            .expect("MainController::listener no context while getting position")
-                            .get_position();
 
-                        this_mut.info_ctrl.update_duration(position);
+                        let position = this_mut.get_position();
                         this_mut.duration = Some(position);
 
-                        this_mut.info_ctrl.tick(position);
-                        this_mut.audio_ctrl.tick();
+                        {
+                            let mut info_ctrl = this_mut.info_ctrl.borrow_mut();
+                            info_ctrl.update_duration(position);
+                            info_ctrl.tick(position);
+                        }
+
+                        this_mut.audio_ctrl.borrow_mut().tick();
 
                         this_mut.handle_eos();
 
@@ -348,8 +342,8 @@ impl MainController {
                 .get_position();
 
             if !this_mut.seeking {
-                this_mut.info_ctrl.tick(position);
-                this_mut.audio_ctrl.tick();
+                this_mut.info_ctrl.borrow_mut().tick(position);
+                this_mut.audio_ctrl.borrow_mut().tick();
             }
 
             if let Some(duration) = this_mut.duration {
@@ -385,8 +379,8 @@ impl MainController {
     fn open_media(&mut self, filepath: PathBuf) {
         assert_eq!(self.listener_src, None);
 
-        self.info_ctrl.cleanup();
-        self.audio_ctrl.cleanup();
+        self.info_ctrl.borrow_mut().cleanup();
+        self.audio_ctrl.borrow_mut().cleanup();
         self.header_bar.set_subtitle("");
 
         let (ctx_tx, ui_rx) = channel();
@@ -397,7 +391,7 @@ impl MainController {
 
         match Context::new(
             filepath,
-            self.audio_ctrl.get_dbl_buffer_mtx(),
+            self.audio_ctrl.borrow().get_dbl_buffer_mtx(),
             ctx_tx
         ) {
             Ok(context) => {

@@ -177,7 +177,7 @@ impl AudioBuffer {
                 } else if incoming_lower >= self.lower
                 && incoming_upper <= self.upper {
                     // 2. incoming buffer included in current container
-                    #[cfg(any(test, feature = "trace-audio_buffer"))]
+                    #[cfg(any(test, feature = "trace-audio-buffer"))]
                     println!("AudioBuffer case 2. contained in current container self [{}, {}], incoming [{}, {}]",
                         self.lower, self.upper, incoming_lower, incoming_upper
                     );
@@ -191,7 +191,7 @@ impl AudioBuffer {
                 } else if incoming_lower > self.lower
                 && incoming_lower < self.upper
                 {   // 3. can append [self.upper, upper] to the end
-                    #[cfg(any(test, feature = "trace-audio_buffer"))]
+                    #[cfg(any(test, feature = "trace-audio-buffer"))]
                     println!("AudioBuffer case 3. append to the end (partial) [{}, {}], incoming [{}, {}]",
                         self.upper, incoming_upper, incoming_lower, incoming_upper
                     );
@@ -210,7 +210,7 @@ impl AudioBuffer {
                 else if incoming_upper < self.upper
                 && incoming_upper >= self.lower
                 {   // 4. can insert [lower, self.lower] at the begining
-                    #[cfg(any(test, feature = "trace-audio_buffer"))]
+                    #[cfg(any(test, feature = "trace-audio-buffer"))]
                     println!("AudioBuffer case 4. insert at the begining [{}, {}], incoming [{}, {}]",
                         incoming_lower, self.lower, incoming_lower, incoming_upper
                     );
@@ -226,7 +226,7 @@ impl AudioBuffer {
                     )
                 } else {
                     // 5. can't merge with previous buffer
-                    #[cfg(any(test, feature = "trace-audio_buffer"))]
+                    #[cfg(any(test, feature = "trace-audio-buffer"))]
                     println!("AudioBuffer case 5. can't merge self [{}, {}], incoming [{}, {}]",
                         self.lower, self.upper, incoming_lower, incoming_upper
                     );
