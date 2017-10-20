@@ -3,6 +3,8 @@ extern crate cairo;
 extern crate gtk;
 use gtk::prelude::*;
 
+extern crate glib;
+
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
@@ -26,7 +28,9 @@ pub struct InfoController {
     audio_codec_lbl: gtk::Label,
     video_codec_lbl: gtk::Label,
     duration_lbl: gtk::Label,
+
     timeline_scale: gtk::Scale,
+    repeat_button: gtk::ToggleToolButton,
 
     chapter_treeview: gtk::TreeView,
     chapter_store: gtk::TreeStore,
@@ -37,6 +41,7 @@ pub struct InfoController {
 
     duration: u64,
     chapter_iter: Option<gtk::TreeIter>,
+    repeat_chapter: bool,
 
     main_ctrl: Option<Weak<RefCell<MainController>>>,
 }
@@ -54,7 +59,9 @@ impl InfoController {
             audio_codec_lbl: builder.get_object("audio_codec-lbl").unwrap(),
             video_codec_lbl: builder.get_object("video_codec-lbl").unwrap(),
             duration_lbl: builder.get_object("duration-lbl").unwrap(),
+
             timeline_scale: builder.get_object("timeline-scale").unwrap(),
+            repeat_button: builder.get_object("repeat-toolbutton").unwrap(),
 
             chapter_treeview: builder.get_object("chapter-treeview").unwrap(),
             chapter_store: builder.get_object("chapters-tree-store").unwrap(),
@@ -65,6 +72,7 @@ impl InfoController {
 
             duration: 0,
             chapter_iter: None,
+            repeat_chapter: false,
 
             main_ctrl: None,
         }));
@@ -141,14 +149,23 @@ impl InfoController {
             }
         });
 
+        // add chapter
         let this_clone = Rc::clone(&this_rc);
         this.add_chapter_btn.connect_clicked(move |_| {
             this_clone.borrow_mut().add_chapter();
         });
 
+        // remove chapter
         let this_clone = Rc::clone(&this_rc);
         this.del_chapter_btn.connect_clicked(move |_| {
             this_clone.borrow_mut().remove_chapter();
+        });
+
+        // repeat button
+        let this_clone = Rc::clone(&this_rc);
+        this.repeat_button.connect_clicked(move |button| {
+            this_clone.borrow_mut().repeat_chapter =
+                button.get_active();
         });
     }
 
@@ -290,20 +307,35 @@ impl InfoController {
         );
     }
 
-    pub fn tick(&mut self, position: u64) {
+    pub fn tick(&mut self, position: u64, is_eos: bool) {
         self.timeline_scale.set_value(position as f64);
 
         let mut done_with_chapters = false;
 
         if let Some(current_iter) = self.chapter_iter.as_mut() {
-            if position < self.chapter_store.get_value(current_iter, START_COL as i32)
-                    .get::<u64>().unwrap()
+            let current_start =
+                self.chapter_store.get_value(current_iter, START_COL as i32)
+                    .get::<u64>().unwrap();
+            if position < current_start
             {   // before selected chapter
                 // (first chapter must start after the begining of the stream)
                 return;
-            } else if position >= self.chapter_store.get_value(current_iter, END_COL as i32)
+            } else if is_eos
+                || position >= self.chapter_store.get_value(current_iter, END_COL as i32)
                     .get::<u64>().unwrap()
             {   // passed the end of current chapter
+                if self.repeat_chapter {
+                    // seek back to the beginning of the chapter
+                    let main_ctrl_weak = Weak::clone(self.main_ctrl.as_ref().unwrap());
+                    gtk::idle_add(move || {
+                        let main_ctrl_rc = main_ctrl_weak.upgrade()
+                            .expect("InfoController::tick can't upgrade main_ctrl while repeating chapter");
+                        main_ctrl_rc.borrow_mut().seek(current_start, true); // accurate
+                        glib::Continue(false)
+                    });
+                    return;
+                }
+
                 // unselect current chapter
                 self.chapter_treeview.get_selection()
                     .unselect_iter(current_iter);

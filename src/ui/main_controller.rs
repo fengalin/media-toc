@@ -275,7 +275,7 @@ impl MainController {
                         {
                             let mut info_ctrl = this_mut.info_ctrl.borrow_mut();
                             info_ctrl.update_duration(position);
-                            info_ctrl.tick(position);
+                            info_ctrl.tick(position, true);
                         }
 
                         this_mut.audio_ctrl.borrow_mut().tick();
@@ -341,25 +341,32 @@ impl MainController {
                 .expect("MainController::tracker no context while getting position")
                 .get_position();
 
-            if !this_mut.seeking {
-                this_mut.info_ctrl.borrow_mut().tick(position);
-                this_mut.audio_ctrl.borrow_mut().tick();
-            }
-
-            if let Some(duration) = this_mut.duration {
-                if position >= duration {
-                    if !this_mut.seeking {
-                        // this check is necessary as EOS is not sent
+            let is_eos =
+                if let Some(duration) = this_mut.duration {
+                    if position >= duration {
+                        if !this_mut.seeking {
+                            // this check is necessary as EOS is not sent
+                            // in case of a seek after EOS
+                            this_mut.handle_eos();
+                            this_mut.tracker_src = None;
+                            keep_going = false;
+                        }
+                        true
+                    } else if this_mut.seeking {
+                        // this check is necessary as AsyncDone is not sent
                         // in case of a seek after EOS
-                        this_mut.handle_eos();
-                        this_mut.tracker_src = None;
-                        keep_going = false;
+                        this_mut.seeking = false;
+                        true
+                    } else {
+                        false
                     }
-                } else if this_mut.seeking {
-                    // this check is necessary as AsyncDone is not sent
-                    // in case of a seek after EOS
-                    this_mut.seeking = false;
-                }
+                } else {
+                    false
+                };
+
+            if !this_mut.seeking {
+                this_mut.info_ctrl.borrow_mut().tick(position, is_eos);
+                this_mut.audio_ctrl.borrow_mut().tick();
             }
 
             #[cfg(feature = "profiling-tracker")]
