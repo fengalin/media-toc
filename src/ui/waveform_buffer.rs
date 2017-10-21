@@ -91,11 +91,18 @@ impl WaveformBuffer {
     }
 
     pub fn seek(&mut self, position: u64, is_playing: bool) {
-        if !self.image.is_ready {
+        if self.image.sample_step == 0 {
             return;
         }
         let sought_sample = (position / self.state.sample_duration) as usize
             / self.image.sample_step * self.image.sample_step;
+
+        #[cfg(feature = "trace-waveform-buffer")]
+        println!("WaveformBuffer{}::seek current sample {}, sought sample {} ({}), image [{}, {}]",
+            self.image.id, self.current_sample, sought_sample, position,
+            self.image.lower, self.image.upper,
+        );
+
         if is_playing {
             // stream is playing => let the cursor jump from current position
             // to the sought position without shifting the waveform if possible
@@ -238,7 +245,7 @@ impl WaveformBuffer {
                             // and the center
                             Some(self.image.lower)
                         }
-                    } else {
+                    } else if self.current_sample <= self.image.upper {
                         // current sample can fit in the second half of the window
                         if self.image.sample_window >= self.req_sample_window {
                             // buffer window is larger than req_sample_window
@@ -249,17 +256,28 @@ impl WaveformBuffer {
                             // set first sample to the left
                             Some(self.image.lower)
                         }
+                    } else {
+                        // current sample appears after image last sample
+                        #[cfg(feature = "trace-waveform-buffer")]
+                        println!("WaveformBuffer{}::update_first_visible_sample current sample {} appears after image last sample {}",
+                            self.image.id, self.current_sample, self.image.lower
+                        );
+                        None
                     }
                 } else {
-                    // current sample appears before buffer first sample
+                    // current sample appears before image first sample
                     #[cfg(feature = "trace-waveform-buffer")]
-                    println!("WaveformBuffer{}::update_first_visible_sample current sample {} appears before buffer first sample {}",
+                    println!("WaveformBuffer{}::update_first_visible_sample current sample {} appears before image first sample {}",
                         self.image.id, self.current_sample, self.image.lower
                     );
                     None
                 }
             } else {
                 // no image available yet
+                #[cfg(feature = "trace-waveform-buffer")]
+                println!("WaveformBuffer{}::update_first_visible_sample not ready current sample {}, first sample {}",
+                    self.image.id, self.current_sample, self.image.lower
+                );
                 None
             };
     }
@@ -358,6 +376,17 @@ impl WaveformBuffer {
             Option<(f64, u64)>,   // Option<(current_x, current_pos)>
         )>
     {
+        #[cfg(feature = "trace-waveform-buffer")]
+        {
+            if self.is_seeking {
+                if self.first_visible_sample_lock.is_none() {
+                    println!("WaveformBuffer{}::get_image whith is_seeking and no lock", self.image.id);
+                } else {
+                    println!("WaveformBuffer{}::get_image whith is_seeking and lock", self.image.id);
+                }
+            }
+        }
+
         self.update_first_visible_sample();
         match self.first_visible_sample {
             Some(first_visible_sample) => {
@@ -412,51 +441,59 @@ impl WaveformBuffer {
     }
 
     fn get_sample_range(&mut self, audio_buffer: &AudioBuffer) -> (usize, usize) {
-        if !self.is_seeking {
-            // not seeking => expose the whole buffer
+        self.is_seeking = false;
+
+        if audio_buffer.lower <= self.image.lower
+        && audio_buffer.upper >= self.image.upper
+        {   // waveform contained in buffer => regular case
             (
                 audio_buffer.lower,
                 audio_buffer.upper
             )
-        } else {
-            // seeking
-            self.is_seeking = false;
+        } else if audio_buffer.lower >= self.image.lower
+        && audio_buffer.lower < self.image.upper
+        {   // new origin further than current
+            // but buffer can be merged with current waveform
+            // or is contained in current waveform
+            #[cfg(feature = "trace-waveform-buffer")]
+            println!("WaveformBuffer{}::get_sample_range can merge to the right: current {}, image [{}, {}], buffer [{}, {}]",
+                self.image.id, self.current_sample,
+                self.image.lower, self.image.upper,
+                audio_buffer.lower, audio_buffer.upper,
+            );
 
-            if audio_buffer.lower <= self.image.lower
-            && audio_buffer.upper >= self.image.upper
-            {   // waveform contained in buffer
-                //println!("AudioWaveform seeking: waveform contained in buffer");
-                (
-                    audio_buffer.lower,
-                    audio_buffer.upper
-                )
-            } else if audio_buffer.lower >= self.image.lower
-            && audio_buffer.lower < self.image.upper
-            {   // new origin further than current
-                // but buffer can be merged with current waveform
-                // or is contained in current waveform
-                //println!("AudioWaveform seeking: can merge to the right");
-                (
-                    self.image.lower,
-                    audio_buffer.upper.max(self.image.upper)
-                )
-            } else if audio_buffer.lower < self.image.lower
-            && audio_buffer.upper >= self.image.lower
-            {   // current waveform overlaps with buffer on its left
-                // or is contained in buffer
-                //println!("AudioWaveform seeking: can merge to the left");
-                (
-                    audio_buffer.lower,
-                    audio_buffer.upper.max(self.image.upper)
-                )
-            } else {
-                // not able to merge buffer with current waveform
-                //println!("AudioWaveform seeking: not able to merge");
-                (
-                    audio_buffer.lower,
-                    audio_buffer.upper
-                )
-            }
+            (
+                self.image.lower,
+                audio_buffer.upper.max(self.image.upper)
+            )
+        } else if audio_buffer.lower < self.image.lower
+        && audio_buffer.upper >= self.image.lower
+        {   // current waveform overlaps with buffer on its left
+            // or is contained in buffer
+            #[cfg(feature = "trace-waveform-buffer")]
+            println!("WaveformBuffer{}::get_sample_range can merge to the left: current {}, image [{}, {}], buffer [{}, {}]",
+                self.image.id, self.current_sample,
+                self.image.lower, self.image.upper,
+                audio_buffer.lower, audio_buffer.upper,
+            );
+
+            (
+                audio_buffer.lower,
+                audio_buffer.upper.max(self.image.upper)
+            )
+        } else {
+            // not able to merge buffer with current waveform
+            #[cfg(feature = "trace-waveform-buffer")]
+            println!("WaveformBuffer{}::get_sample_range not able to merge: current {}, image [{}, {}], buffer [{}, {}]",
+                self.image.id, self.current_sample,
+                self.image.lower, self.image.upper,
+                audio_buffer.lower, audio_buffer.upper,
+            );
+
+            (
+                audio_buffer.lower,
+                audio_buffer.upper
+            )
         }
     }
 }
