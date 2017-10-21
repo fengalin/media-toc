@@ -356,7 +356,7 @@ impl MainController {
                         // this check is necessary as AsyncDone is not sent
                         // in case of a seek after EOS
                         this_mut.seeking = false;
-                        true
+                        false
                     } else {
                         false
                     }

@@ -307,55 +307,64 @@ impl InfoController {
         );
     }
 
+    fn repeat_at(main_ctrl: &Option<Weak<RefCell<MainController>>>, position: u64) {
+        let main_ctrl_weak = Weak::clone(main_ctrl.as_ref().unwrap());
+        gtk::idle_add(move || {
+            let main_ctrl_rc = main_ctrl_weak.upgrade()
+                .expect("InfoController::tick can't upgrade main_ctrl while repeating chapter");
+            main_ctrl_rc.borrow_mut().seek(position, true); // accurate (slow)
+            glib::Continue(false)
+        });
+    }
+
     pub fn tick(&mut self, position: u64, is_eos: bool) {
         self.timeline_scale.set_value(position as f64);
 
         let mut done_with_chapters = false;
 
-        if let Some(current_iter) = self.chapter_iter.as_mut() {
-            let current_start =
-                self.chapter_store.get_value(current_iter, START_COL as i32)
-                    .get::<u64>().unwrap();
-            if position < current_start
-            {   // before selected chapter
-                // (first chapter must start after the begining of the stream)
-                return;
-            } else if is_eos
-                || position >= self.chapter_store.get_value(current_iter, END_COL as i32)
-                    .get::<u64>().unwrap()
-            {   // passed the end of current chapter
-                if self.repeat_chapter {
-                    // seek back to the beginning of the chapter
-                    let main_ctrl_weak = Weak::clone(self.main_ctrl.as_ref().unwrap());
-                    gtk::idle_add(move || {
-                        let main_ctrl_rc = main_ctrl_weak.upgrade()
-                            .expect("InfoController::tick can't upgrade main_ctrl while repeating chapter");
-                        main_ctrl_rc.borrow_mut().seek(current_start, true); // accurate
-                        glib::Continue(false)
-                    });
+        match self.chapter_iter.as_mut() {
+            Some(current_iter) => {
+                let current_start =
+                    self.chapter_store.get_value(current_iter, START_COL as i32)
+                        .get::<u64>().unwrap();
+                if position < current_start
+                {   // before selected chapter
+                    // (first chapter must start after the begining of the stream)
                     return;
+                } else if is_eos
+                    || position >= self.chapter_store.get_value(current_iter, END_COL as i32)
+                        .get::<u64>().unwrap()
+                {   // passed the end of current chapter
+                    if self.repeat_chapter {
+                        // seek back to the beginning of the chapter
+                        InfoController::repeat_at(&self.main_ctrl, current_start);
+                        return;
+                    }
+
+                    // unselect current chapter
+                    self.chapter_treeview.get_selection()
+                        .unselect_iter(current_iter);
+
+                    if !self.chapter_store.iter_next(current_iter) {
+                        // no more chapters
+                        done_with_chapters = true;
+                    }
                 }
 
-                // unselect current chapter
-                self.chapter_treeview.get_selection()
-                    .unselect_iter(current_iter);
-
-                if !self.chapter_store.iter_next(current_iter) {
-                    // no more chapters
-                    done_with_chapters = true;
+                if !done_with_chapters
+                && position >= self.chapter_store.get_value(current_iter, START_COL as i32)
+                        .get::<u64>().unwrap() // after current start
+                && position < self.chapter_store.get_value(current_iter, END_COL as i32)
+                        .get::<u64>().unwrap()
+                { // before current end
+                    self.chapter_treeview.get_selection()
+                        .select_iter(current_iter);
                 }
-            }
-
-            if !done_with_chapters
-            && position >= self.chapter_store.get_value(current_iter, START_COL as i32)
-                    .get::<u64>().unwrap() // after current start
-            && position < self.chapter_store.get_value(current_iter, END_COL as i32)
-                    .get::<u64>().unwrap()
-            { // before current end
-                self.chapter_treeview.get_selection()
-                    .select_iter(current_iter);
-            }
-        }
+            },
+            None => if is_eos && self.repeat_chapter {
+                InfoController::repeat_at(&self.main_ctrl, 0);
+            },
+        };
 
         if done_with_chapters {
             self.chapter_iter = None;
