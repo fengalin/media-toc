@@ -351,10 +351,13 @@ impl WaveformImage {
                         // first sample position is unknown
                         // => force redraw
                         println!("WaveformImage::append left({}): first sample unknown => redrawing", self.id);
+                        let sample_step = self.sample_step;
                         self.redraw(&cr,
                             audio_buffer,
                             lower,
-                            upper.min(audio_buffer.upper),
+                            upper.min(
+                                audio_buffer.upper / sample_step * sample_step
+                            ),
                         );
                     }
                     false
@@ -376,10 +379,13 @@ impl WaveformImage {
                     // last sample position is unknown
                     // => force redraw
                     println!("WaveformImage::append right({}): last sample unknown => redrawing", self.id);
+                    let sample_step = self.sample_step;
                     self.redraw(&cr,
                         audio_buffer,
                         lower,
-                        upper.min(audio_buffer.upper),
+                        upper.min(
+                            audio_buffer.upper / sample_step * sample_step
+                        ),
                     );
                 }
             }
@@ -792,9 +798,23 @@ impl WaveformImage {
                         if sample_iter.size_hint().0 > 0 {
                             sample_iter
                         } else {
+                            #[cfg(any(test, feature = "trace-waveform-rendering"))]
+                            {
+                                println!("/!\\ WaveformImage{}::draw_samples empty buffer lower {}, upper {}, sample_step {}, channel {}",
+                                    self.id, lower, upper, self.sample_step, channel
+                                );
+                            }
                             return None;
                         },
-                    None => return None,
+                    None => {
+                        #[cfg(any(test, feature = "trace-waveform-rendering"))]
+                        {
+                            println!("/!\\ WaveformImage{}::draw_samples invalid iter lower {}, upper {}, sample_step {}, channel {}",
+                                self.id, lower, upper, self.sample_step, channel
+                            );
+                        }
+                        return None
+                    },
                 };
 
             self.set_channel_color(cr, channel);
@@ -809,6 +829,15 @@ impl WaveformImage {
                 x += self.x_step_f;
                 sample_value = WaveformImage::convert_sample(sample);
                 cr.line_to(x, sample_value);
+            }
+
+            #[cfg(any(test, feature = "trace-waveform-rendering"))]
+            {
+                if x == first_x {
+                    println!("/!\\ WaveformImage{}::draw_samples only one sample lower {}, upper {}, sample_step {}, channel {}",
+                        self.id, lower, upper, self.sample_step, channel
+                    );
+                }
             }
 
             cr.stroke();
