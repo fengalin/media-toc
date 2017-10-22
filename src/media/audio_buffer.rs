@@ -486,25 +486,25 @@ mod tests {
 
     const SAMPLE_RATE: u64 = 300;
 
+    // Build a buffer with 2 channels in the specified range
+    // which would be rendered as a diagonal on a Waveform image
+    // from left top corner to right bottom of the target image
+    // if all samples are rendered in the range [0:SAMPLE_RATE]
+    fn build_buffer(lower_value: usize, upper_value: usize) -> Vec<i16> {
+        let mut buffer: Vec<i16> = Vec::new();
+        for index in lower_value..upper_value {
+            buffer.push(index as i16);
+            buffer.push(-(index as i16)); // second channel <= opposite value
+        }
+        buffer
+    }
+
     #[test]
     fn multiple_gst_samples() {
         gst::init().unwrap();
 
         let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
         audio_buffer.init(SAMPLE_RATE, 2); //2 channels
-
-        // Build a buffer with 2 channels in the specified range
-        // which would be rendered as a diagonal on a Waveform image
-        // from left top corner to right bottom of the target image
-        // if all samples are rendered in the range [0:SAMPLE_RATE]
-        fn build_buffer(lower_value: usize, upper_value: usize) -> Vec<i16> {
-            let mut buffer: Vec<i16> = Vec::new();
-            for index in lower_value..upper_value {
-                buffer.push(index as i16);
-                buffer.push(-(index as i16)); // second channel <= opposite value
-            }
-            buffer
-        }
 
         println!("\n* samples [100:200] init");
         audio_buffer.push_samples(&build_buffer(100, 200), 100, 100);
@@ -596,5 +596,86 @@ mod tests {
             audio_buffer.get(audio_buffer.upper - 1),
             Some(&[449, -449][..])
         );
+    }
+
+    fn check_iter(
+        audio_buffer: &AudioBuffer,
+        lower: usize,
+        upper: usize,
+        step: usize,
+        channel: usize,
+        expected_values: &[i16],
+    ) {
+        let mut iter = audio_buffer.iter(lower, upper, step, channel).unwrap();
+        println!("\t[{}, {}], step {}, channel {}:", lower, upper, step, channel);
+        for expected_value in expected_values {
+            assert_eq!(expected_value, iter.next().as_ref().unwrap());
+        }
+    }
+
+    #[test]
+    fn test_iter() {
+        gst::init().unwrap();
+
+        let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
+        audio_buffer.init(SAMPLE_RATE, 2); //2 channels
+
+        println!("\n* samples [100:200] init");
+        // 1. init
+        audio_buffer.push_samples(&build_buffer(100, 200), 100, 100);
+
+        // buffer ranges: front: [, ], back: [100, 200]
+        // check bounds
+        check_iter(&audio_buffer, 100, 110, 5, 0, &vec![100, 105]);
+        check_iter(&audio_buffer, 100, 110, 5, 1, &vec![-100, -105]);
+        check_iter(&audio_buffer, 196, 200, 3, 0, &vec![196, 199]);
+        check_iter(&audio_buffer, 196, 200, 3, 1, &vec![-196, -199]);
+
+        // 2. appending to the beginning
+        audio_buffer.push_samples(&build_buffer(50, 100), 50, 50);
+
+        // buffer ranges: front: [50, 100], back: [100, 200]
+        // check beginning
+        check_iter(&audio_buffer, 50, 60, 5, 0, &vec![50, 55]);
+        check_iter(&audio_buffer, 50, 60, 5, 1, &vec![-50, -55]);
+
+        // check overlap between 1 & 2
+        check_iter(&audio_buffer, 90, 110, 5, 0, &vec![90, 95, 100, 105]);
+        check_iter(&audio_buffer, 90, 110, 5, 1, &vec![-90, -95, -100, -105]);
+
+        // 3. appending to the beginning
+        audio_buffer.push_samples(&build_buffer(0, 75), 0, 0);
+
+        // buffer ranges: front: [0, 100], back: [100, 200]
+
+        // check overlap between 2 & 3
+        check_iter(&audio_buffer, 40, 60, 5, 0, &vec![40, 45, 50, 55]);
+        check_iter(&audio_buffer, 40, 60, 5, 1, &vec![-40, -45, -50, -55]);
+
+        // appending to the end
+        // 4
+        audio_buffer.push_samples(&build_buffer(200, 300), 200, 200);
+
+        // buffer ranges: front: [0, 100], back: [100, 300]
+
+        // check overlap between 1 & 4
+        check_iter(&audio_buffer, 190, 210, 5, 0, &vec![190, 195, 200, 205]);
+        check_iter(&audio_buffer, 190, 210, 5, 1, &vec![-190, -195, -200, -205]);
+
+        // 5 append in same segment
+        audio_buffer.push_samples(&build_buffer(300, 400), 300, 200);
+
+        // buffer ranges: front: [0, 100], back: [100, 400]
+        // check end
+        check_iter(&audio_buffer, 396, 400, 3, 0, &vec![396, 399]);
+        check_iter(&audio_buffer, 396, 400, 3, 1, &vec![-396, -399]);
+
+        // check overlap between 4 & 5
+        check_iter(&audio_buffer, 290, 310, 5, 0, &vec![290, 295, 300, 305]);
+        check_iter(&audio_buffer, 290, 310, 5, 1, &vec![-290, -295, -300, -305]);
+
+        // check overlap between 4 & 5
+        check_iter(&audio_buffer, 290, 310, 5, 0, &vec![290, 295, 300, 305]);
+        check_iter(&audio_buffer, 290, 310, 5, 1, &vec![-290, -295, -300, -305]);
     }
 }
