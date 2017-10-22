@@ -245,7 +245,15 @@ impl WaveformBuffer {
                             // and the center
                             Some(self.image.lower)
                         }
-                    } else if self.current_sample <= self.image.upper {
+                    } else if self.is_seeking && self.current_sample >= self.image.upper {
+                        // current sample appears after image last sample
+                        // and we are seekinkg => wait until stream has stabilized
+                        #[cfg(feature = "trace-waveform-buffer")]
+                        println!("WaveformBuffer{}::update_first_visible_sample seeking and current sample {} appears after image last sample {}",
+                            self.image.id, self.current_sample, self.image.lower
+                        );
+                        None
+                    } else {
                         // current sample can fit in the second half of the window
                         if self.image.sample_window >= self.req_sample_window {
                             // buffer window is larger than req_sample_window
@@ -256,13 +264,6 @@ impl WaveformBuffer {
                             // set first sample to the left
                             Some(self.image.lower)
                         }
-                    } else {
-                        // current sample appears after image last sample
-                        #[cfg(feature = "trace-waveform-buffer")]
-                        println!("WaveformBuffer{}::update_first_visible_sample current sample {} appears after image last sample {}",
-                            self.image.id, self.current_sample, self.image.lower
-                        );
-                        None
                     }
                 } else {
                     // current sample appears before image first sample
