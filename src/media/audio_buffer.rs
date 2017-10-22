@@ -493,13 +493,13 @@ mod tests {
         let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
         audio_buffer.init(SAMPLE_RATE, 2); //2 channels
 
-        // Build a buffer 2 channels in the specified range
+        // Build a buffer with 2 channels in the specified range
         // which would be rendered as a diagonal on a Waveform image
         // from left top corner to right bottom of the target image
         // if all samples are rendered in the range [0:SAMPLE_RATE]
-        fn build_buffer(lower: usize, upper: usize) -> Vec<i16> {
+        fn build_buffer(lower_value: usize, upper_value: usize) -> Vec<i16> {
             let mut buffer: Vec<i16> = Vec::new();
-            for index in lower..upper {
+            for index in lower_value..upper_value {
                 buffer.push(index as i16);
                 buffer.push(-(index as i16)); // second channel <= opposite value
             }
