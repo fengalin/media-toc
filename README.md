@@ -1,10 +1,10 @@
 # media-toc [![Build Status](https://travis-ci.org/fengalin/media-toc.svg?branch=master)](https://travis-ci.org/fengalin/media-toc) [![Build status](https://ci.appveyor.com/api/projects/status/eu9p6ggcflj89h3v?svg=true)](https://ci.appveyor.com/project/fengalin/media-toc)
-media-toc is an application to build a table of contents from a media file or
+**media-toc** is an application to build a table of contents from a media file or
 to split a media file into chapters. It is primarily developed in Rust on Linux,
-it can be built on Windows and should also work on MacOS.
+it runs on Windows and should also work on macOS.
 
-media-toc is not functional yet, see the [Status section](#status) below. Of course,
-you can contribute to the project if you find it interesting.
+**media-toc** is not fully functional yet, see the [Status section](#status) below.
+Of course, you can contribute to the project if you find it interesting.
 
 ## <a name='status'></a>Status
 At the moment, **media-toc** can:
@@ -16,6 +16,7 @@ chapter in the list while playing.
 - Seek in the media by clicking on the waveform, on the timeline or in the
 chapters list.
 - Zoom in/out the waveform on the time axis.
+- Add/remove a chapter. Note that you can't export the result yet.
 
 ## <a name='ui'></a>Screenshots
 ### UI with a video file
@@ -73,8 +74,8 @@ Note: for a 32bits system, use `mingw-w64-i686-...`
 pacman -S mingw-w64-x86_64-toolchain base-devel mingw-w64-x86_64-gtk3 \
     mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-plugins-base
 ```
-For the execution, you will also need (opencv seems necessary to play a video,
-anyone knows which package can pull it?):
+For the execution, you will also need at least (other packages might be
+necessary for specific codecs):
 ```
 pacman -S mingw-w64-x86_64-gst-plugins-good mingw-w64-x86_64-gst-plugins-bad \
     mingw-w64-x86_64-gst-plugins-ugly
@@ -83,7 +84,7 @@ pacman -S mingw-w64-x86_64-gst-plugins-good mingw-w64-x86_64-gst-plugins-bad \
 - Launch the [rustup installer](https://www.rustup.rs/).
 When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
 `i686-pc-windows-gnu` for a 32bits system), then select `nightly`.
-- From a MSYS2 shell
+- From a MSYS2 mingw shell
   - add cargo to the `PATH`:
   ```
   echo 'PATH=$PATH:/c/Users/'$USER'/.cargo/bin' >> .bashrc
