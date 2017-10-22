@@ -762,7 +762,6 @@ impl WaveformImage {
         } else if self.x_step < 4 {
             cr.set_line_width(1.5f64);
         } else {
-            cr.set_line_join(cairo::LineJoin::Bevel);
             cr.set_line_width(2f64);
         }
 
@@ -810,13 +809,14 @@ impl WaveformImage {
             x = first_x;
             let mut sample_value =
                 WaveformImage::convert_sample(sample_iter.next().unwrap());
-            cr.move_to(x, sample_value);
             first_values.push(sample_value);
 
             for sample in sample_iter {
+                cr.move_to(x, sample_value);
                 x += self.x_step_f;
                 sample_value = WaveformImage::convert_sample(sample);
                 cr.line_to(x, sample_value);
+                cr.stroke();
             }
 
             #[cfg(any(test, feature = "trace-waveform-rendering"))]
@@ -828,7 +828,6 @@ impl WaveformImage {
                 }
             }
 
-            cr.stroke();
             last_values.push(sample_value);
         }
 
