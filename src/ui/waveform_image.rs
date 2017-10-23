@@ -649,8 +649,8 @@ impl WaveformImage {
         }
 
         let first_sample_to_draw = self.upper.max(lower);
-        let first_x_to_draw =
-            ((first_sample_to_draw - self.lower) / self.sample_step * self.x_step) as f64;
+        let first_x_to_draw = ((first_sample_to_draw - self.lower)
+             / self.sample_step * self.x_step) as f64;
 
         match self.draw_samples(cr, audio_buffer, first_sample_to_draw, upper, first_x_to_draw) {
             Some(((first_added_x, first_added_val), (last_added_x, last_added_val))) =>
@@ -759,6 +759,11 @@ impl WaveformImage {
     fn set_channel_color(&self, cr: &cairo::Context, channel: usize) {
         if let Some(&(red, green, blue)) = self.channel_colors.get(channel) {
             cr.set_source_rgba(red, green, blue, 0.68f64);
+        } else {
+            #[cfg(any(test, feature = "trace-waveform-rendering"))]
+            println!("/!\\ WaveformImage{}::set_channel_color no color for channel {}",
+                self.id, channel
+            );
         }
     }
 
@@ -780,14 +785,14 @@ impl WaveformImage {
         }
     }
 
-    fn convert_sample(value: i16) -> f64 {
-        SAMPLES_OFFSET - f64::from(value) * SAMPLES_SCALE_FACTOR
+    fn convert_sample(value: &i16) -> f64 {
+        SAMPLES_OFFSET - f64::from(*value) * SAMPLES_SCALE_FACTOR
     }
 
     fn convert_sample_values(values: &[i16]) -> Vec<f64> {
         let mut result: Vec<f64> = Vec::with_capacity(values.len());
         for value in values {
-            result.push(WaveformImage::convert_sample(*value));
+            result.push(WaveformImage::convert_sample(value));
         }
         result
     }
@@ -819,61 +824,49 @@ impl WaveformImage {
             cr.stroke();
         }
 
+        let sample_iter = audio_buffer.iter(lower, upper, self.sample_step);
+        if sample_iter.is_none() {
+            #[cfg(any(test, feature = "trace-waveform-rendering"))]
+            println!("/!\\ WaveformImage{}::draw_samples invalid iter for [{}, {}] sample_step {}, buffer: [{}, {}]",
+                self.id, lower, upper, self.sample_step, audio_buffer.lower, audio_buffer.upper
+            );
+
+            return None
+        }
+
+        let mut sample_iter = sample_iter.unwrap();
+        if sample_iter.size_hint().0 < 2 {
+            #[cfg(any(test, feature = "trace-waveform-rendering"))]
+            println!("WaveformImage{}::draw_samples too small render for [{}, {}] sample_step {}, buffer: [{}, {}]",
+                self.id, lower, upper, self.sample_step, audio_buffer.lower, audio_buffer.upper
+            );
+
+            return None
+        }
+
         let mut first_values: Vec<f64> = Vec::with_capacity(audio_buffer.channels);
         let mut last_values: Vec<f64> = Vec::with_capacity(audio_buffer.channels);
 
+        let sample = sample_iter.next();
+        for channel_value in sample.unwrap() {
+            let y = WaveformImage::convert_sample(channel_value);
+            first_values.push(y);
+            last_values.push(y);
+        }
+
         let mut x = first_x;
-        for channel in 0..audio_buffer.channels {
-            let mut sample_iter =
-                match audio_buffer.iter(lower, upper, self.sample_step, channel) {
-                    Some(sample_iter) =>
-                        if sample_iter.size_hint().0 > 0 {
-                            sample_iter
-                        } else {
-                            #[cfg(any(test, feature = "trace-waveform-rendering"))]
-                            {
-                                println!("/!\\ WaveformImage{}::draw_samples empty buffer lower {}, upper {}, sample_step {}, channel {}",
-                                    self.id, lower, upper, self.sample_step, channel
-                                );
-                            }
-                            return None;
-                        },
-                    None => {
-                        #[cfg(any(test, feature = "trace-waveform-rendering"))]
-                        {
-                            println!("/!\\ WaveformImage{}::draw_samples invalid iter lower {}, upper {}, sample_step {}, channel {}",
-                                self.id, lower, upper, self.sample_step, channel
-                            );
-                        }
-                        return None
-                    },
-                };
+        for sample in sample_iter {
+            let prev_x = x;
+            x += self.x_step_f;
 
-            self.set_channel_color(cr, channel);
+            for (channel, value) in sample.iter().enumerate() {
+                self.set_channel_color(cr, channel);
+                cr.move_to(prev_x, last_values[channel]);
 
-            x = first_x;
-            let mut sample_value =
-                WaveformImage::convert_sample(sample_iter.next().unwrap());
-            first_values.push(sample_value);
-
-            for sample in sample_iter {
-                cr.move_to(x, sample_value);
-                x += self.x_step_f;
-                sample_value = WaveformImage::convert_sample(sample);
-                cr.line_to(x, sample_value);
+                last_values[channel] = WaveformImage::convert_sample(value);
+                cr.line_to(x, last_values[channel]);
                 cr.stroke();
             }
-
-            #[cfg(any(test, feature = "trace-waveform-rendering"))]
-            {
-                if x == first_x {
-                    println!("WaveformImage{}::draw_samples only one [{}, {}], sample_step {}, channel {}",
-                        self.id, lower, upper, self.sample_step, channel
-                    );
-                }
-            }
-
-            last_values.push(sample_value);
         }
 
         #[cfg(test)]
@@ -884,7 +877,6 @@ impl WaveformImage {
             cr.line_to(x, SAMPLES_RANGE);
             cr.stroke();
         }
-
         Some(((first_x, first_values), (x, last_values)))
     }
 

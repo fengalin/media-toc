@@ -329,9 +329,8 @@ impl AudioBuffer {
         lower: usize,
         upper: usize,
         sample_step: usize,
-        channel: usize,
     ) -> Option<Iter> {
-        Iter::new(self, lower, upper, sample_step, channel)
+        Iter::new(self, lower, upper, sample_step)
     }
 
     pub fn get(&self, sample: usize) -> Option<&[i16]> {
@@ -409,6 +408,7 @@ pub struct Iter<'a> {
     slice0: &'a [i16],
     slice0_len: usize,
     slice1: &'a [i16],
+    channels: usize,
     idx: usize,
     upper: usize,
     step: usize,
@@ -420,12 +420,10 @@ impl<'a> Iter<'a> {
         lower: usize,
         upper: usize,
         sample_step: usize,
-        channel: usize,
     ) -> Option<Iter<'a>> {
         if upper > lower
         && lower >= buffer.lower
         && upper <= buffer.upper
-        && channel < buffer.channels
         {
             let slices = buffer.samples.as_slices();
             let len0 = slices.0.len();
@@ -433,8 +431,9 @@ impl<'a> Iter<'a> {
                 slice0: slices.0,
                 slice0_len: len0,
                 slice1: slices.1,
-                idx: (lower - buffer.lower) * buffer.channels + channel,
-                upper: (upper - buffer.lower) * buffer.channels + channel,
+                channels: buffer.channels,
+                idx: (lower - buffer.lower) * buffer.channels,
+                upper: (upper - buffer.lower) * buffer.channels,
                 step: sample_step * buffer.channels,
             })
         } else {
@@ -449,7 +448,7 @@ impl<'a> Iter<'a> {
 }
 
 impl<'a> Iterator for Iter<'a> {
-    type Item = i16;
+    type Item = &'a [i16];
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.idx >= self.upper {
@@ -458,9 +457,10 @@ impl<'a> Iterator for Iter<'a> {
 
         let item =
             if self.idx < self.slice0_len {
-                self.slice0[self.idx]
+                &self.slice0[self.idx..self.idx + self.channels]
             } else {
-                self.slice1[self.idx - self.slice0_len]
+                let idx = self.idx - self.slice0_len;
+                &self.slice1[idx..idx + self.channels]
             };
 
         self.idx += self.step;
@@ -603,14 +603,24 @@ mod tests {
         lower: usize,
         upper: usize,
         step: usize,
-        channel: usize,
         expected_values: &[i16],
     ) {
-        let mut iter = audio_buffer.iter(lower, upper, step, channel).unwrap();
-        println!("\t[{}, {}], step {}, channel {}:", lower, upper, step, channel);
+        println!("\tchecking iter for [{}, {}], step {}...", lower, upper, step);
+        let mut iter = audio_buffer.iter(lower, upper, step).unwrap();
+
         for expected_value in expected_values {
-            assert_eq!(expected_value, iter.next().as_ref().unwrap());
+            let iter_next = iter.next();
+            let channel_values = iter_next.unwrap();
+            for (channel_id, channel_value) in channel_values.iter().enumerate() {
+                if channel_id == 0 {
+                    assert_eq!(expected_value, channel_value);
+                }
+                else {
+                    assert_eq!(*expected_value, -1 * channel_value);
+                }
+            }
         }
+        println!("\t... done");
     }
 
     #[test]
@@ -626,22 +636,18 @@ mod tests {
 
         // buffer ranges: front: [, ], back: [100, 200]
         // check bounds
-        check_iter(&audio_buffer, 100, 110, 5, 0, &vec![100, 105]);
-        check_iter(&audio_buffer, 100, 110, 5, 1, &vec![-100, -105]);
-        check_iter(&audio_buffer, 196, 200, 3, 0, &vec![196, 199]);
-        check_iter(&audio_buffer, 196, 200, 3, 1, &vec![-196, -199]);
+        check_iter(&audio_buffer, 100, 110, 5, &vec![100, 105]);
+        check_iter(&audio_buffer, 196, 200, 3, &vec![196, 199]);
 
         // 2. appending to the beginning
         audio_buffer.push_samples(&build_buffer(50, 100), 50, 50);
 
         // buffer ranges: front: [50, 100], back: [100, 200]
         // check beginning
-        check_iter(&audio_buffer, 50, 60, 5, 0, &vec![50, 55]);
-        check_iter(&audio_buffer, 50, 60, 5, 1, &vec![-50, -55]);
+        check_iter(&audio_buffer, 50, 60, 5, &vec![50, 55]);
 
         // check overlap between 1 & 2
-        check_iter(&audio_buffer, 90, 110, 5, 0, &vec![90, 95, 100, 105]);
-        check_iter(&audio_buffer, 90, 110, 5, 1, &vec![-90, -95, -100, -105]);
+        check_iter(&audio_buffer, 90, 110, 5, &vec![90, 95, 100, 105]);
 
         // 3. appending to the beginning
         audio_buffer.push_samples(&build_buffer(0, 75), 0, 0);
@@ -649,8 +655,7 @@ mod tests {
         // buffer ranges: front: [0, 100], back: [100, 200]
 
         // check overlap between 2 & 3
-        check_iter(&audio_buffer, 40, 60, 5, 0, &vec![40, 45, 50, 55]);
-        check_iter(&audio_buffer, 40, 60, 5, 1, &vec![-40, -45, -50, -55]);
+        check_iter(&audio_buffer, 40, 60, 5, &vec![40, 45, 50, 55]);
 
         // appending to the end
         // 4
@@ -659,23 +664,19 @@ mod tests {
         // buffer ranges: front: [0, 100], back: [100, 300]
 
         // check overlap between 1 & 4
-        check_iter(&audio_buffer, 190, 210, 5, 0, &vec![190, 195, 200, 205]);
-        check_iter(&audio_buffer, 190, 210, 5, 1, &vec![-190, -195, -200, -205]);
+        check_iter(&audio_buffer, 190, 210, 5, &vec![190, 195, 200, 205]);
 
         // 5 append in same segment
         audio_buffer.push_samples(&build_buffer(300, 400), 300, 200);
 
         // buffer ranges: front: [0, 100], back: [100, 400]
         // check end
-        check_iter(&audio_buffer, 396, 400, 3, 0, &vec![396, 399]);
-        check_iter(&audio_buffer, 396, 400, 3, 1, &vec![-396, -399]);
+        check_iter(&audio_buffer, 396, 400, 3, &vec![396, 399]);
 
         // check overlap between 4 & 5
-        check_iter(&audio_buffer, 290, 310, 5, 0, &vec![290, 295, 300, 305]);
-        check_iter(&audio_buffer, 290, 310, 5, 1, &vec![-290, -295, -300, -305]);
+        check_iter(&audio_buffer, 290, 310, 5, &vec![290, 295, 300, 305]);
 
         // check overlap between 4 & 5
-        check_iter(&audio_buffer, 290, 310, 5, 0, &vec![290, 295, 300, 305]);
-        check_iter(&audio_buffer, 290, 310, 5, 1, &vec![-290, -295, -300, -305]);
+        check_iter(&audio_buffer, 290, 310, 5, &vec![290, 295, 300, 305]);
     }
 }
