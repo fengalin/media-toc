@@ -214,10 +214,16 @@ impl WaveformImage {
 
     pub fn update_from_other(&mut self, other: &mut WaveformImage) {
         if other.shareable_state_changed {
-            self.sample_step_f = other.sample_step_f;
-            self.sample_step = other.sample_step;
-            self.x_step_f = other.x_step_f;
-            self.x_step = other.x_step;
+            if self.sample_step != other.sample_step
+            || self.x_step != other.x_step
+            {
+                self.sample_step_f = other.sample_step_f;
+                self.sample_step = other.sample_step;
+                self.x_step_f = other.x_step_f;
+                self.x_step = other.x_step;
+                self.force_redraw = true;
+            }
+
             self.req_width = other.req_width;
             self.req_height = other.req_height;
 
@@ -634,18 +640,17 @@ impl WaveformImage {
                         (0f64, WaveformImage::convert_sample_values(values))
                     });
 
-                self.last = self.last.take().map(|(x, values)| (x - x_offset, values));
+                self.last = self.last.take().map(|(x, values)| {
+                    let new_last = x - x_offset;
+                    self.clear_area(&cr, new_last, self.image_width_f);
+                    (new_last, values)
+                });
             }
         }
 
         let first_sample_to_draw = self.upper.max(lower);
         let first_x_to_draw =
             ((first_sample_to_draw - self.lower) / self.sample_step * self.x_step) as f64;
-
-        match self.last.as_ref() {
-            Some(&(x, ref _values)) => self.clear_area(&cr, x, self.image_width_f),
-            None => self.clear_area(&cr, first_x_to_draw, self.image_width_f),
-        };
 
         match self.draw_samples(cr, audio_buffer, first_sample_to_draw, upper, first_x_to_draw) {
             Some(((first_added_x, first_added_val), (last_added_x, last_added_val))) =>
@@ -981,7 +986,7 @@ mod tests {
         prefix: &str,
         waveform: &mut WaveformImage,
         audio_buffer: &mut AudioBuffer,
-        incoming_samples: Vec<i16>,
+        incoming_samples: &[i16],
         lower: usize,
         segement_lower: usize,
         sample_window: usize,
@@ -993,7 +998,7 @@ mod tests {
         let incoming_upper = lower + incoming_samples.len() / audio_buffer.channels;
 
         audio_buffer.push_samples(
-            &incoming_samples,
+            incoming_samples,
             lower,
             segement_lower,
         );
@@ -1065,19 +1070,19 @@ mod tests {
         let samples_window = SAMPLE_RATE as usize;
 
         render_with_samples("additive_0 init", &mut waveform, &mut audio_buffer,
-            build_buffer(100, 200), 100, 100, samples_window, true);
+            &build_buffer(100, 200), 100, 100, samples_window, true);
         render_with_samples("additive_1 overlap on the left and on the right",
             &mut waveform, &mut audio_buffer,
-            build_buffer(50, 250), 50, 50, samples_window, true);
+            &build_buffer(50, 250), 50, 50, samples_window, true);
         render_with_samples("additive_2 overlap on the left",
             &mut waveform, &mut audio_buffer,
-            build_buffer(0, 100), 0, 0, samples_window, true);
+            &build_buffer(0, 100), 0, 0, samples_window, true);
         render_with_samples("additive_3 scrolling and overlap on the right",
             &mut waveform, &mut audio_buffer,
-            build_buffer(150, 340), 150, 150, samples_window, true);
+            &build_buffer(150, 340), 150, 150, samples_window, true);
         render_with_samples("additive_4 scrolling and overlaping on the right",
             &mut waveform, &mut audio_buffer,
-              build_buffer(0, 200), 250, 250, samples_window, true);
+            &build_buffer(0, 200), 250, 250, samples_window, true);
     }
 
     #[test]
@@ -1086,13 +1091,13 @@ mod tests {
         let samples_window = SAMPLE_RATE as usize;
 
         render_with_samples("link_0", &mut waveform, &mut audio_buffer,
-            build_buffer(100, 200), 100, 100, samples_window, true);
+            &build_buffer(100, 200), 100, 100, samples_window, true);
         // append to the left
         render_with_samples("link_1", &mut waveform, &mut audio_buffer,
-            build_buffer(25, 125), 0, 0, samples_window, true);
+            &build_buffer(25, 125), 0, 0, samples_window, true);
         // appended to the right
         render_with_samples("link_2", &mut waveform, &mut audio_buffer,
-            build_buffer(175, 275), 200, 200, samples_window, true);
+            &build_buffer(175, 275), 200, 200, samples_window, true);
     }
 
     #[test]
@@ -1101,16 +1106,16 @@ mod tests {
         let samples_window = SAMPLE_RATE as usize;
 
         render_with_samples("seek_0", &mut waveform, &mut audio_buffer,
-            build_buffer(0, 100), 100, 100, samples_window, true);
+            &build_buffer(0, 100), 100, 100, samples_window, true);
         // seeking forward
         render_with_samples("seek_1", &mut waveform, &mut audio_buffer,
-            build_buffer(0, 100), 500, 500, samples_window, true);
+            &build_buffer(0, 100), 500, 500, samples_window, true);
         // additional samples
         render_with_samples("seek_2", &mut waveform, &mut audio_buffer,
-            build_buffer(100, 200), 600, 600, samples_window, true);
+            &build_buffer(100, 200), 600, 600, samples_window, true);
         // additional samples
         render_with_samples("seek_3", &mut waveform, &mut audio_buffer,
-            build_buffer(200, 300), 700, 700, samples_window, true);
+            &build_buffer(200, 300), 700, 700, samples_window, true);
     }
 
     #[test]
@@ -1119,12 +1124,12 @@ mod tests {
         let samples_window = SAMPLE_RATE as usize;
 
         render_with_samples("oveflow_0", &mut waveform, &mut audio_buffer,
-            build_buffer(0, 200), 250, 250, samples_window, true);
+            &build_buffer(0, 200), 250, 250, samples_window, true);
         // overflow on the left
         render_with_samples("oveflow_1", &mut waveform, &mut audio_buffer,
-            build_buffer(0, 300), 0, 0, samples_window, true);
+            &build_buffer(0, 300), 0, 0, samples_window, true);
         // overflow on the right
         render_with_samples("oveflow_2", &mut waveform, &mut audio_buffer,
-            build_buffer(0, 100), 400, 400, samples_window, true);
+            &build_buffer(0, 100), 400, 400, samples_window, true);
     }
 }

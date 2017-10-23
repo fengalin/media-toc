@@ -335,7 +335,7 @@ impl WaveformBuffer {
     }
 
     fn update_sample_step(&mut self) {
-        // compute a sample step which will produce an interger number of
+        // compute a sample step which will produce an integer number of
         // samples per pixel or an integer number of pixels per samples
 
         self.sample_step_f =
