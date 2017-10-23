@@ -1,11 +1,10 @@
 #![feature(ord_max_min)]
-
 #![feature(placement_in_syntax)]
 #![feature(collection_placement)]
 
+extern crate byte_slice_cast;
 #[cfg(test)]
 extern crate byteorder;
-extern crate byte_slice_cast;
 
 extern crate glib;
 extern crate gstreamer;
@@ -17,14 +16,9 @@ extern crate lazy_static;
 
 extern crate url;
 
-#[cfg(any(
-    feature = "dump-waveform",
-    feature = "profiling-audio-draw",
-    feature = "profiling-audio-buffer",
-    feature = "profiling-tracker",
-    feature = "profiling-waveform-buffer",
-    feature = "profile-waveform-image",
-))]
+#[cfg(any(feature = "dump-waveform", feature = "profiling-audio-draw",
+          feature = "profiling-audio-buffer", feature = "profiling-tracker",
+          feature = "profiling-waveform-buffer", feature = "profile-waveform-image"))]
 extern crate chrono;
 
 use gtk::Builder;

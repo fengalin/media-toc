@@ -16,13 +16,11 @@ pub struct DoubleWaveformBuffer {}
 
 impl DoubleWaveformBuffer {
     pub fn new(buffer_duration: u64) -> Arc<Mutex<DoubleAudioBuffer>> {
-        Arc::new(Mutex::new(
-            DoubleAudioBuffer::new(
-                buffer_duration,
-                Box::new(WaveformBuffer::new(1)),
-                Box::new(WaveformBuffer::new(2))
-            )
-        ))
+        Arc::new(Mutex::new(DoubleAudioBuffer::new(
+            buffer_duration,
+            Box::new(WaveformBuffer::new(1)),
+            Box::new(WaveformBuffer::new(2)),
+        )))
     }
 }
 
@@ -98,35 +96,40 @@ impl WaveformBuffer {
             / self.image.sample_step * self.image.sample_step;
 
         #[cfg(feature = "trace-waveform-buffer")]
-        println!("WaveformBuffer{}::seek current sample {}, sought sample {} ({}), image [{}, {}]",
-            self.image.id, self.current_sample, sought_sample, position,
-            self.image.lower, self.image.upper,
+        println!(
+            "WaveformBuffer{}::seek current sample {}, sought sample {} ({}), image [{}, {}]",
+            self.image.id,
+            self.current_sample,
+            sought_sample,
+            position,
+            self.image.lower,
+            self.image.upper,
         );
 
         if is_playing {
             // stream is playing => let the cursor jump from current position
             // to the sought position without shifting the waveform if possible
             self.update_first_visible_sample();
-            self.first_visible_sample_lock =
-                match self.first_visible_sample {
-                    Some(first_visible_sample) => {
-                        if first_visible_sample + self.req_sample_window < self.image.upper
+            self.first_visible_sample_lock = match self.first_visible_sample {
+                Some(first_visible_sample) => {
+                    if first_visible_sample + self.req_sample_window < self.image.upper
                         && first_visible_sample <= sought_sample
                         && sought_sample < first_visible_sample + self.req_sample_window
-                        {   // Current window is large enough for req_sample_window
-                            // and sought sample is included in current window
-                            // => lock the first sample so that the cursor appears
-                            // at the sought position without abrutely scrolling
-                            // the waveform.
-                            Some(first_visible_sample as i64)
-                        } else {
-                            // Sought sample not in current window
-                            // or not enough samples for a constraint
-                            None
-                        }
-                    },
-                    None => None,
-                };
+                    {
+                        // Current window is large enough for req_sample_window
+                        // and sought sample is included in current window
+                        // => lock the first sample so that the cursor appears
+                        // at the sought position without abrutely scrolling
+                        // the waveform.
+                        Some(first_visible_sample as i64)
+                    } else {
+                        // Sought sample not in current window
+                        // or not enough samples for a constraint
+                        None
+                    }
+                }
+                None => None,
+            };
             self.is_seeking = true;
         } else {
             // not playing => jump directly to the sought position
@@ -143,11 +146,10 @@ impl WaveformBuffer {
     pub fn get_position(&mut self, x: f64) -> Option<u64> {
         match self.first_visible_sample {
             Some(first_visible_sample) => {
-                let sought_sample =
-                    first_visible_sample +
-                    (x as usize) / self.image.x_step * self.image.sample_step;
+                let sought_sample = first_visible_sample
+                    + (x as usize) / self.image.x_step * self.image.sample_step;
                 Some(sought_sample as u64 * self.state.sample_duration)
-            },
+            }
             None => None,
         }
     }
@@ -155,148 +157,151 @@ impl WaveformBuffer {
     // Update to current position and compute the first
     // sample to present for display.
     fn update_first_visible_sample(&mut self) {
-        self.first_visible_sample =
-            if self.image.is_ready() {
-                self.update_current_sample();
+        self.first_visible_sample = if self.image.is_ready() {
+            self.update_current_sample();
 
-                if self.current_sample >= self.image.lower {
-                    // current sample appears after first buffer sample
-                    if let Some(first_visible_sample_lock) = self.first_visible_sample_lock {
-                        // There is a position lock constraint
-                        // (resulting from an in window seek).
-                        let (cursor_sample, previous_sample) =
-                            match self.sought_sample {
-                                None =>
-                                    (self.current_sample, self.previous_sample),
-                                Some(sought_sample) => {
-                                    if !self.is_seeking {
-                                        // not seeking anymore
-                                        // => follow current position
-                                        self.sought_sample = None;
-                                        self.shareable_state_changed = true;
-                                    }
-                                    (sought_sample, sought_sample)
-                                },
-                            };
-                        let center_offset = cursor_sample as i64
-                            - self.half_req_sample_window as i64
-                            - first_visible_sample_lock;
-                        if center_offset < -(self.image.sample_step as i64) {
-                            // cursor in first half of the window
-                            // keep origin on the first sample upon seek
-                            Some((first_visible_sample_lock as usize).max(self.image.lower))
-                        } else if (center_offset as usize) < 2 * self.image.sample_step {
-                            // reached the center => keep cursor there
-                            self.first_visible_sample_lock = None;
-                            self.sought_sample = None;
-                            self.shareable_state_changed = true;
-                            Some(self.image.lower.max(
-                                cursor_sample - self.half_req_sample_window
-                            ))
-                        } else {
-                            // cursor in second half of the window
-                            if cursor_sample + self.half_req_sample_window
-                                < self.image.upper
-                            {   // the target sample window doesn't exceed the end
-                                // of the rendered waveform yet
-                                // => progressively get cursor back to center
-                                let previous_offset =
-                                    previous_sample as i64 - first_visible_sample_lock;
-                                let delta_cursor =
-                                    cursor_sample as i64 - previous_sample as i64;
-                                let next_lower = (self.image.lower as i64).max(
-                                    cursor_sample as i64 - previous_offset
-                                    + delta_cursor
-                                );
-
-                                self.first_visible_sample_lock = Some(next_lower);
+            if self.current_sample >= self.image.lower {
+                // current sample appears after first buffer sample
+                if let Some(first_visible_sample_lock) = self.first_visible_sample_lock {
+                    // There is a position lock constraint
+                    // (resulting from an in window seek).
+                    let (cursor_sample, previous_sample) = match self.sought_sample {
+                        None => (self.current_sample, self.previous_sample),
+                        Some(sought_sample) => {
+                            if !self.is_seeking {
+                                // not seeking anymore
+                                // => follow current position
+                                self.sought_sample = None;
                                 self.shareable_state_changed = true;
-                                Some(next_lower as usize)
-                            } else {
-                                // Not enough overhead to get cursor back to center
-                                // Follow toward the last sample, but keep
-                                // the constraint in case more samples are added
-                                // afterward
-                                let next_lower =
-                                    if self.image.sample_window >= self.req_sample_window {
-                                        // buffer window is larger than req_sample_window
-                                        // set last buffer to the right
-                                        self.image.upper - self.req_sample_window
-                                    } else {
-                                        // buffer window is smaller than req_sample_window
-                                        // set first sample to the left
-                                        self.image.lower
-                                    };
-
-                                self.first_visible_sample_lock = Some(next_lower as i64);
-                                self.shareable_state_changed = true;
-                                Some(next_lower)
                             }
+                            (sought_sample, sought_sample)
                         }
-                    } else if self.current_sample + self.half_req_sample_window <= self.image.upper {
-                        // current sample fits in the first half of the window with last sample further
-                        if self.current_sample > self.image.lower + self.half_req_sample_window {
-                            // current sample can be centered (scrolling)
-                            Some(self.current_sample - self.half_req_sample_window)
-                        } else {
-                            // current sample before half of displayable window
-                            // set origin to the first sample in the buffer
-                            // current sample will be displayed between the origin
-                            // and the center
-                            Some(self.image.lower)
-                        }
-                    } else if self.is_seeking && self.current_sample >= self.image.upper {
-                        // current sample appears after image last sample
-                        // and we are seekinkg => wait until stream has stabilized
-                        #[cfg(feature = "trace-waveform-buffer")]
-                        println!("WaveformBuffer{}::update_first_visible_sample seeking and current sample {} appears after image last sample {}",
-                            self.image.id, self.current_sample, self.image.lower
-                        );
-                        None
+                    };
+                    let center_offset = cursor_sample as i64 - self.half_req_sample_window as i64
+                        - first_visible_sample_lock;
+                    if center_offset < -(self.image.sample_step as i64) {
+                        // cursor in first half of the window
+                        // keep origin on the first sample upon seek
+                        Some((first_visible_sample_lock as usize).max(self.image.lower))
+                    } else if (center_offset as usize) < 2 * self.image.sample_step {
+                        // reached the center => keep cursor there
+                        self.first_visible_sample_lock = None;
+                        self.sought_sample = None;
+                        self.shareable_state_changed = true;
+                        Some(
+                            self.image
+                                .lower
+                                .max(cursor_sample - self.half_req_sample_window),
+                        )
                     } else {
-                        // current sample can fit in the second half of the window
-                        if self.image.sample_window >= self.req_sample_window {
-                            // buffer window is larger than req_sample_window
-                            // set last buffer to the right
-                            Some(self.image.upper - self.req_sample_window)
+                        // cursor in second half of the window
+                        if cursor_sample + self.half_req_sample_window < self.image.upper {
+                            // the target sample window doesn't exceed the end
+                            // of the rendered waveform yet
+                            // => progressively get cursor back to center
+                            let previous_offset =
+                                previous_sample as i64 - first_visible_sample_lock;
+                            let delta_cursor = cursor_sample as i64 - previous_sample as i64;
+                            let next_lower = (self.image.lower as i64)
+                                .max(cursor_sample as i64 - previous_offset + delta_cursor);
+
+                            self.first_visible_sample_lock = Some(next_lower);
+                            self.shareable_state_changed = true;
+                            Some(next_lower as usize)
                         } else {
-                            // buffer window is smaller than req_sample_window
-                            // set first sample to the left
-                            Some(self.image.lower)
+                            // Not enough overhead to get cursor back to center
+                            // Follow toward the last sample, but keep
+                            // the constraint in case more samples are added
+                            // afterward
+                            let next_lower = if self.image.sample_window >= self.req_sample_window {
+                                // buffer window is larger than req_sample_window
+                                // set last buffer to the right
+                                self.image.upper - self.req_sample_window
+                            } else {
+                                // buffer window is smaller than req_sample_window
+                                // set first sample to the left
+                                self.image.lower
+                            };
+
+                            self.first_visible_sample_lock = Some(next_lower as i64);
+                            self.shareable_state_changed = true;
+                            Some(next_lower)
                         }
                     }
-                } else {
-                    // current sample appears before image first sample
+                } else if self.current_sample + self.half_req_sample_window <= self.image.upper {
+                    // current sample fits in the first half of the window with last sample further
+                    if self.current_sample > self.image.lower + self.half_req_sample_window {
+                        // current sample can be centered (scrolling)
+                        Some(self.current_sample - self.half_req_sample_window)
+                    } else {
+                        // current sample before half of displayable window
+                        // set origin to the first sample in the buffer
+                        // current sample will be displayed between the origin
+                        // and the center
+                        Some(self.image.lower)
+                    }
+                } else if self.is_seeking && self.current_sample >= self.image.upper {
+                    // current sample appears after image last sample
+                    // and we are seekinkg => wait until stream has stabilized
                     #[cfg(feature = "trace-waveform-buffer")]
-                    println!("WaveformBuffer{}::update_first_visible_sample current sample {} appears before image first sample {}",
-                        self.image.id, self.current_sample, self.image.lower
+                    println!(
+                        concat!(
+                            r#"WaveformBuffer{}::update_first_visible_sample seeking and "#,
+                            r#"current sample {} appears after image last sample {}"#,
+                        ),
+                        self.image.id,
+                        self.current_sample,
+                        self.image.lower
                     );
                     None
+                } else if self.image.sample_window >= self.req_sample_window {
+                    // buffer window is larger than req_sample_window
+                    // set last buffer to the right
+                    Some(self.image.upper - self.req_sample_window)
+                } else {
+                    // buffer window is smaller than req_sample_window
+                    // set first sample to the left
+                    Some(self.image.lower)
                 }
             } else {
-                // no image available yet
+                // current sample appears before image first sample
                 #[cfg(feature = "trace-waveform-buffer")]
-                println!("WaveformBuffer{}::update_first_visible_sample not ready current sample {}, first sample {}",
-                    self.image.id, self.current_sample, self.image.lower
+                println!(
+                    concat!(
+                        r#"WaveformBuffer{}::update_first_visible_sample current sample {} "#,
+                        r#"appears before image first sample {}"#,
+                    ),
+                    self.image.id,
+                    self.current_sample,
+                    self.image.lower
                 );
                 None
-            };
+            }
+        } else {
+            // no image available yet
+            #[cfg(feature = "trace-waveform-buffer")]
+            println!(
+                concat!(
+                    r#"WaveformBuffer{}::update_first_visible_sample not ready "#,
+                    r#"current sample {}, first sample {}"#,
+                ),
+                self.image.id,
+                self.current_sample,
+                self.image.lower
+            );
+            None
+        };
     }
 
     // Update rendering conditions
-    pub fn update_conditions(&mut self,
-        duration_per_1000px: f64,
-        width: i32,
-        height: i32
-    ) {
-        let mut have_changed =
-            if duration_per_1000px == self.req_duration_per_1000px {
-                false
-            } else {
-                self.req_duration_per_1000px = duration_per_1000px;
-                self.update_sample_step();
-                true
-            };
+    pub fn update_conditions(&mut self, duration_per_1000px: f64, width: i32, height: i32) {
+        let mut have_changed = if duration_per_1000px == self.req_duration_per_1000px {
+            false
+        } else {
+            self.req_duration_per_1000px = duration_per_1000px;
+            self.update_sample_step();
+            true
+        };
 
         let width_f = width as f64;
         if width_f != self.width {
@@ -309,16 +314,13 @@ impl WaveformBuffer {
             if let Some(first_visible_sample_lock) = self.first_visible_sample_lock {
                 // There is a first visible sample constraint
                 // => adapt it to match the new zoom
-                let cursor_sample =
-                    match self.sought_sample {
-                        Some(sought_sample) => sought_sample,
-                        None => self.current_sample,
-                    };
+                let cursor_sample = match self.sought_sample {
+                    Some(sought_sample) => sought_sample,
+                    None => self.current_sample,
+                };
                 let first_visible_sample_lock = first_visible_sample_lock
-                    + (
-                        (cursor_sample as i64 - first_visible_sample_lock) as f64
-                        * (1f64 - width_f / self.width)
-                    ) as i64;
+                    + ((cursor_sample as i64 - first_visible_sample_lock) as f64
+                        * (1f64 - width_f / self.width)) as i64;
                 self.first_visible_sample_lock = Some(first_visible_sample_lock);
                 self.shareable_state_changed = true;
             }
@@ -331,20 +333,20 @@ impl WaveformBuffer {
             self.update_sample_window();
         }
 
-        self.image.update_dimensions(self.sample_step_f, width, height);
+        self.image
+            .update_dimensions(self.sample_step_f, width, height);
     }
 
     fn update_sample_step(&mut self) {
         // compute a sample step which will produce an integer number of
         // samples per pixel or an integer number of pixels per samples
 
-        self.sample_step_f =
-            if self.req_duration_per_1000px >= self.state.duration_per_1000_samples {
-                (self.req_duration_per_1000px / self.state.duration_per_1000_samples).floor()
-            } else {
-                1f64
-                / (self.state.duration_per_1000_samples / self.req_duration_per_1000px).ceil()
-            };
+        self.sample_step_f = if self.req_duration_per_1000px >= self.state.duration_per_1000_samples
+        {
+            (self.req_duration_per_1000px / self.state.duration_per_1000_samples).floor()
+        } else {
+            1f64 / (self.state.duration_per_1000_samples / self.req_duration_per_1000px).ceil()
+        };
         self.shareable_state_changed = true;
     }
 
@@ -352,13 +354,15 @@ impl WaveformBuffer {
         // force sample window to an even number of samples
         // so that the cursor can be centered
         // and make sure to cover at least the width requested
-        let half_req_sample_window =
-            (self.sample_step_f * self.width / 2f64) as usize;
+        let half_req_sample_window = (self.sample_step_f * self.width / 2f64) as usize;
         let req_sample_window = half_req_sample_window * 2;
 
         #[cfg(feature = "trace-waveform-buffer")]
-        println!("WaveformBuffer{}::update_sample_window smpl.window prev. {}, new {}",
-            self.image.id, self.req_sample_window, req_sample_window
+        println!(
+            "WaveformBuffer{}::update_sample_window smpl.window prev. {}, new {}",
+            self.image.id,
+            self.req_sample_window,
+            req_sample_window
         );
 
         self.req_sample_window = req_sample_window;
@@ -369,21 +373,30 @@ impl WaveformBuffer {
     // Get the waveform as an image in current conditions.
     // This function is to be called as close as possible to
     // the actual presentation of the waveform.
-    pub fn get_image(&mut self
-    ) -> Option<(
+    pub fn get_image(
+        &mut self,
+    ) -> Option<
+        (
             &cairo::ImageSurface, // image
-            f64, u64,             // x_offset, first_position
-            Option<(f64, u64)>,   // Option<(last_x, last_pos)>
-            Option<(f64, u64)>,   // Option<(current_x, current_pos)>
-        )>
-    {
+            f64,
+            u64,                // x_offset, first_position
+            Option<(f64, u64)>, // Option<(last_x, last_pos)>
+            Option<(f64, u64)>, // Option<(current_x, current_pos)>
+        ),
+    > {
         #[cfg(feature = "trace-waveform-buffer")]
         {
             if self.is_seeking {
                 if self.first_visible_sample_lock.is_none() {
-                    println!("WaveformBuffer{}::get_image whith is_seeking and no lock", self.image.id);
+                    println!(
+                        "WaveformBuffer{}::get_image whith is_seeking and no lock",
+                        self.image.id
+                    );
                 } else {
-                    println!("WaveformBuffer{}::get_image whith is_seeking and lock", self.image.id);
+                    println!(
+                        "WaveformBuffer{}::get_image whith is_seeking and lock",
+                        self.image.id
+                    );
                 }
             }
         }
@@ -391,43 +404,30 @@ impl WaveformBuffer {
         self.update_first_visible_sample();
         match self.first_visible_sample {
             Some(first_visible_sample) => {
-                let cursor_opt =
-                    if self.current_sample >= first_visible_sample
-                    && self.current_sample
-                        <= first_visible_sample + self.req_sample_window
-                    {
-                        Some(
-                            (
-                                (
-                                    (self.current_sample - first_visible_sample)
-                                    * self.image.x_step
-                                    / self.image.sample_step
-                                ) as f64,
-                                self.current_position
-                            )
-                        )
-                    } else {
-                        None
-                    };
+                let cursor_opt = if self.current_sample >= first_visible_sample
+                    && self.current_sample <= first_visible_sample + self.req_sample_window
+                {
+                    Some((
+                        ((self.current_sample - first_visible_sample) * self.image.x_step
+                            / self.image.sample_step) as f64,
+                        self.current_position,
+                    ))
+                } else {
+                    None
+                };
 
-                let x_offset = (
-                    (first_visible_sample - self.image.lower)
-                    * self.image.x_step
-                    / self.image.sample_step
-                ) as f64;
+                let x_offset = ((first_visible_sample - self.image.lower) * self.image.x_step
+                    / self.image.sample_step) as f64;
 
-                let last_opt = self.image.last.as_ref()
-                    .map(|&(last_x, ref _last_y)| {
-                        let last_x = (last_x - x_offset).min(self.width);
-                        (
-                            last_x,
-                            (
-                                first_visible_sample
-                                + (last_x as usize) / self.image.x_step
-                                  * self.image.sample_step
-                            ) as u64 * self.state.sample_duration // last_pos
-                        )
-                    });
+                let last_opt = self.image.last.as_ref().map(|&(last_x, ref _last_y)| {
+                    let last_x = (last_x - x_offset).min(self.width);
+                    (
+                        last_x,
+                        (first_visible_sample
+                            + (last_x as usize) / self.image.x_step * self.image.sample_step)
+                            as u64 * self.state.sample_duration, // last_pos
+                    )
+                });
 
                 Some((
                     self.image.get_image(),
@@ -436,7 +436,7 @@ impl WaveformBuffer {
                     last_opt,   // Option<(last_x, last_pos)>
                     cursor_opt, // Option<(current_x, current_pos)>
                 ))
-            },
+            }
             None => None,
         }
     }
@@ -444,57 +444,63 @@ impl WaveformBuffer {
     fn get_sample_range(&mut self, audio_buffer: &AudioBuffer) -> (usize, usize) {
         self.is_seeking = false;
 
-        if audio_buffer.lower <= self.image.lower
-        && audio_buffer.upper >= self.image.upper
-        {   // waveform contained in buffer => regular case
-            (
-                audio_buffer.lower,
-                audio_buffer.upper
-            )
-        } else if audio_buffer.lower >= self.image.lower
-        && audio_buffer.lower < self.image.upper
-        {   // new origin further than current
+        if audio_buffer.lower <= self.image.lower && audio_buffer.upper >= self.image.upper {
+            // waveform contained in buffer => regular case
+            (audio_buffer.lower, audio_buffer.upper)
+        } else if audio_buffer.lower >= self.image.lower && audio_buffer.lower < self.image.upper {
+            // new origin further than current
             // but buffer can be merged with current waveform
             // or is contained in current waveform
             #[cfg(feature = "trace-waveform-buffer")]
-            println!("WaveformBuffer{}::get_sample_range can merge to the right: current {}, image [{}, {}], buffer [{}, {}]",
-                self.image.id, self.current_sample,
-                self.image.lower, self.image.upper,
-                audio_buffer.lower, audio_buffer.upper,
+            println!(
+                concat!(
+                    r#"WaveformBuffer{}::get_sample_range can merge to the right: "#,
+                    r#"current {}, image [{}, {}], buffer [{}, {}]"#,
+                ),
+                self.image.id,
+                self.current_sample,
+                self.image.lower,
+                self.image.upper,
+                audio_buffer.lower,
+                audio_buffer.upper,
             );
 
-            (
-                self.image.lower,
-                audio_buffer.upper.max(self.image.upper)
-            )
-        } else if audio_buffer.lower < self.image.lower
-        && audio_buffer.upper >= self.image.lower
-        {   // current waveform overlaps with buffer on its left
+            (self.image.lower, audio_buffer.upper.max(self.image.upper))
+        } else if audio_buffer.lower < self.image.lower && audio_buffer.upper >= self.image.lower {
+            // current waveform overlaps with buffer on its left
             // or is contained in buffer
             #[cfg(feature = "trace-waveform-buffer")]
-            println!("WaveformBuffer{}::get_sample_range can merge to the left: current {}, image [{}, {}], buffer [{}, {}]",
-                self.image.id, self.current_sample,
-                self.image.lower, self.image.upper,
-                audio_buffer.lower, audio_buffer.upper,
+            println!(
+                concat!(
+                    r#"WaveformBuffer{}::get_sample_range can merge to the left: "#,
+                    r#"current {}, image [{}, {}], buffer [{}, {}]"#,
+                ),
+                self.image.id,
+                self.current_sample,
+                self.image.lower,
+                self.image.upper,
+                audio_buffer.lower,
+                audio_buffer.upper,
             );
 
-            (
-                audio_buffer.lower,
-                audio_buffer.upper.max(self.image.upper)
-            )
+            (audio_buffer.lower, audio_buffer.upper.max(self.image.upper))
         } else {
             // not able to merge buffer with current waveform
             #[cfg(feature = "trace-waveform-buffer")]
-            println!("WaveformBuffer{}::get_sample_range not able to merge: current {}, image [{}, {}], buffer [{}, {}]",
-                self.image.id, self.current_sample,
-                self.image.lower, self.image.upper,
-                audio_buffer.lower, audio_buffer.upper,
+            println!(
+                concat!(
+                    r#"WaveformBuffer{}::get_sample_range not able to merge: "#,
+                    r#"current {}, image [{}, {}], buffer [{}, {}]"#,
+                ),
+                self.image.id,
+                self.current_sample,
+                self.image.lower,
+                self.image.upper,
+                audio_buffer.lower,
+                audio_buffer.upper,
             );
 
-            (
-                audio_buffer.lower,
-                audio_buffer.upper
-            )
+            (audio_buffer.lower, audio_buffer.upper)
         }
     }
 }
@@ -505,7 +511,7 @@ impl WaveformBuffer {
 pub struct WaveformConditions {
     pub duration_per_1000px: f64,
     pub width: i32,
-    pub height: i32
+    pub height: i32,
 }
 
 impl WaveformConditions {
@@ -513,7 +519,7 @@ impl WaveformConditions {
         WaveformConditions {
             duration_per_1000px: duration_per_1000px,
             width: width,
-            height: height
+            height: height,
         }
     }
 }
@@ -560,8 +566,10 @@ impl SampleExtractor for WaveformBuffer {
 
     fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64) {
         #[cfg(feature = "trace-waveform-buffer")]
-        println!("WaveformBuffer{}::set_sample_duration per_sample {}",
-            self.image.id, per_sample
+        println!(
+            "WaveformBuffer{}::set_sample_duration per_sample {}",
+            self.image.id,
+            per_sample
         );
         self.state.sample_duration = per_sample;
         self.state.duration_per_1000_samples = per_1000_samples;
@@ -574,7 +582,9 @@ impl SampleExtractor for WaveformBuffer {
     }
 
     fn update_concrete_state(&mut self, other: &mut Box<SampleExtractor>) {
-        let other = other.as_mut_any().downcast_mut::<WaveformBuffer>()
+        let other = other
+            .as_mut_any()
+            .downcast_mut::<WaveformBuffer>()
             .expect("WaveformBuffer.update_concrete_state: unable to downcast other ");
         if other.shareable_state_changed {
             self.is_seeking = other.is_seeking;
@@ -618,78 +628,61 @@ impl SampleExtractor for WaveformBuffer {
             self.update_current_sample();
         }
 
-        let (lower_to_extract, upper_to_extract) =
-            if self.current_sample >= lower
+        let (lower_to_extract, upper_to_extract) = if self.current_sample >= lower
             && self.current_sample < upper
-            {   // Nominal case where current position in contained
-                // in the available sample range
-                // Don't worry about possible first sample constraint here
-                // it will be dealt with when the image is actually drawn on screen.
-                let lower_to_extract =
-                    if let Some(first_visible_sample) = self.first_visible_sample_lock {
-                        // an in-window seek constraint is pending
-                        first_visible_sample as usize
-                    } else if self.current_sample > lower + self.half_req_sample_window {
-                        self.current_sample - self.half_req_sample_window
-                    } else {
-                        lower
-                    };
+        {
+            // Nominal case where current position in contained
+            // in the available sample range
+            // Don't worry about possible first sample constraint here
+            // it will be dealt with when the image is actually drawn on screen.
+            let lower_to_extract =
+                if let Some(first_visible_sample) = self.first_visible_sample_lock {
+                    // an in-window seek constraint is pending
+                    first_visible_sample as usize
+                } else if self.current_sample > lower + self.half_req_sample_window {
+                    self.current_sample - self.half_req_sample_window
+                } else {
+                    lower
+                };
 
-                let upper_to_extract =
-                    if !audio_buffer.eos {
-                        // Not the end of the stream yet:
-                        // attempt to get a larger buffer in order to compensate
-                        // for the delay when it will actually be drawn
-                        // and for potential seek forward without lock
-                        upper.min(
-                            lower_to_extract
-                            + self.req_sample_window + self.half_req_sample_window
-                        )
-                    } else {
-                        // Reached the end of the stream
-                        // This means that, in case the user doesn't seek,
-                        // there won't be any further updates on behalf of
-                        // the audio buffer.
-                        // => Render the waveform until last sample
-                        upper
-                    };
-                (
-                    lower_to_extract,
-                    upper_to_extract,
-                )
-            } else if self.current_sample > upper {
-                // current_sample is after the end of the available samples
-                // use a window with last known samples so that
-                // we will catch up with the stream as soon as new
-                // samples get available
-                let lower_to_extract =
-                    if upper > self.req_sample_window {
-                        upper - self.req_sample_window
-                    } else {
-                        lower
-                    };
-
-                (
-                    lower.max(lower_to_extract),
-                    upper,
-                )
+            let upper_to_extract = if !audio_buffer.eos {
+                // Not the end of the stream yet:
+                // attempt to get a larger buffer in order to compensate
+                // for the delay when it will actually be drawn
+                // and for potential seek forward without lock
+                upper.min(lower_to_extract + self.req_sample_window + self.half_req_sample_window)
             } else {
-                // current_sample is before the
-                // begining of the available samples
-                // use a window with first known samples so that
-                // we will catch up with the stream as soon as new
-                // samples get available
-                (
-                    lower,
-                    upper.min(lower + self.req_sample_window),
-                )
+                // Reached the end of the stream
+                // This means that, in case the user doesn't seek,
+                // there won't be any further updates on behalf of
+                // the audio buffer.
+                // => Render the waveform until last sample
+                upper
+            };
+            (lower_to_extract, upper_to_extract)
+        } else if self.current_sample > upper {
+            // current_sample is after the end of the available samples
+            // use a window with last known samples so that
+            // we will catch up with the stream as soon as new
+            // samples get available
+            let lower_to_extract = if upper > self.req_sample_window {
+                upper - self.req_sample_window
+            } else {
+                lower
             };
 
-        self.image.render(
-            audio_buffer,
-            lower_to_extract,
-            upper_to_extract,
-        );
+            (lower.max(lower_to_extract), upper)
+        } else {
+            // current_sample is before the
+            // begining of the available samples
+            // use a window with first known samples so that
+            // we will catch up with the stream as soon as new
+            // samples get available
+            (lower, upper.min(lower + self.req_sample_window))
+        };
+
+        self.image
+            .render(audio_buffer, lower_to_extract, upper_to_extract);
 
         // first_visible_sample is no longer reliable
         self.first_visible_sample = None;
@@ -701,17 +694,16 @@ impl SampleExtractor for WaveformBuffer {
             self.update_current_sample();
             let (lower, upper) = self.get_sample_range(audio_buffer);
 
-             // attempt to get an image with a window before current position
+            // attempt to get an image with a window before current position
             // and a window after in order to handle any cursor position
             // in the window
-            let lower_to_extract =
-                if self.current_sample > lower + self.req_sample_window {
-                    self.current_sample - self.req_sample_window
-                } else {
-                    lower
-                };
+            let lower_to_extract = if self.current_sample > lower + self.req_sample_window {
+                self.current_sample - self.req_sample_window
+            } else {
+                lower
+            };
 
-           self.image.render(
+            self.image.render(
                 audio_buffer,
                 lower_to_extract,
                 upper.min(lower_to_extract + 2 * self.req_sample_window),
@@ -719,12 +711,13 @@ impl SampleExtractor for WaveformBuffer {
 
             // first_visible_sample is no longer reliable
             self.first_visible_sample = None;
-       } // no need to refresh
+        } // no need to refresh
     }
 
     // Refresh the waveform in its current sample range and position
     fn refresh_with_conditions(&mut self, audio_buffer: &AudioBuffer, conditions: Box<Any>) {
-        let cndt = conditions.downcast::<WaveformConditions>()
+        let cndt = conditions
+            .downcast::<WaveformConditions>()
             .expect("WaveformBuffer::refresh conditions is not a WaveformConditions");
         self.update_conditions(cndt.duration_per_1000px, cndt.width, cndt.height);
         self.refresh(&audio_buffer);

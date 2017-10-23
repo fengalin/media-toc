@@ -13,7 +13,7 @@ pub struct Chapter {
 
 impl Chapter {
     pub fn new(id: &str, title: &str, start: Timestamp, end: Timestamp) -> Self {
-        let mut this = Chapter{
+        let mut this = Chapter {
             id: id.to_owned(),
             start: start,
             end: end,

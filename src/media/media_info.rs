@@ -26,7 +26,7 @@ pub struct MediaInfo {
 
 impl MediaInfo {
     pub fn new() -> Self {
-        MediaInfo{
+        MediaInfo {
             artist: String::new(),
             title: String::new(),
             description: String::new(),
@@ -49,9 +49,7 @@ impl MediaInfo {
 
     // Fix specific cases
     pub fn fix(&mut self) {
-        if self.video_codec.is_empty()
-        && self.audio_codec.to_lowercase().find("mp3").is_some()
-        {
+        if self.video_codec.is_empty() && self.audio_codec.to_lowercase().find("mp3").is_some() {
             // in case of an mp3 audio file, container comes as `ID3 label`
             self.container = "".into();
         }

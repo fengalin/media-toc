@@ -1,6 +1,6 @@
-extern crate gtk;
 extern crate glib;
 extern crate gstreamer as gst;
+extern crate gtk;
 
 #[cfg(any(feature = "profiling-listener", feature = "profiling-tracker"))]
 use chrono::Utc;
@@ -29,7 +29,7 @@ pub enum ControllerState {
 }
 
 const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
-const TRACKER_PERIOD:  u32 = 17;  //  17 ms (60 Hz)
+const TRACKER_PERIOD: u32 = 17; //  17 ms (60 Hz)
 
 pub struct MainController {
     window: gtk::ApplicationWindow,
@@ -112,14 +112,13 @@ impl MainController {
     }
 
     fn play_pause(&mut self) {
-        let context =
-            match self.context.take() {
-                Some(context) => context,
-                None => {
-                    self.select_media();
-                    return;
-                },
-            };
+        let context = match self.context.take() {
+            Some(context) => context,
+            None => {
+                self.select_media();
+                return;
+            }
+        };
 
         if self.state != ControllerState::EOS {
             match context.get_state() {
@@ -136,11 +135,11 @@ impl MainController {
                     self.remove_tracker();
                     self.state = ControllerState::Paused;
                     self.context = Some(context);
-                },
+                }
                 state => {
                     println!("Can't play/pause in state {:?}", state);
                     self.context = Some(context);
-                },
+                }
             };
         } else {
             // Restart the stream from the begining
@@ -176,17 +175,18 @@ impl MainController {
             self.info_ctrl.borrow_mut().seek(position);
             self.audio_ctrl.borrow_mut().seek(position, &self.state);
 
-            self.context.as_ref()
+            self.context
+                .as_ref()
                 .expect("MainController::seek no context")
                 .seek(position, accurate);
 
-            if self.state == ControllerState::EOS
-            || self.state == ControllerState::Ready
-            {
+            if self.state == ControllerState::EOS || self.state == ControllerState::Ready {
                 if self.state == ControllerState::Ready {
-                    self.context.as_ref()
+                    self.context
+                        .as_ref()
                         .expect("MainController::seek no context")
-                        .play().unwrap();
+                        .play()
+                        .unwrap();
                 }
                 self.register_tracker();
                 self.play_pause_btn.set_icon_name("media-playback-pause");
@@ -196,7 +196,8 @@ impl MainController {
     }
 
     pub fn get_position(&mut self) -> u64 {
-        self.context.as_mut()
+        self.context
+            .as_mut()
             .expect("MainController::get_position no context")
             .get_position()
     }
@@ -230,10 +231,7 @@ impl MainController {
         }
     }
 
-    fn register_listener(&mut self,
-        timeout: u32,
-        ui_rx: Receiver<ContextMessage>,
-    ) {
+    fn register_listener(&mut self, timeout: u32, ui_rx: Receiver<ContextMessage>) {
         if self.listener_src.is_some() {
             return;
         }
@@ -247,16 +245,18 @@ impl MainController {
                 match message {
                     AsyncDone => {
                         this_rc.borrow_mut().seeking = false;
-                    },
+                    }
                     InitDone => {
                         let mut this_mut = this_rc.borrow_mut();
 
-                        let context = this_mut.context.take()
+                        let context = this_mut
+                            .context
+                            .take()
                             .expect("MainController: InitDone but no context available");
 
-                        this_mut.header_bar.set_subtitle(
-                            Some(context.file_name.as_str())
-                        );
+                        this_mut
+                            .header_bar
+                            .set_subtitle(Some(context.file_name.as_str()));
 
                         this_mut.video_ctrl.new_media(&context);
                         this_mut.info_ctrl.borrow_mut().new_media(&context);
@@ -265,7 +265,7 @@ impl MainController {
                         this_mut.context = Some(context);
 
                         this_mut.state = ControllerState::Ready;
-                    },
+                    }
                     Eos => {
                         let mut this_mut = this_rc.borrow_mut();
 
@@ -288,7 +288,7 @@ impl MainController {
                         // the context won't send any more Eos nor AsyncDone
                         // after an EOS.
                         keep_going = false;
-                    },
+                    }
                     FailedToOpenMedia => {
                         eprintln!("ERROR: failed to open media");
 
@@ -297,10 +297,12 @@ impl MainController {
                         this_mut.context = None;
                         this_mut.keep_going = false;
                         keep_going = false;
-                    },
+                    }
                 };
 
-                if !keep_going { break; }
+                if !keep_going {
+                    break;
+                }
             }
 
             if !keep_going {
@@ -337,32 +339,33 @@ impl MainController {
             #[cfg(feature = "profiling-tracker")]
             let before_tick = Utc::now();
 
-            let position = this_mut.context.as_mut()
+            let position = this_mut
+                .context
+                .as_mut()
                 .expect("MainController::tracker no context while getting position")
                 .get_position();
 
-            let is_eos =
-                if let Some(duration) = this_mut.duration {
-                    if position >= duration {
-                        if !this_mut.seeking {
-                            // this check is necessary as EOS is not sent
-                            // in case of a seek after EOS
-                            this_mut.handle_eos();
-                            this_mut.tracker_src = None;
-                            keep_going = false;
-                        }
-                        true
-                    } else if this_mut.seeking {
-                        // this check is necessary as AsyncDone is not sent
+            let is_eos = if let Some(duration) = this_mut.duration {
+                if position >= duration {
+                    if !this_mut.seeking {
+                        // this check is necessary as EOS is not sent
                         // in case of a seek after EOS
-                        this_mut.seeking = false;
-                        false
-                    } else {
-                        false
+                        this_mut.handle_eos();
+                        this_mut.tracker_src = None;
+                        keep_going = false;
                     }
+                    true
+                } else if this_mut.seeking {
+                    // this check is necessary as AsyncDone is not sent
+                    // in case of a seek after EOS
+                    this_mut.seeking = false;
+                    false
                 } else {
                     false
-                };
+                }
+            } else {
+                false
+            };
 
             if !this_mut.seeking {
                 this_mut.info_ctrl.borrow_mut().tick(position, is_eos);
@@ -373,7 +376,8 @@ impl MainController {
             let end = Utc::now();
 
             #[cfg(feature = "profiling-tracker")]
-            println!("tracker,{},{},{}",
+            println!(
+                "tracker,{},{},{}",
                 start.time().format("%H:%M:%S%.6f"),
                 before_tick.time().format("%H:%M:%S%.6f"),
                 end.time().format("%H:%M:%S%.6f"),
@@ -399,11 +403,11 @@ impl MainController {
         match Context::new(
             filepath,
             self.audio_ctrl.borrow().get_dbl_buffer_mtx(),
-            ctx_tx
+            ctx_tx,
         ) {
             Ok(context) => {
                 self.context = Some(context);
-            },
+            }
             Err(error) => eprintln!("Error opening media: {}", error),
         };
     }

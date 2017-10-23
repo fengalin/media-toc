@@ -1,10 +1,10 @@
 extern crate gstreamer as gst;
 use gstreamer::prelude::*;
-use gstreamer::{BinExt, Caps, ElementFactory, GstObjectExt, PadExt, QueryView,
-                TocScope, TocEntryType};
+use gstreamer::{BinExt, Caps, ElementFactory, GstObjectExt, PadExt, QueryView, TocEntryType,
+                TocScope};
 
-extern crate gstreamer_audio as gst_audio;
 extern crate gstreamer_app as gst_app;
+extern crate gstreamer_audio as gst_audio;
 
 extern crate glib;
 use glib::{Cast, ObjectExt};
@@ -22,7 +22,7 @@ use std::sync::{Arc, Mutex};
 
 use std::i32;
 
-use super::{AlignedImage, DoubleAudioBuffer, Chapter, MediaInfo, Timestamp};
+use super::{AlignedImage, Chapter, DoubleAudioBuffer, MediaInfo, Timestamp};
 
 macro_rules! assign_str_tag(
     ($target:expr, $tags:expr, $TagType:ty) => {
@@ -40,7 +40,11 @@ macro_rules! assign_str_tag(
 lazy_static! {
     static ref VIDEO_SINK: gst::Element =
         ElementFactory::make("gtksink", "video_sink")
-            .expect("Couldn't find GStreamer GTK video sink. Please install gstreamer1-plugins-bad-free-gtk or gstreamer1.0-plugins-bad, depenging on your distribution.");
+            .expect(concat!(
+                r#"Couldn't find GStreamer GTK video sink. Please install "#,
+                r#"gstreamer1-plugins-bad-free-gtk or gstreamer1.0-plugins-bad, "#,
+                r#"depenging on your distribution."#
+            ));
 }
 
 pub enum ContextMessage {
@@ -102,21 +106,22 @@ impl Context {
 
     pub fn get_video_widget() -> gtk::Widget {
         let widget_val = (*VIDEO_SINK).get_property("widget").unwrap();
-        widget_val.get::<gtk::Widget>()
+        widget_val
+            .get::<gtk::Widget>()
             .expect("Failed to get GstGtkWidget glib::Value as gtk::Widget")
     }
 
     pub fn get_position(&mut self) -> u64 {
         let pipeline = self.pipeline.clone();
-        self.position_element.get_or_insert_with(|| {
-            if let Some(video) = pipeline.get_by_name("video_sink") {
+        self.position_element
+            .get_or_insert_with(|| if let Some(video) = pipeline.get_by_name("video_sink") {
                 video
             } else if let Some(audio) = pipeline.get_by_name("audio_playback_sink") {
                 audio
             } else {
                 panic!("No sink in pipeline");
-            }
-        }).query(self.position_query.get_mut().unwrap());
+            })
+            .query(self.position_query.get_mut().unwrap());
         match self.position_query.view() {
             QueryView::Position(ref position) => position.get().1 as u64,
             _ => unreachable!(),
@@ -125,7 +130,11 @@ impl Context {
 
     pub fn get_duration(&self) -> u64 {
         match self.pipeline.query_duration(gst::Format::Time) {
-            Some(duration) => if duration.is_positive() { duration as u64 } else { 0 },
+            Some(duration) => if duration.is_positive() {
+                duration as u64
+            } else {
+                0
+            },
             None => 0,
         }
     }
@@ -157,15 +166,20 @@ impl Context {
     }
 
     pub fn seek(&self, position: u64, accurate: bool) {
-        let flags = gst::SeekFlags::FLUSH |
-            if accurate { gst::SeekFlags::ACCURATE }
-            else { gst::SeekFlags::KEY_UNIT };
-        self.pipeline.seek_simple(gst::Format::Time, flags, position as i64)
-            .ok().unwrap();
+        let flags = gst::SeekFlags::FLUSH | if accurate {
+            gst::SeekFlags::ACCURATE
+        } else {
+            gst::SeekFlags::KEY_UNIT
+        };
+        self.pipeline
+            .seek_simple(gst::Format::Time, flags, position as i64)
+            .ok()
+            .unwrap();
     }
 
     // TODO: handle errors
-    fn build_pipeline(&mut self,
+    fn build_pipeline(
+        &mut self,
         dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
         video_sink: gst::Element,
     ) {
@@ -192,7 +206,8 @@ impl Context {
             // TODO: build only one queue by stream type (audio / video)
             if name.starts_with("audio/") {
                 let is_first = {
-                    let info = &mut info_arc_mtx.lock()
+                    let info = &mut info_arc_mtx
+                        .lock()
                         .expect("Failed to lock media info while initializing audio stream");
                     info.audio_streams.insert(name.to_owned(), caps.clone());
                     let is_first = info.audio_best.is_none();
@@ -203,12 +218,16 @@ impl Context {
 
                 if is_first {
                     Context::build_audio_queue(
-                        pipeline, src_pad, &audio_sink, dbl_audio_buffer_mtx.clone()
+                        pipeline,
+                        src_pad,
+                        &audio_sink,
+                        dbl_audio_buffer_mtx.clone(),
                     );
                 }
             } else if name.starts_with("video/") {
                 let is_first = {
-                    let info = &mut info_arc_mtx.lock()
+                    let info = &mut info_arc_mtx
+                        .lock()
                         .expect("Failed to lock media info while initializing audio stream");
                     info.video_streams.insert(name.to_owned(), caps.clone());
                     let is_first = info.video_best.is_none();
@@ -224,7 +243,7 @@ impl Context {
         });
     }
 
-    fn build_audio_queue (
+    fn build_audio_queue(
         pipeline: &gst::Pipeline,
         src_pad: &gst::Pad,
         audio_sink: &gst::Element,
@@ -236,7 +255,10 @@ impl Context {
         let playback_resample = gst::ElementFactory::make("audioresample", None).unwrap();
         let playback_sink_pad = playback_queue.get_static_pad("sink").unwrap();
         let playback_elements = &[
-            &playback_queue, &playback_convert, &playback_resample, &audio_sink,
+            &playback_queue,
+            &playback_convert,
+            &playback_resample,
+            &audio_sink,
         ];
 
         let visu_queue = gst::ElementFactory::make("queue", "visu_queue").unwrap();
@@ -244,14 +266,21 @@ impl Context {
         // This is the buffer duration that will be queued in paused mode
         // TODO: make this configurable
         let queue_duration = 5_000_000_000u64; // 5s
-        playback_queue.set_property("max-size-time", &gst::Value::from(&queue_duration)).unwrap();
-        visu_queue.set_property("max-size-time", &gst::Value::from(&queue_duration)).unwrap();
+        playback_queue
+            .set_property("max-size-time", &gst::Value::from(&queue_duration))
+            .unwrap();
+        visu_queue
+            .set_property("max-size-time", &gst::Value::from(&queue_duration))
+            .unwrap();
 
         #[cfg(feature = "trace-audio-queue")]
-        visu_queue.connect("overrun", false, |_| {
-            println!("Audio visu queue OVERRUN");
-            None
-        }).ok().unwrap();
+        visu_queue
+            .connect("overrun", false, |_| {
+                println!("Audio visu queue OVERRUN");
+                None
+            })
+            .ok()
+            .unwrap();
 
         let visu_convert = gst::ElementFactory::make("audioconvert", None).unwrap();
         let visu_sink = gst::ElementFactory::make("appsink", "audio_visu_sink").unwrap();
@@ -260,7 +289,7 @@ impl Context {
         {
             let visu_elements = &[&visu_queue, &visu_convert, &visu_sink];
             let tee = gst::ElementFactory::make("tee", "audio_tee").unwrap();
-            let mut elements = vec!(&tee);
+            let mut elements = vec![&tee];
             elements.extend_from_slice(playback_elements);
             elements.extend_from_slice(visu_elements);
             pipeline.add_many(elements.as_slice()).unwrap();
@@ -274,12 +303,20 @@ impl Context {
             // TODO: in C, requested pads must be released when done
             // check if this also applies to the Rust binding
             let tee_playback_src_pad = tee.get_request_pad("src_%u").unwrap();
-            assert_eq!(tee_playback_src_pad.link(&playback_sink_pad), gst::PadLinkReturn::Ok);
+            assert_eq!(
+                tee_playback_src_pad.link(&playback_sink_pad),
+                gst::PadLinkReturn::Ok
+            );
 
             let tee_visu_src_pad = tee.get_request_pad("src_%u").unwrap();
-            assert_eq!(tee_visu_src_pad.link(&visu_sink_pad), gst::PadLinkReturn::Ok);
+            assert_eq!(
+                tee_visu_src_pad.link(&visu_sink_pad),
+                gst::PadLinkReturn::Ok
+            );
 
-            for e in elements { e.sync_state_with_parent().unwrap(); }
+            for e in elements {
+                e.sync_state_with_parent().unwrap();
+            }
         }
 
         let appsink = visu_sink.dynamic_cast::<gst_app::AppSink>().unwrap();
@@ -294,21 +331,23 @@ impl Context {
         ));
 
         // get samples as fast as possible
-        appsink.set_property("sync", &gst::Value::from(&false)).unwrap();
+        appsink
+            .set_property("sync", &gst::Value::from(&false))
+            .unwrap();
         // and don't block pipeline when switching state
-        appsink.set_property("async", &gst::Value::from(&false)).unwrap();
+        appsink
+            .set_property("async", &gst::Value::from(&false))
+            .unwrap();
 
         {
-            dbl_audio_buffer_mtx.lock()
+            dbl_audio_buffer_mtx
+                .lock()
                 .expect("Context::build_audio_pipeline: couldn't lock dbl_audio_buffer_mtx")
-                .set_audio_caps_and_ref(
-                    &src_pad.get_current_caps().unwrap(),
-                    &audio_sink
-                );
+                .set_audio_caps_and_ref(&src_pad.get_current_caps().unwrap(), &audio_sink);
         }
 
         #[cfg(feature = "trace-audio-caps")]
-        visu_sink_pad.connect_property_caps_notify( |pad| {
+        visu_sink_pad.connect_property_caps_notify(|pad| {
             println!("{:?}", pad.get_property_caps());
         });
 
@@ -316,34 +355,30 @@ impl Context {
         appsink.set_callbacks(gst_app::AppSinkCallbacks::new(
             /* eos */
             move |_| {
-                dbl_audio_buffer_mtx_eos.lock()
+                dbl_audio_buffer_mtx_eos
+                    .lock()
                     .expect("appsink: eos: couldn't lock dbl_audio_buffer_mtx")
                     .handle_eos();
             },
             /* new_preroll */
             |_| gst::FlowReturn::Ok,
             /* new_samples */
-            move |appsink| {
-                match appsink.pull_sample() {
-                    Some(sample) => {
-                        {
-                            dbl_audio_buffer_mtx.lock()
-                                .expect("appsink: new_samples: couldn't lock dbl_audio_buffer_mtx")
-                                .push_gst_sample(sample);
-                        }
-                        gst::FlowReturn::Ok
-                    },
-                    None => gst::FlowReturn::Eos,
+            move |appsink| match appsink.pull_sample() {
+                Some(sample) => {
+                    {
+                        dbl_audio_buffer_mtx
+                            .lock()
+                            .expect("appsink: new_samples: couldn't lock dbl_audio_buffer_mtx")
+                            .push_gst_sample(sample);
+                    }
+                    gst::FlowReturn::Ok
                 }
+                None => gst::FlowReturn::Eos,
             },
         ));
     }
 
-    fn build_video_queue(
-        pipeline: &gst::Pipeline,
-        src_pad: &gst::Pad,
-        video_sink: &gst::Element,
-    ) {
+    fn build_video_queue(pipeline: &gst::Pipeline, src_pad: &gst::Pad, video_sink: &gst::Element) {
         let queue = gst::ElementFactory::make("queue", None).unwrap();
         let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
         let scale = gst::ElementFactory::make("videoscale", None).unwrap();
@@ -352,7 +387,9 @@ impl Context {
         pipeline.add_many(elements).unwrap();
         gst::Element::link_many(elements).unwrap();
 
-        for e in elements { e.sync_state_with_parent().unwrap(); }
+        for e in elements {
+            e.sync_state_with_parent().unwrap();
+        }
 
         let sink_pad = queue.get_static_pad("sink").unwrap();
         assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
@@ -365,42 +402,42 @@ impl Context {
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
-                    ctx_tx.send(ContextMessage::Eos)
+                    ctx_tx
+                        .send(ContextMessage::Eos)
                         .expect("Failed to notify UI");
                     return glib::Continue(false);
-                },
+                }
                 gst::MessageView::Error(err) => {
-                    eprintln!("Error from {}: {} ({:?})",
+                    eprintln!(
+                        "Error from {}: {} ({:?})",
                         msg.get_src().get_path_string(),
-                        err.get_error(), err.get_debug()
+                        err.get_error(),
+                        err.get_debug()
                     );
-                    ctx_tx.send(ContextMessage::FailedToOpenMedia)
+                    ctx_tx
+                        .send(ContextMessage::FailedToOpenMedia)
                         .expect("Failed to notify UI");
                     return glib::Continue(false);
+                }
+                gst::MessageView::AsyncDone(_) => if !init_done {
+                    init_done = true;
+                    ctx_tx
+                        .send(ContextMessage::InitDone)
+                        .expect("Failed to notify UI");
+                } else {
+                    ctx_tx
+                        .send(ContextMessage::AsyncDone)
+                        .expect("Failed to notify UI");
                 },
-                gst::MessageView::AsyncDone(_) => {
-                    if !init_done {
-                        init_done = true;
-                        ctx_tx.send(ContextMessage::InitDone)
-                            .expect("Failed to notify UI");
+                gst::MessageView::Tag(msg_tag) => if !init_done {
+                    Context::add_tags(msg_tag.get_tags(), &info_arc_mtx);
+                },
+                gst::MessageView::Toc(msg_toc) => if !init_done {
+                    let (toc, _) = msg_toc.get_toc();
+                    if toc.get_scope() == TocScope::Global {
+                        Context::add_toc(toc, &info_arc_mtx);
                     } else {
-                        ctx_tx.send(ContextMessage::AsyncDone)
-                            .expect("Failed to notify UI");
-                    }
-                },
-                gst::MessageView::Tag(msg_tag) => {
-                    if !init_done {
-                        Context::add_tags(msg_tag.get_tags(), &info_arc_mtx);
-                    }
-                },
-                gst::MessageView::Toc(msg_toc) => {
-                    if !init_done {
-                        let (toc, _) = msg_toc.get_toc();
-                        if toc.get_scope() == TocScope::Global {
-                            Context::add_toc(toc, &info_arc_mtx);
-                        } else {
-                            println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
-                        }
+                        println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
                     }
                 },
                 _ => (),
@@ -411,7 +448,8 @@ impl Context {
     }
 
     fn add_tags(tags: gst::TagList, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
-        let info = &mut info_arc_mtx.lock()
+        let info = &mut info_arc_mtx
+            .lock()
             .expect("Failed to lock media info while reading tag data");
         assign_str_tag!(info.title, tags, gst::tags::Title);
         assign_str_tag!(info.artist, tags, gst::tags::Artist);
@@ -425,9 +463,7 @@ impl Context {
             if let Some(sample) = image_tag.get() {
                 if let Some(buffer) = sample.get_buffer() {
                     if let Some(map) = buffer.map_readable() {
-                        info.thumbnail = AlignedImage::from_uknown_buffer(
-                                map.as_slice()
-                            ).ok();
+                        info.thumbnail = AlignedImage::from_uknown_buffer(map.as_slice()).ok();
                     }
                 }
             }
@@ -435,7 +471,8 @@ impl Context {
     }
 
     fn add_toc(toc: gst::Toc, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
-        let info = &mut info_arc_mtx.lock()
+        let info = &mut info_arc_mtx
+            .lock()
             .expect("Failed to lock media info while reading toc data");
         if info.chapters.is_empty() {
             // chapters not retrieved yet
@@ -458,7 +495,7 @@ impl Context {
                                     sub_entry.get_uid(),
                                     &title,
                                     Timestamp::from_signed_nano(start),
-                                    Timestamp::from_signed_nano(stop)
+                                    Timestamp::from_signed_nano(stop),
                                 ));
                             }
                         } /*else {

@@ -35,7 +35,7 @@ impl AlignedImage {
                     }
 
                     Ok(new_img)
-                },
+                }
                 None => Err("Error converting image to raw RGB".to_owned()),
             },
             Err(error) => Err(format!("Error loading image: {:?}", error)),

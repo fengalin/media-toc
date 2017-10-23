@@ -24,14 +24,15 @@ impl VideoController {
         }
     }
 
-    pub fn register_callbacks(&self, _: &Rc<RefCell<MainController>>) {
-    }
+    pub fn register_callbacks(&self, _: &Rc<RefCell<MainController>>) {}
 
     pub fn new_media(&mut self, context: &Context) {
-        let has_video = context.info.lock()
-                .expect("Failed to lock media info while initializing video controller")
-                .video_best
-                .is_some();
+        let has_video = context
+            .info
+            .lock()
+            .expect("Failed to lock media info while initializing video controller")
+            .video_best
+            .is_some();
 
         if has_video {
             self.container.show();

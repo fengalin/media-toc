@@ -14,7 +14,7 @@ mod video_controller;
 use self::video_controller::VideoController;
 
 pub mod waveform_buffer;
-pub use self::waveform_buffer::{DoubleWaveformBuffer, WaveformConditions, WaveformBuffer};
+pub use self::waveform_buffer::{DoubleWaveformBuffer, WaveformBuffer, WaveformConditions};
 
 pub mod waveform_image;
-pub use self::waveform_image::{BACKGROUND_COLOR, WaveformImage};
+pub use self::waveform_image::{WaveformImage, BACKGROUND_COLOR};

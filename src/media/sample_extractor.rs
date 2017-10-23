@@ -59,16 +59,18 @@ pub trait SampleExtractor: Send {
     // extraction process by keeping conditions between frames
     fn update_concrete_state(&mut self, other: &mut Box<SampleExtractor>);
 
-    fn query_current_sample(&mut self) -> (u64, usize) { // (position, sample)
+    fn query_current_sample(&mut self) -> (u64, usize) {
+        // (position, sample)
         let state = &mut self.get_extraction_state_mut();
-        state.audio_sink.as_ref()
+        state
+            .audio_sink
+            .as_ref()
             .expect("DoubleSampleExtractor: no audio ref while querying position")
             .query(state.position_query.get_mut().unwrap());
-        let position =
-            match state.position_query.view() {
-                QueryView::Position(ref position) => position.get().1 as u64,
-                _ => unreachable!(),
-            };
+        let position = match state.position_query.view() {
+            QueryView::Position(ref position) => position.get().1 as u64,
+            _ => unreachable!(),
+        };
         (position, (position / state.sample_duration) as usize)
     }
 

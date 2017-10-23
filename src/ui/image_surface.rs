@@ -1,6 +1,6 @@
 extern crate cairo;
 
-use ::media::AlignedImage;
+use media::AlignedImage;
 
 pub struct ImageSurface {
     pub surface: cairo::ImageSurface,
@@ -13,14 +13,18 @@ impl ImageSurface {
         let stride = image.stride() as i32;
 
         match cairo::ImageSurface::create_for_data(
-                image.into_boxed_slice(),
-                |_| {}, cairo::Format::Rgb24,
-                width, height, stride
-        )
-        {
+            image.into_boxed_slice(),
+            |_| {},
+            cairo::Format::Rgb24,
+            width,
+            height,
+            stride,
+        ) {
             Ok(surface) => Ok(ImageSurface { surface: surface }),
-            Err(error) => Err(format!("Error creating ImageSurface from aligned image: {:?}", error))
+            Err(error) => Err(format!(
+                "Error creating ImageSurface from aligned image: {:?}",
+                error
+            )),
         }
     }
 }
-

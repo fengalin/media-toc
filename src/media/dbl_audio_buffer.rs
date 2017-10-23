@@ -36,7 +36,7 @@ impl DoubleAudioBuffer {
     pub fn new(
         buffer_duration: u64,
         exposed_buffer: Box<SampleExtractor>,
-        working_buffer: Box<SampleExtractor>
+        working_buffer: Box<SampleExtractor>,
     ) -> DoubleAudioBuffer {
         DoubleAudioBuffer {
             audio_buffer: AudioBuffer::new(buffer_duration),
@@ -57,12 +57,14 @@ impl DoubleAudioBuffer {
         self.samples_since_last_extract = 0;
 
         {
-            let exposed_buffer = &mut self.exposed_buffer_mtx.lock()
-                .expect("DoubleAudioBuffer: couldn't lock exposed_buffer_mtx while setting audio sink");
+            let exposed_buffer = &mut self.exposed_buffer_mtx.lock().expect(
+                "DoubleAudioBuffer: couldn't lock exposed_buffer_mtx while setting audio sink",
+            );
             exposed_buffer.cleanup();
         }
 
-        self.working_buffer.as_mut()
+        self.working_buffer
+            .as_mut()
             .expect("DoubleAudioBuffer: couldn't get working_buffer while setting audio sink")
             .cleanup();
         self.lower_to_keep = 0;
@@ -70,10 +72,7 @@ impl DoubleAudioBuffer {
 
     // Initialize buffer with audio stream capabilities
     // and GStreamer element for position reference
-    pub fn set_audio_caps_and_ref(&mut self,
-        caps: &gst::Caps,
-        audio_ref: &gst::Element
-    ) {
+    pub fn set_audio_caps_and_ref(&mut self, caps: &gst::Caps, audio_ref: &gst::Element) {
         let audio_info = gst_audio::AudioInfo::from_caps(&caps)
             .expect("DoubleAudioBuffer::set_audio_caps_and_ref unable to get AudioInfo");
 
@@ -92,14 +91,16 @@ impl DoubleAudioBuffer {
         };
 
         {
-            let exposed_buffer = &mut self.exposed_buffer_mtx.lock()
-                .expect("DoubleAudioBuffer: couldn't lock exposed_buffer_mtx while setting audio sink");
+            let exposed_buffer = &mut self.exposed_buffer_mtx.lock().expect(
+                "DoubleAudioBuffer: couldn't lock exposed_buffer_mtx while setting audio sink",
+            );
             exposed_buffer.set_audio_sink(audio_ref.clone());
             exposed_buffer.set_sample_duration(sample_duration, duration_for_1000_samples);
             exposed_buffer.set_channels(&channels);
         }
 
-        let working_buffer = self.working_buffer.as_mut()
+        let working_buffer = self.working_buffer
+            .as_mut()
             .expect("DoubleAudioBuffer: couldn't get working_buffer while setting audio sink");
         working_buffer.set_audio_sink(audio_ref.clone());
         working_buffer.set_sample_duration(sample_duration, duration_for_1000_samples);
@@ -114,8 +115,8 @@ impl DoubleAudioBuffer {
 
     pub fn push_gst_sample(&mut self, sample: gst::Sample) {
         // store incoming samples
-        self.samples_since_last_extract +=
-            self.audio_buffer.push_gst_sample(sample, self.lower_to_keep);
+        self.samples_since_last_extract += self.audio_buffer
+            .push_gst_sample(sample, self.lower_to_keep);
 
         if self.samples_since_last_extract >= EXTRACTION_THRESHOLD {
             // extract new samples and swap
@@ -126,13 +127,15 @@ impl DoubleAudioBuffer {
 
     // Update the working extractor with new samples and swap.
     pub fn extract_samples(&mut self) {
-        let mut working_buffer = self.working_buffer.take()
+        let mut working_buffer = self.working_buffer
+            .take()
             .expect("DoubleAudioBuffer::extract_samples: failed to take working buffer");
         working_buffer.extract_samples(&self.audio_buffer);
 
         // swap buffers
         {
-            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock()
+            let exposed_buffer_box = &mut *self.exposed_buffer_mtx
+                .lock()
                 .expect("DoubleAudioBuffer::extract_samples: failed to lock the exposed buffer");
             // get latest state from the previously exposed buffer
             // in order to smoothen rendering between frames
@@ -149,11 +152,13 @@ impl DoubleAudioBuffer {
 
     pub fn refresh(&mut self) {
         // refresh with current conditions
-        let mut working_buffer = self.working_buffer.take()
+        let mut working_buffer = self.working_buffer
+            .take()
             .expect("DoubleAudioBuffer::refresh: failed to take working buffer");
 
         {
-            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock()
+            let exposed_buffer_box = &mut *self.exposed_buffer_mtx
+                .lock()
                 .expect("DoubleAudioBuffer:::refresh: failed to lock the exposed buffer");
             // get latest state from the previously exposed buffer
             working_buffer.update_concrete_state(exposed_buffer_box);
@@ -176,11 +181,13 @@ impl DoubleAudioBuffer {
     // Conditions concrete type must conform to a struct expected
     // by the concrete implementation of the SampleExtractor.
     pub fn refresh_with_conditions<T: Any + Clone>(&mut self, conditions: Box<T>) {
-        let mut working_buffer = self.working_buffer.take()
+        let mut working_buffer = self.working_buffer
+            .take()
             .expect("DoubleAudioBuffer::refresh: failed to take working buffer");
 
         {
-            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock()
+            let exposed_buffer_box = &mut *self.exposed_buffer_mtx
+                .lock()
                 .expect("DoubleAudioBuffer:::refresh: failed to lock the exposed buffer");
             // get latest state from the previously exposed buffer
             working_buffer.update_concrete_state(exposed_buffer_box);
