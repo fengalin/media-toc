@@ -2,8 +2,13 @@ extern crate cairo;
 
 use std::i16;
 
-#[cfg(feature = "profile-waveform-image")]
+#[cfg(any(feature = "profile-waveform-image", feature = "dump-waveform"))]
 use chrono::Utc;
+
+#[cfg(feature = "dump-waveform")]
+use std::fs::{create_dir, File};
+#[cfg(feature = "dump-waveform")]
+use std::io::ErrorKind;
 
 use media::{AudioBuffer, AudioChannel, AudioChannelSide};
 
@@ -19,6 +24,9 @@ const INIT_HEIGHT: i32 = 500;
 const SAMPLES_RANGE: f64 = INIT_HEIGHT as f64;
 const SAMPLES_OFFSET: f64 = SAMPLES_RANGE / 2f64;
 const SAMPLES_SCALE_FACTOR: f64 = SAMPLES_OFFSET / (i16::MAX as f64);
+
+#[cfg(feature = "dump-waveform")]
+const WAVEFORM_DUMP_DIR: &str = "target/waveforms";
 
 pub struct WaveformImage {
     pub id: usize,
@@ -53,6 +61,17 @@ pub struct WaveformImage {
 
 impl WaveformImage {
     pub fn new(id: usize) -> Self {
+        #[cfg(feature = "dump-waveform")]
+        match create_dir(&WAVEFORM_DUMP_DIR) {
+            Ok(_) => (),
+            Err(error) => match error.kind() {
+                ErrorKind::AlreadyExists => (),
+                _ => panic!("WaveformImage::new couldn't create directory {}",
+                    WAVEFORM_DUMP_DIR
+                ),
+            },
+        }
+
         WaveformImage {
             id: id,
             is_ready: false,
@@ -237,6 +256,10 @@ impl WaveformImage {
         if lower < audio_buffer.lower {
             // first sample might be smaller than audio_buffer.lower
             // due to alignement on sample_step
+            #[cfg(any(test, feature = "trace-waveform-rendering"))]
+            println!("WaveformImage{}::render lower {} is less than buffer.lower {}",
+                self.id, lower, audio_buffer.lower
+            );
             lower += self.sample_step;
         }
 
@@ -261,6 +284,10 @@ impl WaveformImage {
         if !self.force_redraw && lower >= self.lower
         && upper <= self.upper
         {   // traget extraction fits in previous extraction
+            #[cfg(any(test, feature = "trace-waveform-rendering"))]
+            println!("WaveformImage{}::render traget fits [{}, {}] in previous [{}, {}]",
+                self.id, lower, upper, self.lower, self.upper
+            );
             return;
         } else if upper < self.lower || lower > self.upper
         {   // current samples extraction doesn't overlap with samples in previous image
@@ -389,6 +416,19 @@ impl WaveformImage {
                     );
                 }
             }
+        }
+
+        #[cfg(feature = "dump-waveform")]
+        {
+            let mut output_file = File::create(
+                    format!("{}/waveform_{}_{}.png",
+                        WAVEFORM_DUMP_DIR,
+                        Utc::now().format("%H:%M:%S%.6f"),
+                        self.id,
+                    )
+                ).expect("WaveformImage::render couldn't create output file");
+            working_image.write_to_png(&mut output_file)
+                .expect("WaveformImage::render couldn't write waveform image");
         }
 
         // swap images
@@ -822,7 +862,7 @@ impl WaveformImage {
             #[cfg(any(test, feature = "trace-waveform-rendering"))]
             {
                 if x == first_x {
-                    println!("/!\\ WaveformImage{}::draw_samples only one sample lower {}, upper {}, sample_step {}, channel {}",
+                    println!("WaveformImage{}::draw_samples only one [{}, {}], sample_step {}, channel {}",
                         self.id, lower, upper, self.sample_step, channel
                     );
                 }
@@ -892,10 +932,9 @@ mod tests {
             Ok(_) => (),
             Err(error) => match error.kind() {
                 ErrorKind::AlreadyExists => (),
-                _ =>
-                    panic!("WaveformImage test: couldn't create directory {}",
-                        OUT_DIR
-                    ),
+                _ => panic!("WaveformImage test: couldn't create directory {}",
+                    OUT_DIR
+                ),
             },
         }
     }
