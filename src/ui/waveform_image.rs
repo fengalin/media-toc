@@ -577,49 +577,10 @@ impl WaveformImage {
             None => None,
         };
 
-        if let Some((first_added, last_added)) =
+        if let Some((first_added, _last_added)) =
             self.draw_samples(cr, audio_buffer, lower, self.lower, 0f64)
         {
-            if let Some(prev_first) = self.first.take() {
-                if (prev_first.x - last_added.x).abs() <= self.x_step_f {
-                    // link new added samples with previous first sample
-                    self.link_samples(cr, &last_added, &prev_first);
-                } else {
-                    #[cfg(any(test, feature = "trace-waveform-rendering"))]
-                    {
-                        println!(
-                            concat!(
-                                r#"/!\\ WaveformImage{}::appd_left can't link "#,
-                                r#"[{}, {}], last added ({}, {:?}), upper {}"#,
-                            ),
-                            self.id,
-                            lower,
-                            self.lower,
-                            last_added.x,
-                            last_added.values,
-                            self.upper
-                        );
-                        self.trace_positions(&Some(prev_first.clone()), &self.last);
-                    }
-                }
-
-                self.draw_amplitude_0(cr, 0f64, prev_first.x);
-
-                self.first = Some(first_added);
-            } else {
-                #[cfg(any(test, feature = "trace-waveform-rendering"))]
-                {
-                    println!(
-                        "/!\\ WaveformImage{}::appd_left no prev first [{}, {}], upper {}",
-                        self.id,
-                        lower,
-                        self.lower,
-                        self.upper
-                    );
-                    self.trace_positions(&self.first, &self.last);
-                }
-            }
-
+            self.first = Some(first_added);
             self.lower = lower;
         } else {
             #[cfg(any(test, feature = "trace-waveform-rendering"))]
@@ -683,7 +644,7 @@ impl WaveformImage {
 
                 self.last = self.last.take().map(|last| {
                     let new_last_x = last.x - x_offset;
-                    self.clear_area(cr, new_last_x, self.image_width_f);
+                    self.clear_area(cr, new_last_x + 1f64, self.image_width_f);
                     WaveformSample {
                         x: new_last_x,
                         values: last.values,
@@ -696,56 +657,10 @@ impl WaveformImage {
         let first_x_to_draw =
             ((first_sample_to_draw - self.lower) / self.sample_step * self.x_step) as f64;
 
-        if let Some((first_added, last_added)) = self.draw_samples(
-            cr,
-            audio_buffer,
-            first_sample_to_draw,
-            upper,
-            first_x_to_draw,
-        ) {
-            if let Some(prev_last) = self.last.take() {
-                if (first_added.x - prev_last.x).abs() <= self.x_step_f {
-                    // link new added samples with previous last sample
-                    self.link_samples(cr, &prev_last, &first_added);
-                } else {
-                    #[cfg(any(test, feature = "trace-waveform-rendering"))]
-                    {
-                        println!(
-                            concat!(
-                                r#"/!\\ WaveformImage{}::appd_right can't link "#,
-                                r#"[{}, {}], upper {}, first_added {:?}"#,
-                            ),
-                            self.id,
-                            self.lower,
-                            lower,
-                            self.upper,
-                            first_added,
-                        );
-                        self.trace_positions(&self.first, &Some(prev_last.clone()));
-                    }
-                }
-
-                self.draw_amplitude_0(cr, prev_last.x, last_added.x);
-
-                self.last = Some(last_added);
-            } else {
-                #[cfg(any(test, feature = "trace-waveform-rendering"))]
-                {
-                    println!(
-                        concat!(
-                            r#"/!\\ WaveformImage{}::appd_right no prev last "#,
-                            r#"self [{}, {}], appending: [{}, {}]"#,
-                        ),
-                        self.id,
-                        lower,
-                        upper,
-                        self.lower,
-                        self.upper,
-                    );
-                    self.trace_positions(&self.first, &self.last);
-                }
-            }
-
+        if let Some((_first_added, last_added))
+            = self.draw_samples(cr, audio_buffer, first_sample_to_draw, upper, first_x_to_draw)
+        {
+            self.last = Some(last_added);
             self.upper = upper;
         } else {
             #[cfg(any(test, feature = "trace-waveform-rendering"))]
@@ -942,6 +857,33 @@ impl WaveformImage {
             last_values.push(y);
         }
 
+        let first_added = WaveformSample{ x: first_x, values: first_values };
+        let first_for_amp0 = match self.last.as_ref() {
+            Some(prev_last) => if (first_x - prev_last.x).abs() <= self.x_step_f {
+                // appending samples right after previous last sample => add a link
+                self.link_samples(cr, &prev_last, &first_added);
+                prev_last.x
+            } else {
+                #[cfg(any(test, feature = "trace-waveform-rendering"))]
+                {
+                    println!(
+                        concat!(
+                            r#"/!\\ WaveformImage{}::draw_samples can't link "#,
+                            r#"[{}, {}], prev_last.x {}, first_x {}, self.lower {}"#,
+                        ),
+                        self.id,
+                        self.upper,
+                        lower,
+                        prev_last.x,
+                        first_x,
+                        self.lower,
+                    );
+                }
+                first_x
+            }
+            None => first_x,
+        };
+
         let mut x = first_x;
         for sample in sample_iter {
             let prev_x = x;
@@ -957,6 +899,35 @@ impl WaveformImage {
             }
         }
 
+        let last_added = WaveformSample{ x: x, values: last_values };
+        let last_for_amp0 = match self.first.as_ref() {
+            Some(prev_first) => if (prev_first.x - x).abs() <= self.x_step_f {
+                // appending samples right before previous first sample => add a link
+                self.link_samples(cr, &last_added, &prev_first);
+                prev_first.x
+            } else {
+                #[cfg(any(test, feature = "trace-waveform-rendering"))]
+                {
+                    println!(
+                        concat!(
+                            r#"/!\\ WaveformImage{}::draw_samples can't link "#,
+                            r#"[{}, {}], last_x {}, prev_first.x {}, upper {}"#,
+                        ),
+                        self.id,
+                        upper,
+                        self.lower,
+                        x,
+                        prev_first.x,
+                        self.upper,
+                    );
+                }
+                x
+            }
+            None => x,
+        };
+
+        self.draw_amplitude_0(cr, first_for_amp0, last_for_amp0);
+
         #[cfg(test)]
         {
             // in test mode, draw marks at
@@ -966,16 +937,8 @@ impl WaveformImage {
             cr.line_to(x, *SAMPLES_RANGE);
             cr.stroke();
         }
-        Some((
-            WaveformSample {
-                x: first_x,
-                values: first_values,
-            },
-            WaveformSample {
-                x: x,
-                values: last_values,
-            },
-        ))
+
+        Some((first_added, last_added))
     }
 
     // clear samples previously rendered
