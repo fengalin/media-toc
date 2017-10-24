@@ -167,7 +167,7 @@ impl WaveformImage {
         // it might be necessary to force rendering when stream
         // is paused or eos
 
-        let force_redraw = (self.sample_step_f - sample_step_f).abs() < 0.01f64
+        let force_redraw = (self.sample_step_f - sample_step_f).abs() > 0.01f64
             || self.req_width != width || self.req_height != height;
 
         if force_redraw {
