@@ -221,7 +221,7 @@ impl Context {
                         pipeline,
                         src_pad,
                         &audio_sink,
-                        dbl_audio_buffer_mtx.clone(),
+                        Arc::clone(&dbl_audio_buffer_mtx),
                     );
                 }
             } else if name.starts_with("video/") {
@@ -258,7 +258,7 @@ impl Context {
             &playback_queue,
             &playback_convert,
             &playback_resample,
-            &audio_sink,
+            audio_sink,
         ];
 
         let visu_queue = gst::ElementFactory::make("queue", "visu_queue").unwrap();
@@ -343,7 +343,7 @@ impl Context {
             dbl_audio_buffer_mtx
                 .lock()
                 .expect("Context::build_audio_pipeline: couldn't lock dbl_audio_buffer_mtx")
-                .set_audio_caps_and_ref(&src_pad.get_current_caps().unwrap(), &audio_sink);
+                .set_audio_caps_and_ref(&src_pad.get_current_caps().unwrap(), audio_sink);
         }
 
         #[cfg(feature = "trace-audio-caps")]

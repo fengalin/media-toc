@@ -21,12 +21,20 @@ const INIT_WIDTH: i32 = 2000;
 const INIT_HEIGHT: i32 = 500;
 
 // Samples normalization factores
-const SAMPLES_RANGE: f64 = INIT_HEIGHT as f64;
-const SAMPLES_OFFSET: f64 = SAMPLES_RANGE / 2f64;
-const SAMPLES_SCALE_FACTOR: f64 = SAMPLES_OFFSET / (i16::MAX as f64);
+lazy_static! {
+    static ref SAMPLES_RANGE: f64 = f64::from(INIT_HEIGHT);
+    static ref SAMPLES_OFFSET: f64 = *SAMPLES_RANGE / 2f64;
+    static ref SAMPLES_SCALE_FACTOR: f64 = *SAMPLES_OFFSET / f64::from(i16::MAX);
+}
 
 #[cfg(feature = "dump-waveform")]
 const WAVEFORM_DUMP_DIR: &str = "target/waveforms";
+
+#[derive(Debug, Clone)]
+pub struct WaveformSample {
+    pub x: f64,
+    pub values: Vec<f64>,
+}
 
 pub struct WaveformImage {
     pub id: usize,
@@ -49,8 +57,8 @@ pub struct WaveformImage {
     pub lower: usize,
     pub upper: usize,
 
-    first: Option<(f64, Vec<f64>)>,
-    pub last: Option<(f64, Vec<f64>)>,
+    first: Option<WaveformSample>,
+    pub last: Option<WaveformSample>,
 
     pub sample_window: usize,
     pub sample_step_f: f64,
@@ -159,8 +167,8 @@ impl WaveformImage {
         // it might be necessary to force rendering when stream
         // is paused or eos
 
-        let force_redraw = self.sample_step_f != sample_step_f || self.req_width != width
-            || self.req_height != height;
+        let force_redraw = (self.sample_step_f - sample_step_f).abs() < 0.01f64
+            || self.req_width != width || self.req_height != height;
 
         if force_redraw {
             self.shareable_state_changed = true;
@@ -324,9 +332,9 @@ impl WaveformImage {
                 // can't reuse => create new images and force redraw
                 self.force_redraw = true;
                 self.image_width = target_width;
-                self.image_width_f = target_width as f64;
+                self.image_width_f = f64::from(target_width);
                 self.image_height = self.req_height;
-                self.image_height_f = self.req_height as f64;
+                self.image_height_f = f64::from(self.req_height);
 
                 #[cfg(any(test, feature = "trace-waveform-rendering"))]
                 println!(
@@ -466,14 +474,14 @@ impl WaveformImage {
         cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
         cr.paint();
 
-        self.set_scale(&cr);
+        self.set_scale(cr);
 
         match self.draw_samples(cr, audio_buffer, lower, upper, 0f64) {
-            Some((first, (last_x, last_values))) => {
-                self.draw_amplitude_0(cr, 0f64, last_x);
+            Some((first, last)) => {
+                self.draw_amplitude_0(cr, 0f64, last.x);
 
                 self.first = Some(first);
-                self.last = Some((last_x, last_values));
+                self.last = Some(last);
 
                 self.lower = lower;
                 self.upper = upper;
@@ -523,25 +531,28 @@ impl WaveformImage {
         );
 
         self.translate_previous(cr, previous_image, x_offset);
-        self.set_scale(&cr);
+        self.set_scale(cr);
 
         self.first = match self.first.take() {
-            Some((mut x, values)) => {
-                x += x_offset;
-                self.clear_area(&cr, 0f64, x);
-                Some((x, values))
+            Some(mut first) => {
+                first.x += x_offset;
+                self.clear_area(cr, 0f64, first.x);
+                Some(first)
             }
             None => {
-                self.clear_area(&cr, 0f64, x_offset);
+                self.clear_area(cr, 0f64, x_offset);
                 None
             }
         };
         self.last = match self.last.take() {
-            Some((x, y)) => {
-                let next_last_pixel = x + x_offset;
+            Some(last) => {
+                let next_last_pixel = last.x + x_offset;
                 if next_last_pixel < self.image_width_f {
                     // last still in image
-                    Some((next_last_pixel, y))
+                    Some(WaveformSample {
+                        x: next_last_pixel,
+                        values: last.values,
+                    })
                 } else {
                     // last out of image
                     // get sample from previous image
@@ -555,74 +566,70 @@ impl WaveformImage {
                             let new_last_pixel = ((self.image_width - 1) as usize / self.x_step
                                 * self.x_step)
                                 as f64;
-                            self.clear_area(&cr, new_last_pixel, self.image_width_f);
-                            (new_last_pixel, values)
+                            self.clear_area(cr, new_last_pixel, self.image_width_f);
+                            WaveformSample {
+                                x: new_last_pixel,
+                                values: values,
+                            }
                         })
                 }
             }
             None => None,
         };
 
-        match self.draw_samples(cr, audio_buffer, lower, self.lower, 0f64) {
-            Some(((first_added_x, first_added_val), (last_added_x, last_added_val))) => {
-                if let Some((prev_first_x, prev_first_val)) = self.first.take() {
-                    if (prev_first_x - last_added_x).abs() <= self.x_step_f {
-                        // link new added samples with previous first sample
-                        self.link_samples(
-                            &cr,
-                            last_added_x,
-                            &last_added_val,
-                            prev_first_x,
-                            &prev_first_val,
-                        );
-                    } else {
-                        #[cfg(any(test, feature = "trace-waveform-rendering"))]
-                        {
-                            println!(
-                                concat!(
-                                    r#"/!\\ WaveformImage{}::appd_left can't link "#,
-                                    r#"[{}, {}], last added ({}, {:?}), upper {}"#,
-                                ),
-                                self.id,
-                                lower,
-                                self.lower,
-                                last_added_x,
-                                last_added_val,
-                                self.upper
-                            );
-                            self.trace_positions(&Some((prev_first_x, prev_first_val)), &self.last);
-                        }
-                    }
-
-                    self.draw_amplitude_0(cr, 0f64, prev_first_x);
-
-                    self.first = Some((first_added_x, first_added_val));
+        if let Some((first_added, last_added)) =
+            self.draw_samples(cr, audio_buffer, lower, self.lower, 0f64)
+        {
+            if let Some(prev_first) = self.first.take() {
+                if (prev_first.x - last_added.x).abs() <= self.x_step_f {
+                    // link new added samples with previous first sample
+                    self.link_samples(cr, &last_added, &prev_first);
                 } else {
                     #[cfg(any(test, feature = "trace-waveform-rendering"))]
                     {
                         println!(
-                            "/!\\ WaveformImage{}::appd_left no prev first [{}, {}], upper {}",
+                            concat!(
+                                r#"/!\\ WaveformImage{}::appd_left can't link "#,
+                                r#"[{}, {}], last added ({}, {:?}), upper {}"#,
+                            ),
                             self.id,
                             lower,
                             self.lower,
+                            last_added.x,
+                            last_added.values,
                             self.upper
                         );
-                        self.trace_positions(&self.first, &self.last);
+                        self.trace_positions(&Some(prev_first.clone()), &self.last);
                     }
                 }
 
-                self.lower = lower;
-            }
-            None => {
+                self.draw_amplitude_0(cr, 0f64, prev_first.x);
+
+                self.first = Some(first_added);
+            } else {
                 #[cfg(any(test, feature = "trace-waveform-rendering"))]
-                println!(
-                    "WaveformImage{}::appd_left iter ({}, {}) out of range or empty",
-                    self.id,
-                    lower,
-                    self.lower
-                );
+                {
+                    println!(
+                        "/!\\ WaveformImage{}::appd_left no prev first [{}, {}], upper {}",
+                        self.id,
+                        lower,
+                        self.lower,
+                        self.upper
+                    );
+                    self.trace_positions(&self.first, &self.last);
+                }
             }
-        };
+
+            self.lower = lower;
+        } else {
+            #[cfg(any(test, feature = "trace-waveform-rendering"))]
+            println!(
+                "WaveformImage{}::appd_left iter ({}, {}) out of range or empty",
+                self.id,
+                lower,
+                self.lower
+            );
+        }
 
         #[cfg(test)]
         {
@@ -663,18 +670,24 @@ impl WaveformImage {
 
         if must_copy {
             self.translate_previous(cr, previous_image, -x_offset);
-            self.set_scale(&cr);
+            self.set_scale(cr);
 
             if x_offset > 0f64 {
                 self.lower = lower;
                 self.first = audio_buffer.get(self.lower).map(|values| {
-                    (0f64, WaveformImage::convert_sample_values(values))
+                    WaveformSample {
+                        x: 0f64,
+                        values: WaveformImage::convert_sample_values(values),
+                    }
                 });
 
-                self.last = self.last.take().map(|(x, values)| {
-                    let new_last = x - x_offset;
-                    self.clear_area(&cr, new_last, self.image_width_f);
-                    (new_last, values)
+                self.last = self.last.take().map(|last| {
+                    let new_last_x = last.x - x_offset;
+                    self.clear_area(cr, new_last_x, self.image_width_f);
+                    WaveformSample {
+                        x: new_last_x,
+                        values: last.values,
+                    }
                 });
             }
         }
@@ -683,76 +696,66 @@ impl WaveformImage {
         let first_x_to_draw =
             ((first_sample_to_draw - self.lower) / self.sample_step * self.x_step) as f64;
 
-        match self.draw_samples(
+        if let Some((first_added, last_added)) = self.draw_samples(
             cr,
             audio_buffer,
             first_sample_to_draw,
             upper,
             first_x_to_draw,
         ) {
-            Some(((first_added_x, first_added_val), (last_added_x, last_added_val))) => {
-                if let Some((prev_last_x, prev_last_val)) = self.last.take() {
-                    if (first_added_x - prev_last_x).abs() <= self.x_step_f {
-                        // link new added samples with previous last sample
-                        self.link_samples(
-                            &cr,
-                            prev_last_x,
-                            &prev_last_val,
-                            first_added_x,
-                            &first_added_val,
-                        );
-                    } else {
-                        #[cfg(any(test, feature = "trace-waveform-rendering"))]
-                        {
-                            println!(
-                                concat!(
-                                    r#"/!\\ WaveformImage{}::appd_right can't link "#,
-                                    r#"[{}, {}], first_added ({}, {:?}), upper {}"#,
-                                ),
-                                self.id,
-                                self.lower,
-                                lower,
-                                first_added_x,
-                                first_added_val,
-                                self.upper
-                            );
-                            self.trace_positions(&self.first, &Some((prev_last_x, prev_last_val)));
-                        }
-                    }
-
-                    self.draw_amplitude_0(cr, prev_last_x, last_added_x);
-
-                    self.last = Some((last_added_x, last_added_val));
+            if let Some(prev_last) = self.last.take() {
+                if (first_added.x - prev_last.x).abs() <= self.x_step_f {
+                    // link new added samples with previous last sample
+                    self.link_samples(cr, &prev_last, &first_added);
                 } else {
                     #[cfg(any(test, feature = "trace-waveform-rendering"))]
                     {
                         println!(
                             concat!(
-                                r#"/!\\ WaveformImage{}::appd_right no prev last "#,
-                                r#"self.lower {}, lower {}, self.upper {}, upper {}"#,
+                                r#"/!\\ WaveformImage{}::appd_right can't link "#,
+                                r#"[{}, {}], upper {}, first_added {:?}"#,
                             ),
                             self.id,
                             self.lower,
                             lower,
                             self.upper,
-                            upper
+                            first_added,
                         );
-                        self.trace_positions(&self.first, &self.last);
+                        self.trace_positions(&self.first, &Some(prev_last.clone()));
                     }
                 }
 
-                self.upper = upper;
-            }
-            None => {
+                self.draw_amplitude_0(cr, prev_last.x, last_added.x);
+
+                self.last = Some(last_added);
+            } else {
                 #[cfg(any(test, feature = "trace-waveform-rendering"))]
-                println!(
-                    "WaveformImage{}::appd_right iter ({}, {}) out of range or empty",
-                    self.id,
-                    first_sample_to_draw,
-                    upper
-                );
+                {
+                    println!(
+                        concat!(
+                            r#"/!\\ WaveformImage{}::appd_right no prev last "#,
+                            r#"self [{}, {}], appending: [{}, {}]"#,
+                        ),
+                        self.id,
+                        lower,
+                        upper,
+                        self.lower,
+                        self.upper,
+                    );
+                    self.trace_positions(&self.first, &self.last);
+                }
             }
-        };
+
+            self.upper = upper;
+        } else {
+            #[cfg(any(test, feature = "trace-waveform-rendering"))]
+            println!(
+                "WaveformImage{}::appd_right iter ({}, {}) out of range or empty",
+                self.id,
+                first_sample_to_draw,
+                upper
+            );
+        }
 
         #[cfg(test)]
         {
@@ -800,16 +803,13 @@ impl WaveformImage {
     }
 
     #[cfg(any(test, feature = "trace-waveform-rendering"))]
-    fn trace_positions(&self, first: &Option<(f64, Vec<f64>)>, last: &Option<(f64, Vec<f64>)>) {
-        let first = match first.as_ref() {
-            Some(&(x, ref values)) => format!("({}, {:?})", x, values),
-            None => "-".to_owned(),
-        };
-        let last = match last.as_ref() {
-            Some(&(x, ref values)) => format!("({}, {:?})", x, values),
-            None => "-".to_owned(),
-        };
-        println!("\tx_step {}, first {}, last {}", self.x_step, first, last);
+    fn trace_positions(&self, first: &Option<WaveformSample>, last: &Option<WaveformSample>) {
+        println!(
+            "\tx_step {}, first {:?}, last {:?}",
+            self.x_step,
+            first,
+            last
+        );
     }
 
     fn translate_previous(
@@ -824,7 +824,7 @@ impl WaveformImage {
     }
 
     fn set_scale(&self, cr: &cairo::Context) {
-        cr.scale(1f64, self.image_height_f / SAMPLES_RANGE);
+        cr.scale(1f64, self.image_height_f / *SAMPLES_RANGE);
     }
 
     fn set_channel_color(&self, cr: &cairo::Context, channel: usize) {
@@ -840,29 +840,22 @@ impl WaveformImage {
         }
     }
 
-    fn link_samples(
-        &self,
-        cr: &cairo::Context,
-        from_x: f64,
-        from_values: &[f64],
-        to_x: f64,
-        to_values: &[f64],
-    ) {
+    fn link_samples(&self, cr: &cairo::Context, from: &WaveformSample, to: &WaveformSample) {
         #[cfg(test)]
         cr.set_source_rgb(0f64, 0.8f64, 0f64);
 
-        for channel in 0..from_values.len() {
+        for channel in 0..from.values.len() {
             #[cfg(not(test))]
             self.set_channel_color(cr, channel);
 
-            cr.move_to(from_x, from_values[channel]);
-            cr.line_to(to_x, to_values[channel]);
+            cr.move_to(from.x, from.values[channel]);
+            cr.line_to(to.x, to.values[channel]);
             cr.stroke();
         }
     }
 
     fn convert_sample(value: &i16) -> f64 {
-        SAMPLES_OFFSET - f64::from(*value) * SAMPLES_SCALE_FACTOR
+        *SAMPLES_OFFSET - f64::from(*value) * *SAMPLES_SCALE_FACTOR
     }
 
     fn convert_sample_values(values: &[i16]) -> Vec<f64> {
@@ -882,23 +875,13 @@ impl WaveformImage {
         lower: usize,
         upper: usize,
         first_x: f64,
-    ) -> Option<((f64, Vec<f64>), (f64, Vec<f64>))> {
+    ) -> Option<(WaveformSample, WaveformSample)> {
         if self.x_step == 1 {
             cr.set_line_width(1f64);
         } else if self.x_step < 4 {
             cr.set_line_width(1.5f64);
         } else {
             cr.set_line_width(2f64);
-        }
-
-        #[cfg(test)]
-        {
-            // in test mode, draw marks at
-            // the start and end of each chunk
-            cr.set_source_rgb(0f64, 0f64, 1f64);
-            cr.move_to(first_x, 0f64);
-            cr.line_to(first_x, SAMPLES_OFFSET / 2f64);
-            cr.stroke();
         }
 
         let sample_iter = audio_buffer.iter(lower, upper, self.sample_step);
@@ -939,6 +922,16 @@ impl WaveformImage {
             return None;
         }
 
+        #[cfg(test)]
+        {
+            // in test mode, draw marks at
+            // the start and end of each chunk
+            cr.set_source_rgb(0f64, 0f64, 1f64);
+            cr.move_to(first_x, 0f64);
+            cr.line_to(first_x, *SAMPLES_OFFSET / 2f64);
+            cr.stroke();
+        }
+
         let mut first_values: Vec<f64> = Vec::with_capacity(audio_buffer.channels);
         let mut last_values: Vec<f64> = Vec::with_capacity(audio_buffer.channels);
 
@@ -969,11 +962,20 @@ impl WaveformImage {
             // in test mode, draw marks at
             // the start and end of each chunk
             cr.set_source_rgb(1f64, 0f64, 1f64);
-            cr.move_to(x, 1.5f64 * SAMPLES_OFFSET);
-            cr.line_to(x, SAMPLES_RANGE);
+            cr.move_to(x, 1.5f64 * *SAMPLES_OFFSET);
+            cr.line_to(x, *SAMPLES_RANGE);
             cr.stroke();
         }
-        Some(((first_x, first_values), (x, last_values)))
+        Some((
+            WaveformSample {
+                x: first_x,
+                values: first_values,
+            },
+            WaveformSample {
+                x: x,
+                values: last_values,
+            },
+        ))
     }
 
     // clear samples previously rendered
@@ -985,15 +987,15 @@ impl WaveformImage {
             AMPLITUDE_0_COLOR.2,
         );
 
-        cr.move_to(first_x, SAMPLES_OFFSET);
-        cr.line_to(last_x, SAMPLES_OFFSET);
+        cr.move_to(first_x, *SAMPLES_OFFSET);
+        cr.line_to(last_x, *SAMPLES_OFFSET);
         cr.stroke();
     }
 
     // clear samples previously rendered
     fn clear_area(&self, cr: &cairo::Context, first_x: f64, limit_x: f64) {
         cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
-        cr.rectangle(first_x, 0f64, limit_x - first_x, SAMPLES_RANGE);
+        cr.rectangle(first_x, 0f64, limit_x - first_x, *SAMPLES_RANGE);
         cr.fill();
     }
 }

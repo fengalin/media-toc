@@ -73,10 +73,10 @@ impl DoubleAudioBuffer {
     // Initialize buffer with audio stream capabilities
     // and GStreamer element for position reference
     pub fn set_audio_caps_and_ref(&mut self, caps: &gst::Caps, audio_ref: &gst::Element) {
-        let audio_info = gst_audio::AudioInfo::from_caps(&caps)
+        let audio_info = gst_audio::AudioInfo::from_caps(caps)
             .expect("DoubleAudioBuffer::set_audio_caps_and_ref unable to get AudioInfo");
 
-        let rate = audio_info.rate() as u64;
+        let rate = u64::from(audio_info.rate());
         let channels = audio_info.channels() as usize;
         self.audio_buffer.init(rate, channels);
 
@@ -139,7 +139,7 @@ impl DoubleAudioBuffer {
                 .expect("DoubleAudioBuffer::extract_samples: failed to lock the exposed buffer");
             // get latest state from the previously exposed buffer
             // in order to smoothen rendering between frames
-            working_buffer.update_concrete_state(exposed_buffer_box);
+            working_buffer.update_concrete_state(exposed_buffer_box.as_mut());
             mem::swap(exposed_buffer_box, &mut working_buffer);
         }
 
@@ -161,7 +161,7 @@ impl DoubleAudioBuffer {
                 .lock()
                 .expect("DoubleAudioBuffer:::refresh: failed to lock the exposed buffer");
             // get latest state from the previously exposed buffer
-            working_buffer.update_concrete_state(exposed_buffer_box);
+            working_buffer.update_concrete_state(exposed_buffer_box.as_mut());
 
             // refresh working buffer
             working_buffer.refresh(&self.audio_buffer);
@@ -190,7 +190,7 @@ impl DoubleAudioBuffer {
                 .lock()
                 .expect("DoubleAudioBuffer:::refresh: failed to lock the exposed buffer");
             // get latest state from the previously exposed buffer
-            working_buffer.update_concrete_state(exposed_buffer_box);
+            working_buffer.update_concrete_state(exposed_buffer_box.as_mut());
 
             // refresh working buffer
             working_buffer.refresh_with_conditions(&self.audio_buffer, conditions.clone());

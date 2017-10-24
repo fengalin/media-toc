@@ -57,7 +57,7 @@ pub trait SampleExtractor: Send {
     // which is expected to be the same concrete type
     // this update is intended at smoothening the specific
     // extraction process by keeping conditions between frames
-    fn update_concrete_state(&mut self, other: &mut Box<SampleExtractor>);
+    fn update_concrete_state(&mut self, other: &mut SampleExtractor);
 
     fn query_current_sample(&mut self) -> (u64, usize) {
         // (position, sample)

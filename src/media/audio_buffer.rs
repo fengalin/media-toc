@@ -269,24 +269,21 @@ impl AudioBuffer {
         #[cfg(feature = "profiling-audio-buffer")]
         let before_drain = Utc::now();
 
-        // drain internal buffer if necessary and possible
+        // Don't drain if samples are to be added at the begining...
+        // drain only if we have enough samples in history
+        // TODO: it could be worth testing truncate instead
+        // (this would require reversing the buffer alimentation
+        // and iteration).
+        // Don't drain samples if they might be used by the extractor
+        // (limit known as argument lower_to_keep).
         if !lower_changed
             && self.samples.len() + (upper_to_add_rel - lower_to_add_rel) * self.channels
                 > self.capacity
+            && lower_to_keep.min(incoming_lower) > self.lower + self.drain_size / self.channels
         {
-            // don't drain if samples are to be added at the begining...
-            // drain only if we have enough samples in history
-            // TODO: it could be worth testing truncate instead
-            // (this would require reversing the buffer alimentation
-            // and iteration)
-
-            // Don't drain samples if they might be used by the extractor
-            // (limit known as argument lower_to_keep)
-            if lower_to_keep.min(incoming_lower) > self.lower + self.drain_size / self.channels {
-                //println!("draining... len before: {}", self.samples.len());
-                self.samples.drain(..self.drain_size);
-                self.lower += self.drain_size / self.channels;
-            }
+            //println!("draining... len before: {}", self.samples.len());
+            self.samples.drain(..self.drain_size);
+            self.lower += self.drain_size / self.channels;
         }
 
         #[cfg(feature = "profiling-audio-buffer")]

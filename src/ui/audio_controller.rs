@@ -40,7 +40,7 @@ pub struct AudioController {
 
 impl AudioController {
     pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
-        let dbl_buffer_mtx = DoubleWaveformBuffer::new(BUFFER_DURATION);
+        let dbl_buffer_mtx = DoubleWaveformBuffer::new_mutex(BUFFER_DURATION);
         let waveform_mtx = dbl_buffer_mtx
             .lock()
             .expect("AudioController::new: couldn't lock dbl_buffer_mtx")
@@ -66,21 +66,22 @@ impl AudioController {
         let this = this_rc.borrow();
 
         // draw
-        let this_clone = Rc::clone(&this_rc);
+        let this_clone = Rc::clone(this_rc);
         this.drawingarea
             .connect_draw(move |drawing_area, cairo_ctx| {
-                this_clone.borrow_mut().draw(drawing_area, cairo_ctx).into()
+                let mut this = this_clone.borrow_mut();
+                this.draw(drawing_area, cairo_ctx)
             });
 
         // widget size changed
-        let this_clone = Rc::clone(&this_rc);
+        let this_clone = Rc::clone(this_rc);
         this.drawingarea.connect_size_allocate(move |_, _| {
             this_clone.borrow_mut().refresh();
         });
 
         // click in drawing_area
-        let main_ctrl_clone = Rc::clone(&main_ctrl);
-        let this_clone = Rc::clone(&this_rc);
+        let main_ctrl_clone = Rc::clone(main_ctrl);
+        let this_clone = Rc::clone(this_rc);
         this.drawingarea
             .connect_button_press_event(move |_, event_button| {
                 let button = event_button.get_button();
@@ -106,7 +107,7 @@ impl AudioController {
             });
 
         // click zoom in
-        let this_clone = Rc::clone(&this_rc);
+        let this_clone = Rc::clone(this_rc);
         this.zoom_in_btn.connect_clicked(move |_| {
             let mut this = this_clone.borrow_mut();
             this.requested_duration /= STEP_REQ_DURATION;
@@ -118,7 +119,7 @@ impl AudioController {
         });
 
         // click zoom out
-        let this_clone = Rc::clone(&this_rc);
+        let this_clone = Rc::clone(this_rc);
         this.zoom_out_btn.connect_clicked(move |_| {
             let mut this = this_clone.borrow_mut();
             this.requested_duration *= STEP_REQ_DURATION;
@@ -218,7 +219,7 @@ impl AudioController {
         #[cfg(feature = "profiling-audio-draw")]
         let mut _before_image = Utc::now();
 
-        let (first_pos, last_opt, cursor_opt) = {
+        let image_positions = {
             let waveform_grd = &mut *self.waveform_mtx
                 .lock()
                 .expect("AudioController::draw: couldn't lock waveform_mtx");
@@ -237,14 +238,14 @@ impl AudioController {
             );
 
             match waveform_buffer.get_image() {
-                Some((image, x_offset, first_pos, last_opt, cursor_opt)) => {
+                Some((image, image_positions)) => {
                     #[cfg(feature = "profiling-audio-draw")]
                     let _before_image = Utc::now();
 
-                    cr.set_source_surface(image, -x_offset, 0f64);
+                    cr.set_source_surface(image, -image_positions.first.x, 0f64);
                     cr.paint();
 
-                    (first_pos, last_opt, cursor_opt)
+                    image_positions
                 }
                 None => {
                     self.clean_cairo_context(cr);
@@ -267,40 +268,40 @@ impl AudioController {
         cr.set_font_size(14f64);
 
         // first position
-        let first_text = format!("{}", Timestamp::format(first_pos, false));
+        let first_text = Timestamp::format(image_positions.first.timestamp, false);
         let first_text_width = 2f64 + cr.text_extents(&first_text).width;
         cr.move_to(2f64, 30f64);
         cr.show_text(&first_text);
 
         // last position
-        if let Some((last_x, last_pos)) = last_opt {
-            let last_text = format!("{}", Timestamp::format(last_pos, false));
+        if let Some(last_pos) = image_positions.last {
+            let last_text = Timestamp::format(last_pos.timestamp, false);
             let last_text_width = cr.text_extents(&last_text).width;
-            if last_x + last_text_width > first_text_width + 10f64 {
+            if last_pos.x + last_text_width > first_text_width + 10f64 {
                 // last text won't overlap with first text
                 // align actual width to a 15px multiple box in order to avoid
                 // variations due to actual size of individual digits
                 let last_text_width = (last_text_width / 15f64).ceil() * 15f64;
-                cr.move_to(last_x - last_text_width, 30f64);
+                cr.move_to(last_pos.x - last_text_width, 30f64);
                 cr.show_text(&last_text);
             }
         }
 
-        if let Some((current_x, current_pos)) = cursor_opt {
+        if let Some(current_pos) = image_positions.current {
             // draw current pos
-            let cursor_text = format!("{}", Timestamp::format(current_pos, true));
+            let cursor_text = Timestamp::format(current_pos.timestamp, true);
             let cursor_text_width = 5f64 + cr.text_extents(&cursor_text).width;
-            let cursor_text_x = if current_x + cursor_text_width < width {
-                current_x + 5f64
+            let cursor_text_x = if current_pos.x + cursor_text_width < width {
+                current_pos.x + 5f64
             } else {
-                current_x - cursor_text_width
+                current_pos.x - cursor_text_width
             };
             cr.move_to(cursor_text_x, 15f64);
             cr.show_text(&cursor_text);
 
             cr.set_line_width(1f64);
-            cr.move_to(current_x, 0f64);
-            cr.line_to(current_x, height);
+            cr.move_to(current_pos.x, 0f64);
+            cr.line_to(current_pos.x, height);
             cr.stroke();
         }
 

@@ -115,13 +115,11 @@ impl InfoController {
         this.main_ctrl = Some(Rc::downgrade(main_ctrl));
 
         // Draw thumnail image
-        let this_clone = Rc::clone(&this_rc);
+        let this_clone = Rc::clone(this_rc);
         this.drawingarea
             .connect_draw(move |drawingarea, cairo_ctx| {
-                this_clone
-                    .borrow()
-                    .draw_thumbnail(drawingarea, cairo_ctx)
-                    .into()
+                let this = this_clone.borrow();
+                this.draw_thumbnail(drawingarea, cairo_ctx)
             });
 
         // Scale seek
@@ -133,7 +131,7 @@ impl InfoController {
             });
 
         // TreeView seek
-        let this_clone = Rc::clone(&this_rc);
+        let this_clone = Rc::clone(this_rc);
         let main_ctrl_clone = Rc::clone(main_ctrl);
         this.chapter_treeview
             .connect_row_activated(move |_, tree_path, _| {
@@ -156,19 +154,19 @@ impl InfoController {
             });
 
         // add chapter
-        let this_clone = Rc::clone(&this_rc);
+        let this_clone = Rc::clone(this_rc);
         this.add_chapter_btn.connect_clicked(move |_| {
             this_clone.borrow_mut().add_chapter();
         });
 
         // remove chapter
-        let this_clone = Rc::clone(&this_rc);
+        let this_clone = Rc::clone(this_rc);
         this.del_chapter_btn.connect_clicked(move |_| {
             this_clone.borrow_mut().remove_chapter();
         });
 
         // repeat button
-        let this_clone = Rc::clone(&this_rc);
+        let this_clone = Rc::clone(this_rc);
         this.repeat_button.connect_clicked(move |button| {
             this_clone.borrow_mut().repeat_chapter = button.get_active();
         });
@@ -245,8 +243,8 @@ impl InfoController {
 
             self.chapter_iter = None;
 
-            // FIX for sample.mkv video: generate ids (TODO: remove)
-            for chapter in info.chapters.iter() {
+            let chapter_iter = info.chapters.iter();
+            for chapter in chapter_iter {
                 self.chapter_store.insert_with_values(
                     None,
                     None,
@@ -310,7 +308,7 @@ impl InfoController {
         self.duration = duration;
         self.timeline_scale.set_range(0f64, duration as f64);
         self.duration_lbl
-            .set_label(&format!("{}", Timestamp::format(duration, false)));
+            .set_label(&Timestamp::format(duration, false));
     }
 
     fn repeat_at(main_ctrl: &Option<Weak<RefCell<MainController>>>, position: u64) {
@@ -462,11 +460,9 @@ impl InfoController {
                         .select_iter(&current_iter);
                     set_chapter_iter = true;
                     keep_going = false;
-                } else {
-                    if !self.chapter_store.iter_next(&current_iter) {
-                        // no more chapters
-                        keep_going = false;
-                    }
+                } else if !self.chapter_store.iter_next(&current_iter) {
+                    // no more chapters
+                    keep_going = false;
                 }
             }
 
@@ -482,8 +478,8 @@ impl InfoController {
             .unwrap()
             .upgrade()
             .expect("InfoController::get_position can't upgrade main_ctrl");
-        let position = main_ctrl_rc.borrow_mut().get_position();
-        position
+        let mut main_ctrl = main_ctrl_rc.borrow_mut();
+        main_ctrl.get_position()
     }
 
     pub fn add_chapter(&mut self) {
@@ -510,7 +506,7 @@ impl InfoController {
                         .unwrap();
 
                     self.chapter_store.set(
-                        &current_iter,
+                        current_iter,
                         &[END_COL, END_STR_COL],
                         &[&position, &Timestamp::format(position, false)],
                     );
