@@ -101,8 +101,8 @@ impl WaveformImage {
             image_height: 0,
             image_height_f: 0f64,
 
-            req_width: 0,
-            req_height: 0,
+            req_width: INIT_WIDTH,
+            req_height: INIT_HEIGHT,
             force_redraw: false,
 
             lower: 0,
@@ -130,9 +130,9 @@ impl WaveformImage {
 
         // self.exposed_image & self.working_image
         // will be cleaned on next with draw
-        self.image_width = 0;
+        self.image_width = INIT_WIDTH;
         self.image_width_f = 0f64;
-        self.image_height = 0;
+        self.image_height = INIT_HEIGHT;
         self.image_height_f = 0f64;
 
         self.req_width = 0;
@@ -334,8 +334,7 @@ impl WaveformImage {
         let (working_image, previous_image) = {
             let working_image = self.working_image.take().unwrap();
 
-            let target_width = INIT_WIDTH
-                .max(self.req_width)
+            let target_width = self.image_width
                 .max(((upper - lower) * self.x_step / self.sample_step) as i32);
             if (target_width == self.image_width && self.req_height == self.image_height)
                 || (self.force_redraw && target_width <= self.image_width
@@ -842,7 +841,7 @@ impl WaveformImage {
             #[cfg(any(test, feature = "trace-waveform-rendering"))]
             println!(
                 concat!(
-                    r#"WaveformImage{}::draw_samples too small render for "#,
+                    r#"WaveformImage{}::draw_samples too small to render for "#,
                     r#"[{}, {}] sample_step {}, buffer: [{}, {}]"#,
                 ),
                 self.id,
@@ -886,21 +885,6 @@ impl WaveformImage {
                 self.link_samples(cr, prev_last, &first_added);
                 prev_last.x
             } else {
-                #[cfg(any(test, feature = "trace-waveform-rendering"))]
-                {
-                    println!(
-                        concat!(
-                            r#"/!\\ WaveformImage{}::draw_samples can't link "#,
-                            r#"[{}, {}], prev_last.x {}, first_x {}, self.lower {}"#,
-                        ),
-                        self.id,
-                        self.upper,
-                        lower,
-                        prev_last.x,
-                        first_x,
-                        self.lower,
-                    );
-                }
                 first_x
             },
             None => first_x,
@@ -931,27 +915,30 @@ impl WaveformImage {
                 self.link_samples(cr, &last_added, prev_first);
                 prev_first.x
             } else {
-                #[cfg(any(test, feature = "trace-waveform-rendering"))]
-                {
-                    println!(
-                        concat!(
-                            r#"/!\\ WaveformImage{}::draw_samples can't link "#,
-                            r#"[{}, {}], last_x {}, prev_first.x {}, upper {}"#,
-                        ),
-                        self.id,
-                        upper,
-                        self.lower,
-                        x,
-                        prev_first.x,
-                        self.upper,
-                    );
-                }
                 x
             },
             None => x,
         };
 
         self.draw_amplitude_0(cr, first_for_amp0, last_for_amp0);
+
+        #[cfg(any(test, feature = "trace-waveform-rendering"))]
+        {
+            if x - first_x < 10f64 {
+                println!(
+                    concat!(
+                        r#"WaveformImage{}::draw_samples {} pixels "#,
+                        r#"[{}, {}], previous [{}, {}]"#,
+                    ),
+                    self.id,
+                    x - first_x,
+                    lower,
+                    upper,
+                    self.lower,
+                    self.upper,
+                );
+            }
+        }
 
         #[cfg(test)]
         {
