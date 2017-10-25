@@ -594,7 +594,6 @@ impl SampleExtractor for WaveformBuffer {
         self.half_req_sample_window = 0;
     }
 
-
     fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64) {
         #[cfg(feature = "trace-waveform-buffer")]
         println!(

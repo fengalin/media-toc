@@ -101,8 +101,8 @@ impl WaveformImage {
             image_height: 0,
             image_height_f: 0f64,
 
-            req_width: INIT_WIDTH,
-            req_height: INIT_HEIGHT,
+            req_width: 0,
+            req_height: 0,
             force_redraw: false,
 
             lower: 0,
@@ -130,9 +130,9 @@ impl WaveformImage {
 
         // self.exposed_image & self.working_image
         // will be cleaned on next with draw
-        self.image_width = INIT_WIDTH;
+        self.image_width = 0;
         self.image_width_f = 0f64;
-        self.image_height = INIT_HEIGHT;
+        self.image_height = 0;
         self.image_height_f = 0f64;
 
         self.req_width = 0;
@@ -249,8 +249,15 @@ impl WaveformImage {
         #[cfg(feature = "profile-waveform-image")]
         let start = Utc::now();
 
-        if audio_buffer.samples.len() < self.sample_step {
-            // buffer too small to render
+        if upper < lower + 2 * self.sample_step {
+            #[cfg(any(test, feature = "trace-waveform-rendering"))]
+            println!(
+                "WaveformImage{}::render range [{}, {}] too small for sample_step: {}",
+                self.id,
+                lower,
+                upper,
+                self.sample_step,
+            );
             return;
         }
 
@@ -276,7 +283,7 @@ impl WaveformImage {
                 "WaveformImage{}::render lower {} is less than buffer.lower {}",
                 self.id,
                 lower,
-                audio_buffer.lower
+                audio_buffer.lower,
             );
             lower += self.sample_step;
         }
@@ -289,7 +296,7 @@ impl WaveformImage {
                 "WaveformImage{}::render lower {} greater or equal upper {}",
                 self.id,
                 lower,
-                upper
+                upper,
             );
 
             self.lower = 0;
@@ -334,8 +341,13 @@ impl WaveformImage {
         let (working_image, previous_image) = {
             let working_image = self.working_image.take().unwrap();
 
-            let target_width = self.image_width
-                .max(((upper - lower) * self.x_step / self.sample_step) as i32);
+            let target_width = if self.image_width > 0 {
+                self.image_width
+                    .max(((upper - lower) * self.x_step / self.sample_step) as i32)
+            } else {
+                INIT_WIDTH
+                    .max(((upper - lower) * self.x_step / self.sample_step) as i32)
+            };
             if (target_width == self.image_width && self.req_height == self.image_height)
                 || (self.force_redraw && target_width <= self.image_width
                     && self.req_height == self.image_height)
@@ -403,7 +415,7 @@ impl WaveformImage {
                     // first sample position is unknown
                     // => force redraw
                     println!(
-                        "WaveformImage::append left({}): first sample unknown => redrawing",
+                        "/!\\ WaveformImage::append left({}): first sample unknown => redrawing",
                         self.id
                     );
                     let sample_step = self.sample_step;
@@ -430,7 +442,7 @@ impl WaveformImage {
                     // last sample position is unknown
                     // => force redraw
                     println!(
-                        "WaveformImage::append right({}): last sample unknown => redrawing",
+                        "/!\\ WaveformImage::append right({}): last sample unknown => redrawing",
                         self.id
                     );
                     let sample_step = self.sample_step;
@@ -928,14 +940,13 @@ impl WaveformImage {
                 println!(
                     concat!(
                         r#"WaveformImage{}::draw_samples {} pixels "#,
-                        r#"[{}, {}], previous [{}, {}]"#,
+                        r#"last_added: {}, width: req. {}, image: {}"#,
                     ),
                     self.id,
                     x - first_x,
-                    lower,
-                    upper,
-                    self.lower,
-                    self.upper,
+                    x,
+                    self.req_width,
+                    self.image_width,
                 );
             }
         }
