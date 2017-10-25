@@ -169,12 +169,6 @@ impl MainController {
         if self.state != ControllerState::Stopped {
             self.seeking = true;
 
-            // update position even though the stream
-            // is not sync yet for the user to notice
-            // the seek request in being handled
-            self.info_ctrl.borrow_mut().seek(position);
-            self.audio_ctrl.borrow_mut().seek(position, &self.state);
-
             self.context
                 .as_ref()
                 .expect("MainController::seek no context")
@@ -192,6 +186,9 @@ impl MainController {
                 self.play_pause_btn.set_icon_name("media-playback-pause");
                 self.state = ControllerState::Playing;
             }
+
+            self.info_ctrl.borrow_mut().seek(position);
+            self.audio_ctrl.borrow_mut().seek(position, &self.state);
         }
     }
 

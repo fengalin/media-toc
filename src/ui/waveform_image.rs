@@ -57,6 +57,8 @@ pub struct WaveformImage {
     pub lower: usize,
     pub upper: usize,
 
+    pub contains_eos: bool,
+
     first: Option<WaveformSample>,
     pub last: Option<WaveformSample>,
 
@@ -106,6 +108,8 @@ impl WaveformImage {
             lower: 0,
             upper: 0,
 
+            contains_eos: false,
+
             first: None,
             last: None,
 
@@ -137,6 +141,8 @@ impl WaveformImage {
 
         self.lower = 0;
         self.upper = 0;
+
+        self.contains_eos = false;
 
         self.first = None;
         self.last = None;
@@ -253,7 +259,15 @@ impl WaveformImage {
         // for a given req_step_duration and avoiding flickering
         // between redraws.
         let mut lower = lower / self.sample_step * self.sample_step;
-        let upper = upper / self.sample_step * self.sample_step;
+        let upper = if audio_buffer.eos && upper == audio_buffer.upper {
+            self.contains_eos = true;
+            // get the full range
+            upper
+        } else {
+            self.contains_eos = false;
+            upper / self.sample_step * self.sample_step
+        };
+
         if lower < audio_buffer.lower {
             // first sample might be smaller than audio_buffer.lower
             // due to alignement on sample_step
@@ -282,6 +296,7 @@ impl WaveformImage {
             self.upper = 0;
             self.first = None;
             self.last = None;
+            self.contains_eos = false;
             self.is_ready = false;
             return;
         }
@@ -657,9 +672,13 @@ impl WaveformImage {
         let first_x_to_draw =
             ((first_sample_to_draw - self.lower) / self.sample_step * self.x_step) as f64;
 
-        if let Some((_first_added, last_added))
-            = self.draw_samples(cr, audio_buffer, first_sample_to_draw, upper, first_x_to_draw)
-        {
+        if let Some((_first_added, last_added)) = self.draw_samples(
+            cr,
+            audio_buffer,
+            first_sample_to_draw,
+            upper,
+            first_x_to_draw,
+        ) {
             self.last = Some(last_added);
             self.upper = upper;
         } else {
@@ -857,11 +876,14 @@ impl WaveformImage {
             last_values.push(y);
         }
 
-        let first_added = WaveformSample{ x: first_x, values: first_values };
+        let first_added = WaveformSample {
+            x: first_x,
+            values: first_values,
+        };
         let first_for_amp0 = match self.last.as_ref() {
             Some(prev_last) => if (first_x - prev_last.x).abs() <= self.x_step_f {
                 // appending samples right after previous last sample => add a link
-                self.link_samples(cr, &prev_last, &first_added);
+                self.link_samples(cr, prev_last, &first_added);
                 prev_last.x
             } else {
                 #[cfg(any(test, feature = "trace-waveform-rendering"))]
@@ -880,7 +902,7 @@ impl WaveformImage {
                     );
                 }
                 first_x
-            }
+            },
             None => first_x,
         };
 
@@ -899,11 +921,14 @@ impl WaveformImage {
             }
         }
 
-        let last_added = WaveformSample{ x: x, values: last_values };
+        let last_added = WaveformSample {
+            x: x,
+            values: last_values,
+        };
         let last_for_amp0 = match self.first.as_ref() {
             Some(prev_first) => if (prev_first.x - x).abs() <= self.x_step_f {
                 // appending samples right before previous first sample => add a link
-                self.link_samples(cr, &last_added, &prev_first);
+                self.link_samples(cr, &last_added, prev_first);
                 prev_first.x
             } else {
                 #[cfg(any(test, feature = "trace-waveform-rendering"))]
@@ -922,7 +947,7 @@ impl WaveformImage {
                     );
                 }
                 x
-            }
+            },
             None => x,
         };
 
