@@ -119,6 +119,9 @@ impl WaveformBuffer {
         if self.image.sample_step == 0 {
             return;
         }
+        // discard any pending lock
+        self.first_visible_sample_lock = None;
+
         let sought_sample = (position / self.state.sample_duration) as usize
             / self.image.sample_step * self.image.sample_step;
 
@@ -140,32 +143,21 @@ impl WaveformBuffer {
         if is_playing {
             // stream is playing => let the cursor jump from current position
             // to the sought position without shifting the waveform if possible
-            self.first_visible_sample_lock = match self.first_visible_sample {
-                Some(first_visible_sample) => {
-                    if sought_sample >= self.image.lower && sought_sample <= self.image.upper {
-                        if first_visible_sample + self.req_sample_window <= self.image.upper {
-                            // sought sample is in current window
-                            // and the window is large enough for a constraint
-                            // => lock the first sample so that the cursor appears
-                            // at the sought position without abrutely scrolling
-                            // the waveform.
-                            Some(first_visible_sample as i64)
-                        } else {
-                            // not enough sample for a constraint
-                            None
-                        }
-                    } else {
-                        // sought sample not in current window
-                        self.first_visible_sample = None;
-                        None
-                    }
+            if let Some(first_visible_sample) = self.first_visible_sample {
+                if sought_sample >= first_visible_sample
+                    && sought_sample <= first_visible_sample + self.req_sample_window
+                    && self.image.upper - self.image.lower >= self.req_sample_window
+                {   // sought sample is in current window
+                    // and the window is large enough for a constraint
+                    // => lock the first sample so that the cursor appears
+                    // at the sought position without abrutely scrolling
+                    // the waveform.
+                    self.first_visible_sample_lock = Some(first_visible_sample as i64);
                 }
-                None => None,
-            };
+            }
         } else {
             // not playing => jump directly to the sought position
             self.first_visible_sample = None;
-            self.first_visible_sample_lock = None;
         }
 
         self.sought_sample = Some(sought_sample);
@@ -178,7 +170,13 @@ impl WaveformBuffer {
             Some(first_visible_sample) => {
                 let sought_sample = first_visible_sample
                     + (x as usize) / self.image.x_step * self.image.sample_step;
-                Some(sought_sample as u64 * self.state.sample_duration)
+
+                if !self.image.contains_eos || sought_sample < self.image.upper {
+                    Some(sought_sample as u64 * self.state.sample_duration)
+                } else {
+                    // not a valid position
+                    None
+                }
             }
             None => None,
         }
@@ -232,21 +230,24 @@ impl WaveformBuffer {
                             < self.image.upper
                         {   // buffer window is larger than req_sample_window
                             // set last buffer to the right
-                            self.image.upper - self.req_sample_window
+                            let next_lower = self.image.upper - self.req_sample_window;
+                            if !self.image.contains_eos {
+                                // but keep the constraint in case more samples
+                                // are added afterward
+                                self.first_visible_sample_lock = Some(next_lower as i64);
+                            } else {
+                                // reached EOS => don't expect returning to center
+                                self.first_visible_sample_lock = None;
+                            }
+
+                            next_lower
                         } else {
                             // buffer window is smaller than req_sample_window
                             // set first sample to the left
+                            self.first_visible_sample_lock = None;
+
                             self.image.lower
                         };
-
-                        if !self.image.contains_eos {
-                            // but keep the constraint in case more samples
-                            // are added afterward
-                            self.first_visible_sample_lock = Some(next_lower as i64);
-                        } else {
-                            // reached EOS => don't expect returning to center
-                            self.first_visible_sample_lock = None;
-                        }
 
                         Some(next_lower)
                     }
@@ -262,7 +263,7 @@ impl WaveformBuffer {
                         // and the center
                         Some(self.image.lower)
                     }
-                } else if self.cursor_sample >= self.image.upper {
+                } else if self.cursor_sample >= self.image.upper && !self.image.contains_eos {
                     // cursor_sample appears after image last sample
                     // wait until image is synchronized
                     #[cfg(feature = "trace-waveform-buffer")]
@@ -276,7 +277,7 @@ impl WaveformBuffer {
                         self.image.lower,
                     );
                     None
-                } else if self.image.lower + self.req_sample_window < self.image.upper {
+                } else if self.image.lower + self.req_sample_window <= self.image.upper {
                     // buffer window is larger than req_sample_window
                     // set last buffer to the right
                     Some(self.image.upper - self.req_sample_window)
@@ -666,14 +667,15 @@ impl SampleExtractor for WaveformBuffer {
         {
             // Nominal case where cursor position in contained
             // in the available sample range
-            // Don't worry about possible first sample constraint here
-            // it will be dealt with when the image is actually drawn on screen.
             let lower_to_extract =
                 if let Some(first_visible_sample) = self.first_visible_sample_lock {
                     // an in-window seek constraint is pending
                     first_visible_sample as usize
-                } else if self.cursor_sample > lower + self.half_req_sample_window {
-                    self.cursor_sample - self.half_req_sample_window
+                } else if self.cursor_sample > lower + self.req_sample_window {
+                    // attempt to get at least one window worth of samples
+                    // before current position in order to accomodate with
+                    // all situations (e.g. seeking in-window after eos)
+                    self.cursor_sample - self.req_sample_window
                 } else {
                     lower
                 };
@@ -683,7 +685,7 @@ impl SampleExtractor for WaveformBuffer {
                 // attempt to get a larger buffer in order to compensate
                 // for the delay when it will actually be drawn
                 // and for potential seek forward without lock
-                upper.min(lower_to_extract + self.req_sample_window + self.half_req_sample_window)
+                upper.min(self.cursor_sample + self.req_sample_window)
             } else {
                 // Reached the end of the stream
                 // This means that, in case the user doesn't seek,

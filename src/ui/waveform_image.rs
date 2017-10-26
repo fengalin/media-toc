@@ -246,28 +246,51 @@ impl WaveformImage {
         #[cfg(feature = "profile-waveform-image")]
         let start = Utc::now();
 
-        if upper < lower + 2 * self.sample_step {
-            #[cfg(any(test, feature = "trace-waveform-rendering"))]
-            println!(
-                "WaveformImage{}::render range [{}, {}] too small for sample_step: {}",
-                self.id,
-                lower,
-                upper,
-                self.sample_step,
-            );
-            return;
-        }
-
         // Align requested lower and upper sample bounds in order to keep
         // a steady offset between redraws. This allows using the same samples
         // for a given req_step_duration and avoiding flickering
         // between redraws.
         let mut lower = lower / self.sample_step * self.sample_step;
-        let upper = if audio_buffer.eos && upper == audio_buffer.upper {
-            self.contains_eos = true;
+        let upper = if audio_buffer.eos && upper == audio_buffer.upper
+            || self.contains_eos
+                && (upper == self.upper || (!self.force_redraw && lower >= self.lower))
+        {   // reached eos or image already contains eos and won't change
+            if !self.contains_eos {
+                #[cfg(any(test, feature = "trace-waveform-rendering"))]
+                println!(
+                    concat!(
+                        r#"WaveformImage{}::render setting contains_eos. "#,
+                        r#"Requested [{}, {}], current [{}, {}], force_redraw: {}"#,
+                    ),
+                    self.id,
+                    lower,
+                    upper,
+                    self.lower,
+                    self.upper,
+                    self.force_redraw,
+                );
+
+                self.contains_eos = true;
+            }
+
             // get the full range
             upper
         } else {
+            if self.contains_eos {
+                #[cfg(any(test, feature = "trace-waveform-rendering"))]
+                println!(
+                    concat!(
+                        r#"WaveformImage{}::render clearing contains_eos. "#,
+                        r#"Requested [{}, {}] , current [{}, {}], force_redraw: {}"#,
+                    ),
+                    self.id,
+                    lower,
+                    upper,
+                    self.lower,
+                    self.upper,
+                    self.force_redraw,
+                );
+            }
             self.contains_eos = false;
             upper / self.sample_step * self.sample_step
         };
@@ -305,6 +328,18 @@ impl WaveformImage {
             return;
         }
 
+        if upper < lower + 2 * self.sample_step {
+            #[cfg(any(test, feature = "trace-waveform-rendering"))]
+            println!(
+                "WaveformImage{}::render range [{}, {}] too small for sample_step: {}",
+                self.id,
+                lower,
+                upper,
+                self.sample_step,
+            );
+            return;
+        }
+
         self.force_redraw |= !self.is_ready;
 
         if !self.force_redraw && lower >= self.lower && upper <= self.upper {
@@ -316,7 +351,7 @@ impl WaveformImage {
                 lower,
                 upper,
                 self.lower,
-                self.upper
+                self.upper,
             );
             return;
         } else if upper < self.lower || lower > self.upper {
@@ -329,7 +364,7 @@ impl WaveformImage {
                     "WaveformImage{}::render no overlap self.lower {}, self.upper {}",
                     self.id,
                     self.lower,
-                    self.upper
+                    self.upper,
                 );
                 println!("\t\t\tlower {}, upper {}", lower, upper);
             }
