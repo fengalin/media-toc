@@ -62,7 +62,6 @@ pub struct WaveformImage {
     first: Option<WaveformSample>,
     pub last: Option<WaveformSample>,
 
-    pub sample_window: usize,
     pub sample_step_f: f64,
     pub sample_step: usize,
     x_step_f: f64,
@@ -113,7 +112,6 @@ impl WaveformImage {
             first: None,
             last: None,
 
-            sample_window: 0,
             sample_step_f: 0f64,
             sample_step: 0,
             x_step_f: 0f64,
@@ -147,7 +145,6 @@ impl WaveformImage {
         self.first = None;
         self.last = None;
 
-        self.sample_window = 0;
         self.sample_step_f = 0f64;
         self.sample_step = 0;
         self.x_step_f = 0f64;
@@ -437,6 +434,11 @@ impl WaveformImage {
                     // last sample position is known
                     // shift previous image to the left (if necessary)
                     // and append missing samples to the right
+
+                    // update lower in case a call to append_left
+                    // ends up adding nothing
+                    let lower = lower.max(self.lower);
+
                     self.append_right(&cr, &previous_image, must_copy, audio_buffer, lower, upper);
                 } else {
                     // last sample position is unknown
@@ -474,7 +476,6 @@ impl WaveformImage {
         self.working_image = Some(previous_image);
         self.exposed_image = Some(working_image);
 
-        self.sample_window = self.upper - self.lower;
         self.is_ready = true;
         self.force_redraw = false;
 
