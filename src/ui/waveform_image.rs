@@ -281,7 +281,7 @@ impl WaveformImage {
                 println!(
                     concat!(
                         r#"WaveformImage{}::render clearing contains_eos. "#,
-                        r#"Requested [{}, {}] , current [{}, {}], force_redraw: {}"#,
+                        r#"Requested [{}, {}], current [{}, {}], force_redraw: {}"#,
                     ),
                     self.id,
                     lower,
@@ -343,10 +343,10 @@ impl WaveformImage {
         self.force_redraw |= !self.is_ready;
 
         if !self.force_redraw && lower >= self.lower && upper <= self.upper {
-            // traget extraction fits in previous extraction
+            // target extraction fits in previous extraction
             #[cfg(any(test, feature = "trace-waveform-rendering"))]
             println!(
-                "WaveformImage{}::render traget fits [{}, {}] in previous [{}, {}]",
+                "WaveformImage{}::render target fits [{}, {}] in previous [{}, {}]",
                 self.id,
                 lower,
                 upper,
@@ -433,7 +433,7 @@ impl WaveformImage {
             // can reuse previous context
             // Note: condition lower >= self.self.lower
             //              && upper <= self.self.upper
-            // (traget extraction fits in previous extraction)
+            // (target extraction fits in previous extraction)
             // already checked
 
             let must_copy = if lower < self.lower {
@@ -647,7 +647,7 @@ impl WaveformImage {
         } else {
             #[cfg(any(test, feature = "trace-waveform-rendering"))]
             println!(
-                "WaveformImage{}::appd_left iter ({}, {}) out of range or empty",
+                "WaveformImage{}::appd_left iter ({}, {}) out of range or too small",
                 self.id,
                 lower,
                 self.lower
@@ -731,7 +731,7 @@ impl WaveformImage {
         } else {
             #[cfg(any(test, feature = "trace-waveform-rendering"))]
             println!(
-                "WaveformImage{}::appd_right iter ({}, {}) out of range or empty",
+                "WaveformImage{}::appd_right iter ({}, {}) out of range or too small",
                 self.id,
                 first_sample_to_draw,
                 upper

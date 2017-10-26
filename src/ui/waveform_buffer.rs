@@ -182,8 +182,7 @@ impl WaveformBuffer {
         }
     }
 
-    // Update to current position and compute the first
-    // sample to present for display.
+    // Update to current position and compute the first sample to display.
     fn update_first_visible_sample(&mut self) {
         self.first_visible_sample = if self.image.is_ready() {
             self.refresh_position();
@@ -277,7 +276,7 @@ impl WaveformBuffer {
                         self.image.lower,
                     );
                     None
-                } else if self.image.lower + self.req_sample_window <= self.image.upper {
+                } else if self.image.lower + self.req_sample_window < self.image.upper {
                     // buffer window is larger than req_sample_window
                     // set last buffer to the right
                     Some(self.image.upper - self.req_sample_window)
@@ -481,18 +480,20 @@ impl WaveformBuffer {
 
     #[cfg_attr(feature = "cargo-clippy", allow(if_same_then_else))]
     fn get_sample_range(&mut self, audio_buffer: &AudioBuffer) -> (usize, usize) {
-        if audio_buffer.lower <= self.image.lower && audio_buffer.upper >= self.image.upper {
-            // waveform contained in buffer => regular case
-            (audio_buffer.lower, audio_buffer.upper)
-        } else if audio_buffer.lower >= self.image.lower && audio_buffer.lower < self.image.upper {
-            // new origin further than current
+        if audio_buffer.segment_lower <= self.image.lower
+            && audio_buffer.upper >= self.image.upper
+        {   // waveform contained in buffer starting at last segment => regular case
+            (audio_buffer.segment_lower, audio_buffer.upper)
+        } else if audio_buffer.segment_lower >= self.image.lower
+            && audio_buffer.lower < self.image.upper
+        {   // new segment further than current image origin
             // but buffer can be merged with current waveform
             // or is contained in current waveform
             #[cfg(feature = "trace-waveform-buffer")]
             println!(
                 concat!(
                     r#"WaveformBuffer{}::get_sample_range can merge to the right: "#,
-                    r#"cursor {}, image [{}, {}], buffer [{}, {}]"#,
+                    r#"cursor {}, image [{}, {}], buffer [{}, {}], segment: {}"#,
                 ),
                 self.image.id,
                 self.cursor_sample,
@@ -500,17 +501,19 @@ impl WaveformBuffer {
                 self.image.upper,
                 audio_buffer.lower,
                 audio_buffer.upper,
+                audio_buffer.segment_lower,
             );
 
             (self.image.lower, audio_buffer.upper.max(self.image.upper))
-        } else if audio_buffer.lower < self.image.lower && audio_buffer.upper >= self.image.lower {
-            // current waveform overlaps with buffer on its left
+        } else if audio_buffer.segment_lower < self.image.lower
+            && audio_buffer.upper >= self.image.lower
+        {   // current waveform overlaps with buffer on its left
             // or is contained in buffer
             #[cfg(feature = "trace-waveform-buffer")]
             println!(
                 concat!(
                     r#"WaveformBuffer{}::get_sample_range can merge to the left: "#,
-                    r#"cursor {}, image [{}, {}], buffer [{}, {}]"#,
+                    r#"cursor {}, image [{}, {}], buffer [{}, {}], segment: {}"#,
                 ),
                 self.image.id,
                 self.cursor_sample,
@@ -518,16 +521,18 @@ impl WaveformBuffer {
                 self.image.upper,
                 audio_buffer.lower,
                 audio_buffer.upper,
+                audio_buffer.segment_lower,
             );
 
-            (audio_buffer.lower, audio_buffer.upper.max(self.image.upper))
+            (audio_buffer.segment_lower, audio_buffer.upper.max(self.image.upper))
         } else {
             // not able to merge buffer with current waveform
+            // synchronize on latest segment received
             #[cfg(feature = "trace-waveform-buffer")]
             println!(
                 concat!(
                     r#"WaveformBuffer{}::get_sample_range not able to merge: "#,
-                    r#"cursor {}, image [{}, {}], buffer [{}, {}]"#,
+                    r#"cursor {}, image [{}, {}], buffer [{}, {}], segment: {}"#,
                 ),
                 self.image.id,
                 self.cursor_sample,
@@ -535,9 +540,10 @@ impl WaveformBuffer {
                 self.image.upper,
                 audio_buffer.lower,
                 audio_buffer.upper,
+                audio_buffer.segment_lower,
             );
 
-            (audio_buffer.lower, audio_buffer.upper)
+            (audio_buffer.segment_lower, audio_buffer.upper)
         }
     }
 }
@@ -667,34 +673,25 @@ impl SampleExtractor for WaveformBuffer {
         {
             // Nominal case where cursor position in contained
             // in the available sample range
-            let lower_to_extract =
-                if let Some(first_visible_sample) = self.first_visible_sample_lock {
-                    // an in-window seek constraint is pending
-                    first_visible_sample as usize
-                } else if self.cursor_sample > lower + self.req_sample_window {
-                    // attempt to get at least one window worth of samples
-                    // before current position in order to accomodate with
-                    // all situations (e.g. seeking in-window after eos)
-                    self.cursor_sample - self.req_sample_window
+            if let Some(first_visible_sample) = self.first_visible_sample {
+                if !audio_buffer.eos {
+                    (
+                        first_visible_sample as usize,
+                        upper.min(
+                            first_visible_sample
+                            + self.req_sample_window + self.half_req_sample_window
+                        )
+                    )
                 } else {
-                    lower
-                };
-
-            let upper_to_extract = if !audio_buffer.eos {
-                // Not the end of the stream yet:
-                // attempt to get a larger buffer in order to compensate
-                // for the delay when it will actually be drawn
-                // and for potential seek forward without lock
-                upper.min(self.cursor_sample + self.req_sample_window)
+                    (first_visible_sample as usize, upper)
+                }
             } else {
-                // Reached the end of the stream
-                // This means that, in case the user doesn't seek,
-                // there won't be any further updates on behalf of
-                // the audio buffer.
-                // => Render the waveform until last sample
-                upper
-            };
-            (lower_to_extract, upper_to_extract)
+                // lost track => synchronize on first sample
+                (
+                    lower,
+                    upper.min(lower + self.req_sample_window + self.half_req_sample_window)
+                )
+            }
         } else {
             // Current_sample is out of the available samples range
             // use at most a one and a half window worth buffer
@@ -710,6 +707,10 @@ impl SampleExtractor for WaveformBuffer {
                 upper,
                 self.current_sample,
             );
+
+            self.first_visible_sample = None;
+            self.first_visible_sample_lock = None;
+
             (
                 lower,
                 upper.min(lower + self.req_sample_window + self.half_req_sample_window),

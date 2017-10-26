@@ -23,7 +23,7 @@ pub struct AudioBuffer {
 
     pub eos: bool,
 
-    segement_lower: usize,
+    pub segment_lower: usize,
     last_buffer_pts: u64,
     last_buffer_upper: usize,
     pub lower: usize,
@@ -43,7 +43,7 @@ impl AudioBuffer {
 
             eos: false,
 
-            segement_lower: 0,
+            segment_lower: 0,
             last_buffer_pts: 0,
             last_buffer_upper: 0,
             lower: 0,
@@ -71,7 +71,7 @@ impl AudioBuffer {
         self.channels = 0;
         self.drain_size = 0;
         self.eos = false;
-        self.segement_lower = 0;
+        self.segment_lower = 0;
         self.last_buffer_pts = 0;
         self.last_buffer_upper = 0;
         self.lower = 0;
@@ -128,7 +128,7 @@ impl AudioBuffer {
         let (lower_changed, incoming_lower, lower_to_add_rel, upper_to_add_rel) =
             if !self.samples.is_empty() {
                 // not initializing
-                let incoming_lower = if segment_lower == self.segement_lower {
+                let incoming_lower = if segment_lower == self.segment_lower {
                     // receiving next buffer in the same segment
                     if buffer_pts > self.last_buffer_pts {
                         // ... and getting a more recent buffer than previous
@@ -143,7 +143,7 @@ impl AudioBuffer {
                     }
                 } else {
                     // different segment (done seeking)
-                    self.segement_lower = segment_lower;
+                    self.segment_lower = segment_lower;
                     self.last_buffer_upper = segment_lower;
                     segment_lower
                 };
@@ -252,7 +252,7 @@ impl AudioBuffer {
                 // 6. initializing
                 #[cfg(test)]
                 println!("AudioBuffer init");
-                self.segement_lower = segment_lower;
+                self.segment_lower = segment_lower;
                 self.lower = segment_lower;
                 self.upper = segment_lower + buffer_sample_len;
                 self.last_buffer_upper = self.upper;
