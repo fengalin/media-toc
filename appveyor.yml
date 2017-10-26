@@ -1,6 +1,8 @@
 environment:
   matrix:
     - RUST: nightly
+      BITS: 32
+    - RUST: nightly
       BITS: 64
 
 install:
@@ -15,7 +17,7 @@ install:
 
 build_script:
   - cargo build
-  - cargo test
+  - cargo test --verbose
   - cargo build --all-features
 
 test: false
