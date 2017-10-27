@@ -57,6 +57,7 @@ pub struct WaveformBuffer {
     first_visible_sample: Option<usize>,
     first_visible_sample_lock: Option<i64>,
     sought_sample: Option<usize>,
+    pub playback_needs_refresh: bool,
 
     req_duration_per_1000px: f64,
     width: i32,
@@ -81,6 +82,7 @@ impl WaveformBuffer {
             first_visible_sample: None,
             first_visible_sample_lock: None,
             sought_sample: None,
+            playback_needs_refresh: false,
 
             req_duration_per_1000px: 0f64,
             width: 0,
@@ -269,11 +271,11 @@ impl WaveformBuffer {
                     println!(
                         concat!(
                             r#"WaveformBuffer{}::update_first_visible_sample "#,
-                            r#"cursor_sample {} appears after image last sample {}"#,
+                            r#"cursor_sample {} appears above image upper bound {}"#,
                         ),
                         self.image.id,
                         self.cursor_sample,
-                        self.image.lower,
+                        self.image.upper,
                     );
                     None
                 } else if self.image.lower + self.req_sample_window < self.image.upper {
@@ -480,7 +482,8 @@ impl WaveformBuffer {
 
     #[cfg_attr(feature = "cargo-clippy", allow(if_same_then_else))]
     fn get_sample_range(&mut self, audio_buffer: &AudioBuffer) -> (usize, usize) {
-        if audio_buffer.segment_lower <= self.image.lower
+        // First step: see how current waveform and the audio_buffer can merge
+        let (lower, upper) = if audio_buffer.segment_lower <= self.image.lower
             && audio_buffer.upper >= self.image.upper
         {   // waveform contained in buffer starting at last segment => regular case
             (audio_buffer.segment_lower, audio_buffer.upper)
@@ -489,41 +492,11 @@ impl WaveformBuffer {
         {   // new segment further than current image origin
             // but buffer can be merged with current waveform
             // or is contained in current waveform
-            #[cfg(feature = "trace-waveform-buffer")]
-            println!(
-                concat!(
-                    r#"WaveformBuffer{}::get_sample_range can merge to the right: "#,
-                    r#"cursor {}, image [{}, {}], buffer [{}, {}], segment: {}"#,
-                ),
-                self.image.id,
-                self.cursor_sample,
-                self.image.lower,
-                self.image.upper,
-                audio_buffer.lower,
-                audio_buffer.upper,
-                audio_buffer.segment_lower,
-            );
-
             (self.image.lower, audio_buffer.upper.max(self.image.upper))
         } else if audio_buffer.segment_lower < self.image.lower
             && audio_buffer.upper >= self.image.lower
         {   // current waveform overlaps with buffer on its left
             // or is contained in buffer
-            #[cfg(feature = "trace-waveform-buffer")]
-            println!(
-                concat!(
-                    r#"WaveformBuffer{}::get_sample_range can merge to the left: "#,
-                    r#"cursor {}, image [{}, {}], buffer [{}, {}], segment: {}"#,
-                ),
-                self.image.id,
-                self.cursor_sample,
-                self.image.lower,
-                self.image.upper,
-                audio_buffer.lower,
-                audio_buffer.upper,
-                audio_buffer.segment_lower,
-            );
-
             (audio_buffer.segment_lower, audio_buffer.upper.max(self.image.upper))
         } else {
             // not able to merge buffer with current waveform
@@ -543,7 +516,76 @@ impl WaveformBuffer {
                 audio_buffer.segment_lower,
             );
 
+            self.first_visible_sample = None;
+            self.first_visible_sample_lock = None;
+
             (audio_buffer.segment_lower, audio_buffer.upper)
+        };
+
+        // Second step: attempt use constraints if any
+        let extraction_range = match self.first_visible_sample {
+            Some(first_visible_sample) => if first_visible_sample >= lower {
+                Some((
+                    first_visible_sample as usize,
+                    upper.min(
+                        first_visible_sample
+                        + self.req_sample_window + self.half_req_sample_window
+                    )
+                ))
+            } else {
+                #[cfg(feature = "trace-waveform-buffer")]
+                println!(
+                    concat!(
+                        r#"WaveformBuffer{}::get_sample_range first_visible_sample "#,
+                        r#"{} is below lower, range [{}, {}], self.cursor_sample: {}"#
+                    ),
+                    self.image.id,
+                    first_visible_sample,
+                    lower,
+                    upper,
+                    self.cursor_sample,
+                );
+
+                None
+            },
+            None => if self.cursor_sample > lower + self.half_req_sample_window
+                    && self.cursor_sample < upper
+            {
+                #[cfg(feature = "trace-waveform-buffer")]
+                println!("WaveformBuffer{}::get_sample_range centering cursor_sample: {}",
+                    self.image.id,
+                    self.cursor_sample,
+                );
+
+                Some((
+                    self.cursor_sample - self.half_req_sample_window,
+                    upper.min(self.cursor_sample + self.req_sample_window)
+                ))
+            } else {
+                #[cfg(feature = "trace-waveform-buffer")]
+                println!(
+                    concat!(
+                        r#"WaveformBuffer{}::get_sample_range cursor_sample "#,
+                        r#"{} can't be centered, range [{}, {}]"#
+                    ),
+                    self.image.id,
+                    self.cursor_sample,
+                    lower,
+                    upper,
+                );
+
+                None
+            },
+        };
+
+        // Third step: fallback to defaults if previous step failed
+        match extraction_range {
+            Some((extraction_lower, extraction_upper)) => (extraction_lower, extraction_upper),
+            None =>
+                (
+                    lower,
+                    upper.min(lower + self.req_sample_window + self.half_req_sample_window)
+                ),
         }
     }
 }
@@ -598,6 +640,7 @@ impl SampleExtractor for WaveformBuffer {
         self.first_visible_sample = None;
         self.first_visible_sample_lock = None;
         self.sought_sample = None;
+        self.playback_needs_refresh = false;
 
         self.req_duration_per_1000px = 0f64;
         self.width = 0;
@@ -638,8 +681,19 @@ impl SampleExtractor for WaveformBuffer {
         self.first_visible_sample_lock = other.first_visible_sample_lock;
         self.sought_sample = other.sought_sample;
 
-        if other.conditions_changed {
+        // playback_needs_refresh is set during extract_samples
+        // so other must be updated with self status
+        #[cfg(feature = "trace-waveform-buffer")]
+        {
+            if self.playback_needs_refresh && !other.playback_needs_refresh {
+                println!("WaveformBuffer{}::update_concrete_state setting playback_needs_refresh",
+                    other.image.id,
+                );
+            }
+        }
+        other.playback_needs_refresh = self.playback_needs_refresh;
 
+        if other.conditions_changed {
             self.req_duration_per_1000px = other.req_duration_per_1000px;
             self.width = other.width;
             self.width_f = other.width_f;
@@ -667,58 +721,28 @@ impl SampleExtractor for WaveformBuffer {
         // Get the available sample range considering both
         // the waveform image and the AudioBuffer
         let (lower, upper) = self.get_sample_range(audio_buffer);
+        self.image.render(audio_buffer, lower, upper);
 
-        let (lower_to_extract, upper_to_extract) = if self.cursor_sample >= lower
-            && self.cursor_sample < upper
-        {
-            // Nominal case where cursor position in contained
-            // in the available sample range
-            if let Some(first_visible_sample) = self.first_visible_sample {
-                if !audio_buffer.eos {
-                    (
-                        first_visible_sample as usize,
-                        upper.min(
-                            first_visible_sample
-                            + self.req_sample_window + self.half_req_sample_window
-                        )
-                    )
-                } else {
-                    (first_visible_sample as usize, upper)
-                }
-            } else {
-                // lost track => synchronize on first sample
-                (
-                    lower,
-                    upper.min(lower + self.req_sample_window + self.half_req_sample_window)
-                )
-            }
-        } else {
-            // Current_sample is out of the available samples range
-            // use at most a one and a half window worth buffer
+        self.playback_needs_refresh = if audio_buffer.eos && !self.image.contains_eos
+        {   // there won't be any refresh on behalf of audio_buffer
+            // and image will still need more sample if playback continues
             #[cfg(feature = "trace-waveform-buffer")]
-            println!(
-                concat!(
-                    r#"WaveformBuffer{}::extract_samples cursor_sample {} "#,
-                    r#"out of range [{}, {}], self.current_sample: {}"#
-                ),
+            println!("WaveformBuffer{}::extract_samples setting playback_needs_refresh",
                 self.image.id,
-                self.cursor_sample,
-                lower,
-                upper,
-                self.current_sample,
             );
 
-            self.first_visible_sample = None;
-            self.first_visible_sample_lock = None;
-
-            (
-                lower,
-                upper.min(lower + self.req_sample_window + self.half_req_sample_window),
-            )
+            true
+        } else {
+            #[cfg(feature = "trace-waveform-buffer")]
+            {
+                if self.playback_needs_refresh {
+                    println!("WaveformBuffer{}::extract_samples resetting playback_needs_refresh",
+                        self.image.id,
+                    );
+                }
+            }
+            false
         };
-
-        self.image
-            .render(audio_buffer, lower_to_extract, upper_to_extract);
 
         // first_visible_sample is no longer reliable
         self.first_visible_sample = None;
@@ -726,26 +750,27 @@ impl SampleExtractor for WaveformBuffer {
 
     fn refresh(&mut self, audio_buffer: &AudioBuffer) {
         if self.image.is_ready {
+            // Note: current state is up to date (updated from DoubleAudioBuffer)
+
             let (lower, upper) = self.get_sample_range(audio_buffer);
+            self.image.render(audio_buffer, lower, upper);
 
-            // attempt to get an image with a window before cursor position
-            // and a window after in order to handle any cursor position
-            // in the window
-            let lower_to_extract = if self.cursor_sample > lower + self.req_sample_window {
-                self.cursor_sample - self.req_sample_window
-            } else {
-                lower
+            self.playback_needs_refresh = {
+                #[cfg(feature = "trace-waveform-buffer")]
+                {
+                    if self.playback_needs_refresh && self.image.contains_eos {
+                        println!("WaveformBuffer{}::refresh resetting playback_needs_refresh",
+                            self.image.id,
+                        );
+                    }
+                }
+
+                !self.image.contains_eos
             };
-
-            self.image.render(
-                audio_buffer,
-                lower_to_extract,
-                upper.min(lower_to_extract + 2 * self.req_sample_window),
-            );
 
             // first_visible_sample is no longer reliable
             self.first_visible_sample = None;
-        } // no need to refresh
+        } // else: no need to refresh
     }
 
     // Refresh the waveform in its current sample range and position

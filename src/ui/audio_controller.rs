@@ -31,6 +31,7 @@ pub struct AudioController {
     zoom_out_btn: gtk::ToolButton,
 
     is_active: bool,
+    playback_needs_refresh: bool,
 
     requested_duration: f64,
 
@@ -53,6 +54,8 @@ impl AudioController {
             zoom_out_btn: builder.get_object("audio_zoom_out-toolbutton").unwrap(),
 
             is_active: false,
+            playback_needs_refresh: false,
+
             requested_duration: INIT_REQ_DURATION,
             waveform_mtx: waveform_mtx,
             dbl_buffer_mtx: dbl_buffer_mtx,
@@ -133,6 +136,7 @@ impl AudioController {
 
     pub fn cleanup(&mut self) {
         self.is_active = false;
+        self.playback_needs_refresh = false;
         {
             self.dbl_buffer_mtx
                 .lock()
@@ -182,11 +186,21 @@ impl AudioController {
                 .expect("AudioController::seek: couldn't lock dbl_buffer_mtx")
                 .refresh();
         }
-        self.tick();
+        self.drawingarea.queue_draw();
     }
 
-    pub fn tick(&self) {
+    pub fn tick(&mut self) {
         if self.is_active {
+            if self.playback_needs_refresh {
+                #[cfg(feature = "trace-audio-controller")]
+                println!("AudioController::tick forcing refresh");
+
+                self.dbl_buffer_mtx
+                    .lock()
+                    .expect("AudioController::tick: couldn't lock dbl_buffer_mtx")
+                    .refresh();
+            }
+
             self.drawingarea.queue_draw();
         }
     }
@@ -236,6 +250,8 @@ impl AudioController {
                 allocation.width,
                 allocation.height,
             );
+
+            self.playback_needs_refresh = waveform_buffer.playback_needs_refresh;
 
             match waveform_buffer.get_image() {
                 Some((image, image_positions)) => {

@@ -218,6 +218,9 @@ impl MainController {
     }
 
     fn handle_eos(&mut self) {
+        #[cfg(feature = "trace-main-controller")]
+        println!("MainController::handle_eos");
+
         self.play_pause_btn.set_icon_name("media-playback-start");
         self.state = ControllerState::EOS;
     }

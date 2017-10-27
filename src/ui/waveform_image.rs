@@ -281,7 +281,8 @@ impl WaveformImage {
                 println!(
                     concat!(
                         r#"WaveformImage{}::render clearing contains_eos. "#,
-                        r#"Requested [{}, {}], current [{}, {}], force_redraw: {}"#,
+                        r#"Requested [{}, {}], current [{}, {}], force_redraw {} "#,
+                        r#"audio_buffer.eos {}"#,
                     ),
                     self.id,
                     lower,
@@ -289,6 +290,7 @@ impl WaveformImage {
                     self.lower,
                     self.upper,
                     self.force_redraw,
+                    audio_buffer.eos,
                 );
             }
             self.contains_eos = false;
@@ -344,15 +346,6 @@ impl WaveformImage {
 
         if !self.force_redraw && lower >= self.lower && upper <= self.upper {
             // target extraction fits in previous extraction
-            #[cfg(any(test, feature = "trace-waveform-rendering"))]
-            println!(
-                "WaveformImage{}::render target fits [{}, {}] in previous [{}, {}]",
-                self.id,
-                lower,
-                upper,
-                self.lower,
-                self.upper,
-            );
             return;
         } else if upper < self.lower || lower > self.upper {
             // current samples extraction doesn't overlap with samples in previous image
