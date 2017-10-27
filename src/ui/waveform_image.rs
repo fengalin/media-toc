@@ -259,8 +259,8 @@ impl WaveformImage {
                 #[cfg(any(test, feature = "trace-waveform-rendering"))]
                 println!(
                     concat!(
-                        r#"WaveformImage{}::render setting contains_eos. "#,
-                        r#"Requested [{}, {}], current [{}, {}], force_redraw: {}"#,
+                        "WaveformImage{}::render setting contains_eos. ",
+                        "Requested [{}, {}], current [{}, {}], force_redraw: {}",
                     ),
                     self.id,
                     lower,
@@ -280,9 +280,9 @@ impl WaveformImage {
                 #[cfg(any(test, feature = "trace-waveform-rendering"))]
                 println!(
                     concat!(
-                        r#"WaveformImage{}::render clearing contains_eos. "#,
-                        r#"Requested [{}, {}], current [{}, {}], force_redraw {} "#,
-                        r#"audio_buffer.eos {}"#,
+                        "WaveformImage{}::render clearing contains_eos. ",
+                        "Requested [{}, {}], current [{}, {}], force_redraw {} ",
+                        "audio_buffer.eos {}",
                     ),
                     self.id,
                     lower,
@@ -672,8 +672,8 @@ impl WaveformImage {
         #[cfg(test)]
         println!(
             concat!(
-                r#"append_right x_offset {}, (lower {} upper {}), "#,
-                r#"self: (lower {} upper {}), buffer: (lower {}, upper {})"#,
+                "append_right x_offset {}, (lower {} upper {}), ",
+                "self: (lower {} upper {}), buffer: (lower {}, upper {})",
             ),
             x_offset,
             lower,
@@ -757,8 +757,8 @@ impl WaveformImage {
             };
             println!(
                 concat!(
-                    r#"WaveformImage{}::smpl_val_at {}, smpl {}, val {}, "#,
-                    r#"x step: {}, smpl step: {}, audiobuf. [{}, {}]"#,
+                    "WaveformImage{}::smpl_val_at {}, smpl {}, val {}, ",
+                    "x step: {}, smpl step: {}, audiobuf. [{}, {}]",
                 ),
                 self.id,
                 x,
@@ -863,8 +863,8 @@ impl WaveformImage {
             #[cfg(any(test, feature = "trace-waveform-rendering"))]
             println!(
                 concat!(
-                    r#"/!\\ WaveformImage{}::draw_samples invalid iter for "#,
-                    r#"[{}, {}] sample_step {}, buffer: [{}, {}]"#,
+                    "/!\\ WaveformImage{}::draw_samples invalid iter for ",
+                    "[{}, {}] sample_step {}, buffer: [{}, {}]",
                 ),
                 self.id,
                 lower,
@@ -882,8 +882,8 @@ impl WaveformImage {
             #[cfg(any(test, feature = "trace-waveform-rendering"))]
             println!(
                 concat!(
-                    r#"WaveformImage{}::draw_samples too small to render for "#,
-                    r#"[{}, {}] sample_step {}, buffer: [{}, {}]"#,
+                    "WaveformImage{}::draw_samples too small to render for ",
+                    "[{}, {}] sample_step {}, buffer: [{}, {}]",
                 ),
                 self.id,
                 lower,
@@ -968,8 +968,8 @@ impl WaveformImage {
             if x - first_x < 10f64 {
                 println!(
                     concat!(
-                        r#"WaveformImage{}::draw_samples {} pixels "#,
-                        r#"last_added: {}, width: req. {}, image: {}"#,
+                        "WaveformImage{}::draw_samples {} pixels ",
+                        "last_added: {}, width: req. {}, image: {}",
                     ),
                     self.id,
                     x - first_x,

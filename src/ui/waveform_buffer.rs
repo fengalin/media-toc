@@ -130,8 +130,8 @@ impl WaveformBuffer {
         #[cfg(feature = "trace-waveform-buffer")]
         println!(
             concat!(
-                r#"WaveformBuffer{}::seek cursor_sample {}, sought sample {} ({}), "#,
-                r#"image [{}, {}], contains_eos: {}"#,
+                "\nWaveformBuffer{}::seek cursor_sample {}, sought sample {} ({}), ",
+                "image [{}, {}], contains_eos: {}",
             ),
             self.image.id,
             self.cursor_sample,
@@ -270,8 +270,8 @@ impl WaveformBuffer {
                     #[cfg(feature = "trace-waveform-buffer")]
                     println!(
                         concat!(
-                            r#"WaveformBuffer{}::update_first_visible_sample "#,
-                            r#"cursor_sample {} appears above image upper bound {}"#,
+                            "WaveformBuffer{}::update_first_visible_sample ",
+                            "cursor_sample {} appears above image upper bound {}",
                         ),
                         self.image.id,
                         self.cursor_sample,
@@ -301,8 +301,8 @@ impl WaveformBuffer {
                 #[cfg(feature = "trace-waveform-buffer")]
                 println!(
                     concat!(
-                        r#"WaveformBuffer{}::update_first_visible_sample cursor_sample {} "#,
-                        r#"appears before image first sample {}"#,
+                        "WaveformBuffer{}::update_first_visible_sample cursor_sample {} ",
+                        "appears before image first sample {}",
                     ),
                     self.image.id,
                     self.cursor_sample,
@@ -312,68 +312,84 @@ impl WaveformBuffer {
             }
         } else {
             // no image available yet
-            #[cfg(feature = "trace-waveform-buffer")]
-            println!(
-                concat!(
-                    r#"WaveformBuffer{}::update_first_visible_sample not ready "#,
-                    r#"cursor_sample {}, first sample {}"#,
-                ),
-                self.image.id,
-                self.cursor_sample,
-                self.image.lower
-            );
             None
         };
     }
 
     // Update first sample in order to match new conditions
     fn rebase(&mut self, scale_factor: f64) {
-        if let Some(first_visible_sample) = self.first_visible_sample {
-            let first_visible_sample = first_visible_sample as i64
-                + ((self.cursor_sample as i64 - first_visible_sample as i64) as f64
-                    * (1f64 - scale_factor)) as i64;
+        if scale_factor != 0f64 {
+            if let Some(first_visible_sample) = self.first_visible_sample {
+                if first_visible_sample > 0 {
+                    let new_first_visible_sample = first_visible_sample as i64
+                        + ((self.cursor_sample as i64 - first_visible_sample as i64) as f64
+                            * (1f64 - scale_factor)) as i64;
 
-            if first_visible_sample >= 0 {
-                self.first_visible_sample = Some(first_visible_sample as usize);
+                    if new_first_visible_sample >= 0 {
+                        #[cfg(feature = "trace-waveform-buffer")]
+                        println!(
+                            concat!(
+                                "WaveformBuffer{}::rebase range [{}, {}], ",
+                                "prev. first {}, new {}, cursor_sample {}",
+                            ),
+                            self.image.id,
+                            first_visible_sample,
+                            new_first_visible_sample,
+                            self.image.lower,
+                            self.image.upper,
+                            self.cursor_sample,
+                        );
 
-                if let Some(_first_visible_sample_lock) = self.first_visible_sample_lock {
-                    // There is a first visible sample constraint
-                    // => adapt it to match the new zoom
-                    self.first_visible_sample_lock = Some(first_visible_sample);
-                }
-            } else {
-                self.first_visible_sample = None;
+                        self.first_visible_sample = Some(new_first_visible_sample as usize);
+
+                        if let Some(_first_visible_sample_lock) = self.first_visible_sample_lock {
+                            // There is a first visible sample constraint
+                            // => adapt it to match the new zoom
+                            self.first_visible_sample_lock = Some(new_first_visible_sample);
+                        }
+                    } else {
+                        self.first_visible_sample = Some(0);
+                    }
+                } else {
+                    // first_visible_sample is null => no good applying a scale factor
+                    // => have refresh compute the best range for this situation
+                    self.first_visible_sample = None;
+                };
             }
         }
     }
 
     // Update rendering conditions
     pub fn update_conditions(&mut self, duration_per_1000px: f64, width: i32, height: i32) {
-        let duration_changed = if (duration_per_1000px - self.req_duration_per_1000px).abs() < 1f64
-        {
-            false
-        } else {
-            let prev_duration = self.req_duration_per_1000px;
-            self.rebase(duration_per_1000px / prev_duration);
-            self.req_duration_per_1000px = duration_per_1000px;
-            self.update_sample_step();
-            true
-        };
+        let (duration_changed, mut rebase_ratio) =
+            if (duration_per_1000px - self.req_duration_per_1000px).abs() < 1f64
+            {
+                (false, 0f64)
+            } else {
+                let prev_duration = self.req_duration_per_1000px;
+                self.req_duration_per_1000px = duration_per_1000px;
+                self.update_sample_step();
+                (true, duration_per_1000px / prev_duration)
+            };
 
         let width_changed = if width == self.width {
-            false
-        } else {
-            let width_f = f64::from(width);
-            let prev_width_f = self.width_f;
-            self.rebase(width_f / prev_width_f);
+                false
+            } else {
+                let width_f = f64::from(width);
+                let prev_width_f = self.width_f;
 
-            self.width = width;
-            self.width_f = width_f;
-            true
-        };
+                if prev_width_f != 0f64 {
+                    rebase_ratio = width_f / prev_width_f;
+                }
+
+                self.width = width;
+                self.width_f = width_f;
+                true
+            };
 
         if duration_changed || width_changed {
             self.update_sample_window();
+            self.rebase(rebase_ratio);
         }
 
         self.image
@@ -401,12 +417,16 @@ impl WaveformBuffer {
         let req_sample_window = half_req_sample_window * 2;
 
         #[cfg(feature = "trace-waveform-buffer")]
-        println!(
-            "WaveformBuffer{}::update_sample_window smpl.window prev. {}, new {}",
-            self.image.id,
-            self.req_sample_window,
-            req_sample_window
-        );
+        {
+            if req_sample_window != self.req_sample_window {
+                println!(
+                    "\nWaveformBuffer{}::update_sample_window smpl.window prev. {}, new {}",
+                    self.image.id,
+                    self.req_sample_window,
+                    req_sample_window
+                );
+            }
+        }
 
         self.req_sample_window = req_sample_window;
         self.half_req_sample_window = half_req_sample_window;
@@ -504,8 +524,8 @@ impl WaveformBuffer {
             #[cfg(feature = "trace-waveform-buffer")]
             println!(
                 concat!(
-                    r#"WaveformBuffer{}::get_sample_range not able to merge: "#,
-                    r#"cursor {}, image [{}, {}], buffer [{}, {}], segment: {}"#,
+                    "WaveformBuffer{}::get_sample_range not able to merge: ",
+                    "cursor {}, image [{}, {}], buffer [{}, {}], segment: {}",
                 ),
                 self.image.id,
                 self.cursor_sample,
@@ -536,8 +556,8 @@ impl WaveformBuffer {
                 #[cfg(feature = "trace-waveform-buffer")]
                 println!(
                     concat!(
-                        r#"WaveformBuffer{}::get_sample_range first_visible_sample "#,
-                        r#"{} is below lower, range [{}, {}], self.cursor_sample: {}"#
+                        "WaveformBuffer{}::get_sample_range first_visible_sample ",
+                        "{} is below lower, range [{}, {}], self.cursor_sample: {}",
                     ),
                     self.image.id,
                     first_visible_sample,
@@ -550,23 +570,45 @@ impl WaveformBuffer {
             },
             None => if self.cursor_sample > lower + self.half_req_sample_window
                     && self.cursor_sample < upper
-            {
-                #[cfg(feature = "trace-waveform-buffer")]
-                println!("WaveformBuffer{}::get_sample_range centering cursor_sample: {}",
-                    self.image.id,
-                    self.cursor_sample,
-                );
+            {   // cursor can be centered or is in second half of the window
+                if self.cursor_sample + self.half_req_sample_window < upper {
+                    // cursor can be centered
+                    #[cfg(feature = "trace-waveform-buffer")]
+                    println!("WaveformBuffer{}::get_sample_range centering cursor_sample: {}",
+                        self.image.id,
+                        self.cursor_sample,
+                    );
 
-                Some((
-                    self.cursor_sample - self.half_req_sample_window,
-                    upper.min(self.cursor_sample + self.req_sample_window)
-                ))
+                    Some((
+                        self.cursor_sample - self.half_req_sample_window,
+                        upper.min(self.cursor_sample + self.req_sample_window)
+                    ))
+                } else {
+                    // cursor in second half
+                    #[cfg(feature = "trace-waveform-buffer")]
+                    println!("WaveformBuffer{}::get_sample_range cursor_sample: {} in second half",
+                        self.image.id,
+                        self.cursor_sample,
+                    );
+
+                    if self.cursor_sample > lower + self.req_sample_window {
+                        Some((
+                            self.cursor_sample - self.req_sample_window,
+                            upper.min(self.cursor_sample + self.half_req_sample_window)
+                        ))
+                    } else {
+                        Some((
+                            lower,
+                            upper.min(self.cursor_sample + self.half_req_sample_window)
+                        ))
+                    }
+                }
             } else {
                 #[cfg(feature = "trace-waveform-buffer")]
                 println!(
                     concat!(
-                        r#"WaveformBuffer{}::get_sample_range cursor_sample "#,
-                        r#"{} can't be centered, range [{}, {}]"#
+                        "WaveformBuffer{}::get_sample_range cursor_sample ",
+                        "{} in first half, range [{}, {}]",
                     ),
                     self.image.id,
                     self.cursor_sample,
