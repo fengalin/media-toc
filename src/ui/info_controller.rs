@@ -82,9 +82,9 @@ impl InfoController {
             this.cleanup();
 
             this.chapter_treeview.set_model(Some(&this.chapter_store));
-            this.add_chapter_column("Title", TITLE_COL as i32, true);
-            this.add_chapter_column("Start", START_STR_COL as i32, false);
-            this.add_chapter_column("End", END_STR_COL as i32, false);
+            this.add_chapter_column("Title", TITLE_COL as i32, true, true);
+            this.add_chapter_column("Start", START_STR_COL as i32, false, false);
+            this.add_chapter_column("End", END_STR_COL as i32, false, false);
 
             this.chapter_treeview.set_activate_on_single_click(true);
         }
@@ -92,11 +92,21 @@ impl InfoController {
         this_rc
     }
 
-
-    fn add_chapter_column(&self, title: &str, col_id: i32, can_expand: bool) {
+    fn add_chapter_column(&self, title: &str, col_id: i32, can_expand: bool, editable: bool) {
         let col = gtk::TreeViewColumn::new();
         col.set_title(title);
+
         let renderer = gtk::CellRendererText::new();
+        if editable {
+            renderer.set_property_editable(true);
+            let chapter_store_clone = self.chapter_store.clone();
+            renderer.connect_edited(move |_, tree_path, value| {
+                if let Some(iter) = chapter_store_clone.get_iter(&tree_path) {
+                    chapter_store_clone.set_value(&iter, TITLE_COL, &gtk::Value::from(value));
+                }
+            });
+        }
+
         col.pack_start(&renderer, true);
         col.add_attribute(&renderer, "text", col_id);
         if can_expand {
@@ -364,9 +374,9 @@ impl InfoController {
 
                 if !done_with_chapters
                 && position >= self.chapter_store.get_value(current_iter, START_COL as i32)
-                        .get::<u64>().unwrap() // after current start
+                    .get::<u64>().unwrap() // after current start
                 && position < self.chapter_store.get_value(current_iter, END_COL as i32)
-                        .get::<u64>().unwrap()
+                    .get::<u64>().unwrap()
                 {
                     // before current end
                     self.chapter_treeview
