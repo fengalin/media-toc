@@ -370,11 +370,12 @@ impl AudioBuffer {
             }
         }
 
-        let mut buffer = gst::Buffer::from_slice(&samples_u8).unwrap();
-        buffer
-            .get_mut()
-            .unwrap()
-            .set_pts(self.sample_duration * (lower as u64) + 1);
+        let mut buffer = gst::Buffer::with_size(samples_u8.len()).unwrap();
+        {
+            let buffer_mut = buffer.get_mut().unwrap();
+            buffer_mut.copy_from_slice(0, &samples_u8).unwrap();
+            buffer_mut.set_pts(self.sample_duration * (lower as u64) + 1);
+        }
 
         let mut segment = gst::Segment::new();
         segment.set_start(self.sample_duration * (segment_lower as u64) + 1);
