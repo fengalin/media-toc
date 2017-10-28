@@ -321,34 +321,42 @@ impl WaveformBuffer {
         if scale_factor != 0f64 {
             if let Some(first_visible_sample) = self.first_visible_sample {
                 if first_visible_sample > 0 {
-                    let new_first_visible_sample = first_visible_sample as i64
-                        + ((self.cursor_sample as i64 - first_visible_sample as i64) as f64
-                            * (1f64 - scale_factor)) as i64;
+                    if self.image.upper > self.req_sample_window {
+                        // the whole stream can't fit in current window
+                        // => adjust first_visible_sample
+                        let new_first_visible_sample = first_visible_sample as i64
+                            + ((self.cursor_sample as i64 - first_visible_sample as i64) as f64
+                                * (1f64 - scale_factor)) as i64;
 
-                    if new_first_visible_sample >= 0 {
-                        #[cfg(feature = "trace-waveform-buffer")]
-                        println!(
-                            concat!(
-                                "WaveformBuffer{}::rebase range [{}, {}], ",
-                                "prev. first {}, new {}, cursor_sample {}",
-                            ),
-                            self.image.id,
-                            first_visible_sample,
-                            new_first_visible_sample,
-                            self.image.lower,
-                            self.image.upper,
-                            self.cursor_sample,
-                        );
+                        if new_first_visible_sample >= 0 {
+                            #[cfg(feature = "trace-waveform-buffer")]
+                            println!(
+                                concat!(
+                                    "WaveformBuffer{}::rebase range [{}, {}], ",
+                                    "prev. first {}, new {}, cursor_sample {}",
+                                ),
+                                self.image.id,
+                                first_visible_sample,
+                                new_first_visible_sample,
+                                self.image.lower,
+                                self.image.upper,
+                                self.cursor_sample,
+                            );
 
-                        self.first_visible_sample = Some(new_first_visible_sample as usize);
+                            self.first_visible_sample = Some(new_first_visible_sample as usize);
 
-                        if let Some(_first_visible_sample_lock) = self.first_visible_sample_lock {
-                            // There is a first visible sample constraint
-                            // => adapt it to match the new zoom
-                            self.first_visible_sample_lock = Some(new_first_visible_sample);
+                            if let Some(_first_visible_sample_lock) = self.first_visible_sample_lock {
+                                // There is a first visible sample constraint
+                                // => adapt it to match the new zoom
+                                self.first_visible_sample_lock = Some(new_first_visible_sample);
+                            }
+                        } else {
+                            self.first_visible_sample = Some(0);
                         }
                     } else {
-                        self.first_visible_sample = Some(0);
+                        // the whole stream can fit in current window
+                        // => have refresh compute the best range for this situation
+                        self.first_visible_sample = None;
                     }
                 } else {
                     // first_visible_sample is null => no good applying a scale factor
@@ -571,7 +579,15 @@ impl WaveformBuffer {
             None => if self.cursor_sample > lower + self.half_req_sample_window
                     && self.cursor_sample < upper
             {   // cursor can be centered or is in second half of the window
-                if self.cursor_sample + self.half_req_sample_window < upper {
+                if upper - lower <= self.req_sample_window {
+                    // image can use the full window
+                    #[cfg(feature = "trace-waveform-buffer")]
+                    println!("WaveformBuffer{}::get_sample_range using full window",
+                        self.image.id,
+                    );
+
+                    Some((lower, upper))
+                } else if self.cursor_sample + self.half_req_sample_window < upper {
                     // cursor can be centered
                     #[cfg(feature = "trace-waveform-buffer")]
                     println!("WaveformBuffer{}::get_sample_range centering cursor_sample: {}",
