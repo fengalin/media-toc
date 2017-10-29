@@ -965,7 +965,7 @@ impl WaveformImage {
 
         #[cfg(any(test, feature = "trace-waveform-rendering"))]
         {
-            if x - first_x < 10f64 {
+            /*if x - first_x < 10f64 {
                 println!(
                     concat!(
                         "WaveformImage{}::draw_samples {} pixels ",
@@ -977,7 +977,7 @@ impl WaveformImage {
                     self.req_width,
                     self.image_width,
                 );
-            }
+            }*/
         }
 
         #[cfg(test)]

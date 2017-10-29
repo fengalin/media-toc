@@ -99,8 +99,8 @@ impl AudioController {
                             .as_mut_any()
                             .downcast_mut::<WaveformBuffer>()
                             .expect(concat!(
-                                r#"AudioController::drawingarea::button_press_event "#,
-                                r#"SamplesExtratctor is not a waveform buffer"#,
+                                "AudioController::drawingarea::button_press_event ",
+                                "SamplesExtratctor is not a waveform buffer",
                             ))
                             .get_position(event_button.get_position().0)
                     } {

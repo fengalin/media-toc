@@ -41,9 +41,9 @@ lazy_static! {
     static ref VIDEO_SINK: gst::Element =
         ElementFactory::make("gtksink", "video_sink")
             .expect(concat!(
-                r#"Couldn't find GStreamer GTK video sink. Please install "#,
-                r#"gstreamer1-plugins-bad-free-gtk or gstreamer1.0-plugins-bad, "#,
-                r#"depenging on your distribution."#
+                "Couldn't find GStreamer GTK video sink. Please install ",
+                "gstreamer1-plugins-bad-free-gtk or gstreamer1.0-plugins-bad, ",
+                "depenging on your distribution."
             ));
 }
 

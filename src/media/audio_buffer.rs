@@ -168,8 +168,8 @@ impl AudioBuffer {
                     #[cfg(any(test, feature = "trace-audio-buffer"))]
                     println!(
                         concat!(
-                            r#"AudioBuffer case 2. contained in current container "#,
-                            r#"self [{}, {}], incoming [{}, {}]"#,
+                            "AudioBuffer case 2. contained in current container ",
+                            "self [{}, {}], incoming [{}, {}]",
                         ),
                         self.lower,
                         self.upper,
@@ -188,8 +188,8 @@ impl AudioBuffer {
                     #[cfg(any(test, feature = "trace-audio-buffer"))]
                     println!(
                         concat!(
-                            r#"AudioBuffer case 3. append to the end (partial) "#,
-                            r#"[{}, {}], incoming [{}, {}]"#,
+                            "AudioBuffer case 3. append to the end (partial) ",
+                            "[{}, {}], incoming [{}, {}]",
                         ),
                         self.upper,
                         incoming_upper,

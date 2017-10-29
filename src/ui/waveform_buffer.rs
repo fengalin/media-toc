@@ -344,9 +344,6 @@ impl WaveformBuffer {
                 true
             };
 
-
-        let prev_sample_step = self.image.sample_step;
-
         self.image
             .update_dimensions(self.sample_step_f, width, height);
 
@@ -355,61 +352,47 @@ impl WaveformBuffer {
 
             // update first sample in order to match new conditions
             if scale_factor != 0f64 {
-                if let Some(first_visible_sample) = self.first_visible_sample {
-                    if first_visible_sample > prev_sample_step {
-                        if self.image.upper > self.req_sample_window {
-                            // the whole stream can't fit in current window
-                            // => adjust first_visible_sample
-                            let new_first_visible_sample = first_visible_sample as i64
-                                + ((self.cursor_sample as i64 - first_visible_sample as i64) as f64
-                                    * (1f64 - scale_factor)) as i64;
+                self.first_visible_sample = match self.first_visible_sample {
+                    Some(first_visible_sample) => {
+                        let new_first_visible_sample = first_visible_sample as i64
+                            + ((self.cursor_sample as i64 - first_visible_sample as i64) as f64
+                                * (1f64 - scale_factor)) as i64;
 
-                            if new_first_visible_sample > self.image.sample_step as i64 {
-                                #[cfg(feature = "trace-waveform-buffer")]
-                                println!(
-                                    concat!(
-                                        "WaveformBuffer{}::rebase range [{}, {}], window {}, ",
-                                        "first {} -> {}, sample_step {} -> {}, cursor_sample {}",
-                                    ),
-                                    self.image.id,
-                                    self.image.lower,
-                                    self.image.upper,
-                                    self.req_sample_window,
-                                    first_visible_sample,
-                                    new_first_visible_sample,
-                                    prev_sample_step,
-                                    self.image.sample_step,
-                                    self.cursor_sample,
-                                );
+                        if new_first_visible_sample > self.image.sample_step as i64 {
+                            #[cfg(feature = "trace-waveform-buffer")]
+                            println!(
+                                concat!(
+                                    "WaveformBuffer{}::rebase range [{}, {}], window {}, ",
+                                    "first {} -> {}, sample_step {}, cursor_sample {}",
+                                ),
+                                self.image.id,
+                                self.image.lower,
+                                self.image.upper,
+                                self.req_sample_window,
+                                first_visible_sample,
+                                new_first_visible_sample,
+                                self.image.sample_step,
+                                self.cursor_sample,
+                            );
 
-                                self.first_visible_sample = Some(new_first_visible_sample as usize);
-
-                                if let Some(_first_visible_sample_lock)
-                                    = self.first_visible_sample_lock
-                                {
-                                    // There is a first visible sample constraint
-                                    // => adapt it to match the new zoom
-                                    self.first_visible_sample_lock = Some(new_first_visible_sample);
-                                }
-                            } else {
-                                // first_visible_sample can be snapped to the beginning
-                                // => have refresh and update_first_visible_sample
-                                // compute the best range for this situation
-                                self.first_visible_sample = None;
+                            if let Some(_first_visible_sample_lock)
+                                = self.first_visible_sample_lock
+                            {
+                                // There is a first visible sample constraint
+                                // => adapt it to match the new zoom
+                                self.first_visible_sample_lock = Some(new_first_visible_sample);
                             }
+
+                            Some(new_first_visible_sample as usize)
                         } else {
-                            // the whole stream can fit in current window
+                            // first_visible_sample can be snapped to the beginning
                             // => have refresh and update_first_visible_sample
                             // compute the best range for this situation
-                            self.first_visible_sample = None;
+                            None
                         }
-                    } else {
-                        // first_visible_sample could be snapped to the beginning
-                        // => have refresh and update_first_visible_sample
-                        // compute the best range for this situation
-                        self.first_visible_sample = None;
-                    };
-                }
+                    }
+                    None => None,
+                };
             }
         }
     }
@@ -518,21 +501,20 @@ impl WaveformBuffer {
         }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(if_same_then_else))]
     fn get_sample_range(&mut self, audio_buffer: &AudioBuffer) -> (usize, usize) {
         // First step: see how current waveform and the audio_buffer can merge
-        let (lower, upper) = if audio_buffer.segment_lower <= self.image.lower
+        let (lower, upper) = if audio_buffer.lower <= self.image.lower
             && audio_buffer.upper >= self.image.upper
-        {   // waveform contained in buffer starting at last segment => regular case
-            (audio_buffer.segment_lower, audio_buffer.upper)
+        {   // waveform contained in buffer => regular case
+            (audio_buffer.lower, audio_buffer.upper)
         } else if audio_buffer.segment_lower >= self.image.lower
-            && audio_buffer.lower < self.image.upper
-        {   // new segment further than current image origin
+            && audio_buffer.segment_lower < self.image.upper
+        {   // last segment further than current image origin
             // but buffer can be merged with current waveform
             // or is contained in current waveform
             (self.image.lower, audio_buffer.upper.max(self.image.upper))
-        } else if audio_buffer.segment_lower < self.image.lower
-            && audio_buffer.upper >= self.image.lower
+        } else if audio_buffer.segment_lower < self.image.upper
+            && audio_buffer.segment_lower >= self.image.lower
         {   // current waveform overlaps with buffer on its left
             // or is contained in buffer
             (audio_buffer.segment_lower, audio_buffer.upper.max(self.image.upper))
@@ -564,8 +546,10 @@ impl WaveformBuffer {
         let extraction_range = if upper - lower <= self.req_sample_window {
             // image can use the full window
             #[cfg(feature = "trace-waveform-buffer")]
-            println!("WaveformBuffer{}::get_sample_range using full window",
+            println!("WaveformBuffer{}::get_sample_range using full window, range [{}, {}]",
                 self.image.id,
+                lower,
+                upper,
             );
 
             self.first_visible_sample = None;
