@@ -111,6 +111,10 @@ impl MainController {
         self.window.show_all();
     }
 
+    pub fn get_state(&self) -> &ControllerState {
+        &self.state
+    }
+
     fn play_pause(&mut self) {
         let context = match self.context.take() {
             Some(context) => context,

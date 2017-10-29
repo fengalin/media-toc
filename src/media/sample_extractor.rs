@@ -53,6 +53,10 @@ pub trait SampleExtractor: Send {
 
     fn get_lower(&self) -> usize;
 
+    // Drop constraints that allow keeping
+    // the continuity between the extractions
+    fn drop_continuity(&mut self);
+
     // update self with concrete state of other
     // which is expected to be the same concrete type
     // this update is intended at smoothening the specific

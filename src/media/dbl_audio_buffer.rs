@@ -154,7 +154,7 @@ impl DoubleAudioBuffer {
         // self.exposed_buffer_mtx
     }
 
-    pub fn refresh(&mut self) {
+    pub fn refresh(&mut self, keep_continuity: bool) {
         // refresh with current conditions
         let mut working_buffer = self.working_buffer
             .take()
@@ -164,6 +164,11 @@ impl DoubleAudioBuffer {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx
                 .lock()
                 .expect("DoubleAudioBuffer:::refresh: failed to lock the exposed buffer");
+
+            if !keep_continuity {
+                exposed_buffer_box.drop_continuity();
+            }
+
             // get latest state from the previously exposed buffer
             working_buffer.update_concrete_state(exposed_buffer_box.as_mut());
 
@@ -184,7 +189,11 @@ impl DoubleAudioBuffer {
     // Refresh the working buffer with the provided conditions and swap.
     // Conditions concrete type must conform to a struct expected
     // by the concrete implementation of the SampleExtractor.
-    pub fn refresh_with_conditions<T: Any + Clone>(&mut self, conditions: Box<T>) {
+    pub fn refresh_with_conditions<T: Any + Clone>(
+        &mut self,
+        conditions: Box<T>,
+        keep_continuity: bool
+    ) {
         let mut working_buffer = self.working_buffer
             .take()
             .expect("DoubleAudioBuffer::refresh: failed to take working buffer");
@@ -193,6 +202,11 @@ impl DoubleAudioBuffer {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx
                 .lock()
                 .expect("DoubleAudioBuffer:::refresh: failed to lock the exposed buffer");
+
+            if !keep_continuity {
+                exposed_buffer_box.drop_continuity();
+            }
+
             // get latest state from the previously exposed buffer
             working_buffer.update_concrete_state(exposed_buffer_box.as_mut());
 

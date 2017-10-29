@@ -77,9 +77,10 @@ impl AudioController {
             });
 
         // widget size changed
+        let main_ctrl_clone = Rc::clone(main_ctrl);
         let this_clone = Rc::clone(this_rc);
         this.drawingarea.connect_size_allocate(move |_, _| {
-            this_clone.borrow_mut().refresh();
+            this_clone.borrow_mut().refresh(&main_ctrl_clone);
         });
 
         // click in drawing_area
@@ -110,24 +111,26 @@ impl AudioController {
             });
 
         // click zoom in
+        let main_ctrl_clone = Rc::clone(main_ctrl);
         let this_clone = Rc::clone(this_rc);
         this.zoom_in_btn.connect_clicked(move |_| {
             let mut this = this_clone.borrow_mut();
             this.requested_duration /= STEP_REQ_DURATION;
             if this.requested_duration >= MIN_REQ_DURATION {
-                this.refresh();
+                this.refresh(&main_ctrl_clone);
             } else {
                 this.requested_duration = MIN_REQ_DURATION;
             }
         });
 
         // click zoom out
+        let main_ctrl_clone = Rc::clone(main_ctrl);
         let this_clone = Rc::clone(this_rc);
         this.zoom_out_btn.connect_clicked(move |_| {
             let mut this = this_clone.borrow_mut();
             this.requested_duration *= STEP_REQ_DURATION;
             if this.requested_duration <= MAX_REQ_DURATION {
-                this.refresh();
+                this.refresh(&main_ctrl_clone);
             } else {
                 this.requested_duration = MAX_REQ_DURATION;
             }
@@ -184,7 +187,7 @@ impl AudioController {
             self.dbl_buffer_mtx
                 .lock()
                 .expect("AudioController::seek: couldn't lock dbl_buffer_mtx")
-                .refresh();
+                .refresh(false); // don't keep continuity
         }
         self.drawingarea.queue_draw();
     }
@@ -198,7 +201,7 @@ impl AudioController {
                 self.dbl_buffer_mtx
                     .lock()
                     .expect("AudioController::tick: couldn't lock dbl_buffer_mtx")
-                    .refresh();
+                    .refresh(true); // keep continuity
             }
 
             self.drawingarea.queue_draw();
@@ -338,7 +341,7 @@ impl AudioController {
         Inhibit(true)
     }
 
-    fn refresh(&mut self) {
+    fn refresh(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
         let allocation = self.drawingarea.get_allocation();
         {
             // refresh the buffer in order to render the waveform
@@ -347,11 +350,14 @@ impl AudioController {
             self.dbl_buffer_mtx
                 .lock()
                 .expect("AudioController::size-allocate: couldn't lock dbl_buffer_mtx")
-                .refresh_with_conditions(Box::new(WaveformConditions::new(
-                    requested_duration,
-                    allocation.width,
-                    allocation.height,
-                )));
+                .refresh_with_conditions(
+                    Box::new(WaveformConditions::new(
+                        requested_duration,
+                        allocation.width,
+                        allocation.height,
+                    )),
+                    *main_ctrl.borrow().get_state() == ControllerState::Playing,
+                );
         }
 
         self.drawingarea.queue_draw();
