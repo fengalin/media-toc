@@ -494,6 +494,10 @@ impl InfoController {
 
     pub fn add_chapter(&mut self) {
         let position = self.get_position();
+        if position >= self.duration {
+            // can't add a chapter starting at last position
+            return;
+        }
 
         let new_iter = match self.chapter_iter {
             Some(ref current_iter) => {
