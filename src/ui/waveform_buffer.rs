@@ -264,9 +264,8 @@ impl WaveformBuffer {
                         // and the center
                         Some(self.image.lower)
                     }
-                } else if self.cursor_sample >= self.image.upper && !self.image.contains_eos {
+                } else if self.cursor_sample >= self.image.upper {
                     // cursor_sample appears after image last sample
-                    // wait until image is synchronized
                     #[cfg(feature = "trace-waveform-buffer")]
                     println!(
                         concat!(
@@ -277,7 +276,20 @@ impl WaveformBuffer {
                         self.cursor_sample,
                         self.image.upper,
                     );
-                    None
+                    if self.image.upper + self.req_sample_window >= self.cursor_sample {
+                        // rebase image attempting to keep in range
+                        // even if samples are not rendered yet
+                        if self.cursor_sample > self.image.lower + self.req_sample_window {
+                            Some(self.cursor_sample - self.req_sample_window)
+                        } else {
+                            Some(self.image.lower)
+                        }
+                    } else {
+                        // cursor no longer in range, 2 cases:
+                        // - seeking forward
+                        // - zoomed-in too much to keep up with the audio stream
+                        None
+                    }
                 } else if self.image.lower + self.req_sample_window < self.image.upper {
                     // buffer window is larger than req_sample_window
                     // set last buffer to the right
@@ -287,12 +299,9 @@ impl WaveformBuffer {
                     // set first sample to the left
                     Some(self.image.lower)
                 }
-            } else if self.cursor_sample == 0
-                || self.cursor_sample + self.image.sample_step >= self.image.lower
+            } else if self.cursor_sample + self.req_sample_window > self.image.lower
             {
-                // cursor_sample appears before image first sample, but:
-                // this is the begining of the stream
-                // or cursor is close enough to the image
+                // cursor is close enough to the image
                 // => render what can be rendered
                 Some(self.image.lower)
             } else {
