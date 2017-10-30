@@ -295,12 +295,11 @@ impl AudioController {
         // last position
         if let Some(last_pos) = image_positions.last {
             let last_text = Timestamp::format(last_pos.timestamp, false);
-            let last_text_width = cr.text_extents(&last_text).width;
-            if last_pos.x + last_text_width > first_text_width + 10f64 {
+            // align actual width to a 15px multiple box in order to avoid
+            // variations due to actual size of individual digits
+            let last_text_width = (cr.text_extents(&last_text).width / 15f64).ceil() * 15f64;
+            if last_pos.x - last_text_width > first_text_width + 5f64 {
                 // last text won't overlap with first text
-                // align actual width to a 15px multiple box in order to avoid
-                // variations due to actual size of individual digits
-                let last_text_width = (last_text_width / 15f64).ceil() * 15f64;
                 cr.move_to(last_pos.x - last_text_width, 30f64);
                 cr.show_text(&last_text);
             }
