@@ -16,7 +16,7 @@ pub struct AudioChannel {
 impl AudioChannel {
     pub fn new(position: &gst_audio::AudioChannelPosition) -> Self {
         let (side, factor) = match *position {
-            Position::Mono => (AudioChannelSide::NotLocalized, 0.9f64),
+            Position::Mono => (AudioChannelSide::Left, 0.9f64),
             Position::FrontLeft => (AudioChannelSide::Left, 0.9f64),
             Position::FrontRight => (AudioChannelSide::Right, 0.9f64),
             Position::FrontCenter => (AudioChannelSide::Center, 0.9f64),
