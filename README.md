@@ -35,7 +35,7 @@ chapters list.
 - **Cairo** ([official documentation](https://www.cairographics.org/documentation/),
 [Rust binding](http://gtk-rs.org/docs/cairo/index.html)).
 - **GStreamer** ([official documentation](https://gstreamer.freedesktop.org/documentation/),
-[Rust binding](https://github.com/sdroege/gstreamer-rs)).
+[Rust binding](https://sdroege.github.io/rustdoc/gstreamer/gstreamer/)).
 
 # Environment preparation
 ## Toolchain
@@ -52,18 +52,25 @@ need the following packages installed on your OS:
 
 ### Fedora
 ```
-sudo dnf install gtk3-devel glib2-devel gstreamer1-devel gstreamer1-plugins-base-devel gstreamer1-plugins-good gstreamer1-plugins-bad-free-gtk
+sudo dnf install gtk3-devel glib2-devel gstreamer1-devel \
+	gstreamer1-plugins-base-devel gstreamer1-plugins-good \
+	gstreamer1-plugins-bad-free gstreamer1-plugins-ugly-free \
+	gstreamer1-libav
 ```
 
 ### Debian & Unbuntu
 ```
-sudo apt-get install libgtk-3-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
+sudo apt-get install libgtk-3-dev libgstreamer1.0-dev \
+	libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good \
+	gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
+	gstreamer1.0-libav
 ```
 
-### MacOS
+### macOS
 *Needs confirmation*
 ```
-brew install gtk+3 gstreamer-1.0-devel gstreamer-1.0-plugins-good gstreamer-1.0-plugins-bad
+brew install gtk+3 gstreamer gst-plugins-base gst-plugins-good \
+	gst-plugins-bad gst-plugins-ugly gst-libav
 ```
 
 ### Windows
@@ -71,14 +78,10 @@ brew install gtk+3 gstreamer-1.0-devel gstreamer-1.0-plugins-good gstreamer-1.0-
 - Install the development toolchain, GTK and GStreamer<br>
 Note: for a 32bits system, use `mingw-w64-i686-...`
 ```
-pacman -S mingw-w64-x86_64-toolchain base-devel mingw-w64-x86_64-gtk3 \
-    mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-plugins-base
-```
-For the execution, you will also need at least (other packages might be
-necessary for specific codecs):
-```
-pacman -S mingw-w64-x86_64-gst-plugins-good mingw-w64-x86_64-gst-plugins-bad \
-    mingw-w64-x86_64-gst-plugins-ugly
+pacman --noconfirm -S mingw-w64-x86_64-gtk3 \
+	mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-plugins-base \
+	mingw-w64-x86_64-gst-plugins-good mingw-w64-x86_64-gst-plugins-bad \
+	mingw-w64-x86_64-gst-plugins-ugly mingw-w64-x86_64-gst-libav
 ```
 
 - Launch the [rustup installer](https://www.rustup.rs/).
@@ -87,7 +90,7 @@ When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
 - From a MSYS2 mingw shell
   - add cargo to the `PATH`:
   ```
-  echo 'PATH=$PATH:/c/Users/'$USER'/.cargo/bin' >> .bashrc
+  echo 'PATH=$PATH:/c/Users/'$USER'/.cargo/bin' >> /c/Users/'$USER'/.bashrc
   ```
   - Restart the MSYS2 shell before using `cargo`.
 
