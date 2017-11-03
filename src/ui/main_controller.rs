@@ -100,9 +100,7 @@ impl MainController {
 
         let open_btn: gtk::Button = builder.get_object("open-btn").unwrap();
         let this_rc = Rc::clone(&this);
-        open_btn.connect_clicked(move |_| {
-            this_rc.borrow_mut().select_media();
-        });
+        open_btn.connect_clicked(move |_| { this_rc.borrow_mut().select_media(); });
 
         this
     }
@@ -253,14 +251,13 @@ impl MainController {
                     InitDone => {
                         let mut this_mut = this_rc.borrow_mut();
 
-                        let context = this_mut
-                            .context
-                            .take()
-                            .expect("MainController: InitDone but no context available");
+                        let context = this_mut.context.take().expect(
+                            "MainController: InitDone but no context available",
+                        );
 
-                        this_mut
-                            .header_bar
-                            .set_subtitle(Some(context.file_name.as_str()));
+                        this_mut.header_bar.set_subtitle(
+                            Some(context.file_name.as_str()),
+                        );
 
                         this_mut.video_ctrl.new_media(&context);
                         this_mut.info_ctrl.borrow_mut().new_media(&context);

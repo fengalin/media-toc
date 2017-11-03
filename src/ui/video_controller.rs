@@ -19,9 +19,7 @@ impl VideoController {
         container.pack_start(&video_widget, true, true, 0);
         container.reorder_child(&video_widget, 0);
 
-        VideoController {
-            container: container,
-        }
+        VideoController { container: container }
     }
 
     pub fn register_callbacks(&self, _: &Rc<RefCell<MainController>>) {}
@@ -30,7 +28,9 @@ impl VideoController {
         let has_video = context
             .info
             .lock()
-            .expect("Failed to lock media info while initializing video controller")
+            .expect(
+                "Failed to lock media info while initializing video controller",
+            )
             .video_best
             .is_some();
 

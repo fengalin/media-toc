@@ -79,13 +79,17 @@ impl WaveformImage {
         #[cfg(feature = "dump-waveform")]
         match create_dir(&WAVEFORM_DUMP_DIR) {
             Ok(_) => (),
-            Err(error) => match error.kind() {
-                ErrorKind::AlreadyExists => (),
-                _ => panic!(
-                    "WaveformImage::new couldn't create directory {}",
-                    WAVEFORM_DUMP_DIR
-                ),
-            },
+            Err(error) => {
+                match error.kind() {
+                    ErrorKind::AlreadyExists => (),
+                    _ => {
+                        panic!(
+                            "WaveformImage::new couldn't create directory {}",
+                            WAVEFORM_DUMP_DIR
+                        )
+                    }
+                }
+            }
         }
 
         WaveformImage {
@@ -96,10 +100,18 @@ impl WaveformImage {
             channel_colors: Vec::new(),
 
             exposed_image: Some(
-                cairo::ImageSurface::create(cairo::Format::Rgb24, INIT_WIDTH, INIT_HEIGHT).unwrap(),
+                cairo::ImageSurface::create(
+                    cairo::Format::Rgb24,
+                    INIT_WIDTH,
+                    INIT_HEIGHT,
+                ).unwrap(),
             ),
             working_image: Some(
-                cairo::ImageSurface::create(cairo::Format::Rgb24, INIT_WIDTH, INIT_HEIGHT).unwrap(),
+                cairo::ImageSurface::create(
+                    cairo::Format::Rgb24,
+                    INIT_WIDTH,
+                    INIT_HEIGHT,
+                ).unwrap(),
             ),
             image_width: 0,
             image_width_f: 0f64,
@@ -178,8 +190,8 @@ impl WaveformImage {
         // it might be necessary to force rendering when stream
         // is paused or eos
 
-        let force_redraw = (self.sample_step_f - sample_step_f).abs() > 0.01f64
-            || self.req_width != width || self.req_height != height;
+        let force_redraw = (self.sample_step_f - sample_step_f).abs() > 0.01f64 ||
+            self.req_width != width || self.req_height != height;
 
         if force_redraw {
             self.shareable_state_changed = true;
@@ -267,10 +279,11 @@ impl WaveformImage {
         // for a given req_step_duration and avoiding flickering
         // between redraws.
         let mut lower = lower / self.sample_step * self.sample_step;
-        let upper = if audio_buffer.eos && upper == audio_buffer.upper
-            || self.contains_eos
-                && (upper == self.upper || (!self.force_redraw && lower >= self.lower))
-        {   // reached eos or image already contains eos and won't change
+        let upper = if audio_buffer.eos && upper == audio_buffer.upper ||
+            self.contains_eos &&
+                (upper == self.upper || (!self.force_redraw && lower >= self.lower))
+        {
+            // reached eos or image already contains eos and won't change
             if !self.contains_eos {
                 #[cfg(any(test, feature = "trace-waveform-rendering"))]
                 println!(
@@ -383,15 +396,16 @@ impl WaveformImage {
             let working_image = self.working_image.take().unwrap();
 
             let target_width = if self.image_width > 0 {
-                self.image_width
-                    .max(((upper - lower) * self.x_step / self.sample_step) as i32)
+                self.image_width.max(
+                    ((upper - lower) * self.x_step / self.sample_step) as
+                        i32,
+                )
             } else {
-                INIT_WIDTH
-                    .max(((upper - lower) * self.x_step / self.sample_step) as i32)
+                INIT_WIDTH.max(((upper - lower) * self.x_step / self.sample_step) as i32)
             };
-            if (target_width == self.image_width && self.req_height == self.image_height)
-                || (self.force_redraw && target_width <= self.image_width
-                    && self.req_height == self.image_height)
+            if (target_width == self.image_width && self.req_height == self.image_height) ||
+                (self.force_redraw && target_width <= self.image_width &&
+                     self.req_height == self.image_height)
             {
                 // expected dimensions fit in current image => reuse it
                 (working_image, self.exposed_image.take().unwrap())
@@ -491,7 +505,9 @@ impl WaveformImage {
                         lower,
                         upper,
                         can_skip,
-                    ) { // no pixel added => restore images in place
+                    )
+                    {
+                        // no pixel added => restore images in place
                         self.working_image = Some(working_image);
                         self.exposed_image = Some(previous_image);
                         return;
@@ -523,9 +539,9 @@ impl WaveformImage {
                     Utc::now().format("%H:%M:%S%.6f"),
                     self.id,
                 )).expect("WaveformImage::render couldn't create output file");
-            working_image
-                .write_to_png(&mut output_file)
-                .expect("WaveformImage::render couldn't write waveform image");
+            working_image.write_to_png(&mut output_file).expect(
+                "WaveformImage::render couldn't write waveform image",
+            );
         }
 
         // swap images
@@ -646,9 +662,9 @@ impl WaveformImage {
                     ).map(|(last_sample, values)| {
                             self.upper = audio_buffer.upper.min(last_sample + self.sample_step);
                             // align on the first pixel for the sample
-                            let new_last_pixel = ((self.image_width - 1) as usize / self.x_step
-                                * self.x_step)
-                                as f64;
+                            let new_last_pixel = ((self.image_width - 1) as usize / self.x_step *
+                                                      self.x_step) as
+                                f64;
                             self.clear_area(cr, new_last_pixel, self.image_width_f);
                             WaveformSample {
                                 x: new_last_pixel,
@@ -695,8 +711,7 @@ impl WaveformImage {
         lower: usize,
         upper: usize,
         can_skip: bool,
-    ) -> bool
-    {
+    ) -> bool {
         let x_offset = ((lower - self.lower) / self.sample_step * self.x_step) as f64;
 
         #[cfg(test)]
@@ -715,9 +730,9 @@ impl WaveformImage {
         );
 
         if must_copy {
-            if can_skip
-                && ((upper - self.upper) / self.sample_step / self.x_step)
-                    < self.skip_width_threshold
+            if can_skip &&
+                ((upper - self.upper) / self.sample_step / self.x_step) <
+                    self.skip_width_threshold
             {
                 // append will add less the allowed threshold
                 // => skip this rendering request
@@ -759,16 +774,18 @@ impl WaveformImage {
         }
 
         let first_sample_to_draw = self.upper.max(lower);
-        let first_x_to_draw =
-            ((first_sample_to_draw - self.lower) / self.sample_step * self.x_step) as f64;
+        let first_x_to_draw = ((first_sample_to_draw - self.lower) / self.sample_step *
+                                   self.x_step) as f64;
 
-        if let Some((_first_added, last_added)) = self.draw_samples(
-            cr,
-            audio_buffer,
-            first_sample_to_draw,
-            upper,
-            first_x_to_draw,
-        ) {
+        if let Some((_first_added, last_added)) =
+            self.draw_samples(
+                cr,
+                audio_buffer,
+                first_sample_to_draw,
+                upper,
+                first_x_to_draw,
+            )
+        {
             self.last = Some(last_added);
             self.upper = upper;
         } else {
@@ -867,12 +884,10 @@ impl WaveformImage {
     }
 
     fn link_samples(&self, cr: &cairo::Context, from: &WaveformSample, to: &WaveformSample) {
-        #[cfg(test)]
-        cr.set_source_rgb(0f64, 0.8f64, 0f64);
+        #[cfg(test)] cr.set_source_rgb(0f64, 0.8f64, 0f64);
 
         for channel in 0..from.values.len() {
-            #[cfg(not(test))]
-            self.set_channel_color(cr, channel);
+            #[cfg(not(test))] self.set_channel_color(cr, channel);
 
             cr.move_to(from.x, from.values[channel]);
             cr.line_to(to.x, to.values[channel]);
@@ -973,13 +988,15 @@ impl WaveformImage {
             values: first_values,
         };
         let first_for_amp0 = match self.last.as_ref() {
-            Some(prev_last) => if (first_x - prev_last.x).abs() <= self.x_step_f {
-                // appending samples right after previous last sample => add a link
-                self.link_samples(cr, prev_last, &first_added);
-                prev_last.x
-            } else {
-                first_x
-            },
+            Some(prev_last) => {
+                if (first_x - prev_last.x).abs() <= self.x_step_f {
+                    // appending samples right after previous last sample => add a link
+                    self.link_samples(cr, prev_last, &first_added);
+                    prev_last.x
+                } else {
+                    first_x
+                }
+            }
             None => first_x,
         };
 
@@ -1003,13 +1020,15 @@ impl WaveformImage {
             values: last_values,
         };
         let last_for_amp0 = match self.first.as_ref() {
-            Some(prev_first) => if (prev_first.x - x).abs() <= self.x_step_f {
-                // appending samples right before previous first sample => add a link
-                self.link_samples(cr, &last_added, prev_first);
-                prev_first.x
-            } else {
-                x
-            },
+            Some(prev_first) => {
+                if (prev_first.x - x).abs() <= self.x_step_f {
+                    // appending samples right before previous first sample => add a link
+                    self.link_samples(cr, &last_added, prev_first);
+                    prev_first.x
+                } else {
+                    x
+                }
+            }
             None => x,
         };
 
@@ -1071,10 +1090,12 @@ mod tests {
     fn prepare_tests() {
         match create_dir(&OUT_DIR) {
             Ok(_) => (),
-            Err(error) => match error.kind() {
-                ErrorKind::AlreadyExists => (),
-                _ => panic!("WaveformImage test: couldn't create directory {}", OUT_DIR),
-            },
+            Err(error) => {
+                match error.kind() {
+                    ErrorKind::AlreadyExists => (),
+                    _ => panic!("WaveformImage test: couldn't create directory {}", OUT_DIR),
+                }
+            }
         }
     }
 
@@ -1089,16 +1110,18 @@ mod tests {
 
         // WaveformImage
         let mut waveform = WaveformImage::new(0);
-        waveform.set_channels(&[
-            AudioChannel {
-                side: AudioChannelSide::Left,
-                factor: 1f64,
-            },
-            AudioChannel {
-                side: AudioChannelSide::Right,
-                factor: 1f64,
-            },
-        ]);
+        waveform.set_channels(
+            &[
+                AudioChannel {
+                    side: AudioChannelSide::Left,
+                    factor: 1f64,
+                },
+                AudioChannel {
+                    side: AudioChannelSide::Right,
+                    factor: 1f64,
+                },
+            ],
+        );
         waveform.update_dimensions(
             sample_step_f, // 1 sample / px
             width,
@@ -1201,9 +1224,9 @@ mod tests {
             waveform.lower,
             waveform.upper
         )).expect("WaveformImage test: couldn't create output file");
-        image
-            .write_to_png(&mut output_file)
-            .expect("WaveformImage test: couldn't write waveform image");
+        image.write_to_png(&mut output_file).expect(
+            "WaveformImage test: couldn't write waveform image",
+        );
     }
 
     #[test]

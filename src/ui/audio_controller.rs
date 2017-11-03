@@ -70,11 +70,12 @@ impl AudioController {
 
         // draw
         let this_clone = Rc::clone(this_rc);
-        this.drawingarea
-            .connect_draw(move |drawing_area, cairo_ctx| {
+        this.drawingarea.connect_draw(
+            move |drawing_area, cairo_ctx| {
                 let mut this = this_clone.borrow_mut();
                 this.draw(drawing_area, cairo_ctx)
-            });
+            },
+        );
 
         // widget size changed
         let main_ctrl_clone = Rc::clone(main_ctrl);
@@ -86,15 +87,15 @@ impl AudioController {
         // click in drawing_area
         let main_ctrl_clone = Rc::clone(main_ctrl);
         let this_clone = Rc::clone(this_rc);
-        this.drawingarea
-            .connect_button_press_event(move |_, event_button| {
+        this.drawingarea.connect_button_press_event(
+            move |_, event_button| {
                 let button = event_button.get_button();
                 if button == 1 {
                     if let Some(position) = {
                         let mut this = this_clone.borrow_mut();
-                        let waveform_buffer_grd = &mut *this.waveform_mtx
-                            .lock()
-                            .expect("Couldn't lock waveform buffer in audio controller draw");
+                        let waveform_buffer_grd = &mut *this.waveform_mtx.lock().expect(
+                            "Couldn't lock waveform buffer in audio controller draw",
+                        );
                         waveform_buffer_grd
                             .as_mut_any()
                             .downcast_mut::<WaveformBuffer>()
@@ -103,12 +104,14 @@ impl AudioController {
                                 "SamplesExtratctor is not a waveform buffer",
                             ))
                             .get_position(event_button.get_position().0)
-                    } {
+                    }
+                    {
                         main_ctrl_clone.borrow_mut().seek(position, true); // accurate (slow)
                     }
                 }
                 Inhibit(true)
-            });
+            },
+        );
 
         // click zoom in
         let main_ctrl_clone = Rc::clone(main_ctrl);
@@ -158,7 +161,9 @@ impl AudioController {
         let has_audio = context
             .info
             .lock()
-            .expect("Failed to lock media info while initializing audio controller")
+            .expect(
+                "Failed to lock media info while initializing audio controller",
+            )
             .audio_best
             .is_some();
 
@@ -177,7 +182,9 @@ impl AudioController {
                 .expect("AudioController::seek: Couldn't lock waveform_mtx")
                 .as_mut_any()
                 .downcast_mut::<WaveformBuffer>()
-                .expect("AudioController::seek: SamplesExtratctor is not a WaveformBuffer")
+                .expect(
+                    "AudioController::seek: SamplesExtratctor is not a WaveformBuffer",
+                )
                 .seek(position, *state == ControllerState::Playing);
         }
 
@@ -237,13 +244,15 @@ impl AudioController {
         let mut _before_image = Utc::now();
 
         let image_positions = {
-            let waveform_grd = &mut *self.waveform_mtx
-                .lock()
-                .expect("AudioController::draw: couldn't lock waveform_mtx");
+            let waveform_grd = &mut *self.waveform_mtx.lock().expect(
+                "AudioController::draw: couldn't lock waveform_mtx",
+            );
             let waveform_buffer = waveform_grd
                 .as_mut_any()
                 .downcast_mut::<WaveformBuffer>()
-                .expect("AudioController::draw: SamplesExtratctor is not a WaveformBuffer");
+                .expect(
+                    "AudioController::draw: SamplesExtratctor is not a WaveformBuffer",
+                );
 
             #[cfg(feature = "profiling-audio-draw")]
             let _before_cndt = Utc::now();
@@ -348,7 +357,9 @@ impl AudioController {
             let requested_duration = self.requested_duration;
             self.dbl_buffer_mtx
                 .lock()
-                .expect("AudioController::size-allocate: couldn't lock dbl_buffer_mtx")
+                .expect(
+                    "AudioController::size-allocate: couldn't lock dbl_buffer_mtx",
+                )
                 .refresh_with_conditions(
                     Box::new(WaveformConditions::new(
                         requested_duration,

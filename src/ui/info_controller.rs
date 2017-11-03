@@ -100,10 +100,10 @@ impl InfoController {
         if editable {
             renderer.set_property_editable(true);
             let chapter_store_clone = self.chapter_store.clone();
-            renderer.connect_edited(move |_, tree_path, value| {
-                if let Some(iter) = chapter_store_clone.get_iter(&tree_path) {
-                    chapter_store_clone.set_value(&iter, TITLE_COL, &gtk::Value::from(value));
-                }
+            renderer.connect_edited(move |_, tree_path, value| if let Some(iter) =
+                chapter_store_clone.get_iter(&tree_path)
+            {
+                chapter_store_clone.set_value(&iter, TITLE_COL, &gtk::Value::from(value));
             });
         }
 
@@ -126,25 +126,27 @@ impl InfoController {
 
         // Draw thumnail image
         let this_clone = Rc::clone(this_rc);
-        this.drawingarea
-            .connect_draw(move |drawingarea, cairo_ctx| {
+        this.drawingarea.connect_draw(
+            move |drawingarea, cairo_ctx| {
                 let this = this_clone.borrow();
                 this.draw_thumbnail(drawingarea, cairo_ctx)
-            });
+            },
+        );
 
         // Scale seek
         let main_ctrl_clone = Rc::clone(main_ctrl);
-        this.timeline_scale
-            .connect_change_value(move |_, _, value| {
+        this.timeline_scale.connect_change_value(
+            move |_, _, value| {
                 main_ctrl_clone.borrow_mut().seek(value as u64, false); // approximate (fast)
                 Inhibit(true)
-            });
+            },
+        );
 
         // TreeView seek
         let this_clone = Rc::clone(this_rc);
         let main_ctrl_clone = Rc::clone(main_ctrl);
-        this.chapter_treeview
-            .connect_row_activated(move |_, tree_path, _| {
+        this.chapter_treeview.connect_row_activated(
+            move |_, tree_path, _| {
                 let position_opt = {
                     let this = this_clone.borrow();
                     match this.chapter_store.get_iter(tree_path) {
@@ -161,7 +163,8 @@ impl InfoController {
                 if let Some(position) = position_opt {
                     main_ctrl_clone.borrow_mut().seek(position, true); // accurate (slow)
                 }
-            });
+            },
+        );
 
         // add chapter
         let this_clone = Rc::clone(this_rc);
@@ -199,10 +202,10 @@ impl InfoController {
             } else {
                 f64::from(allocation.width) / f64::from(surface.get_width())
             };
-            let x =
-                (f64::from(allocation.width) / scale - f64::from(surface.get_width())).abs() / 2f64;
-            let y = (f64::from(allocation.height) / scale - f64::from(surface.get_height())).abs()
-                / 2f64;
+            let x = (f64::from(allocation.width) / scale - f64::from(surface.get_width())).abs() /
+                2f64;
+            let y = (f64::from(allocation.height) / scale - f64::from(surface.get_height()))
+                .abs() / 2f64;
 
             cairo_ctx.scale(scale, scale);
             cairo_ctx.set_source_surface(surface, x, y);
@@ -218,10 +221,9 @@ impl InfoController {
         self.chapter_store.clear();
 
         {
-            let mut info = context
-                .info
-                .lock()
-                .expect("Failed to lock media info in InfoController");
+            let mut info = context.info.lock().expect(
+                "Failed to lock media info in InfoController",
+            );
 
             info.fix();
 
@@ -238,18 +240,20 @@ impl InfoController {
             } else {
                 "-"
             });
-            self.audio_codec_lbl
-                .set_label(if !info.audio_codec.is_empty() {
+            self.audio_codec_lbl.set_label(
+                if !info.audio_codec.is_empty() {
                     &info.audio_codec
                 } else {
                     "-"
-                });
-            self.video_codec_lbl
-                .set_label(if !info.video_codec.is_empty() {
+                },
+            );
+            self.video_codec_lbl.set_label(
+                if !info.video_codec.is_empty() {
                     &info.video_codec
                 } else {
                     "-"
-                });
+                },
+            );
 
             self.chapter_iter = None;
 
@@ -292,8 +296,11 @@ impl InfoController {
                     .get_value(&chapter_iter, START_COL as i32)
                     .get::<u64>()
                     .unwrap();
-                self.timeline_scale
-                    .add_mark(start as f64, gtk::PositionType::Top, None);
+                self.timeline_scale.add_mark(
+                    start as f64,
+                    gtk::PositionType::Top,
+                    None,
+                );
                 keep_going = self.chapter_store.iter_next(&chapter_iter);
             }
         }
@@ -317,16 +324,17 @@ impl InfoController {
     pub fn update_duration(&mut self, duration: u64) {
         self.duration = duration;
         self.timeline_scale.set_range(0f64, duration as f64);
-        self.duration_lbl
-            .set_label(&Timestamp::format(duration, false));
+        self.duration_lbl.set_label(
+            &Timestamp::format(duration, false),
+        );
     }
 
     fn repeat_at(main_ctrl: &Option<Weak<RefCell<MainController>>>, position: u64) {
         let main_ctrl_weak = Weak::clone(main_ctrl.as_ref().unwrap());
         gtk::idle_add(move || {
-            let main_ctrl_rc = main_ctrl_weak
-                .upgrade()
-                .expect("InfoController::tick can't upgrade main_ctrl while repeating chapter");
+            let main_ctrl_rc = main_ctrl_weak.upgrade().expect(
+                "InfoController::tick can't upgrade main_ctrl while repeating chapter",
+            );
             main_ctrl_rc.borrow_mut().seek(position, true); // accurate (slow)
             glib::Continue(false)
         });
@@ -347,12 +355,12 @@ impl InfoController {
                     // before selected chapter
                     // (first chapter must start after the begining of the stream)
                     return;
-                } else if is_eos
-                    || position
-                        >= self.chapter_store
-                            .get_value(current_iter, END_COL as i32)
-                            .get::<u64>()
-                            .unwrap()
+                } else if is_eos ||
+                           position >=
+                               self.chapter_store
+                                   .get_value(current_iter, END_COL as i32)
+                                   .get::<u64>()
+                                   .unwrap()
                 {
                     // passed the end of current chapter
                     if self.repeat_chapter {
@@ -362,9 +370,9 @@ impl InfoController {
                     }
 
                     // unselect current chapter
-                    self.chapter_treeview
-                        .get_selection()
-                        .unselect_iter(current_iter);
+                    self.chapter_treeview.get_selection().unselect_iter(
+                        current_iter,
+                    );
 
                     if !self.chapter_store.iter_next(current_iter) {
                         // no more chapters
@@ -379,14 +387,16 @@ impl InfoController {
                     .get::<u64>().unwrap()
                 {
                     // before current end
-                    self.chapter_treeview
-                        .get_selection()
-                        .select_iter(current_iter);
+                    self.chapter_treeview.get_selection().select_iter(
+                        current_iter,
+                    );
                 }
             }
-            None => if is_eos && self.repeat_chapter {
-                InfoController::repeat_at(&self.main_ctrl, 0);
-            },
+            None => {
+                if is_eos && self.repeat_chapter {
+                    InfoController::repeat_at(&self.main_ctrl, 0);
+                }
+            }
         };
 
         if done_with_chapters {
@@ -402,31 +412,31 @@ impl InfoController {
             let mut keep_going = true;
 
             let current_iter = if let Some(current_iter) = self.chapter_iter.take() {
-                if position
-                    < self.chapter_store
+                if position <
+                    self.chapter_store
                         .get_value(&current_iter, START_COL as i32)
                         .get::<u64>()
                         .unwrap()
                 {
                     // new position before current chapter's start
                     // unselect current chapter
-                    self.chapter_treeview
-                        .get_selection()
-                        .unselect_iter(&current_iter);
+                    self.chapter_treeview.get_selection().unselect_iter(
+                        &current_iter,
+                    );
 
                     // rewind to first chapter
                     first_iter
-                } else if position
-                    >= self.chapter_store
-                        .get_value(&current_iter, END_COL as i32)
-                        .get::<u64>()
-                        .unwrap()
+                } else if position >=
+                           self.chapter_store
+                               .get_value(&current_iter, END_COL as i32)
+                               .get::<u64>()
+                               .unwrap()
                 {
                     // new position after current chapter's end
                     // unselect current chapter
-                    self.chapter_treeview
-                        .get_selection()
-                        .unselect_iter(&current_iter);
+                    self.chapter_treeview.get_selection().unselect_iter(
+                        &current_iter,
+                    );
 
                     if !self.chapter_store.iter_next(&current_iter) {
                         // no more chapters
@@ -444,8 +454,8 @@ impl InfoController {
 
             let mut set_chapter_iter = false;
             while keep_going {
-                if position
-                    < self.chapter_store
+                if position <
+                    self.chapter_store
                         .get_value(&current_iter, START_COL as i32)
                         .get::<u64>()
                         .unwrap()
@@ -453,21 +463,21 @@ impl InfoController {
                     // new position before selected chapter's start
                     set_chapter_iter = true;
                     keep_going = false;
-                } else if position
-                    >= self.chapter_store
-                        .get_value(&current_iter, START_COL as i32)
-                        .get::<u64>()
-                        .unwrap()
-                    && position
-                        < self.chapter_store
-                            .get_value(&current_iter, END_COL as i32)
-                            .get::<u64>()
-                            .unwrap()
+                } else if position >=
+                           self.chapter_store
+                               .get_value(&current_iter, START_COL as i32)
+                               .get::<u64>()
+                               .unwrap() &&
+                           position <
+                               self.chapter_store
+                                   .get_value(&current_iter, END_COL as i32)
+                                   .get::<u64>()
+                                   .unwrap()
                 {
                     // after current start and before current end
-                    self.chapter_treeview
-                        .get_selection()
-                        .select_iter(&current_iter);
+                    self.chapter_treeview.get_selection().select_iter(
+                        &current_iter,
+                    );
                     set_chapter_iter = true;
                     keep_going = false;
                 } else if !self.chapter_store.iter_next(&current_iter) {
@@ -483,11 +493,9 @@ impl InfoController {
     }
 
     fn get_position(&self) -> u64 {
-        let main_ctrl_rc = self.main_ctrl
-            .as_ref()
-            .unwrap()
-            .upgrade()
-            .expect("InfoController::get_position can't upgrade main_ctrl");
+        let main_ctrl_rc = self.main_ctrl.as_ref().unwrap().upgrade().expect(
+            "InfoController::get_position can't upgrade main_ctrl",
+        );
         let mut main_ctrl = main_ctrl_rc.borrow_mut();
         main_ctrl.get_position()
     }
@@ -502,8 +510,8 @@ impl InfoController {
         let new_iter = match self.chapter_iter {
             Some(ref current_iter) => {
                 // stream has chapters
-                if position
-                    > self.chapter_store
+                if position >
+                    self.chapter_store
                         .get_value(current_iter, START_COL as i32)
                         .get::<u64>()
                         .unwrap()

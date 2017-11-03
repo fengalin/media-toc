@@ -106,9 +106,9 @@ impl Context {
 
     pub fn get_video_widget() -> gtk::Widget {
         let widget_val = (*VIDEO_SINK).get_property("widget").unwrap();
-        widget_val
-            .get::<gtk::Widget>()
-            .expect("Failed to get GstGtkWidget glib::Value as gtk::Widget")
+        widget_val.get::<gtk::Widget>().expect(
+            "Failed to get GstGtkWidget glib::Value as gtk::Widget",
+        )
     }
 
     pub fn get_position(&mut self) -> u64 {
@@ -130,11 +130,13 @@ impl Context {
 
     pub fn get_duration(&self) -> u64 {
         match self.pipeline.query_duration(gst::Format::Time) {
-            Some(duration) => if duration.is_positive() {
-                duration as u64
-            } else {
-                0
-            },
+            Some(duration) => {
+                if duration.is_positive() {
+                    duration as u64
+                } else {
+                    0
+                }
+            }
             None => 0,
         }
     }
@@ -166,11 +168,12 @@ impl Context {
     }
 
     pub fn seek(&self, position: u64, accurate: bool) {
-        let flags = gst::SeekFlags::FLUSH | if accurate {
-            gst::SeekFlags::ACCURATE
-        } else {
-            gst::SeekFlags::KEY_UNIT
-        };
+        let flags = gst::SeekFlags::FLUSH |
+            if accurate {
+                gst::SeekFlags::ACCURATE
+            } else {
+                gst::SeekFlags::KEY_UNIT
+            };
         self.pipeline
             .seek_simple(gst::Format::Time, flags, position as i64)
             .ok()
@@ -206,9 +209,9 @@ impl Context {
             // TODO: build only one queue by stream type (audio / video)
             if name.starts_with("audio/") {
                 let is_first = {
-                    let info = &mut info_arc_mtx
-                        .lock()
-                        .expect("Failed to lock media info while initializing audio stream");
+                    let info = &mut info_arc_mtx.lock().expect(
+                        "Failed to lock media info while initializing audio stream",
+                    );
                     info.audio_streams.insert(name.to_owned(), caps.clone());
                     let is_first = info.audio_best.is_none();
                     info.audio_best.get_or_insert(name.to_owned());
@@ -226,9 +229,9 @@ impl Context {
                 }
             } else if name.starts_with("video/") {
                 let is_first = {
-                    let info = &mut info_arc_mtx
-                        .lock()
-                        .expect("Failed to lock media info while initializing audio stream");
+                    let info = &mut info_arc_mtx.lock().expect(
+                        "Failed to lock media info while initializing audio stream",
+                    );
                     info.video_streams.insert(name.to_owned(), caps.clone());
                     let is_first = info.video_best.is_none();
                     info.video_best.get_or_insert(name.to_owned());
@@ -342,7 +345,9 @@ impl Context {
         {
             dbl_audio_buffer_mtx
                 .lock()
-                .expect("Context::build_audio_pipeline: couldn't lock dbl_audio_buffer_mtx")
+                .expect(
+                    "Context::build_audio_pipeline: couldn't lock dbl_audio_buffer_mtx",
+                )
                 .set_audio_caps_and_ref(&src_pad.get_current_caps().unwrap(), audio_sink);
         }
 
@@ -402,9 +407,9 @@ impl Context {
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
-                    ctx_tx
-                        .send(ContextMessage::Eos)
-                        .expect("Failed to notify UI");
+                    ctx_tx.send(ContextMessage::Eos).expect(
+                        "Failed to notify UI",
+                    );
                     return glib::Continue(false);
                 }
                 gst::MessageView::Error(err) => {
@@ -414,32 +419,38 @@ impl Context {
                         err.get_error(),
                         err.get_debug()
                     );
-                    ctx_tx
-                        .send(ContextMessage::FailedToOpenMedia)
-                        .expect("Failed to notify UI");
+                    ctx_tx.send(ContextMessage::FailedToOpenMedia).expect(
+                        "Failed to notify UI",
+                    );
                     return glib::Continue(false);
                 }
-                gst::MessageView::AsyncDone(_) => if !init_done {
-                    init_done = true;
-                    ctx_tx
-                        .send(ContextMessage::InitDone)
-                        .expect("Failed to notify UI");
-                } else {
-                    ctx_tx
-                        .send(ContextMessage::AsyncDone)
-                        .expect("Failed to notify UI");
-                },
-                gst::MessageView::Tag(msg_tag) => if !init_done {
-                    Context::add_tags(msg_tag.get_tags(), &info_arc_mtx);
-                },
-                gst::MessageView::Toc(msg_toc) => if !init_done {
-                    let (toc, _) = msg_toc.get_toc();
-                    if toc.get_scope() == TocScope::Global {
-                        Context::add_toc(toc, &info_arc_mtx);
+                gst::MessageView::AsyncDone(_) => {
+                    if !init_done {
+                        init_done = true;
+                        ctx_tx.send(ContextMessage::InitDone).expect(
+                            "Failed to notify UI",
+                        );
                     } else {
-                        println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
+                        ctx_tx.send(ContextMessage::AsyncDone).expect(
+                            "Failed to notify UI",
+                        );
                     }
-                },
+                }
+                gst::MessageView::Tag(msg_tag) => {
+                    if !init_done {
+                        Context::add_tags(msg_tag.get_tags(), &info_arc_mtx);
+                    }
+                }
+                gst::MessageView::Toc(msg_toc) => {
+                    if !init_done {
+                        let (toc, _) = msg_toc.get_toc();
+                        if toc.get_scope() == TocScope::Global {
+                            Context::add_toc(toc, &info_arc_mtx);
+                        } else {
+                            println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
+                        }
+                    }
+                }
                 _ => (),
             }
 
@@ -448,9 +459,9 @@ impl Context {
     }
 
     fn add_tags(tags: gst::TagList, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
-        let info = &mut info_arc_mtx
-            .lock()
-            .expect("Failed to lock media info while reading tag data");
+        let info = &mut info_arc_mtx.lock().expect(
+            "Failed to lock media info while reading tag data",
+        );
         assign_str_tag!(info.title, tags, gst::tags::Title);
         assign_str_tag!(info.artist, tags, gst::tags::Artist);
         assign_str_tag!(info.artist, tags, gst::tags::AlbumArtist);
@@ -471,9 +482,9 @@ impl Context {
     }
 
     fn add_toc(toc: gst::Toc, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
-        let info = &mut info_arc_mtx
-            .lock()
-            .expect("Failed to lock media info while reading toc data");
+        let info = &mut info_arc_mtx.lock().expect(
+            "Failed to lock media info while reading toc data",
+        );
         if info.chapters.is_empty() {
             // chapters not retrieved yet
             // TODO: check if there are medias with some sort of
