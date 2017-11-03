@@ -27,6 +27,11 @@ lazy_static! {
     static ref SAMPLES_SCALE_FACTOR: f64 = *SAMPLES_OFFSET / f64::from(i16::MAX);
 }
 
+// Denominator that will be used to determine the width in pixels
+// below which a rendering can be skipped using the following formula:
+// req_width / SKIP_WIDTH_DENOMINATOR
+const SKIP_WIDTH_DENOMINATOR: i32 = 20; // 5% of requested width
+
 #[cfg(feature = "dump-waveform")]
 const WAVEFORM_DUMP_DIR: &str = "target/waveforms";
 
@@ -51,6 +56,7 @@ pub struct WaveformImage {
     image_height_f: f64,
 
     req_width: i32,
+    skip_width_threshold: usize,
     req_height: i32,
     force_redraw: bool,
 
@@ -101,6 +107,7 @@ impl WaveformImage {
             image_height_f: 0f64,
 
             req_width: 0,
+            skip_width_threshold: 0,
             req_height: 0,
             force_redraw: false,
 
@@ -134,6 +141,7 @@ impl WaveformImage {
         self.image_height_f = 0f64;
 
         self.req_width = 0;
+        self.skip_width_threshold = 0;
         self.req_height = 0;
         self.force_redraw = false;
 
@@ -189,6 +197,7 @@ impl WaveformImage {
             self.force_redraw = force_redraw;
             self.req_width = width;
             self.req_height = height;
+            self.skip_width_threshold = (self.req_width / SKIP_WIDTH_DENOMINATOR) as usize;
             self.sample_step_f = sample_step_f;
             self.sample_step = (sample_step_f as usize).max(1);
             self.x_step_f = if sample_step_f < 1f64 {
@@ -228,6 +237,7 @@ impl WaveformImage {
             }
 
             self.req_width = other.req_width;
+            self.skip_width_threshold = other.skip_width_threshold;
             self.req_height = other.req_height;
 
             other.shareable_state_changed = false;
@@ -242,7 +252,13 @@ impl WaveformImage {
     // images since none of them is exposed at this very moment.
     // The rendering process reuses the previously rendered image
     // whenever possible.
-    pub fn render(&mut self, audio_buffer: &AudioBuffer, lower: usize, upper: usize) {
+    pub fn render(
+        &mut self,
+        audio_buffer: &AudioBuffer,
+        lower: usize,
+        upper: usize,
+        can_skip: bool,
+    ) {
         #[cfg(feature = "profile-waveform-image")]
         let start = Utc::now();
 
@@ -467,7 +483,19 @@ impl WaveformImage {
                     // ends up adding nothing
                     let lower = lower.max(self.lower);
 
-                    self.append_right(&cr, &previous_image, must_copy, audio_buffer, lower, upper);
+                    if !self.append_right(
+                        &cr,
+                        &previous_image,
+                        must_copy,
+                        audio_buffer,
+                        lower,
+                        upper,
+                        can_skip,
+                    ) { // no pixel added => restore images in place
+                        self.working_image = Some(working_image);
+                        self.exposed_image = Some(previous_image);
+                        return;
+                    }
                 } else {
                     // last sample position is unknown
                     // => force redraw
@@ -666,7 +694,9 @@ impl WaveformImage {
         audio_buffer: &AudioBuffer,
         lower: usize,
         upper: usize,
-    ) {
+        can_skip: bool,
+    ) -> bool
+    {
         let x_offset = ((lower - self.lower) / self.sample_step * self.x_step) as f64;
 
         #[cfg(test)]
@@ -685,6 +715,27 @@ impl WaveformImage {
         );
 
         if must_copy {
+            if can_skip {
+                if ((upper - self.upper) / self.sample_step / self.x_step)
+                    < self.skip_width_threshold
+                {
+                    // append will add less the allowed threshold
+                    // => skip this rendering request
+                    #[cfg(any(test, feature = "trace-waveform-rendering"))]
+                    println!(
+                        concat!(
+                            "WaveformImage{}:append_right skipping rendering for ",
+                            "{} pixels, threshold {}",
+                        ),
+                        self.id,
+                        (upper - self.upper) / self.sample_step / self.x_step,
+                        self.skip_width_threshold,
+                    );
+
+                    return false;
+                }
+            }
+
             self.translate_previous(cr, previous_image, -x_offset);
             self.set_scale(cr);
 
@@ -740,6 +791,8 @@ impl WaveformImage {
             );
             self.trace_positions(&self.first, &self.last);
         }
+
+        true
     }
 
     fn get_sample_and_values_at(
@@ -962,23 +1015,6 @@ impl WaveformImage {
         };
 
         self.draw_amplitude_0(cr, first_for_amp0, last_for_amp0);
-
-        #[cfg(any(test, feature = "trace-waveform-rendering"))]
-        {
-            /*if x - first_x < 10f64 {
-                println!(
-                    concat!(
-                        "WaveformImage{}::draw_samples {} pixels ",
-                        "last_added: {}, width: req. {}, image: {}",
-                    ),
-                    self.id,
-                    x - first_x,
-                    x,
-                    self.req_width,
-                    self.image_width,
-                );
-            }*/
-        }
 
         #[cfg(test)]
         {

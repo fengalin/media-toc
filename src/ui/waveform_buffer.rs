@@ -12,6 +12,8 @@ use media::sample_extractor::SampleExtractionState;
 
 use super::WaveformImage;
 
+const CONFORTABLE_WIDTH_FACTOR: f64 = 1.1f64;
+
 pub struct DoubleWaveformBuffer {}
 
 impl DoubleWaveformBuffer {
@@ -62,9 +64,12 @@ pub struct WaveformBuffer {
     req_duration_per_1000px: f64,
     width: i32,
     width_f: f64,
+    confortable_width_f: f64,
     sample_step_f: f64,
     req_sample_window: usize,
     half_req_sample_window: usize,
+
+    is_confortable: bool,
 }
 
 impl WaveformBuffer {
@@ -87,9 +92,12 @@ impl WaveformBuffer {
             req_duration_per_1000px: 0f64,
             width: 0,
             width_f: 0f64,
+            confortable_width_f: 0f64,
             sample_step_f: 0f64,
             req_sample_window: 0,
             half_req_sample_window: 0,
+
+            is_confortable: false,
         }
     }
 
@@ -350,6 +358,7 @@ impl WaveformBuffer {
 
                 self.width = width;
                 self.width_f = width_f;
+                self.confortable_width_f = CONFORTABLE_WIDTH_FACTOR * width_f;
                 true
             };
 
@@ -484,15 +493,23 @@ impl WaveformBuffer {
                 let x_offset = ((first_visible_sample - self.image.lower) * self.image.x_step
                     / self.image.sample_step) as f64;
 
-                let last_opt = self.image.last.as_ref().map(|last| {
-                    let last_x = (last.x - x_offset).min(self.width_f);
-                    SamplePosition {
-                        x: last_x,
-                        timestamp: (first_visible_sample
-                            + (last_x as usize) / self.image.x_step * self.image.sample_step)
-                            as u64 * self.state.sample_duration,
+                let last_opt = match self.image.last {
+                    Some (ref last) => {
+                        let last_x = (last.x - x_offset).min(self.width_f);
+                        self.is_confortable = (last.x - x_offset) > self.confortable_width_f;
+
+                        Some(SamplePosition {
+                            x: last_x,
+                            timestamp: (first_visible_sample
+                                + (last_x as usize) / self.image.x_step * self.image.sample_step)
+                                as u64 * self.state.sample_duration,
+                        })
                     }
-                });
+                    None => {
+                        self.is_confortable = false;
+                        None
+                    }
+                };
 
                 Some((
                     self.image.get_image(),
@@ -506,7 +523,10 @@ impl WaveformBuffer {
                     },
                 ))
             }
-            None => None,
+            None => {
+                self.is_confortable = false;
+                None
+            }
         }
     }
 
@@ -714,9 +734,12 @@ impl SampleExtractor for WaveformBuffer {
         self.req_duration_per_1000px = 0f64;
         self.width = 0;
         self.width_f = 0f64;
+        self.confortable_width_f = 0f64;
         self.sample_step_f = 0f64;
         self.req_sample_window = 0;
         self.half_req_sample_window = 0;
+
+        self.is_confortable = false;
     }
 
     fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64) {
@@ -771,6 +794,7 @@ impl SampleExtractor for WaveformBuffer {
             self.req_duration_per_1000px = other.req_duration_per_1000px;
             self.width = other.width;
             self.width_f = other.width_f;
+            self.confortable_width_f = other.confortable_width_f;
             self.sample_step_f = other.sample_step_f;
             self.req_sample_window = other.req_sample_window;
             self.half_req_sample_window = other.half_req_sample_window;
@@ -795,7 +819,8 @@ impl SampleExtractor for WaveformBuffer {
         // Get the available sample range considering both
         // the waveform image and the AudioBuffer
         let (lower, upper) = self.get_sample_range(audio_buffer);
-        self.image.render(audio_buffer, lower, upper);
+
+        self.image.render(audio_buffer, lower, upper, self.is_confortable);
 
         self.playback_needs_refresh = if audio_buffer.eos && !self.image.contains_eos
         {   // there won't be any refresh on behalf of audio_buffer
@@ -827,7 +852,7 @@ impl SampleExtractor for WaveformBuffer {
             // Note: current state is up to date (updated from DoubleAudioBuffer)
 
             let (lower, upper) = self.get_sample_range(audio_buffer);
-            self.image.render(audio_buffer, lower, upper);
+            self.image.render(audio_buffer, lower, upper, false);
 
             self.playback_needs_refresh = {
                 #[cfg(feature = "trace-waveform-buffer")]
