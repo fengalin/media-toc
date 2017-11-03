@@ -1213,7 +1213,7 @@ mod tests {
             incoming_lower,
             incoming_upper
         );
-        waveform.render(&audio_buffer, lower_to_extract, upper_to_extract);
+        waveform.render(&audio_buffer, lower_to_extract, upper_to_extract, false);
 
         let image = waveform.get_image();
 
