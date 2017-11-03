@@ -715,25 +715,24 @@ impl WaveformImage {
         );
 
         if must_copy {
-            if can_skip {
-                if ((upper - self.upper) / self.sample_step / self.x_step)
+            if can_skip
+                && ((upper - self.upper) / self.sample_step / self.x_step)
                     < self.skip_width_threshold
-                {
-                    // append will add less the allowed threshold
-                    // => skip this rendering request
-                    #[cfg(any(test, feature = "trace-waveform-rendering"))]
-                    println!(
-                        concat!(
-                            "WaveformImage{}:append_right skipping rendering for ",
-                            "{} pixels, threshold {}",
-                        ),
-                        self.id,
-                        (upper - self.upper) / self.sample_step / self.x_step,
-                        self.skip_width_threshold,
-                    );
+            {
+                // append will add less the allowed threshold
+                // => skip this rendering request
+                #[cfg(any(test, feature = "trace-waveform-rendering"))]
+                println!(
+                    concat!(
+                        "WaveformImage{}:append_right skipping rendering for ",
+                        "{} pixels, threshold {}",
+                    ),
+                    self.id,
+                    (upper - self.upper) / self.sample_step / self.x_step,
+                    self.skip_width_threshold,
+                );
 
-                    return false;
-                }
+                return false;
             }
 
             self.translate_previous(cr, previous_image, -x_offset);
