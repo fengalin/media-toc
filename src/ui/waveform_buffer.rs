@@ -500,7 +500,11 @@ impl WaveformBuffer {
                 let last_opt = match self.image.last {
                     Some(ref last) => {
                         let delta_x = last.x - x_offset;
-                        self.is_confortable = delta_x > self.confortable_width_f;
+
+                        // rendering is confortable if the displayable window is larger than
+                        // the confortable_width_f and cursor is in the first half of the window
+                        self.is_confortable = delta_x > self.confortable_width_f &&
+                            self.cursor_sample + self.half_req_sample_window <= self.image.upper;
 
                         let last_x = delta_x.min(self.width_f);
                         Some(SamplePosition {
