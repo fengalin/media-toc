@@ -605,7 +605,10 @@ impl WaveformBuffer {
         } else {
             match self.first_visible_sample {
                 Some(first_visible_sample) => {
-                    if first_visible_sample >= lower {
+                    if self.cursor_sample >= first_visible_sample &&
+                        self.cursor_sample < first_visible_sample + self.req_sample_window
+                    {
+                        // cursor is still in the window => keep it
                         Some((
                             first_visible_sample as usize,
                             upper.min(
@@ -695,8 +698,11 @@ impl WaveformBuffer {
         match extraction_range {
             Some((extraction_lower, extraction_upper)) => (extraction_lower, extraction_upper),
             None => (
-                lower,
-                upper.min(lower + self.req_sample_window + self.half_req_sample_window),
+                audio_buffer.segment_lower,
+                audio_buffer.upper.min(
+                    audio_buffer.segment_lower +
+                    self.req_sample_window + self.half_req_sample_window
+                ),
             ),
         }
     }
