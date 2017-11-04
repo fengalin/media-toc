@@ -567,20 +567,20 @@ impl WaveformBuffer {
             } else {
                 // not able to merge buffer with current waveform
                 // synchronize on latest segment received
-            #[cfg(feature = "trace-waveform-buffer")]
-                println!(
-                concat!(
-                    "WaveformBuffer{}::get_sample_range not able to merge: ",
-                    "cursor {}, image [{}, {}], buffer [{}, {}], segment: {}",
-                ),
-                self.image.id,
-                self.cursor_sample,
-                self.image.lower,
-                self.image.upper,
-                audio_buffer.lower,
-                audio_buffer.upper,
-                audio_buffer.segment_lower,
-            );
+                #[cfg(feature = "trace-waveform-buffer")]
+                    println!(
+                    concat!(
+                        "WaveformBuffer{}::get_sample_range not able to merge: ",
+                        "cursor {}, image [{}, {}], buffer [{}, {}], segment: {}",
+                    ),
+                    self.image.id,
+                    self.cursor_sample,
+                    self.image.lower,
+                    self.image.upper,
+                    audio_buffer.lower,
+                    audio_buffer.upper,
+                    audio_buffer.segment_lower,
+                );
 
                 self.first_visible_sample = None;
                 self.first_visible_sample_lock = None;
@@ -614,18 +614,18 @@ impl WaveformBuffer {
                             ),
                         ))
                     } else {
-                    #[cfg(feature = "trace-waveform-buffer")]
-                        println!(
-                        concat!(
-                            "WaveformBuffer{}::get_sample_range first_visible_sample ",
-                            "{} is below lower, range [{}, {}], self.cursor: {}",
-                        ),
-                        self.image.id,
-                        first_visible_sample,
-                        lower,
-                        upper,
-                        self.cursor_sample,
-                    );
+                        #[cfg(feature = "trace-waveform-buffer")]
+                            println!(
+                            concat!(
+                                "WaveformBuffer{}::get_sample_range first_visible_sample ",
+                                "{} is below lower, range [{}, {}], self.cursor: {}",
+                            ),
+                            self.image.id,
+                            first_visible_sample,
+                            lower,
+                            upper,
+                            self.cursor_sample,
+                        );
 
                         self.first_visible_sample = None;
                         self.first_visible_sample_lock = None;
@@ -673,17 +673,17 @@ impl WaveformBuffer {
                             }
                         }
                     } else {
-                    #[cfg(feature = "trace-waveform-buffer")]
-                        println!(
-                        concat!(
-                            "WaveformBuffer{}::get_sample_range cursor ",
-                            "{} in first half, range [{}, {}]",
-                        ),
-                        self.image.id,
-                        self.cursor_sample,
-                        lower,
-                        upper,
-                    );
+                        #[cfg(feature = "trace-waveform-buffer")]
+                            println!(
+                            concat!(
+                                "WaveformBuffer{}::get_sample_range cursor ",
+                                "{} in first half, range [{}, {}]",
+                            ),
+                            self.image.id,
+                            self.cursor_sample,
+                            lower,
+                            upper,
+                        );
 
                         None
                     }
