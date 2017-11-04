@@ -499,9 +499,10 @@ impl WaveformBuffer {
 
                 let last_opt = match self.image.last {
                     Some(ref last) => {
-                        let last_x = (last.x - x_offset).min(self.width_f);
-                        self.is_confortable = (last.x - x_offset) > self.confortable_width_f;
+                        let delta_x = last.x - x_offset;
+                        self.is_confortable = delta_x > self.confortable_width_f;
 
+                        let last_x = delta_x.min(self.width_f);
                         Some(SamplePosition {
                             x: last_x,
                             timestamp: (first_visible_sample +
