@@ -548,20 +548,20 @@ impl WaveformBuffer {
             if audio_buffer.lower <= self.image.lower && audio_buffer.upper >= self.image.upper {
                 // waveform contained in buffer => regular case
                 (audio_buffer.lower, audio_buffer.upper)
-            } else if audio_buffer.segment_lower >= self.image.lower &&
-                       audio_buffer.segment_lower < self.image.upper
+            } else if audio_buffer.lower >= self.image.lower &&
+                       audio_buffer.lower < self.image.upper
             {
                 // last segment further than current image origin
                 // but buffer can be merged with current waveform
                 // or is contained in current waveform
                 (self.image.lower, audio_buffer.upper.max(self.image.upper))
-            } else if audio_buffer.segment_lower < self.image.upper &&
-                       audio_buffer.segment_lower >= self.image.lower
+            } else if audio_buffer.lower < self.image.lower &&
+                       audio_buffer.upper >= self.image.lower
             {
                 // current waveform overlaps with buffer on its left
                 // or is contained in buffer
                 (
-                    audio_buffer.segment_lower,
+                    audio_buffer.lower,
                     audio_buffer.upper.max(self.image.upper),
                 )
             } else {

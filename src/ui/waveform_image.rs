@@ -736,7 +736,7 @@ impl WaveformImage {
             {
                 // append will add less the allowed threshold
                 // => skip this rendering request
-                #[cfg(any(test, feature = "trace-waveform-rendering"))]
+                /* #[cfg(any(test, feature = "trace-waveform-rendering"))]
                 println!(
                     concat!(
                         "WaveformImage{}:append_right skipping rendering for ",
@@ -745,7 +745,7 @@ impl WaveformImage {
                     self.id,
                     (upper - self.upper) / self.sample_step / self.x_step,
                     self.skip_width_threshold,
-                );
+                );*/
 
                 return false;
             }
