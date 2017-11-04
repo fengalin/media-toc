@@ -669,10 +669,8 @@ impl WaveformBuffer {
                                     upper.min(self.cursor_sample + self.half_req_sample_window),
                                 ))
                             } else {
-                                Some((
-                                    lower,
-                                    upper.min(self.cursor_sample + self.half_req_sample_window),
-                                ))
+                                // use defaults
+                                None
                             }
                         }
                     } else {
