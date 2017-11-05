@@ -68,6 +68,7 @@ pub struct WaveformBuffer {
     sample_step_f: f64,
     req_sample_window: usize,
     half_req_sample_window: usize,
+    quarter_req_sample_window: usize,
 
     is_confortable: bool,
 }
@@ -96,6 +97,7 @@ impl WaveformBuffer {
             sample_step_f: 0f64,
             req_sample_window: 0,
             half_req_sample_window: 0,
+            quarter_req_sample_window: 0,
 
             is_confortable: false,
         }
@@ -452,6 +454,7 @@ impl WaveformBuffer {
         }
 
         self.req_sample_window = req_sample_window;
+        self.quarter_req_sample_window = half_req_sample_window / 2;
         self.half_req_sample_window = half_req_sample_window;
         self.conditions_changed = true;
     }
@@ -588,7 +591,7 @@ impl WaveformBuffer {
                 (audio_buffer.segment_lower, audio_buffer.upper)
             };
 
-        // Second step: attempt use constraints if any
+        // Second step: find the range to display
         let extraction_range = if upper - lower <= self.req_sample_window {
             // image can use the full window
             #[cfg(feature = "trace-waveform-buffer")]
@@ -663,11 +666,16 @@ impl WaveformBuffer {
                                 self.cursor_sample,
                             );
 
-                            if self.cursor_sample > lower + self.req_sample_window {
+                            // attempt to get an optimal range
+                            if upper >
+                                lower + self.req_sample_window + self.quarter_req_sample_window
+                            {
                                 Some((
-                                    self.cursor_sample - self.req_sample_window,
-                                    upper.min(self.cursor_sample + self.half_req_sample_window),
+                                    upper - self.req_sample_window - self.quarter_req_sample_window,
+                                    upper,
                                 ))
+                            } else if upper > lower + self.req_sample_window {
+                                Some((upper - self.req_sample_window, upper))
                             } else {
                                 // use defaults
                                 None
@@ -693,16 +701,15 @@ impl WaveformBuffer {
         };
 
         // Third step: fallback to defaults if previous step failed
-        match extraction_range {
-            Some((extraction_lower, extraction_upper)) => (extraction_lower, extraction_upper),
-            None => (
+        extraction_range.unwrap_or(
+            (
                 audio_buffer.segment_lower,
                 audio_buffer.upper.min(
                     audio_buffer.segment_lower +
                     self.req_sample_window + self.half_req_sample_window
                 ),
-            ),
-        }
+            )
+        )
     }
 }
 
@@ -765,6 +772,7 @@ impl SampleExtractor for WaveformBuffer {
         self.sample_step_f = 0f64;
         self.req_sample_window = 0;
         self.half_req_sample_window = 0;
+        self.quarter_req_sample_window = 0;
 
         self.is_confortable = false;
     }
@@ -824,6 +832,7 @@ impl SampleExtractor for WaveformBuffer {
             self.sample_step_f = other.sample_step_f;
             self.req_sample_window = other.req_sample_window;
             self.half_req_sample_window = other.half_req_sample_window;
+            self.quarter_req_sample_window = other.quarter_req_sample_window;
 
             other.conditions_changed = false;
         } // else: other has nothing new
