@@ -312,10 +312,17 @@ impl AudioController {
                 cr.move_to(last_pos.x - last_text_width, 30f64);
                 cr.show_text(&last_text);
             }
+
+            // make sure the rest of the image is filled with background's color
+            cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
+            cr.rectangle(last_pos.x, 0f64, width - last_pos.x, height);
+            cr.fill();
         }
 
         if let Some(current_pos) = image_positions.current {
             // draw current pos
+            cr.set_source_rgb(1f64, 1f64, 0f64);
+
             let cursor_text = Timestamp::format(current_pos.timestamp, true);
             let cursor_text_width = 5f64 + cr.text_extents(&cursor_text).width;
             let cursor_text_x = if current_pos.x + cursor_text_width < width {
