@@ -168,6 +168,24 @@ impl AudioController {
             .is_some();
 
         if has_audio {
+            let allocation = self.drawingarea.get_allocation();
+            {
+                // init the buffers in order to render the waveform in current conditions
+                let requested_duration = self.requested_duration;
+                self.dbl_buffer_mtx
+                    .lock()
+                    .expect(
+                        "AudioController::size-allocate: couldn't lock dbl_buffer_mtx",
+                    )
+                    .set_conditions(
+                        Box::new(WaveformConditions::new(
+                            requested_duration,
+                            allocation.width,
+                            allocation.height,
+                        )),
+                    );
+            }
+
             self.is_active = true;
             self.container.show();
         } else {

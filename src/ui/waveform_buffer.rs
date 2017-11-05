@@ -794,6 +794,13 @@ impl SampleExtractor for WaveformBuffer {
         self.image.set_channels(channels);
     }
 
+    fn set_conditions(&mut self, conditions: Box<Any>) {
+        let cndt = conditions.downcast::<WaveformConditions>().expect(
+            "WaveformBuffer::set_conditions conditions is not a WaveformConditions",
+        );
+        self.update_conditions(cndt.duration_per_1000px, cndt.width, cndt.height);
+    }
+
     fn drop_continuity(&mut self) {
         self.first_visible_sample = None;
         self.first_visible_sample_lock = None;
@@ -915,10 +922,7 @@ impl SampleExtractor for WaveformBuffer {
 
     // Refresh the waveform in its current sample range and position
     fn refresh_with_conditions(&mut self, audio_buffer: &AudioBuffer, conditions: Box<Any>) {
-        let cndt = conditions.downcast::<WaveformConditions>().expect(
-            "WaveformBuffer::refresh conditions is not a WaveformConditions",
-        );
-        self.update_conditions(cndt.duration_per_1000px, cndt.width, cndt.height);
+        self.set_conditions(conditions);
         self.refresh(audio_buffer);
     }
 }

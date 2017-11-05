@@ -51,6 +51,8 @@ pub trait SampleExtractor: Send {
 
     fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64);
 
+    fn set_conditions(&mut self, conditions: Box<Any>);
+
     fn get_lower(&self) -> usize;
 
     // Drop constraints that allow keeping

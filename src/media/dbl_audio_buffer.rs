@@ -110,6 +110,26 @@ impl DoubleAudioBuffer {
         working_buffer.set_channels(&channels);
     }
 
+    // Init the buffers with the provided conditions.
+    // Conditions concrete type must conform to a struct expected
+    // by the concrete implementation of the SampleExtractor.
+    pub fn set_conditions<T: Any + Clone>(&mut self, conditions: Box<T>) {
+        {
+            self.working_buffer.as_mut()
+                .expect(
+                    "DoubleAudioBuffer::set_conditions failed to take working buffer",
+                )
+                .set_conditions(conditions.clone());
+        }
+
+        {
+            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().expect(
+                "DoubleAudioBuffer:::set_conditions failed to lock the exposed buffer",
+            );
+            exposed_buffer_box.set_conditions(conditions);
+        }
+    }
+
     pub fn handle_eos(&mut self) {
         self.audio_buffer.handle_eos();
         // extract last samples and swap
