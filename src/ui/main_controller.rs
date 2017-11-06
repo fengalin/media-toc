@@ -55,11 +55,14 @@ pub struct MainController {
 
 impl MainController {
     pub fn new(builder: gtk::Builder) -> Rc<RefCell<Self>> {
+        let build_toc_btn: gtk::Button = builder.get_object("build_toc-btn").unwrap();
+        build_toc_btn.set_sensitive(false);
+
         let this = Rc::new(RefCell::new(MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
-            build_toc_btn: builder.get_object("build_toc-btn").unwrap(),
+            build_toc_btn: build_toc_btn,
 
             video_ctrl: VideoController::new(&builder),
             info_ctrl: InfoController::new(&builder),
@@ -214,6 +217,12 @@ impl MainController {
     fn select_media(&mut self) {
         self.stop();
 
+        self.info_ctrl.borrow_mut().cleanup();
+        self.audio_ctrl.borrow_mut().cleanup();
+        self.header_bar.set_subtitle("");
+
+        self.build_toc_btn.set_sensitive(false);
+
         let file_dlg = gtk::FileChooserDialog::new(
             Some("Open a media file"),
             Some(&self.window),
@@ -230,7 +239,6 @@ impl MainController {
     }
 
     fn build_toc(&mut self) {
-        // TODO: set build_toc_btn insensitive when no media is available
         match self.context.take() {
             Some(mut context) => {
                 self.stop();
@@ -413,10 +421,6 @@ impl MainController {
     fn open_media(&mut self, filepath: PathBuf) {
         assert_eq!(self.listener_src, None);
 
-        self.info_ctrl.borrow_mut().cleanup();
-        self.audio_ctrl.borrow_mut().cleanup();
-        self.header_bar.set_subtitle("");
-
         let (ctx_tx, ui_rx) = channel();
 
         self.seeking = false;
@@ -430,6 +434,7 @@ impl MainController {
         ) {
             Ok(context) => {
                 self.context = Some(context);
+                self.build_toc_btn.set_sensitive(true);
             }
             Err(error) => eprintln!("Error opening media: {}", error),
         };
