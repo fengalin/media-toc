@@ -1,6 +1,9 @@
 mod audio_controller;
 use self::audio_controller::AudioController;
 
+mod export_controller;
+use self::export_controller::ExportController;
+
 mod info_controller;
 use self::info_controller::InfoController;
 

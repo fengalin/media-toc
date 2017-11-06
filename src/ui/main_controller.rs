@@ -17,7 +17,7 @@ use gtk::prelude::*;
 use media::{Context, ContextMessage};
 use media::ContextMessage::*;
 
-use super::{AudioController, InfoController, VideoController};
+use super::{AudioController, ExportController, InfoController, VideoController};
 
 #[derive(Clone, PartialEq)]
 pub enum ControllerState {
@@ -35,10 +35,12 @@ pub struct MainController {
     window: gtk::ApplicationWindow,
     header_bar: gtk::HeaderBar,
     play_pause_btn: gtk::ToolButton,
+    build_toc_btn: gtk::Button,
 
     video_ctrl: VideoController,
     info_ctrl: Rc<RefCell<InfoController>>,
     audio_ctrl: Rc<RefCell<AudioController>>,
+    export_ctrl: Rc<RefCell<ExportController>>,
 
     context: Option<Context>,
     state: ControllerState,
@@ -57,10 +59,12 @@ impl MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
+            build_toc_btn: builder.get_object("build_toc-btn").unwrap(),
 
             video_ctrl: VideoController::new(&builder),
             info_ctrl: InfoController::new(&builder),
             audio_ctrl: AudioController::new(&builder),
+            export_ctrl: ExportController::new(&builder),
 
             context: None,
             state: ControllerState::Stopped,
@@ -93,9 +97,15 @@ impl MainController {
             // TODO: add key bindings to seek by steps
             // play/pause, etc.
 
+            let this_rc = Rc::clone(&this);
+            this_mut.build_toc_btn.connect_clicked(move |_| {
+                this_rc.borrow_mut().build_toc();
+            });
+
             this_mut.video_ctrl.register_callbacks(&this);
             InfoController::register_callbacks(&this_mut.info_ctrl, &this);
             AudioController::register_callbacks(&this_mut.audio_ctrl, &this);
+            ExportController::register_callbacks(&this_mut.export_ctrl, &this);
         }
 
         let open_btn: gtk::Button = builder.get_object("open-btn").unwrap();
@@ -138,9 +148,9 @@ impl MainController {
                     self.state = ControllerState::Paused;
                     self.context = Some(context);
                 }
-                state => {
-                    println!("Can't play/pause in state {:?}", state);
+                _ => {
                     self.context = Some(context);
+                    self.select_media();
                 }
             };
         } else {
@@ -217,6 +227,17 @@ impl MainController {
         }
 
         file_dlg.close();
+    }
+
+    fn build_toc(&mut self) {
+        // TODO: set build_toc_btn insensitive when no media is available
+        match self.context.take() {
+            Some(context) => {
+                self.stop();
+                self.export_ctrl.borrow_mut().open(context);
+            }
+            None => (),
+        }
     }
 
     fn handle_eos(&mut self) {

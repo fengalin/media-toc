@@ -21,7 +21,7 @@ extern crate url;
             feature = "profiling-waveform-buffer", feature = "profile-waveform-image"))]
 extern crate chrono;
 
-use gtk::Builder;
+use gtk::{Builder, BuilderExt};
 
 mod ui;
 use ui::MainController;
@@ -39,6 +39,7 @@ fn main() {
     // https://github.com/gtk-rs/gtk/blob/master/src/auto/settings.rs
 
     let builder = Builder::new_from_string(include_str!("ui/media-toc.ui"));
+    builder.add_from_string(include_str!("ui/media-toc-export.ui")).unwrap();
     let main_ctrl = MainController::new(builder);
     main_ctrl.borrow().show_all();
 
