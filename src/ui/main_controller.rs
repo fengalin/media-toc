@@ -217,9 +217,8 @@ impl MainController {
     fn select_media(&mut self) {
         self.stop();
 
-        self.info_ctrl.borrow_mut().cleanup();
-        self.audio_ctrl.borrow_mut().cleanup();
-        self.header_bar.set_subtitle("");
+        // can't cleanup controllers here because ticks might be still pending
+        // => need to wait for the main loop to terminate
 
         self.build_toc_btn.set_sensitive(false);
 
@@ -233,6 +232,10 @@ impl MainController {
 
         if file_dlg.run() == gtk::ResponseType::Ok.into() {
             self.open_media(file_dlg.get_filename().unwrap());
+        } else {
+            self.info_ctrl.borrow_mut().cleanup();
+            self.audio_ctrl.borrow_mut().cleanup();
+            self.header_bar.set_subtitle("");
         }
 
         file_dlg.close();
@@ -420,6 +423,10 @@ impl MainController {
 
     fn open_media(&mut self, filepath: PathBuf) {
         assert_eq!(self.listener_src, None);
+
+        self.info_ctrl.borrow_mut().cleanup();
+        self.audio_ctrl.borrow_mut().cleanup();
+        self.header_bar.set_subtitle("");
 
         let (ctx_tx, ui_rx) = channel();
 
