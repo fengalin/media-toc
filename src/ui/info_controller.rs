@@ -48,6 +48,15 @@ pub struct InfoController {
 
 impl InfoController {
     pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
+        let add_chapter_btn: gtk::ToolButton = builder
+            .get_object("add_chapter-toolbutton")
+            .unwrap();
+        add_chapter_btn.set_sensitive(false);
+        let del_chapter_btn: gtk::ToolButton = builder
+            .get_object("remove_chapter-toolbutton")
+            .unwrap();
+        del_chapter_btn.set_sensitive(false);
+
         // need a RefCell because the callbacks will use immutable versions of ac
         // when the UI controllers will get a mutable version from time to time
         let this_rc = Rc::new(RefCell::new(InfoController {
@@ -65,8 +74,8 @@ impl InfoController {
 
             chapter_treeview: builder.get_object("chapter-treeview").unwrap(),
             chapter_store: builder.get_object("chapters-tree-store").unwrap(),
-            add_chapter_btn: builder.get_object("add_chapter-toolbutton").unwrap(),
-            del_chapter_btn: builder.get_object("remove_chapter-toolbutton").unwrap(),
+            add_chapter_btn: add_chapter_btn,
+            del_chapter_btn: del_chapter_btn,
 
             thumbnail: None,
 
@@ -278,6 +287,9 @@ impl InfoController {
             self.chapter_iter = self.chapter_store.get_iter_first();
         }
 
+        self.add_chapter_btn.set_sensitive(true);
+        self.del_chapter_btn.set_sensitive(false);
+
         if self.thumbnail.is_some() {
             self.drawingarea.show();
             self.drawingarea.queue_draw();
@@ -373,6 +385,7 @@ impl InfoController {
                     self.chapter_treeview.get_selection().unselect_iter(
                         current_iter,
                     );
+                    self.del_chapter_btn.set_sensitive(false);
 
                     if !self.chapter_store.iter_next(current_iter) {
                         // no more chapters
@@ -384,12 +397,14 @@ impl InfoController {
                 && position >= self.chapter_store.get_value(current_iter, START_COL as i32)
                     .get::<u64>().unwrap() // after current start
                 && position < self.chapter_store.get_value(current_iter, END_COL as i32)
-                    .get::<u64>().unwrap()
+                    .get::<u64>().unwrap() // before current end
                 {
                     // before current end
                     self.chapter_treeview.get_selection().select_iter(
                         current_iter,
                     );
+
+                    self.del_chapter_btn.set_sensitive(true);
                 }
             }
             None => {
@@ -410,6 +425,8 @@ impl InfoController {
         if let Some(first_iter) = self.chapter_store.get_iter_first() {
             // chapters available => update with new position
             let mut keep_going = true;
+
+            self.del_chapter_btn.set_sensitive(false);
 
             let current_iter = if let Some(current_iter) = self.chapter_iter.take() {
                 if position <
@@ -478,6 +495,8 @@ impl InfoController {
                     self.chapter_treeview.get_selection().select_iter(
                         &current_iter,
                     );
+                    self.del_chapter_btn.set_sensitive(true);
+
                     set_chapter_iter = true;
                     keep_going = false;
                 } else if !self.chapter_store.iter_next(&current_iter) {
@@ -617,6 +636,8 @@ impl InfoController {
         self.chapter_treeview.get_selection().select_iter(&new_iter);
         self.chapter_iter = Some(new_iter);
         self.update_marks();
+
+        self.del_chapter_btn.set_sensitive(true);
     }
 
     pub fn remove_chapter(&mut self) {
@@ -652,8 +673,10 @@ impl InfoController {
                             &[END_COL, END_STR_COL],
                             &[&current_end, &current_end_str],
                         );
+                        self.del_chapter_btn.set_sensitive(true);
                         Some(previous_chapter)
                     } else {
+                        self.del_chapter_btn.set_sensitive(false);
                         None
                     }
                 } else {
