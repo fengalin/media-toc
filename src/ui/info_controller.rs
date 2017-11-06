@@ -8,7 +8,7 @@ extern crate glib;
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
-use media::{Context, Timestamp};
+use media::{Chapter, Context, Timestamp};
 
 use super::{ImageSurface, MainController};
 
@@ -222,7 +222,7 @@ impl InfoController {
 
         {
             let mut info = context.info.lock().expect(
-                "Failed to lock media info in InfoController",
+                "InfoController::new_media failed to lock media info",
             );
 
             info.fix();
@@ -680,5 +680,50 @@ impl InfoController {
         }
 
         self.update_marks();
+    }
+
+    pub fn export_chapters(&self, context: &mut Context) {
+        let mut info = context.info.lock().expect(
+            "InfoController::export_chapters failed to lock media info",
+        );
+        info.chapters.clear();
+
+        let iter = self.chapter_store.get_iter_first();
+        match iter {
+            Some(iter) => {
+                let mut keep_going = true;
+                while keep_going {
+                    // FIXME: use real id
+                    let id = format!("{}",
+                        self.chapter_store
+                            .get_value(&iter, START_COL as i32)
+                            .get::<u64>()
+                            .unwrap()
+                        );
+                    let title = self.chapter_store
+                        .get_value(&iter, TITLE_COL as i32)
+                        .get::<String>()
+                        .unwrap();
+                    let start = self.chapter_store
+                        .get_value(&iter, START_COL as i32)
+                        .get::<u64>()
+                        .unwrap();
+                    let end = self.chapter_store
+                        .get_value(&iter, END_COL as i32)
+                        .get::<u64>()
+                        .unwrap();
+
+                    info.chapters.push(Chapter::new(
+                        &id,
+                        &title,
+                        Timestamp::from_nano(start),
+                        Timestamp::from_nano(end),
+                    ));
+
+                    keep_going = self.chapter_store.iter_next(&iter);
+                }
+            }
+            None => (),
+        }
     }
 }

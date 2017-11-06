@@ -232,8 +232,9 @@ impl MainController {
     fn build_toc(&mut self) {
         // TODO: set build_toc_btn insensitive when no media is available
         match self.context.take() {
-            Some(context) => {
+            Some(mut context) => {
                 self.stop();
+                self.info_ctrl.borrow().export_chapters(&mut context);
                 self.export_ctrl.borrow_mut().open(context);
             }
             None => (),

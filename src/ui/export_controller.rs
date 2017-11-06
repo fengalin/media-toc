@@ -35,6 +35,24 @@ impl ExportController {
         this.export_btn.connect_clicked(move |_| {
             let this = this_clone.borrow();
             println!("exporting {}", this.context.as_ref().unwrap().file_name);
+
+            {
+                let context = this.context.as_ref()
+                    .unwrap();
+                let info = context.info.lock()
+                    .expect(
+                        "ExportController::export_btn clicked, failed to lock media info",
+                    );
+                for ref chapter in &info.chapters {
+                    println!("\tchapter: {}, {}, {}, {}",
+                        chapter.id,
+                        chapter.title(),
+                        chapter.start,
+                        chapter.end,
+                    );
+                }
+            }
+
             this.export_dlg.hide();
         });
     }
