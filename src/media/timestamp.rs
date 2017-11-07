@@ -76,6 +76,10 @@ impl Timestamp {
             Timestamp::from_nano(nano as u64)
         }
     }
+
+    pub fn format_with_hours(&self) -> String {
+        format!("{:02}:{:02}:{:02}.{:03}", self.h, self.m, self.s, self.ms).to_owned()
+    }
 }
 
 impl fmt::Display for Timestamp {

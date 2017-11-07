@@ -63,7 +63,11 @@ impl ExportController {
                     );
                 for (index, ref chapter) in info.chapters.iter().enumerate() {
                     let prefix = format!("CHAPTER{:02}", index + 1);
-                    output_file.write_fmt(format_args!("{}={}\n", prefix, chapter.start))
+                    output_file.write_fmt(
+                        format_args!("{}={}\n",
+                            prefix,
+                            chapter.start.format_with_hours(),
+                        ))
                         .expect("ExportController::export_btn clicked, failed to write in file");
                     output_file.write_fmt(format_args!("{}NAME={}\n", prefix, chapter.title()))
                         .expect("ExportController::export_btn clicked, failed to write in file");
