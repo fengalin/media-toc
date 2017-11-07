@@ -60,8 +60,8 @@
             <property name="hexpand">True</property>
             <property name="vexpand">True</property>
             <child>
-              <object class="GtkRadioButton" id="export_cue-btn">
-                <property name="label" translatable="yes">CUE sheet</property>
+              <object class="GtkRadioButton" id="export_mkvmerge_txt-btn">
+                <property name="label" translatable="yes">mkvmerge text format</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">False</property>

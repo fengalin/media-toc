@@ -1,6 +1,9 @@
 extern crate gtk;
 use gtk::{ButtonExt, GtkWindowExt, WidgetExt};
 
+use std::fs::File;
+use std::io::Write;
+
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -34,7 +37,22 @@ impl ExportController {
         let this_clone = Rc::clone(this_rc);
         this.export_btn.connect_clicked(move |_| {
             let this = this_clone.borrow();
-            println!("exporting {}", this.context.as_ref().unwrap().file_name);
+
+            // for the moment, only export to mkvmerge text format is supported
+            let ref media_path = this.context.as_ref().unwrap().path;
+
+            let mut target_path = media_path.clone();
+            target_path.pop();
+            target_path.push(&format!("{}.txt",
+                media_path.file_stem()
+                    .expect("ExportController::export_btn clicked, failed to get file_stem")
+                    .to_str()
+                    .expect("ExportController::export_btn clicked, failed to get file_stem as str")
+            ));
+
+            // TODO: handle file related errors
+            let mut output_file = File::create(target_path)
+                .expect("ExportController::export_btn clicked couldn't create output file");
 
             {
                 let context = this.context.as_ref()
@@ -43,13 +61,12 @@ impl ExportController {
                     .expect(
                         "ExportController::export_btn clicked, failed to lock media info",
                     );
-                for ref chapter in &info.chapters {
-                    println!("\tchapter: {}, {}, {}, {}",
-                        chapter.id,
-                        chapter.title(),
-                        chapter.start,
-                        chapter.end,
-                    );
+                for (index, ref chapter) in info.chapters.iter().enumerate() {
+                    let prefix = format!("CHAPTER{:02}", index + 1);
+                    output_file.write_fmt(format_args!("{}={}\n", prefix, chapter.start))
+                        .expect("ExportController::export_btn clicked, failed to write in file");
+                    output_file.write_fmt(format_args!("{}NAME={}\n", prefix, chapter.title()))
+                        .expect("ExportController::export_btn clicked, failed to write in file");
                 }
             }
 
