@@ -6,6 +6,16 @@ it runs on Windows and should also work on macOS.
 **media-toc** is not fully functional yet, see the [Status section](#status) below.
 Of course, you can contribute to the project if you find it interesting.
 
+## <a name='ui'></a>Screenshots
+### UI with a video file
+![media-toc UI Video](assets/media-toc_video.png)
+
+### UI with an audio file
+![media-toc UI Audio](assets/media-toc_audio.png)
+
+### Waveform showing 5.1 audio channels
+![media-toc Waveform 5.1 audio channels](assets/waveform_5.1_audio_channels.png)
+
 ## <a name='status'></a>Status
 At the moment, **media-toc** can:
 - Open a media file: display metadata from the media, the cover image, the first
@@ -17,16 +27,66 @@ chapter in the list while playing.
 chapters list.
 - Zoom in/out the waveform on the time axis.
 - Add/remove a chapter. Note that you can't export the result yet.
+- Export to [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
 
-## <a name='ui'></a>Screenshots
-### UI with a video file
-![media-toc UI Video](assets/media-toc_video.png)
+# Howto
 
-### UI with an audio file
-![media-toc UI Audio](assets/media-toc_audio.png)
+## Add a table of content to an mkv media
 
-### Waveform showing 5.1 audio channels
-![media-toc Waveform 5.1 audio channels](assets/waveform_5.1_audio_channels.png)
+*media-toc* doesn't export to an mkv container yet. However, the following workflow will provide you
+with a solution to define a table of contents using *media-toc* and to use [mkvmerge](https://mkvtoolnix.download/doc/mkvmerge.html)
+to add the chapters to an mkv media.
+
+### Build media-toc
+
+Until I find time to add a flatpack package, you will have to generate *media-toc* from source.
+Follow the instructions [here](#generation).
+
+### Install mkvtoolnix
+
+*mkvmerge* is part of *mkvtoolnix*. Use your package manager to install it.
+
+On Fedora, use the following command:
+```
+sudo dnf install mkvtoolnix
+```
+
+### Run media-toc
+
+Go to the root of the project and issue the following command:
+```
+$ cargo run --release
+```
+
+### Open a media file
+
+Remember that this howto is about adding a table of contents to an existing mkv media.
+
+1. Click on the folder icon or the play icon to open the file selection dialog.
+2. Select the mkv media for which you want to add a table of contents.
+3. If you want to add a chapter starting at the begining of the file, you can click on the `+` icon
+under the tree view on the bottom right of the window. The end of the chapter will match the end
+of the media. You can fix that later.
+4. Click in the newly added chapter title column to enter a title for this chapter.
+5. Play the stream until the next chapter's starting position. You can use the timeline to seek
+in the media.
+6. In order to define the start of the new chapter precisely, pause the media by clicking on the
+play/pause button, then use the `+` button next to the waveform to zoom in. You can then seek around
+current sample by clicking on the waveform.
+7. When the cursor (the vertical yellow bar) matches the start of the chapter to add, click on the
+`+` icon under the tree view on the bottom right of the window.
+8. Click in the newly added chapter title column to enter a title for this chapter.
+9. Go back to step 5 if you wish to add another chapter.
+10. Click on the export button (the "multiple documents" icon) on the right side of the header bar.
+11. Click the `export` button. A new file with the same name as your media and a `txt` extension
+will be created in the media's folder.
+12. Open a command line and `cd` to the directory where your mkv file is located.
+13. Issue the following command (where _media_ is the name of your mkv file without the extension):
+    ```
+    mkvmerge --chapters _media_.txt -o output_file.mkv _media_.mkv
+    ```
+
+The file `output_file.mkv` will now contain the media with the chapters you defined.
 
 # Technologies
 **media-toc** is developed in Rust and uses the following technologies:
@@ -37,7 +97,7 @@ chapters list.
 - **GStreamer** ([official documentation](https://gstreamer.freedesktop.org/documentation/),
 [Rust binding](https://sdroege.github.io/rustdoc/gstreamer/gstreamer/)).
 
-# Environment preparation
+# <a name='generation'></a>Generation
 ## Toolchain
 Rust nightly version is required at the moment.
 ```
