@@ -31,20 +31,20 @@ chapters list.
 
 # Howto
 
-## Add a table of content to an mkv media
+## Add a table of contents to an mkv media
 
-*media-toc* doesn't export to an mkv container yet. However, the following workflow will provide you
+**media-toc** doesn't export to mkv yet. However, the following workflow will provide you
 with a solution to define a table of contents using *media-toc* and to use [mkvmerge](https://mkvtoolnix.download/doc/mkvmerge.html)
-to add the chapters to an mkv media.
+to add the chapters to a mkv media.
 
 ### Build media-toc
 
-Until I find time to add a flatpack package, you will have to generate *media-toc* from source.
+Until I add a flatpack package, you will have to generate **media-toc** from source.
 Follow the instructions [here](#generation).
 
 ### Install mkvtoolnix
 
-*mkvmerge* is part of *mkvtoolnix*. Use your package manager to install it.
+**mkvmerge** is part of **mkvtoolnix**. Use your package manager to install it.
 
 On Fedora, use the following command:
 ```
@@ -58,30 +58,33 @@ Go to the root of the project and issue the following command:
 $ cargo run --release
 ```
 
-### Open a media file
+### Create the table of contents
 
 Remember that this howto is about adding a table of contents to an existing mkv media.
 
 1. Click on the folder icon or the play icon to open the file selection dialog.
 2. Select the mkv media for which you want to add a table of contents.
 3. If you want to add a chapter starting at the begining of the file, you can click on the `+` icon
-under the tree view on the bottom right of the window. The end of the chapter will match the end
-of the media. You can fix that later.
-4. Click in the newly added chapter title column to enter a title for this chapter.
+under the tree view at the bottom right of the window. The end of the chapter will match the end
+of the media. This will change automatically if you add new chapters.
+4. Click in the newly added chapter title column and fill the title for this chapter.
 5. Play the stream until the next chapter's starting position. You can use the timeline to seek
 in the media.
-6. In order to define the start of the new chapter precisely, pause the media by clicking on the
+6. In order to precisely define the start of the new chapter, pause the media by clicking on the
 play/pause button, then use the `+` button next to the waveform to zoom in. You can then seek around
 current sample by clicking on the waveform.
 7. When the cursor (the vertical yellow bar) matches the start of the chapter to add, click on the
-`+` icon under the tree view on the bottom right of the window.
-8. Click in the newly added chapter title column to enter a title for this chapter.
+`+` icon under the tree view at the bottom right of the window.
+8. Click in the newly added chapter title column and fill a title for this chapter.
 9. Go back to step 5 if you wish to add another chapter.
 10. Click on the export button (the "multiple documents" icon) on the right side of the header bar.
 11. Click the `export` button. A new file with the same name as your media and a `txt` extension
 will be created in the media's folder.
-12. Open a command line and `cd` to the directory where your mkv file is located.
-13. Issue the following command (where _media_ is the name of your mkv file without the extension):
+
+### Create a new media with the table of contents
+
+1. Open a terminal and `cd` to the directory where your mkv file is located.
+2. Issue the following command (where _media_ is the name of your mkv file without the extension):
     ```
     mkvmerge --chapters _media_.txt -o output_file.mkv _media_.mkv
     ```
