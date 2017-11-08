@@ -295,14 +295,99 @@ impl ChapterTreeManager {
         (has_changed, prev_selected_iter)
     }
 
-    // Update chapter according to the given position in seek mode
-    pub fn seek(&mut self, position: u64) {
+    pub fn prepare_for_seek(&mut self) {
         if self.iter.is_none() {
             // either there is no chapter or previous position had already passed the end
             // => force scanning of the chapters list in order to set iter back on track
-            self.iter = self.store.get_iter_first();
+            self.rewind();
         }
+    }
 
-        self.update_position(position);
+    pub fn add_chapter(&mut self, position: u64, duration: u64) -> Option<gtk::TreeIter> {
+        let (new_iter, end, end_str) =
+            match self.selected_iter.take() {
+                Some(selected_iter) => {
+                    // a chapter is currently selected
+                    let (current_start, current_end, current_end_str) = {
+                        let selected_chapter = ChapterEntry::new(&self.store, &selected_iter);
+                        (
+                            selected_chapter.start(),
+                            selected_chapter.end(),
+                            selected_chapter.end_str(),
+                        )
+                    };
+
+                    if current_start != position {
+                        self.store.set(
+                            &selected_iter,
+                            &[END_COL as u32, END_STR_COL as u32],
+                            &[&position, &Timestamp::format(position, false)],
+                        );
+
+                        // insert new chapter after current
+                        let new_iter = self.store.insert_after(None, &selected_iter);
+                        (new_iter, current_end, current_end_str)
+                    } else {
+                        // attempting to add the new chapter at current position
+                        return None;
+                    }
+                }
+                None =>
+                    match self.iter.take() {
+                        Some(iter) => {
+                            // chapters are available, but none is selected:
+                            // either position is before the first chapter
+                            // or in a gap between two chapters
+                            let iter_chapter = ChapterEntry::new(&self.store, &iter);
+                            let start = iter_chapter.start();
+                            if position > start {
+                                panic!(
+                                    concat!(
+                                        "ChapterTreeManager::add_chapter inconsistent position",
+                                        " {} with regard to current iter [{}, {}]",
+                                    ),
+                                    position,
+                                    iter_chapter.start(),
+                                    iter_chapter.end(),
+                                );
+                            }
+
+                            // iter is next chapter
+
+                            (
+                                self.store.insert_before(None, &iter),
+                                start,
+                                iter_chapter.start_str(),
+                            )
+                        }
+                        None => {
+                            // No chapter in iter:
+                            // either position is passed the end of last chapter
+                            // or there is no chapter
+                            let insert_position =
+                                match self.store.get_iter_first() {
+                                    None => // No chapter yet => inset at the beginning
+                                        0i32,
+                                    Some(_) => // store contains chapters => insert at the end
+                                        -1i32,
+                                };
+                            (
+                                self.store.insert(None, insert_position),
+                                duration,
+                                Timestamp::format(duration, false),
+                            )
+                        }
+                    }
+            };
+
+        self.store.set(
+            &new_iter,
+            &[START_COL as u32, START_STR_COL as u32, END_COL as u32, END_STR_COL as u32],
+            &[&position, &Timestamp::format(position, false), &end, &end_str],
+        );
+
+        self.selected_iter = Some(new_iter.clone());
+        self.iter = Some(new_iter.clone());
+        Some(new_iter)
     }
 }

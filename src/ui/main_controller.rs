@@ -202,7 +202,7 @@ impl MainController {
                 self.state = ControllerState::Playing;
             }
 
-            self.info_ctrl.borrow_mut().seek(position);
+            self.info_ctrl.borrow_mut().seek(position, &self.state);
             self.audio_ctrl.borrow_mut().seek(position, &self.state);
         }
     }

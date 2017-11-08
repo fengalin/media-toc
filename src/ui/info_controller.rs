@@ -10,7 +10,7 @@ use std::cell::RefCell;
 
 use media::{Chapter, Context, Timestamp};
 
-use super::{ChapterTreeManager, ImageSurface, MainController};
+use super::{ChapterTreeManager, ControllerState, ImageSurface, MainController};
 
 pub struct InfoController {
     drawingarea: gtk::DrawingArea,
@@ -128,10 +128,14 @@ impl InfoController {
                 let position_opt = {
                     // get the position first in order to make sure
                     // this is no longer borrowed if main_ctrl::seek is to be called
-                    let this = this_clone.borrow();
+                    let mut this = this_clone.borrow_mut();
                     match this.chapter_manager.get_iter(tree_path) {
-                        Some(iter) =>
-                            Some(this.chapter_manager.get_chapter_at_iter(&iter).start()),
+                        Some(iter) => {
+                            let position = this.chapter_manager.get_chapter_at_iter(&iter).start();
+                            // update position
+                            this.tick(position, false);
+                            Some(position)
+                        }
                         None => None,
                     }
                 };
@@ -317,10 +321,8 @@ impl InfoController {
             } else if has_changed {
                 if let Some(ref prev_selected_iter) = prev_selected_iter {
                     // discard has_changed because we will be looping on current chapter
-                    println!("looping to {}",
-                        self.chapter_manager.get_chapter_at_iter(prev_selected_iter).start()
-                    );
                     has_changed = false;
+
                     // unselect chapter in order to avoid tracing change to current position
                     self.chapter_manager.unselect();
                     InfoController::repeat_at(&self.main_ctrl,
@@ -349,8 +351,13 @@ impl InfoController {
         }
     }
 
-    pub fn seek(&mut self, position: u64) {
-        self.timeline_scale.set_value(position as f64);
+    pub fn seek(&mut self, position: u64, state: &ControllerState) {
+        self.chapter_manager.prepare_for_seek();
+
+        if *state == ControllerState::Paused {
+            // force sync
+            self.tick(position, false);
+        }
     }
 
     fn get_position(&self) -> u64 {
@@ -368,118 +375,11 @@ impl InfoController {
             return;
         }
 
-        /*let new_iter = match self.chapter_iter {
-            Some(ref current_iter) => {
-                // stream has chapters
-                if position >
-                    self.chapter_store
-                        .get_value(current_iter, START_COL as i32)
-                        .get::<u64>()
-                        .unwrap()
-                {
-                    // new chapter start starts after current chapter
-                    // change current's end
-                    let current_end = self.chapter_store
-                        .get_value(current_iter, END_COL as i32)
-                        .get::<u64>()
-                        .unwrap();
-                    let current_end_str = self.chapter_store
-                        .get_value(current_iter, END_STR_COL as i32)
-                        .get::<String>()
-                        .unwrap();
-
-                    self.chapter_store.set(
-                        current_iter,
-                        &[END_COL, END_STR_COL],
-                        &[&position, &Timestamp::format(position, false)],
-                    );
-
-                    // insert new chapter after current
-                    let new_iter = self.chapter_store.insert_after(None, current_iter);
-                    self.chapter_store.set(
-                        &new_iter,
-                        &[START_COL, START_STR_COL, END_COL, END_STR_COL],
-                        &[
-                            &position,
-                            &Timestamp::format(position, false),
-                            &current_end,
-                            &current_end_str,
-                        ],
-                    );
-
-                    new_iter
-                } else {
-                    // new chapter start starts before current chapter
-                    // it might be the case when the stream hasn't
-                    // reached the first chapter yet
-                    let current_first_iter = self.chapter_store.get_iter_first().unwrap();
-                    let current_first_start = self.chapter_store
-                        .get_value(&current_first_iter, START_COL as i32)
-                        .get::<u64>()
-                        .unwrap();
-                    if current_first_start > position {
-                        // first chapter starts after current position
-                        // => add new just before
-                        let current_first_start_str = self.chapter_store
-                            .get_value(&current_first_iter, START_STR_COL as i32)
-                            .get::<String>()
-                            .unwrap();
-
-                        // insert new chapter before first chapter
-                        let new_iter = self.chapter_store.insert_before(None, &current_first_iter);
-                        // FIXME: what to do with the ID?
-                        // what are they in the real world?
-                        self.chapter_store.set(
-                            &new_iter,
-                            &[START_COL, START_STR_COL, END_COL, END_STR_COL],
-                            &[
-                                &position,
-                                &Timestamp::format(position, false),
-                                &current_first_start,
-                                &current_first_start_str,
-                            ],
-                        );
-
-                        new_iter
-                    } else {
-                        // first chapter starts after current position
-                        // => probably attempting to add a new chapter
-                        //    at the same position
-                        return;
-                    }
-                }
-            }
-            None => {
-                // This is the first chapter
-                self.chapter_store.insert_with_values(
-                    None,
-                    None,
-                    &[
-                        ID_COL,
-                        START_COL,
-                        END_COL,
-                        TITLE_COL,
-                        START_STR_COL,
-                        END_STR_COL,
-                    ],
-                    &[
-                        &(1u32),
-                        &position,
-                        &self.duration,
-                        &String::new(),
-                        &Timestamp::format(position, false),
-                        &Timestamp::format(self.duration, false),
-                    ],
-                )
-            }
-        };
-
-        // set chapter's iter as new
-        self.chapter_treeview.get_selection().select_iter(&new_iter);
-        self.chapter_iter = Some(new_iter);
-        self.update_marks();*/
-
-        self.del_chapter_btn.set_sensitive(true);
+        if let Some(new_iter) = self.chapter_manager.add_chapter(position, self.duration) {
+            self.chapter_treeview.get_selection().select_iter(&new_iter);
+            self.update_marks();
+            self.del_chapter_btn.set_sensitive(true);
+        }
     }
 
     pub fn remove_chapter(&mut self) {
