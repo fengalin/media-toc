@@ -1,6 +1,9 @@
 mod audio_controller;
 use self::audio_controller::AudioController;
 
+mod chapter_tree_manager;
+use self::chapter_tree_manager::ChapterTreeManager;
+
 mod export_controller;
 use self::export_controller::ExportController;
 
