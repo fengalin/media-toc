@@ -399,8 +399,8 @@ impl InfoController {
         let mut chapters = Vec::<Chapter>::new();
         self.chapter_manager.for_each(None, |chapter| {
             chapters.push(Chapter::new(
-                // FIXME: really use an id
-                &chapter.start_str(),
+                // use start as chapter id
+                &format!("{}", chapter.start_ts().nano_total),
                 &chapter.title(),
                 chapter.start_ts(),
                 chapter.end_ts(),

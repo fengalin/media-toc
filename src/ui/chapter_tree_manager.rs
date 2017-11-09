@@ -3,12 +3,11 @@ use gtk::prelude::*;
 
 use media::{Chapter, Timestamp};
 
-const ID_COL: i32 = 0;
-const START_COL: i32 = 1;
-const END_COL: i32 = 2;
-const TITLE_COL: i32 = 3;
-const START_STR_COL: i32 = 4;
-const END_STR_COL: i32 = 5;
+const START_COL: i32 = 0;
+const END_COL: i32 = 1;
+const TITLE_COL: i32 = 2;
+const START_STR_COL: i32 = 3;
+const END_STR_COL: i32 = 4;
 
 pub struct ChapterEntry<'a> {
     store: &'a gtk::TreeStore,
@@ -21,10 +20,6 @@ impl<'a> ChapterEntry<'a> {
             store: store,
             iter: iter,
         }
-    }
-
-    pub fn id(&self) -> i32 {
-        ChapterEntry::get_id(self.store, self.iter)
     }
 
     pub fn title(&self) -> String {
@@ -53,10 +48,6 @@ impl<'a> ChapterEntry<'a> {
 
     pub fn end_ts(&self) -> Timestamp {
         Timestamp::from_nano(ChapterEntry::get_end(self.store, self.iter))
-    }
-
-    pub fn get_id(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> i32 {
-        store.get_value(iter, ID_COL).get::<i32>().unwrap()
     }
 
     pub fn get_title(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> String {
@@ -232,11 +223,6 @@ impl ChapterTreeManager {
                         return (false, None);
                     }
                     // chapter has changed
-                    println!("chapter has changed pos {}, [{}, {}]",
-                        position,
-                        ChapterEntry::get_start(&self.store, selected_iter),
-                        ChapterEntry::get_end(&self.store, selected_iter),
-                    );
                     true
                 }
                 None => false,
@@ -251,11 +237,6 @@ impl ChapterTreeManager {
                         position < ChapterEntry::get_end(&self.store, &iter)
                 {
                     // position is in iter
-                    println!("position {} is in [{}, {}]",
-                        position,
-                        ChapterEntry::get_start(&self.store, &iter),
-                        ChapterEntry::get_end(&self.store, &iter),
-                    );
                     self.selected_iter = Some(iter.clone());
                     self.iter = Some(iter);
                     return (true, prev_selected_iter);
@@ -263,24 +244,20 @@ impl ChapterTreeManager {
                             searching_forward
                 {
                     // position is after iter and we were already searching forward
-                    println!("position is after iter and we were already searching forward");
                     self.store.iter_next(&iter)
                 } else if position < ChapterEntry::get_start(&self.store, &iter) {
                     // position before iter
                     searching_forward = false;
                     if self.store.iter_previous(&iter) {
                         // iter is still valid
-                        println!("position before iter and still valid");
                         true
                     } else {
                         // before first chapter
-                        println!("before first chapter");
                         self.iter = self.store.get_iter_first();
                         return (has_changed, prev_selected_iter);
                     }
                 } else {
                     // in a gap between two chapters
-                    println!("in a gap between two chapters");
                     self.iter = Some(iter);
                     return (has_changed, prev_selected_iter);
                 }
@@ -288,7 +265,6 @@ impl ChapterTreeManager {
 
             // passed the end of the last chapter
             // prevent from searching in subsequent calls
-            println!("passed the end of the last chapter");
             self.iter = None;
         }
 
