@@ -303,6 +303,7 @@ impl ChapterTreeManager {
         }
     }
 
+    // Returns an iter on the new chapter
     pub fn add_chapter(&mut self, position: u64, duration: u64) -> Option<gtk::TreeIter> {
         let (new_iter, end, end_str) =
             match self.selected_iter.take() {
@@ -318,6 +319,8 @@ impl ChapterTreeManager {
                     };
 
                     if current_start != position {
+                        // update currently selected chapter end
+                        // to match the start of the newly added chapter
                         self.store.set(
                             &selected_iter,
                             &[END_COL as u32, END_STR_COL as u32],
@@ -389,5 +392,41 @@ impl ChapterTreeManager {
         self.selected_iter = Some(new_iter.clone());
         self.iter = Some(new_iter.clone());
         Some(new_iter)
+    }
+
+    // Returns an iter on the chapter which should be selected, if any
+    pub fn remove_selected_chapter(&mut self) -> Option<gtk::TreeIter> {
+        match self.selected_iter.take() {
+            Some(selected_iter) => {
+                let prev_iter = selected_iter.clone();
+                let next_selected_iter =
+                    if self.store.iter_previous(&prev_iter) {
+                        // a previous chapter is available => update its end
+                        // with the end of currently selected chapter
+                        let selected_chapter = ChapterEntry::new(&self.store, &selected_iter);
+                        self.store.set(
+                            &prev_iter,
+                            &[END_COL as u32, END_STR_COL as u32],
+                            &[&selected_chapter.end(), &selected_chapter.end_str()],
+                        );
+
+                        Some(prev_iter)
+                    } else {
+                        // no chapter before => nothing to select
+                        None
+                    };
+
+                self.store.remove(&selected_iter);
+                self.selected_iter = next_selected_iter.clone();
+                match next_selected_iter {
+                    None =>
+                        // No chapter before => rewind
+                        self.rewind(),
+                    Some(ref next_selected_iter) => self.iter = Some(next_selected_iter.clone()),
+                }
+                next_selected_iter
+            }
+            None => None,
+        }
     }
 }

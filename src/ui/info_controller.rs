@@ -383,68 +383,16 @@ impl InfoController {
     }
 
     pub fn remove_chapter(&mut self) {
-        /*let new_iter_opt = match self.chapter_iter {
-            Some(ref current_iter) => {
-                // stream has chapters
-                let position = self.get_position();
-
-                let current_start = self.chapter_store
-                    .get_value(current_iter, START_COL as i32)
-                    .get::<u64>()
-                    .unwrap();
-                let current_end = self.chapter_store
-                    .get_value(current_iter, END_COL as i32)
-                    .get::<u64>()
-                    .unwrap();
-                if position >= current_start && position < current_end {
-                    // current position matches currently selected chapter
-                    let current_end_str = self.chapter_store
-                        .get_value(current_iter, END_STR_COL as i32)
-                        .get::<String>()
-                        .unwrap();
-
-                    let previous_chapter = current_iter.clone();
-                    let has_previous_chapter = self.chapter_store.iter_previous(&previous_chapter);
-
-                    self.chapter_store.remove(current_iter);
-
-                    if has_previous_chapter {
-                        // update previous chapter
-                        self.chapter_store.set(
-                            &previous_chapter,
-                            &[END_COL, END_STR_COL],
-                            &[&current_end, &current_end_str],
-                        );
-                        self.del_chapter_btn.set_sensitive(true);
-                        Some(previous_chapter)
-                    } else {
-                        self.del_chapter_btn.set_sensitive(false);
-                        None
-                    }
-                } else {
-                    // current position is before or after current chapter
-                    // => this can occurs if the start of the first chapter
-                    //    doesn't match the beginning of the stream
-                    return;
-                }
-            }
+        match self.chapter_manager.remove_selected_chapter() {
+            Some(new_iter) =>
+                self.chapter_treeview.get_selection().select_iter(&new_iter),
             None => {
-                // No chapter
-                return;
+                self.chapter_treeview.get_selection().unselect_all();
+                self.del_chapter_btn.set_sensitive(false);
             }
-        };
-
-        if let Some(new_iter) = new_iter_opt {
-            // set chapter's iter as new
-            self.chapter_treeview.get_selection().select_iter(&new_iter);
-            self.chapter_iter = Some(new_iter);
-        } else {
-            self.chapter_treeview.get_selection().unselect_all();
-            // set iter to first if any
-            self.chapter_iter = self.chapter_store.get_iter_first();
         }
 
-        self.update_marks();*/
+        self.update_marks();
     }
 
     pub fn export_chapters(&self, context: &mut Context) {
