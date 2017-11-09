@@ -4,12 +4,15 @@
   <requires lib="gtk+" version="3.20"/>
   <object class="GtkDialog" id="export-dlg">
     <property name="can_focus">False</property>
-    <property name="type">popup</property>
-    <property name="title" translatable="yes">Export...</property>
-    <property name="window_position">center-on-parent</property>
+    <property name="title" translatable="yes">Export the Table of Contents</property>
+    <property name="resizable">False</property>
+    <property name="modal">True</property>
+    <property name="window_position">mouse</property>
     <property name="icon_name">gtk-dnd-multiple</property>
     <property name="type_hint">dialog</property>
-    <property name="gravity">center</property>
+    <property name="skip_taskbar_hint">True</property>
+    <property name="skip_pager_hint">True</property>
+    <signal name="delete-event" handler="gtk_widget_hide_on_delete" swapped="no"/>
     <child internal-child="vbox">
       <object class="GtkBox">
         <property name="can_focus">False</property>
@@ -40,27 +43,16 @@
           </packing>
         </child>
         <child>
-          <object class="GtkLabel" id="export-lbl">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="halign">start</property>
-            <property name="margin_top">10</property>
-            <property name="label" translatable="yes">Export the table of content to:</property>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">1</property>
-          </packing>
-        </child>
-        <child>
           <object class="GtkGrid">
+            <property name="height_request">100</property>
             <property name="visible">True</property>
             <property name="can_focus">False</property>
+            <property name="margin_left">10</property>
+            <property name="margin_top">5</property>
             <property name="hexpand">True</property>
             <property name="vexpand">True</property>
             <child>
-              <object class="GtkRadioButton" id="export_mkvmerge_txt-btn">
+              <object class="GtkRadioButton" id="export_mkvmerge_txt-rdbtn">
                 <property name="label" translatable="yes">mkvmerge text format</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
@@ -74,11 +66,27 @@
                 <property name="width">2</property>
               </packing>
             </child>
+            <child>
+              <object class="GtkRadioButton" id="export_cue-rdbtn">
+                <property name="label" translatable="yes">Cue Sheet format</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">False</property>
+                <property name="active">True</property>
+                <property name="draw_indicator">True</property>
+                <property name="group">export_mkvmerge_txt-rdbtn</property>
+              </object>
+              <packing>
+                <property name="left_attach">0</property>
+                <property name="top_attach">1</property>
+                <property name="width">2</property>
+              </packing>
+            </child>
           </object>
           <packing>
             <property name="expand">False</property>
             <property name="fill">True</property>
-            <property name="position">2</property>
+            <property name="position">1</property>
           </packing>
         </child>
       </object>

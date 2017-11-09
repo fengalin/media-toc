@@ -1,5 +1,5 @@
 extern crate gtk;
-use gtk::{ButtonExt, GtkWindowExt, WidgetExt};
+use gtk::prelude::*;
 
 use std::fs::File;
 use std::io::Write;
@@ -31,15 +31,31 @@ impl ExportController {
         }))
     }
 
-    pub fn register_callbacks(this_rc: &Rc<RefCell<Self>>, _: &Rc<RefCell<MainController>>) {
+    pub fn register_callbacks(
+        this_rc: &Rc<RefCell<Self>>,
+        main_ctrl: &Rc<RefCell<MainController>>
+    ) {
         let this = this_rc.borrow();
 
         let this_clone = Rc::clone(this_rc);
+        let main_ctrl_clone = Rc::clone(main_ctrl);
+        this.export_dlg.connect_delete_event(move |dlg, _| {
+            main_ctrl_clone.borrow_mut().restore_context(
+                this_clone.borrow_mut().context.take().unwrap()
+            );
+            dlg.hide_on_delete();
+            Inhibit(true)
+        });
+
+        let this_clone = Rc::clone(this_rc);
+        let main_ctrl_clone = Rc::clone(main_ctrl);
         this.export_btn.connect_clicked(move |_| {
-            let this = this_clone.borrow();
+            let mut this = this_clone.borrow_mut();
+
+            let context = this.context.take().unwrap();
 
             // for the moment, only export to mkvmerge text format is supported
-            let ref media_path = this.context.as_ref().unwrap().path;
+            let media_path = context.path.clone();
 
             let mut target_path = media_path.clone();
             target_path.pop();
@@ -55,8 +71,6 @@ impl ExportController {
                 .expect("ExportController::export_btn clicked couldn't create output file");
 
             {
-                let context = this.context.as_ref()
-                    .unwrap();
                 let info = context.info.lock()
                     .expect(
                         "ExportController::export_btn clicked, failed to lock media info",
@@ -73,6 +87,8 @@ impl ExportController {
                         .expect("ExportController::export_btn clicked, failed to write in file");
                 }
             }
+
+            main_ctrl_clone.borrow_mut().restore_context(context);
 
             this.export_dlg.hide();
         });

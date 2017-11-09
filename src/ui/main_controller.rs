@@ -24,6 +24,8 @@ pub enum ControllerState {
     EOS,
     Ready,
     Paused,
+    PendingBuildToc,
+    PendingSelectMedia,
     Playing,
     Stopped,
 }
@@ -102,7 +104,14 @@ impl MainController {
 
             let this_rc = Rc::clone(&this);
             this_mut.build_toc_btn.connect_clicked(move |_| {
-                this_rc.borrow_mut().build_toc();
+                let mut this = this_rc.borrow_mut();
+
+                if this.state == ControllerState::Playing {
+                    this.hold();
+                    this.state = ControllerState::PendingBuildToc;
+                } else {
+                    this.build_toc();
+                }
             });
 
             this_mut.video_ctrl.register_callbacks(&this);
@@ -113,7 +122,16 @@ impl MainController {
 
         let open_btn: gtk::Button = builder.get_object("open-btn").unwrap();
         let this_rc = Rc::clone(&this);
-        open_btn.connect_clicked(move |_| { this_rc.borrow_mut().select_media(); });
+        open_btn.connect_clicked(move |_| {
+            let mut this = this_rc.borrow_mut();
+
+            if this.state == ControllerState::Playing {
+                this.hold();
+                this.state = ControllerState::PendingSelectMedia;
+            } else {
+                this.select_media();
+            }
+        });
 
         this
     }
@@ -163,23 +181,6 @@ impl MainController {
         }
     }
 
-    fn stop(&mut self) {
-        if let Some(context) = self.context.as_mut() {
-            context.stop();
-        };
-
-        // remove callbacks in order to avoid conflict on borrowing of self
-        self.remove_listener();
-        self.remove_tracker();
-
-        self.audio_ctrl.borrow_mut().cleanup();
-
-        self.play_pause_btn.set_icon_name("media-playback-start");
-
-        self.state = ControllerState::Stopped;
-        self.duration = None;
-    }
-
     pub fn seek(&mut self, position: u64, accurate: bool) {
         if self.state != ControllerState::Stopped {
             self.seeking = true;
@@ -214,42 +215,29 @@ impl MainController {
             .get_position()
     }
 
-    fn select_media(&mut self) {
-        self.stop();
+    fn hold(&mut self) {
+        self.remove_tracker();
+        if let Some(context) = self.context.as_mut() {
+            context.pause().unwrap();
+        };
 
-        // can't cleanup controllers here because ticks might be still pending
-        // => need to wait for the main loop to terminate
-
-        self.build_toc_btn.set_sensitive(false);
-
-        let file_dlg = gtk::FileChooserDialog::new(
-            Some("Open a media file"),
-            Some(&self.window),
-            gtk::FileChooserAction::Open,
-        );
-        // Note: couldn't find equivalents for STOCK_OK
-        file_dlg.add_button("Open", gtk::ResponseType::Ok.into());
-
-        if file_dlg.run() == gtk::ResponseType::Ok.into() {
-            self.open_media(file_dlg.get_filename().unwrap());
-        } else {
-            self.info_ctrl.borrow_mut().cleanup();
-            self.audio_ctrl.borrow_mut().cleanup();
-            self.header_bar.set_subtitle("");
-        }
-
-        file_dlg.close();
+        self.play_pause_btn.set_icon_name("media-playback-start");
     }
 
     fn build_toc(&mut self) {
         match self.context.take() {
             Some(mut context) => {
-                self.stop();
                 self.info_ctrl.borrow().export_chapters(&mut context);
                 self.export_ctrl.borrow_mut().open(context);
+                self.state = ControllerState::Paused;
             }
             None => (),
         }
+    }
+
+    pub fn restore_context(&mut self, context: Context) {
+        self.context = Some(context);
+        self.state = ControllerState::Paused;
     }
 
     fn handle_eos(&mut self) {
@@ -279,7 +267,13 @@ impl MainController {
             for message in ui_rx.try_iter() {
                 match message {
                     AsyncDone => {
-                        this_rc.borrow_mut().seeking = false;
+                        let mut this = this_rc.borrow_mut();
+                        this.seeking = false;
+                        match this.state {
+                            ControllerState::PendingSelectMedia => this.select_media(),
+                            ControllerState::PendingBuildToc => this.build_toc(),
+                            _ => (),
+                        }
                     }
                     InitDone => {
                         let mut this_mut = this_rc.borrow_mut();
@@ -421,12 +415,35 @@ impl MainController {
         }));
     }
 
+    fn select_media(&mut self) {
+        let file_dlg = gtk::FileChooserDialog::new(
+            Some("Open a media file"),
+            Some(&self.window),
+            gtk::FileChooserAction::Open,
+        );
+        // Note: couldn't find equivalents for STOCK_OK
+        file_dlg.add_button("Open", gtk::ResponseType::Ok.into());
+
+        if file_dlg.run() == gtk::ResponseType::Ok.into() {
+            if let Some(ref context) = self.context {
+                context.stop();
+            }
+            self.open_media(file_dlg.get_filename().unwrap());
+        } else {
+            self.state = ControllerState::Paused;;
+        }
+
+        file_dlg.close();
+    }
+
     fn open_media(&mut self, filepath: PathBuf) {
-        assert_eq!(self.listener_src, None);
+        self.remove_listener();
 
         self.info_ctrl.borrow_mut().cleanup();
         self.audio_ctrl.borrow_mut().cleanup();
         self.header_bar.set_subtitle("");
+        self.build_toc_btn.set_sensitive(false);
+        self.duration = None;
 
         let (ctx_tx, ui_rx) = channel();
 
