@@ -2,12 +2,13 @@ extern crate gtk;
 use gtk::prelude::*;
 
 use std::fs::File;
-use std::io::Write;
 
 use std::rc::Rc;
 use std::cell::RefCell;
 
 use media::Context;
+
+use toc;
 
 use super::MainController;
 
@@ -55,15 +56,18 @@ impl ExportController {
             let context = this.context.take().unwrap();
 
             // for the moment, only export to mkvmerge text format is supported
+            let exporter = toc::Factory::get_exporter(toc::Format::MKVMergeText);
+
             let media_path = context.path.clone();
 
             let mut target_path = media_path.clone();
             target_path.pop();
-            target_path.push(&format!("{}.txt",
+            target_path.push(&format!("{}.{}",
                 media_path.file_stem()
                     .expect("ExportController::export_btn clicked, failed to get file_stem")
                     .to_str()
-                    .expect("ExportController::export_btn clicked, failed to get file_stem as str")
+                    .expect("ExportController::export_btn clicked, failed to get file_stem as str"),
+                exporter.extension(),
             ));
 
             // TODO: handle file related errors
@@ -75,17 +79,7 @@ impl ExportController {
                     .expect(
                         "ExportController::export_btn clicked, failed to lock media info",
                     );
-                for (index, ref chapter) in info.chapters.iter().enumerate() {
-                    let prefix = format!("CHAPTER{:02}", index + 1);
-                    output_file.write_fmt(
-                        format_args!("{}={}\n",
-                            prefix,
-                            chapter.start.format_with_hours(),
-                        ))
-                        .expect("ExportController::export_btn clicked, failed to write in file");
-                    output_file.write_fmt(format_args!("{}NAME={}\n", prefix, chapter.title()))
-                        .expect("ExportController::export_btn clicked, failed to write in file");
-                }
+                exporter.write(&info.chapters, &mut output_file);
             }
 
             main_ctrl_clone.borrow_mut().restore_context(context);
