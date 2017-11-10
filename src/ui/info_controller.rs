@@ -5,6 +5,8 @@ use gtk::prelude::*;
 
 extern crate glib;
 
+extern crate lazy_static;
+
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
@@ -13,6 +15,10 @@ use media::Context;
 use toc::{Chapter, Timestamp};
 
 use super::{ChapterTreeManager, ControllerState, ImageSurface, MainController};
+
+lazy_static! {
+    static ref EMPTY_REPLACEMENT: String = "-".to_owned();
+}
 
 pub struct InfoController {
     drawingarea: gtk::DrawingArea,
@@ -213,27 +219,11 @@ impl InfoController {
                 }
             };
 
-            self.title_lbl.set_label(&info.title);
-            self.artist_lbl.set_label(&info.artist);
-            self.container_lbl.set_label(if !info.container.is_empty() {
-                &info.container
-            } else {
-                "-"
-            });
-            self.audio_codec_lbl.set_label(
-                if !info.audio_codec.is_empty() {
-                    &info.audio_codec
-                } else {
-                    "-"
-                },
-            );
-            self.video_codec_lbl.set_label(
-                if !info.video_codec.is_empty() {
-                    &info.video_codec
-                } else {
-                    "-"
-                },
-            );
+            self.title_lbl.set_label(&info.get_title().unwrap_or(&EMPTY_REPLACEMENT));
+            self.artist_lbl.set_label(&info.get_artist().unwrap_or(&EMPTY_REPLACEMENT));
+            self.container_lbl.set_label(&info.get_container().unwrap_or(&EMPTY_REPLACEMENT));
+            self.audio_codec_lbl.set_label(&info.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));
+            self.video_codec_lbl.set_label(&info.get_video_codec().unwrap_or(&EMPTY_REPLACEMENT));
 
             self.chapter_manager.replace_with(&info.chapters);
 

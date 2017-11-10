@@ -25,11 +25,8 @@ impl Chapter {
         this
     }
 
-    pub fn title(&self) -> &str {
-        match self.metadata.get("title") {
-            Some(title) => title,
-            None => "",
-        }
+    pub fn get_title(&self) -> Option<&String> {
+        self.metadata.get(super::METADATA_TITLE)
     }
 }
 

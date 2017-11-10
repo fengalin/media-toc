@@ -1,6 +1,8 @@
 extern crate gtk;
 use gtk::prelude::*;
 
+extern crate lazy_static;
+
 use toc::{Chapter, Timestamp};
 
 const START_COL: i32 = 0;
@@ -8,6 +10,10 @@ const END_COL: i32 = 1;
 const TITLE_COL: i32 = 2;
 const START_STR_COL: i32 = 3;
 const END_STR_COL: i32 = 4;
+
+lazy_static! {
+    static ref DEFAULT_TITLE: String = "untitled".to_owned();
+}
 
 pub struct ChapterEntry<'a> {
     store: &'a gtk::TreeStore,
@@ -166,7 +172,7 @@ impl ChapterTreeManager {
                 &[
                     &chapter.start.nano_total,
                     &chapter.end.nano_total,
-                    &chapter.title(),
+                    &chapter.get_title().unwrap_or(&DEFAULT_TITLE),
                     &format!("{}", &chapter.start),
                     &format!("{}", chapter.end),
                 ],
@@ -361,8 +367,20 @@ impl ChapterTreeManager {
 
         self.store.set(
             &new_iter,
-            &[START_COL as u32, START_STR_COL as u32, END_COL as u32, END_STR_COL as u32],
-            &[&position, &Timestamp::format(position, false), &end, &end_str],
+            &[
+                TITLE_COL as u32,
+                START_COL as u32,
+                START_STR_COL as u32,
+                END_COL as u32,
+                END_STR_COL as u32
+            ],
+            &[
+                &*DEFAULT_TITLE,
+                &position,
+                &Timestamp::format(position, false),
+                &end,
+                &end_str
+            ],
         );
 
         self.selected_iter = Some(new_iter.clone());

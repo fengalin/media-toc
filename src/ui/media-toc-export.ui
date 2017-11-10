@@ -52,13 +52,14 @@
             <property name="hexpand">True</property>
             <property name="vexpand">True</property>
             <child>
-              <object class="GtkRadioButton" id="export_mkvmerge_txt-rdbtn">
+              <object class="GtkRadioButton" id="mkvmerge_txt-rdbtn">
                 <property name="label" translatable="yes">mkvmerge text format</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">False</property>
                 <property name="active">True</property>
                 <property name="draw_indicator">True</property>
+                <property name="group">cue-rdbtn</property>
               </object>
               <packing>
                 <property name="left_attach">0</property>
@@ -67,14 +68,14 @@
               </packing>
             </child>
             <child>
-              <object class="GtkRadioButton" id="export_cue-rdbtn">
+              <object class="GtkRadioButton" id="cue-rdbtn">
                 <property name="label" translatable="yes">Cue Sheet format</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">False</property>
                 <property name="active">True</property>
                 <property name="draw_indicator">True</property>
-                <property name="group">export_mkvmerge_txt-rdbtn</property>
+                <property name="group">mkvmerge_txt-rdbtn</property>
               </object>
               <packing>
                 <property name="left_attach">0</property>

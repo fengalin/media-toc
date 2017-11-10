@@ -16,6 +16,9 @@ pub struct ExportController {
     export_dlg: gtk::Dialog,
     export_btn: gtk::Button,
 
+    mkvmerge_txt_rdbtn: gtk::RadioButton,
+    cue_rdbtn: gtk::RadioButton,
+
     pub context: Option<Context>,
 }
 
@@ -28,6 +31,10 @@ impl ExportController {
         Rc::new(RefCell::new(ExportController {
             export_dlg: export_dlg,
             export_btn: builder.get_object("export-btn").unwrap(),
+
+            mkvmerge_txt_rdbtn: builder.get_object("mkvmerge_txt-rdbtn").unwrap(),
+            cue_rdbtn: builder.get_object("cue-rdbtn").unwrap(),
+
             context: None,
         }))
     }
@@ -55,8 +62,9 @@ impl ExportController {
 
             let context = this.context.take().unwrap();
 
-            // for the moment, only export to mkvmerge text format is supported
-            let exporter = toc::Factory::get_exporter(toc::Format::MKVMergeText);
+            let exporter = toc::Factory::get_exporter(
+                this.get_selected_format()
+            );
 
             let media_path = context.path.clone();
 
@@ -79,7 +87,11 @@ impl ExportController {
                     .expect(
                         "ExportController::export_btn clicked, failed to lock media info",
                     );
-                exporter.write(&info.chapters, &mut output_file);
+                exporter.write(
+                    &info.metadata,
+                    &info.chapters,
+                    &mut output_file
+                );
             }
 
             main_ctrl_clone.borrow_mut().restore_context(context);
@@ -91,5 +103,15 @@ impl ExportController {
     pub fn open(&mut self, context: Context) {
         self.context = Some(context);
         self.export_dlg.present();
+    }
+
+    fn get_selected_format(&self) -> toc::Format {
+        if self.mkvmerge_txt_rdbtn.get_active() {
+            toc::Format::MKVMergeText
+        } else if self.cue_rdbtn.get_active() {
+            toc::Format::CueSheet
+        } else {
+            unreachable!("ExportController::get_selected_format no selected radio button");
+        }
     }
 }

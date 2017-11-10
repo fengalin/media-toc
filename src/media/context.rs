@@ -22,16 +22,17 @@ use std::sync::{Arc, Mutex};
 
 use std::i32;
 
+use toc;
 use toc::{Chapter, Timestamp};
 
 use super::{AlignedImage, DoubleAudioBuffer, MediaInfo};
 
-macro_rules! assign_str_tag(
-    ($target:expr, $tags:expr, $TagType:ty) => {
-        if $target.is_empty() {
-            if let Some(tag) = $tags.get::<$TagType>() {
-                $target = tag.get().unwrap().to_owned();
-            }
+macro_rules! assign_tag(
+    ($metadata_map:expr, $name:expr, $tags:expr, $TagType:ty) => {
+        if let Some(tag) = $tags.get::<$TagType>() {
+            $metadata_map.entry($name.to_owned()).or_insert_with(move || {
+                tag.get().unwrap().to_owned()
+            });
         }
     };
 );
@@ -85,17 +86,24 @@ impl Context {
     ) -> Result<Context, String> {
         println!("\n\n* Opening {:?}...", path);
 
+        let file_name = String::from(path.file_name().unwrap().to_str().unwrap());
+
         let mut ctx = Context {
             pipeline: gst::Pipeline::new("pipeline"),
             position_element: None,
             position_query: gst::Query::new_position(gst::Format::Time),
 
-            file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
+            file_name: file_name.clone(),
             name: String::from(path.file_stem().unwrap().to_str().unwrap()),
             path: path,
 
             info: Arc::new(Mutex::new(MediaInfo::new())),
         };
+
+        ctx.info.lock()
+            .expect("Context::new failed to lock media info")
+            .metadata
+                .insert(toc::METADATA_FILE_NAME.to_owned(), file_name);
 
         ctx.build_pipeline(dbl_audio_buffer_mtx, (*VIDEO_SINK).clone());
         ctx.register_bus_inspector(ctx_tx);
@@ -464,12 +472,13 @@ impl Context {
         let info = &mut info_arc_mtx.lock().expect(
             "Failed to lock media info while reading tag data",
         );
-        assign_str_tag!(info.title, tags, gst::tags::Title);
-        assign_str_tag!(info.artist, tags, gst::tags::Artist);
-        assign_str_tag!(info.artist, tags, gst::tags::AlbumArtist);
-        assign_str_tag!(info.container, tags, gst::tags::ContainerFormat);
-        assign_str_tag!(info.video_codec, tags, gst::tags::VideoCodec);
-        assign_str_tag!(info.audio_codec, tags, gst::tags::AudioCodec);
+        assign_tag!(info.metadata, toc::METADATA_TITLE, tags, gst::tags::Title);
+        assign_tag!(info.metadata, toc::METADATA_ARTIST, tags, gst::tags::Artist);
+        assign_tag!(info.metadata, toc::METADATA_ARTIST, tags, gst::tags::AlbumArtist);
+
+        assign_tag!(info.metadata, toc::METADATA_AUDIO_CODEC, tags, gst::tags::AudioCodec);
+        assign_tag!(info.metadata, toc::METADATA_VIDEO_CODEC, tags, gst::tags::VideoCodec);
+        assign_tag!(info.metadata, toc::METADATA_CONTAINER, tags, gst::tags::ContainerFormat);
 
         // TODO: distinguish front/back cover (take the first one?)
         if let Some(image_tag) = tags.get::<gst::tags::Image>() {
