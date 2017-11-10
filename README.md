@@ -18,6 +18,7 @@ Of course, you can contribute to the project if you find it interesting.
 
 ## <a name='status'></a>Status
 At the moment, **media-toc** can:
+
 - Open a media file: display metadata from the media, the cover image, the first
 video frame, the chapters list and marks at the beginning of each chapter on the
 timeline.
@@ -27,7 +28,9 @@ chapter in the list while playing.
 chapters list.
 - Zoom in/out the waveform on the time axis.
 - Add/remove a chapter. Note that you can't export the result yet.
-- Export to [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
+- Export to:
+	* [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
+	* [Cue Sheet](http://wiki.hydrogenaud.io/index.php?title=Cue_sheet).
 
 # Howto
 
