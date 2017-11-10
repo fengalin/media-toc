@@ -8,7 +8,9 @@ extern crate glib;
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
-use media::{Chapter, Context, Timestamp};
+use media::Context;
+
+use toc::{Chapter, Timestamp};
 
 use super::{ChapterTreeManager, ControllerState, ImageSurface, MainController};
 

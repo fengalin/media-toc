@@ -13,7 +13,9 @@ use std::cell::RefCell;
 
 use std::sync::{Arc, Mutex};
 
-use media::{Context, DoubleAudioBuffer, SampleExtractor, Timestamp};
+use media::{Context, DoubleAudioBuffer, SampleExtractor};
+
+use toc::Timestamp;
 
 use super::{ControllerState, DoubleWaveformBuffer, MainController, WaveformBuffer,
             WaveformConditions, BACKGROUND_COLOR};

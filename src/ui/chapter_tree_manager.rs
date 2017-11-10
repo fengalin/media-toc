@@ -1,7 +1,7 @@
 extern crate gtk;
 use gtk::prelude::*;
 
-use media::{Chapter, Timestamp};
+use toc::{Chapter, Timestamp};
 
 const START_COL: i32 = 0;
 const END_COL: i32 = 1;

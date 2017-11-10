@@ -22,7 +22,9 @@ use std::sync::{Arc, Mutex};
 
 use std::i32;
 
-use super::{AlignedImage, Chapter, DoubleAudioBuffer, MediaInfo, Timestamp};
+use toc::{Chapter, Timestamp};
+
+use super::{AlignedImage, DoubleAudioBuffer, MediaInfo};
 
 macro_rules! assign_str_tag(
     ($target:expr, $tags:expr, $TagType:ty) => {

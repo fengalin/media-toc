@@ -2,7 +2,9 @@ extern crate gstreamer as gst;
 
 use std::collections::HashMap;
 
-use super::{AlignedImage, Chapter};
+use toc::Chapter;
+
+use super::AlignedImage;
 
 pub struct MediaInfo {
     pub artist: String,
