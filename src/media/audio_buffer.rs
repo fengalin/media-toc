@@ -11,6 +11,9 @@ use std::collections::vec_deque::VecDeque;
 extern crate gstreamer_audio as gst_audio;
 
 #[cfg(test)]
+use gstreamer::ClockTime;
+
+#[cfg(test)]
 use byteorder::{ByteOrder, LittleEndian};
 
 pub struct AudioBuffer {
@@ -106,7 +109,7 @@ impl AudioBuffer {
         let segment_lower = (sample.get_segment().unwrap().get_start() / self.sample_duration) as
             usize;
         let buffer_sample_len = incoming_samples.len() / self.channels;
-        let buffer_pts = buffer.get_pts();
+        let buffer_pts = buffer.get_pts().unwrap();
 
         // TODO: it seems that caps might change during playback.
         // Segment gives access to caps, so it might be a way
@@ -374,7 +377,7 @@ impl AudioBuffer {
         {
             let buffer_mut = buffer.get_mut().unwrap();
             buffer_mut.copy_from_slice(0, &samples_u8).unwrap();
-            buffer_mut.set_pts(self.sample_duration * (lower as u64) + 1);
+            buffer_mut.set_pts(ClockTime::from(self.sample_duration * (lower as u64) + 1));
         }
 
         let mut segment = gst::Segment::new();

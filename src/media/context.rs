@@ -1,7 +1,7 @@
 extern crate gstreamer as gst;
 use gstreamer::prelude::*;
-use gstreamer::{BinExt, Caps, ElementFactory, GstObjectExt, PadExt, QueryView, TocEntryType,
-                TocScope};
+use gstreamer::{BinExt, Caps, ClockTime, ElementFactory, GstObjectExt, PadExt, QueryView,
+                TocEntryType, TocScope};
 
 extern crate gstreamer_app as gst_app;
 extern crate gstreamer_audio as gst_audio;
@@ -133,7 +133,7 @@ impl Context {
             })
             .query(self.position_query.get_mut().unwrap());
         match self.position_query.view() {
-            QueryView::Position(ref position) => position.get().1 as u64,
+            QueryView::Position(ref position) => position.get_result().to_value() as u64,
             _ => unreachable!(),
         }
     }
@@ -141,6 +141,7 @@ impl Context {
     pub fn get_duration(&self) -> u64 {
         match self.pipeline.query_duration(gst::Format::Time) {
             Some(duration) => {
+                let duration = duration.to_value();
                 if duration.is_positive() {
                     duration as u64
                 } else {
@@ -152,7 +153,7 @@ impl Context {
     }
 
     pub fn get_state(&self) -> gst::State {
-        let (_, current, _) = self.pipeline.get_state(10_000_000);
+        let (_, current, _) = self.pipeline.get_state(ClockTime::from(10_000_000));
         current
     }
 
@@ -185,7 +186,7 @@ impl Context {
                 gst::SeekFlags::KEY_UNIT
             };
         self.pipeline
-            .seek_simple(gst::Format::Time, flags, position as i64)
+            .seek_simple(flags, ClockTime::from(position))
             .ok()
             .unwrap();
     }
