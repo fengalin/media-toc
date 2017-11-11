@@ -49,6 +49,11 @@ pub struct MainController {
     duration: Option<u64>, // duration is accurately known at eos
     seeking: bool,
 
+    requires_async_dialog: bool,    // when pipeline contains video, dialogs must wait for
+                                    // asyncdone before opening a dialog otherwise the listener
+                                    // may borrow the MainController while the dialog is already
+                                    // using it leading to a borrowing conflict
+
     this_opt: Option<Rc<RefCell<MainController>>>,
     keep_going: bool,
     listener_src: Option<glib::SourceId>,
@@ -75,6 +80,8 @@ impl MainController {
             state: ControllerState::Stopped,
             duration: None,
             seeking: false,
+
+            requires_async_dialog: false,
 
             this_opt: None,
             keep_going: true,
@@ -106,10 +113,11 @@ impl MainController {
             this_mut.build_toc_btn.connect_clicked(move |_| {
                 let mut this = this_rc.borrow_mut();
 
-                if this.state == ControllerState::Playing {
+                if this.requires_async_dialog && this.state == ControllerState::Playing {
                     this.hold();
                     this.state = ControllerState::PendingBuildToc;
                 } else {
+                    this.hold();
                     this.build_toc();
                 }
             });
@@ -125,10 +133,11 @@ impl MainController {
         open_btn.connect_clicked(move |_| {
             let mut this = this_rc.borrow_mut();
 
-            if this.state == ControllerState::Playing {
+            if this.requires_async_dialog && this.state == ControllerState::Playing {
                 this.hold();
                 this.state = ControllerState::PendingSelectMedia;
             } else {
+                this.hold();
                 this.select_media();
             }
         });
@@ -276,39 +285,45 @@ impl MainController {
                         }
                     }
                     InitDone => {
-                        let mut this_mut = this_rc.borrow_mut();
+                        let mut this = this_rc.borrow_mut();
 
-                        let context = this_mut.context.take().expect(
+                        let context = this.context.take().expect(
                             "MainController: InitDone but no context available",
                         );
 
-                        this_mut.header_bar.set_subtitle(
+                        this.requires_async_dialog = context.info.lock()
+                            .expect(
+                                "MainController:: failed to lock media info in InitDone",
+                            )
+                            .video_best.is_some();
+
+                        this.header_bar.set_subtitle(
                             Some(context.file_name.as_str()),
                         );
 
-                        this_mut.video_ctrl.new_media(&context);
-                        this_mut.info_ctrl.borrow_mut().new_media(&context);
-                        this_mut.audio_ctrl.borrow_mut().new_media(&context);
+                        this.video_ctrl.new_media(&context);
+                        this.info_ctrl.borrow_mut().new_media(&context);
+                        this.audio_ctrl.borrow_mut().new_media(&context);
 
-                        this_mut.context = Some(context);
+                        this.context = Some(context);
 
-                        this_mut.state = ControllerState::Ready;
+                        this.state = ControllerState::Ready;
                     }
                     Eos => {
-                        let mut this_mut = this_rc.borrow_mut();
+                        let mut this = this_rc.borrow_mut();
 
-                        let position = this_mut.get_position();
-                        this_mut.duration = Some(position);
+                        let position = this.get_position();
+                        this.duration = Some(position);
 
                         {
-                            let mut info_ctrl = this_mut.info_ctrl.borrow_mut();
+                            let mut info_ctrl = this.info_ctrl.borrow_mut();
                             info_ctrl.update_duration(position);
                             info_ctrl.tick(position, true);
                         }
 
-                        this_mut.audio_ctrl.borrow_mut().tick();
+                        this.audio_ctrl.borrow_mut().tick();
 
-                        this_mut.handle_eos();
+                        this.handle_eos();
 
                         // Remove listener and tracker.
                         // Note: tracker will be register again in case of
@@ -320,10 +335,10 @@ impl MainController {
                     FailedToOpenMedia => {
                         eprintln!("ERROR: failed to open media");
 
-                        let mut this_mut = this_rc.borrow_mut();
+                        let mut this = this_rc.borrow_mut();
 
-                        this_mut.context = None;
-                        this_mut.keep_going = false;
+                        this.context = None;
+                        this.keep_going = false;
                         keep_going = false;
                     }
                 };
@@ -334,9 +349,9 @@ impl MainController {
             }
 
             if !keep_going {
-                let mut this_mut = this_rc.borrow_mut();
-                this_mut.listener_src = None;
-                this_mut.tracker_src = None;
+                let mut this = this_rc.borrow_mut();
+                this.listener_src = None;
+                this.tracker_src = None;
             }
 
             glib::Continue(keep_going)
@@ -362,31 +377,31 @@ impl MainController {
 
             let mut keep_going = true;
 
-            let mut this_mut = this_rc.borrow_mut();
+            let mut this = this_rc.borrow_mut();
 
             #[cfg(feature = "profiling-tracker")]
             let before_tick = Utc::now();
 
-            let position = this_mut
+            let position = this
                 .context
                 .as_mut()
                 .expect("MainController::tracker no context while getting position")
                 .get_position();
 
-            let is_eos = if let Some(duration) = this_mut.duration {
+            let is_eos = if let Some(duration) = this.duration {
                 if position >= duration {
-                    if !this_mut.seeking {
+                    if !this.seeking {
                         // this check is necessary as EOS is not sent
                         // in case of a seek after EOS
-                        this_mut.handle_eos();
-                        this_mut.tracker_src = None;
+                        this.handle_eos();
+                        this.tracker_src = None;
                         keep_going = false;
                     }
                     true
-                } else if this_mut.seeking {
+                } else if this.seeking {
                     // this check is necessary as AsyncDone is not sent
                     // in case of a seek after EOS
-                    this_mut.seeking = false;
+                    this.seeking = false;
                     false
                 } else {
                     false
@@ -395,9 +410,9 @@ impl MainController {
                 false
             };
 
-            if !this_mut.seeking {
-                this_mut.info_ctrl.borrow_mut().tick(position, is_eos);
-                this_mut.audio_ctrl.borrow_mut().tick();
+            if !this.seeking {
+                this.info_ctrl.borrow_mut().tick(position, is_eos);
+                this.audio_ctrl.borrow_mut().tick();
             }
 
             #[cfg(feature = "profiling-tracker")]
@@ -411,7 +426,7 @@ impl MainController {
                 end.time().format("%H:%M:%S%.6f"),
             );
 
-            glib::Continue(this_mut.keep_going && keep_going)
+            glib::Continue(this.keep_going && keep_going)
         }));
     }
 
