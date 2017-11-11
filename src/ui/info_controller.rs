@@ -226,9 +226,9 @@ impl InfoController {
             self.video_codec_lbl.set_label(&info.get_video_codec().unwrap_or(&EMPTY_REPLACEMENT));
 
             self.chapter_manager.replace_with(&info.chapters);
-
-            self.update_marks();
         }
+
+        self.update_marks();
 
         self.add_chapter_btn.set_sensitive(true);
         match self.chapter_manager.get_selected_iter() {
