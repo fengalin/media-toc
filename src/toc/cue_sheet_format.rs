@@ -82,7 +82,7 @@ impl Exporter for CueSheetFormat {
 
             let start_ts = chapter.start;
             destination.write_fmt(
-                    format_args!("    INDEX 01 \"{:02}:{:02}:{:02}\"\n",
+                    format_args!("    INDEX 01 {:02}:{:02}:{:02}\n",
                         start_ts.h * 60 + start_ts.m,
                         start_ts.s,
                         (
