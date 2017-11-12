@@ -10,18 +10,21 @@ pub use self::exporter::Exporter;
 pub mod factory;
 pub use self::factory::Factory;
 
+pub mod importer;
+pub use self::importer::Importer;
+
 pub mod mkvmerge_text_format;
 pub use self::mkvmerge_text_format::MKVMergeTextFormat;
 
 pub mod timestamp;
 pub use self::timestamp::Timestamp;
 
-pub const METADATA_ARTIST: &str = "artist";
-pub const METADATA_AUDIO_CODEC: &str = "audio_codec";
-pub const METADATA_CONTAINER: &str = "media_container";
-pub const METADATA_FILE_NAME: &str = "file_name";
-pub const METADATA_TITLE: &str = "title";
-pub const METADATA_VIDEO_CODEC: &str = "video_codec";
+pub static METADATA_ARTIST: &'static str = "artist";
+pub static METADATA_AUDIO_CODEC: &'static str = "audio_codec";
+pub static METADATA_CONTAINER: &'static str = "media_container";
+pub static METADATA_FILE_NAME: &'static str = "file_name";
+pub static METADATA_TITLE: &'static str = "title";
+pub static METADATA_VIDEO_CODEC: &'static str = "video_codec";
 
 #[derive(Clone, PartialEq)]
 pub enum Format {

@@ -10,19 +10,23 @@ pub struct CueSheetFormat {
 }
 
 impl CueSheetFormat {
+    pub fn get_extension() -> &'static str {
+        &EXTENSION
+    }
+
     pub fn new_as_boxed() -> Box<Self> {
         Box::new(CueSheetFormat{})
     }
 }
 
 impl Exporter for CueSheetFormat {
-    fn extension(&self) -> &'static str {
-        &EXTENSION
+    fn extension(&self)-> &'static str {
+        CueSheetFormat::get_extension()
     }
 
     fn write(&self,
         metadata: &HashMap<String, String>,
-        toc: &[Chapter],
+        chapters: &[Chapter],
         destination: &mut Write
     ) {
         let title = metadata.get(super::METADATA_TITLE);
@@ -53,7 +57,7 @@ impl Exporter for CueSheetFormat {
                 .expect("CueSheetFormat::write clicked, failed to write to file");
         }
 
-        for (index, chapter) in toc.iter().enumerate() {
+        for (index, chapter) in chapters.iter().enumerate() {
             // FIXME: are there other TRACK types than AUDIO?
             destination.write_fmt( format_args!("  TRACK{:02} AUDIO\n", index + 1))
                 .expect("CueSheetFormat::write clicked, failed to write to file");

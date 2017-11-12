@@ -8,7 +8,7 @@ pub trait Exporter {
     fn extension(&self) -> &'static str;
     fn write(&self,
         metadata: &HashMap<String, String>,
-        toc: &[Chapter],
+        chapters: &[Chapter],
         destination: &mut Write
     );
 }

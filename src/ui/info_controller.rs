@@ -7,11 +7,14 @@ extern crate glib;
 
 extern crate lazy_static;
 
+use std::fs::File;
+
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
 use media::Context;
 
+use toc;
 use toc::{Chapter, Timestamp};
 
 use super::{ChapterTreeManager, ControllerState, ImageSurface, MainController};
@@ -206,6 +209,25 @@ impl InfoController {
     pub fn new_media(&mut self, context: &Context) {
         self.update_duration(context.get_duration());
 
+        let media_path = context.path.clone();
+        let file_stem = media_path.file_stem()
+            .expect("InfoController::new_media clicked, failed to get file_stem")
+            .to_str()
+            .expect("InfoController::new_media clicked, failed to get file_stem as str");
+
+        // check the presence of toc files
+        let toc_extensions = toc::Factory::get_extensions();
+        let test_path = media_path.clone();
+        let mut toc_candidates = toc_extensions.into_iter()
+            .filter_map(|(extension, format)| {
+                let path =
+                    test_path.clone().with_file_name(&format!("{}.{}", file_stem, extension));
+                match path.is_file() {
+                    true => Some((path, format)),
+                    false => None,
+                }
+            });
+
         {
             let mut info = context.info.lock().expect(
                 "InfoController::new_media failed to lock media info",
@@ -225,7 +247,17 @@ impl InfoController {
             self.audio_codec_lbl.set_label(&info.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));
             self.video_codec_lbl.set_label(&info.get_video_codec().unwrap_or(&EMPTY_REPLACEMENT));
 
-            self.chapter_manager.replace_with(&info.chapters);
+            match toc_candidates.next() {
+                Some((toc_path, format)) => {
+                    let mut toc_file = File::open(toc_path)
+                        .expect("InfoController::new_media failed to open toc file");
+                    let mut chapters = Vec::<Chapter>::new();
+                    toc::Factory::get_importer(format)
+                        .read(self.duration, &mut toc_file, &mut info.metadata, &mut chapters);
+                    self.chapter_manager.replace_with(&chapters);
+                }
+                None => self.chapter_manager.replace_with(&info.chapters),
+            }
         }
 
         self.update_marks();

@@ -1,6 +1,6 @@
+#![feature(collection_placement)]
 #![feature(ord_max_min)]
 #![feature(placement_in_syntax)]
-#![feature(collection_placement)]
 
 extern crate byte_slice_cast;
 #[cfg(test)]

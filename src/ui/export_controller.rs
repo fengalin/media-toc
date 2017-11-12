@@ -67,10 +67,7 @@ impl ExportController {
             );
 
             let media_path = context.path.clone();
-
-            let mut target_path = media_path.clone();
-            target_path.pop();
-            target_path.push(&format!("{}.{}",
+            let target_path = media_path.with_file_name(&format!("{}.{}",
                 media_path.file_stem()
                     .expect("ExportController::export_btn clicked, failed to get file_stem")
                     .to_str()
