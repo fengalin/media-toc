@@ -24,7 +24,7 @@ pub enum ControllerState {
     EOS,
     Ready,
     Paused,
-    PendingBuildToc,
+    PendingExportToc,
     PendingSelectMedia,
     Playing,
     Stopped,
@@ -37,7 +37,7 @@ pub struct MainController {
     window: gtk::ApplicationWindow,
     header_bar: gtk::HeaderBar,
     play_pause_btn: gtk::ToolButton,
-    build_toc_btn: gtk::Button,
+    export_toc_btn: gtk::Button,
 
     video_ctrl: VideoController,
     info_ctrl: Rc<RefCell<InfoController>>,
@@ -62,14 +62,14 @@ pub struct MainController {
 
 impl MainController {
     pub fn new(builder: gtk::Builder) -> Rc<RefCell<Self>> {
-        let build_toc_btn: gtk::Button = builder.get_object("build_toc-btn").unwrap();
-        build_toc_btn.set_sensitive(false);
+        let export_toc_btn: gtk::Button = builder.get_object("export_toc-btn").unwrap();
+        export_toc_btn.set_sensitive(false);
 
         let this = Rc::new(RefCell::new(MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
-            build_toc_btn: build_toc_btn,
+            export_toc_btn: export_toc_btn,
 
             video_ctrl: VideoController::new(&builder),
             info_ctrl: InfoController::new(&builder),
@@ -110,15 +110,15 @@ impl MainController {
             // play/pause, etc.
 
             let this_rc = Rc::clone(&this);
-            this_mut.build_toc_btn.connect_clicked(move |_| {
+            this_mut.export_toc_btn.connect_clicked(move |_| {
                 let mut this = this_rc.borrow_mut();
 
                 if this.requires_async_dialog && this.state == ControllerState::Playing {
                     this.hold();
-                    this.state = ControllerState::PendingBuildToc;
+                    this.state = ControllerState::PendingExportToc;
                 } else {
                     this.hold();
-                    this.build_toc();
+                    this.export_toc();
                 }
             });
 
@@ -233,7 +233,7 @@ impl MainController {
         self.play_pause_btn.set_icon_name("media-playback-start");
     }
 
-    fn build_toc(&mut self) {
+    fn export_toc(&mut self) {
         match self.context.take() {
             Some(mut context) => {
                 self.info_ctrl.borrow().export_chapters(&mut context);
@@ -280,7 +280,7 @@ impl MainController {
                         this.seeking = false;
                         match this.state {
                             ControllerState::PendingSelectMedia => this.select_media(),
-                            ControllerState::PendingBuildToc => this.build_toc(),
+                            ControllerState::PendingExportToc => this.export_toc(),
                             _ => (),
                         }
                     }
@@ -457,7 +457,7 @@ impl MainController {
         self.info_ctrl.borrow_mut().cleanup();
         self.audio_ctrl.borrow_mut().cleanup();
         self.header_bar.set_subtitle("");
-        self.build_toc_btn.set_sensitive(false);
+        self.export_toc_btn.set_sensitive(false);
         self.duration = None;
 
         let (ctx_tx, ui_rx) = channel();
@@ -473,7 +473,7 @@ impl MainController {
         ) {
             Ok(context) => {
                 self.context = Some(context);
-                self.build_toc_btn.set_sensitive(true);
+                self.export_toc_btn.set_sensitive(true);
             }
             Err(error) => eprintln!("Error opening media: {}", error),
         };

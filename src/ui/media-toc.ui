@@ -88,7 +88,7 @@
       </packing>
     </child>
     <child>
-      <object class="GtkButton" id="build_toc-btn">
+      <object class="GtkButton" id="export_toc-btn">
         <property name="visible">True</property>
         <property name="can_focus">True</property>
         <property name="receives_default">True</property>

@@ -4,7 +4,7 @@ use std::io::Write;
 
 use super::{Chapter, Exporter};
 
-const EXTENSION: &str = "cue";
+static EXTENSION: &'static str = "cue";
 
 pub struct CueSheetFormat {
 }
