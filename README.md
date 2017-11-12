@@ -28,9 +28,12 @@ chapter in the list while playing.
 chapters list.
 - Zoom in/out the waveform on the time axis.
 - Add/remove a chapter. Note that you can't export the result yet.
-- Export to:
+- Export the table of contents to:
 	* [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
 	* [Cue Sheet](http://wiki.hydrogenaud.io/index.php?title=Cue_sheet).
+- Import the table of contents from:
+	* mkv containers.
+	* [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
 
 # Howto
 
