@@ -27,7 +27,7 @@ chapter in the list while playing.
 - Seek in the media by clicking on the waveform, on the timeline or in the
 chapters list.
 - Zoom in/out the waveform on the time axis.
-- Add/remove a chapter. Note that you can't export the result yet.
+- Add/remove a chapter.
 - Export the table of contents to:
 	* [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
 	* [Cue Sheet](http://wiki.hydrogenaud.io/index.php?title=Cue_sheet).
