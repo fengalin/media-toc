@@ -13,6 +13,9 @@ pub use self::factory::Factory;
 pub mod importer;
 pub use self::importer::Importer;
 
+pub mod matroska_toc_format;
+pub use self::matroska_toc_format::MatroskaTocFormat;
+
 pub mod mkvmerge_text_format;
 pub use self::mkvmerge_text_format::MKVMergeTextFormat;
 
@@ -28,6 +31,7 @@ pub static METADATA_VIDEO_CODEC: &'static str = "video_codec";
 
 #[derive(Clone, PartialEq)]
 pub enum Format {
-    MKVMergeText,
     CueSheet,
+    Matroska,
+    MKVMergeText,
 }

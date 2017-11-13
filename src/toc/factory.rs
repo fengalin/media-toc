@@ -1,6 +1,6 @@
 use std::boxed::Box;
 
-use super::{CueSheetFormat, Exporter, Format, Importer, MKVMergeTextFormat};
+use super::{CueSheetFormat, Exporter, Format, Importer, MatroskaTocFormat, MKVMergeTextFormat};
 
 pub struct Factory {
 }
@@ -17,15 +17,17 @@ impl Factory {
 
     pub fn get_importer(format: Format) -> Box<Importer> {
         match format {
-            Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),
             Format::CueSheet => unimplemented!("Importer for toc::Format::CueSheet"),
+            Format::Matroska => unimplemented!("Importer for toc::Format::Matroska"),
+            Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),
         }
     }
 
     pub fn get_exporter(format: Format) -> Box<Exporter> {
         match format {
-            Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),
             Format::CueSheet => CueSheetFormat::new_as_boxed(),
+            Format::Matroska => MatroskaTocFormat::new_as_boxed(),
+            Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),
         }
     }
 }

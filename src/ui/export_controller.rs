@@ -6,7 +6,7 @@ use std::fs::File;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use media::PlaybackContext;
+use media::{ExportContext, PlaybackContext};
 
 use toc;
 
@@ -18,6 +18,7 @@ pub struct ExportController {
 
     mkvmerge_txt_rdbtn: gtk::RadioButton,
     cue_rdbtn: gtk::RadioButton,
+    mkv_rdbtn: gtk::RadioButton,
 
     pub context: Option<PlaybackContext>,
 }
@@ -34,6 +35,7 @@ impl ExportController {
 
             mkvmerge_txt_rdbtn: builder.get_object("mkvmerge_txt-rdbtn").unwrap(),
             cue_rdbtn: builder.get_object("cue-rdbtn").unwrap(),
+            mkv_rdbtn: builder.get_object("mkv-rdbtn").unwrap(),
 
             context: None,
         }))
@@ -62,9 +64,8 @@ impl ExportController {
 
             let context = this.context.take().unwrap();
 
-            let exporter = toc::Factory::get_exporter(
-                this.get_selected_format()
-            );
+            let (format, is_standalone) = this.get_selected_format();
+            let exporter = toc::Factory::get_exporter(format);
 
             let media_path = context.path.clone();
             let target_path = media_path.with_file_name(&format!("{}.{}",
@@ -75,11 +76,12 @@ impl ExportController {
                 exporter.extension(),
             ));
 
-            // TODO: handle file related errors
-            let mut output_file = File::create(target_path)
-                .expect("ExportController::export_btn clicked couldn't create output file");
+            if is_standalone {
+                // export toc as a standalone file
+                // TODO: handle file related errors
+                let mut output_file = File::create(target_path)
+                    .expect("ExportController::export_btn clicked couldn't create output file");
 
-            {
                 let info = context.info.lock()
                     .expect(
                         "ExportController::export_btn clicked, failed to lock media info",
@@ -89,6 +91,14 @@ impl ExportController {
                     &info.chapters,
                     &mut output_file
                 );
+            } else {
+                // export toc within a media container with the streams
+                match ExportContext::new(media_path, target_path) {
+                    Ok(_export_ctx) => {
+                        println!("Exporting...");
+                    },
+                    Err(error) => eprintln!("Error exporting media: {}", error),
+                };
             }
 
             main_ctrl_clone.borrow_mut().restore_context(context);
@@ -102,11 +112,13 @@ impl ExportController {
         self.export_dlg.present();
     }
 
-    fn get_selected_format(&self) -> toc::Format {
+    fn get_selected_format(&self) -> (toc::Format, bool) {
         if self.mkvmerge_txt_rdbtn.get_active() {
-            toc::Format::MKVMergeText
+            (toc::Format::MKVMergeText, true)
         } else if self.cue_rdbtn.get_active() {
-            toc::Format::CueSheet
+            (toc::Format::CueSheet, true)
+        } else if self.mkv_rdbtn.get_active() {
+            (toc::Format::Matroska, false)
         } else {
             unreachable!("ExportController::get_selected_format no selected radio button");
         }

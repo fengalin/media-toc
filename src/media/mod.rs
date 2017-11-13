@@ -10,6 +10,9 @@ pub use self::audio_buffer::AudioBuffer;
 pub mod dbl_audio_buffer;
 pub use self::dbl_audio_buffer::DoubleAudioBuffer;
 
+pub mod export_context;
+pub use self::export_context::ExportContext;
+
 pub mod media_info;
 pub use self::media_info::MediaInfo;
 
