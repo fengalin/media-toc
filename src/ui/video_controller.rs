@@ -4,7 +4,7 @@ use gtk::{BoxExt, WidgetExt};
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use media::Context;
+use media::PlaybackContext;
 
 use super::MainController;
 
@@ -15,7 +15,7 @@ pub struct VideoController {
 impl VideoController {
     pub fn new(builder: &gtk::Builder) -> Self {
         let container: gtk::Box = builder.get_object("video-container").unwrap();
-        let video_widget = Context::get_video_widget();
+        let video_widget = PlaybackContext::get_video_widget();
         container.pack_start(&video_widget, true, true, 0);
         container.reorder_child(&video_widget, 0);
 
@@ -24,7 +24,7 @@ impl VideoController {
 
     pub fn register_callbacks(&self, _: &Rc<RefCell<MainController>>) {}
 
-    pub fn new_media(&mut self, context: &Context) {
+    pub fn new_media(&mut self, context: &PlaybackContext) {
         let has_video = context
             .info
             .lock()

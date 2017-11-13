@@ -12,7 +12,7 @@ use std::fs::File;
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
-use media::Context;
+use media::PlaybackContext;
 
 use toc;
 use toc::{Chapter, Timestamp};
@@ -206,7 +206,7 @@ impl InfoController {
         Inhibit(true)
     }
 
-    pub fn new_media(&mut self, context: &Context) {
+    pub fn new_media(&mut self, context: &PlaybackContext) {
         self.update_duration(context.get_duration());
 
         let media_path = context.path.clone();
@@ -419,7 +419,7 @@ impl InfoController {
         self.update_marks();
     }
 
-    pub fn export_chapters(&self, context: &mut Context) {
+    pub fn export_chapters(&self, context: &mut PlaybackContext) {
         let mut chapters = Vec::<Chapter>::new();
         self.chapter_manager.for_each(None, |chapter| {
             chapters.push(Chapter::new(

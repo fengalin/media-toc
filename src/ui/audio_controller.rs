@@ -13,7 +13,7 @@ use std::cell::RefCell;
 
 use std::sync::{Arc, Mutex};
 
-use media::{Context, DoubleAudioBuffer, SampleExtractor};
+use media::{PlaybackContext, DoubleAudioBuffer, SampleExtractor};
 
 use toc::Timestamp;
 
@@ -159,7 +159,7 @@ impl AudioController {
         Arc::clone(&self.dbl_buffer_mtx)
     }
 
-    pub fn new_media(&mut self, context: &Context) {
+    pub fn new_media(&mut self, context: &PlaybackContext) {
         let has_audio = context
             .info
             .lock()

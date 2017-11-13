@@ -14,7 +14,7 @@ use std::sync::mpsc::{channel, Receiver};
 
 use gtk::prelude::*;
 
-use media::{Context, ContextMessage};
+use media::{PlaybackContext, ContextMessage};
 use media::ContextMessage::*;
 
 use super::{AudioController, ExportController, InfoController, VideoController};
@@ -44,7 +44,7 @@ pub struct MainController {
     audio_ctrl: Rc<RefCell<AudioController>>,
     export_ctrl: Rc<RefCell<ExportController>>,
 
-    context: Option<Context>,
+    context: Option<PlaybackContext>,
     state: ControllerState,
     duration: Option<u64>, // duration is accurately known at eos
     seeking: bool,
@@ -244,7 +244,7 @@ impl MainController {
         }
     }
 
-    pub fn restore_context(&mut self, context: Context) {
+    pub fn restore_context(&mut self, context: PlaybackContext) {
         self.context = Some(context);
         self.state = ControllerState::Paused;
     }
@@ -466,7 +466,7 @@ impl MainController {
         self.keep_going = true;
         self.register_listener(LISTENER_PERIOD, ui_rx);
 
-        match Context::new(
+        match PlaybackContext::new(
             filepath,
             self.audio_ctrl.borrow().get_dbl_buffer_mtx(),
             ctx_tx,

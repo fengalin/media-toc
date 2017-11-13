@@ -57,7 +57,7 @@ pub enum ContextMessage {
     InitDone,
 }
 
-pub struct Context {
+pub struct PlaybackContext {
     pipeline: gst::Pipeline,
     position_element: Option<gst::Element>,
     position_query: gst::Query,
@@ -70,7 +70,7 @@ pub struct Context {
 }
 
 // FIXME: might need to `release_request_pad` on the tee
-impl Drop for Context {
+impl Drop for PlaybackContext {
     fn drop(&mut self) {
         if let Some(video_sink) = self.pipeline.get_by_name("video_sink") {
             self.pipeline.remove(&video_sink).unwrap();
@@ -78,17 +78,17 @@ impl Drop for Context {
     }
 }
 
-impl Context {
+impl PlaybackContext {
     pub fn new(
         path: PathBuf,
         dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
         ctx_tx: Sender<ContextMessage>,
-    ) -> Result<Context, String> {
+    ) -> Result<PlaybackContext, String> {
         println!("\n\n* Opening {:?}...", path);
 
         let file_name = String::from(path.file_name().unwrap().to_str().unwrap());
 
-        let mut ctx = Context {
+        let mut ctx = PlaybackContext {
             pipeline: gst::Pipeline::new("pipeline"),
             position_element: None,
             position_query: gst::Query::new_position(gst::Format::Time),
@@ -101,7 +101,7 @@ impl Context {
         };
 
         ctx.info.lock()
-            .expect("Context::new failed to lock media info")
+            .expect("PlaybackContext::new failed to lock media info")
             .metadata
                 .insert(toc::METADATA_FILE_NAME.to_owned(), file_name);
 
@@ -231,7 +231,7 @@ impl Context {
                 };
 
                 if is_first {
-                    Context::build_audio_queue(
+                    PlaybackContext::build_audio_queue(
                         pipeline,
                         src_pad,
                         &audio_sink,
@@ -251,7 +251,7 @@ impl Context {
                 };
 
                 if is_first {
-                    Context::build_video_queue(pipeline, src_pad, &video_sink);
+                    PlaybackContext::build_video_queue(pipeline, src_pad, &video_sink);
                 }
             }
         });
@@ -357,7 +357,7 @@ impl Context {
             dbl_audio_buffer_mtx
                 .lock()
                 .expect(
-                    "Context::build_audio_pipeline: couldn't lock dbl_audio_buffer_mtx",
+                    "PlaybackContext::build_audio_pipeline: couldn't lock dbl_audio_buffer_mtx",
                 )
                 .set_audio_caps_and_ref(&src_pad.get_current_caps().unwrap(), audio_sink);
         }
@@ -449,14 +449,14 @@ impl Context {
                 }
                 gst::MessageView::Tag(msg_tag) => {
                     if !init_done {
-                        Context::add_tags(msg_tag.get_tags(), &info_arc_mtx);
+                        PlaybackContext::add_tags(msg_tag.get_tags(), &info_arc_mtx);
                     }
                 }
                 gst::MessageView::Toc(msg_toc) => {
                     if !init_done {
                         let (toc, _) = msg_toc.get_toc();
                         if toc.get_scope() == TocScope::Global {
-                            Context::add_toc(toc, &info_arc_mtx);
+                            PlaybackContext::add_toc(toc, &info_arc_mtx);
                         } else {
                             println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
                         }

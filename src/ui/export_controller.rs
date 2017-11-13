@@ -6,7 +6,7 @@ use std::fs::File;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use media::Context;
+use media::PlaybackContext;
 
 use toc;
 
@@ -19,7 +19,7 @@ pub struct ExportController {
     mkvmerge_txt_rdbtn: gtk::RadioButton,
     cue_rdbtn: gtk::RadioButton,
 
-    pub context: Option<Context>,
+    pub context: Option<PlaybackContext>,
 }
 
 impl ExportController {
@@ -97,7 +97,7 @@ impl ExportController {
         });
     }
 
-    pub fn open(&mut self, context: Context) {
+    pub fn open(&mut self, context: PlaybackContext) {
         self.context = Some(context);
         self.export_dlg.present();
     }
