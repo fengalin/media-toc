@@ -47,13 +47,13 @@ impl ExportContext {
         &mut self,
     ) {
         // Input
-        let filesrc = gst::ElementFactory::make("filesrc", "filesrc").unwrap();
+        let filesrc = gst::ElementFactory::make("filesrc", None).unwrap();
         filesrc.set_property(
             "location",
             &gst::Value::from(self.input_path.to_str().unwrap())
         ).unwrap();
 
-        let parsebin = gst::ElementFactory::make("parsebin", "parsebin").unwrap();
+        let parsebin = gst::ElementFactory::make("parsebin", None).unwrap();
 
         {
             self.pipeline.add_many(&[&filesrc, &parsebin]).unwrap();
@@ -62,7 +62,7 @@ impl ExportContext {
         }
 
         // Muxer and output sink
-        let muxer = gst::ElementFactory::make("matroskamux", "matroskamux")
+        let muxer = gst::ElementFactory::make("matroskamux", None)
             .expect(
                 concat!(
                     "ExportContext::build_pipeline couldn't find matroskamux plugin. ",
@@ -71,7 +71,7 @@ impl ExportContext {
             );
         muxer.set_property("writing-app", &gst::Value::from("media-toc")).unwrap();
 
-        let filesink = gst::ElementFactory::make("filesink", "filesink").unwrap();
+        let filesink = gst::ElementFactory::make("filesink", None).unwrap();
         filesink.set_property(
             "location",
             &gst::Value::from(self.output_path.to_str().unwrap())
@@ -85,29 +85,19 @@ impl ExportContext {
 
         self.muxer = Some(muxer.clone());
 
-        // Prepare pad configuration callback
-        parsebin.connect_pad_added(move |_src_element, src_pad| {
-            println!("pad name: {}", src_pad.get_name());
+        let pipeline_cb = self.pipeline.clone();
+        parsebin.connect_pad_added(move |_element, pad| {
+            let queue = gst::ElementFactory::make("queue", None).unwrap();
+            pipeline_cb.add(&queue).unwrap();
+            let queue_sink_pad = queue.get_static_pad("sink").unwrap();
+            assert_eq!(pad.link(&queue_sink_pad), gst::PadLinkReturn::Ok);
 
-            let caps = src_pad.get_current_caps().unwrap();
-            let structure = caps.get_structure(0).unwrap();
-            let name = structure.get_name();
+            let queue_src_pad = queue.get_static_pad("src").unwrap();
+            let muxer_sink_pad = muxer.get_compatible_pad(&queue_src_pad, None).unwrap();
+            assert_eq!(queue_src_pad.link(&muxer_sink_pad), gst::PadLinkReturn::Ok);
 
-            println!("pad caps name: {}", name);
-
-            if name.starts_with("audio/") {
-                /*let muxer_sink_pad = muxer.get_request_pad("audio_%u").unwrap();
-                assert_eq!(src_pad.link(&muxer_sink_pad), gst::PadLinkReturn::Ok);
-                muxer.sync_state_with_parent().unwrap();*/
-            } else if name.starts_with("video/") {
-                let muxer_sink_pad = muxer.get_request_pad("video_%u").unwrap();
-                assert_eq!(src_pad.link(&muxer_sink_pad), gst::PadLinkReturn::Ok);
-                muxer.sync_state_with_parent().unwrap();
-            } else if name.starts_with("subtitle/") {
-                println!("Found subtitles");
-                let muxer_sink_pad = muxer.get_request_pad("subtitle_%u").unwrap();
-                assert_eq!(src_pad.link(&muxer_sink_pad), gst::PadLinkReturn::Ok);
-                muxer.sync_state_with_parent().unwrap();
+            for element in &[&queue, &muxer] {
+                element.sync_state_with_parent().unwrap();
             }
         });
     }
