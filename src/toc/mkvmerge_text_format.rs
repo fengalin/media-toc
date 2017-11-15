@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use std::io::{Read, Write};
 
-use super::{Chapter, Exporter, Importer, Timestamp};
+use super::{Chapter, Exporter, FormatHandler, Importer, Timestamp};
 
 static EXTENSION: &'static str = "txt";
 
@@ -26,6 +26,12 @@ impl MKVMergeTextFormat {
 
     pub fn new_as_boxed() -> Box<Self> {
         Box::new(MKVMergeTextFormat{})
+    }
+}
+
+impl FormatHandler for MKVMergeTextFormat {
+    fn extension(&self) -> &'static str {
+        MKVMergeTextFormat::get_extension()
     }
 }
 
@@ -108,10 +114,6 @@ impl Importer for MKVMergeTextFormat {
 }
 
 impl Exporter for MKVMergeTextFormat {
-    fn extension(&self) -> &'static str {
-        MKVMergeTextFormat::get_extension()
-    }
-
     fn write(&self,
         _metadata: &HashMap<String, String>,
         chapters: &[Chapter],

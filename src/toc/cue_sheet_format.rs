@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use std::io::Write;
 
-use super::{Chapter, Exporter};
+use super::{Chapter, Exporter, FormatHandler};
 
 static EXTENSION: &'static str = "cue";
 
@@ -19,11 +19,13 @@ impl CueSheetFormat {
     }
 }
 
-impl Exporter for CueSheetFormat {
-    fn extension(&self)-> &'static str {
+impl FormatHandler for CueSheetFormat {
+    fn extension(&self) -> &'static str {
         CueSheetFormat::get_extension()
     }
+}
 
+impl Exporter for CueSheetFormat {
     fn write(&self,
         metadata: &HashMap<String, String>,
         chapters: &[Chapter],

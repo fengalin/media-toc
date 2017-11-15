@@ -1,6 +1,7 @@
 use std::boxed::Box;
 
-use super::{CueSheetFormat, Exporter, Format, Importer, MatroskaTocFormat, MKVMergeTextFormat};
+use super::{CueSheetFormat, Exporter, Format, Importer, MatroskaTocFormat,
+            MKVMergeTextFormat};
 
 pub struct Factory {
 }

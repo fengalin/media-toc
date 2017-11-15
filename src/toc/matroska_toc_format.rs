@@ -2,7 +2,7 @@ use std::io::Write;
 
 use std::collections::HashMap;
 
-use super::{Chapter, Exporter};
+use super::{Chapter, Exporter, FormatHandler};
 
 static EXTENSION: &'static str = "toc.mkv";
 
@@ -19,11 +19,13 @@ impl MatroskaTocFormat {
     }
 }
 
-impl Exporter for MatroskaTocFormat {
+impl FormatHandler for MatroskaTocFormat {
     fn extension(&self) -> &'static str {
         MatroskaTocFormat::get_extension()
     }
+}
 
+impl Exporter for MatroskaTocFormat {
     fn write(&self,
         _metadata: &HashMap<String, String>,
         _chapters: &[Chapter],
