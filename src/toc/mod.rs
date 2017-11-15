@@ -8,10 +8,7 @@ pub mod factory;
 pub use self::factory::Factory;
 
 pub mod format;
-pub use self::format::Exporter;
-
-pub mod importer;
-pub use self::importer::Importer;
+pub use self::format::{Exporter, Importer};
 
 pub mod matroska_toc_format;
 pub use self::matroska_toc_format::MatroskaTocFormat;
