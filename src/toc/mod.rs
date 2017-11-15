@@ -4,11 +4,11 @@ pub use self::chapter::Chapter;
 pub mod cue_sheet_format;
 pub use self::cue_sheet_format::CueSheetFormat;
 
-pub mod exporter;
-pub use self::exporter::Exporter;
-
 pub mod factory;
 pub use self::factory::Factory;
+
+pub mod format;
+pub use self::format::Exporter;
 
 pub mod importer;
 pub use self::importer::Importer;
