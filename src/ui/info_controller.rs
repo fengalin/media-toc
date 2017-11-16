@@ -252,7 +252,7 @@ impl InfoController {
                     let mut toc_file = File::open(toc_path)
                         .expect("InfoController::new_media failed to open toc file");
                     let mut chapters = Vec::<Chapter>::new();
-                    toc::Factory::get_importer(format)
+                    toc::Factory::get_reader(&format)
                         .read(self.duration, &mut toc_file, &mut info.metadata, &mut chapters);
                     self.chapter_manager.replace_with(&chapters);
                 }

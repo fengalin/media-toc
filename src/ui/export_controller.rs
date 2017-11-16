@@ -65,7 +65,7 @@ impl ExportController {
             let context = this.context.take().unwrap();
 
             let (format, is_standalone) = this.get_selected_format();
-            let exporter = toc::Factory::get_exporter(format);
+            let extension = toc::Factory::get_extension(&format);
 
             let media_path = context.path.clone();
             let target_path = media_path.with_file_name(&format!("{}.{}",
@@ -73,7 +73,7 @@ impl ExportController {
                     .expect("ExportController::export_btn clicked, failed to get file_stem")
                     .to_str()
                     .expect("ExportController::export_btn clicked, failed to get file_stem as str"),
-                exporter.extension(),
+                extension,
             ));
 
             if is_standalone {
@@ -86,11 +86,8 @@ impl ExportController {
                     .expect(
                         "ExportController::export_btn clicked, failed to lock media info",
                     );
-                exporter.write(
-                    &info.metadata,
-                    &info.chapters,
-                    &mut output_file
-                );
+                toc::Factory::get_writer(&format)
+                    .write(&info.metadata, &info.chapters, &mut output_file);
             } else {
                 // export toc within a media container with the streams
                 match ExportContext::new(media_path, target_path) {

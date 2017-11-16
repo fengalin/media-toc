@@ -4,11 +4,7 @@ use std::io::{Read, Write};
 
 use super::Chapter;
 
-pub trait FormatHandler {
-    fn extension(&self) -> &'static str;
-}
-
-pub trait Importer: FormatHandler {
+pub trait Reader {
     fn read(&self,
         duration: u64,
         source: &mut Read,
@@ -17,7 +13,7 @@ pub trait Importer: FormatHandler {
     );
 }
 
-pub trait Exporter: FormatHandler {
+pub trait Writer {
     fn write(&self,
         metadata: &HashMap<String, String>,
         chapters: &[Chapter],

@@ -1,7 +1,6 @@
 use std::boxed::Box;
 
-use super::{CueSheetFormat, Exporter, Format, Importer, MatroskaTocFormat,
-            MKVMergeTextFormat};
+use super::{CueSheetFormat, Format, MatroskaTocFormat, MKVMergeTextFormat, Reader, Writer};
 
 pub struct Factory {
 }
@@ -16,19 +15,27 @@ impl Factory {
         result
     }
 
-    pub fn get_importer(format: Format) -> Box<Importer> {
+    pub fn get_extension(format: &Format) -> &'static str {
         match format {
-            Format::CueSheet => unimplemented!("Importer for toc::Format::CueSheet"),
-            Format::Matroska => unimplemented!("Importer for toc::Format::Matroska"),
-            Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),
+            &Format::CueSheet => CueSheetFormat::get_extension(),
+            &Format::Matroska => MatroskaTocFormat::get_extension(),
+            &Format::MKVMergeText => MKVMergeTextFormat::get_extension(),
         }
     }
 
-    pub fn get_exporter(format: Format) -> Box<Exporter> {
+    pub fn get_reader(format: &Format) -> Box<Reader> {
         match format {
-            Format::CueSheet => CueSheetFormat::new_as_boxed(),
-            Format::Matroska => MatroskaTocFormat::new_as_boxed(),
-            Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),
+            &Format::CueSheet => unimplemented!("Reader for toc::Format::CueSheet"),
+            &Format::Matroska => unimplemented!("Reader for toc::Format::Matroska"),
+            &Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),
+        }
+    }
+
+    pub fn get_writer(format: &Format) -> Box<Writer> {
+        match format {
+            &Format::CueSheet => CueSheetFormat::new_as_boxed(),
+            &Format::Matroska => unimplemented!("Reader for toc::Format::Matroska"),
+            &Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),
         }
     }
 }
