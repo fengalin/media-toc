@@ -1,3 +1,5 @@
+extern crate gstreamer as gst;
+
 use std::collections::HashMap;
 
 use std::io::{Read, Write};
@@ -17,6 +19,14 @@ pub trait Writer {
     fn write(&self,
         metadata: &HashMap<String, String>,
         chapters: &[Chapter],
-        destination: &mut Write
+        destination: &mut Write,
+    );
+}
+
+pub trait Exporter {
+    fn export(&self,
+        metadata: &HashMap<String, String>,
+        chapters: &[Chapter],
+        destination: &gst::Element,
     );
 }

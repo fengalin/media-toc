@@ -38,8 +38,9 @@ impl Chapter {
         self.metadata.insert(super::METADATA_TITLE.to_owned(), title.to_owned());
     }
 
-    pub fn get_title(&self) -> Option<&String> {
+    pub fn get_title(&self) -> Option<&str> {
         self.metadata.get(super::METADATA_TITLE)
+            .map(|string| string.as_str())
     }
 }
 

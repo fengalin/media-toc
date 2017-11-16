@@ -58,18 +58,9 @@ impl Writer for CueSheetFormat {
             destination.write_fmt( format_args!("  TRACK{:02} AUDIO\n", index + 1))
                 .expect("CueSheetFormat::write clicked, failed to write to file");
 
-            let chapter_title =
-                match chapter.get_title() {
-                    Some(title) => title,
-                    None =>
-                        match title {
-                            Some(title) => title,
-                            None => "Unknown"
-                        }
-                };
-
-            destination.write_fmt(format_args!("    TITLE \"{}\"\n", chapter_title))
-                .expect("CueSheetFormat::write clicked, failed to write to file");
+            destination.write_fmt(format_args!("    TITLE \"{}\"\n",
+                chapter.get_title().unwrap_or(super::DEFAULT_TITLE)
+            )).expect("CueSheetFormat::write clicked, failed to write to file");
 
             if let Some(artist) = artist {
                 destination.write_fmt(format_args!("    PERFORMER \"{}\"\n", artist))

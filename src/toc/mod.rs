@@ -8,7 +8,7 @@ pub mod factory;
 pub use self::factory::Factory;
 
 pub mod format;
-pub use self::format::{Reader, Writer};
+pub use self::format::{Exporter, Reader, Writer};
 
 pub mod matroska_toc_format;
 pub use self::matroska_toc_format::MatroskaTocFormat;
@@ -25,6 +25,8 @@ pub static METADATA_CONTAINER: &'static str = "media_container";
 pub static METADATA_FILE_NAME: &'static str = "file_name";
 pub static METADATA_TITLE: &'static str = "title";
 pub static METADATA_VIDEO_CODEC: &'static str = "video_codec";
+
+pub static DEFAULT_TITLE: &'static str = "untitled";
 
 #[derive(Clone, PartialEq)]
 pub enum Format {

@@ -44,9 +44,9 @@ impl ExportContext {
         }
     }
 
-    /*pub fn get_toc_setter(&self) -> Option<Box<&TocSetterExt>> {
-        self.muxer.as_ref().map(|muxer| Box::new(muxer))
-    }*/
+    pub fn get_muxer(&self) -> Option<&gst::Element> {
+        self.muxer.as_ref()
+    }
 
     pub fn export(&self) -> Result<(), String> {
         match self.pipeline.set_state(gst::State::Playing) {

@@ -121,10 +121,12 @@ impl Writer for MKVMergeTextFormat {
                     chapter.start.format_with_hours(),
                 ))
                 .expect("MKVMergeTextFormat::write clicked, failed to write to file");
-            if let Some(title) = chapter.get_title() {
-                destination.write_fmt(format_args!("{}{}={}\n", prefix, NAME_TAG, title))
-                    .expect("MKVMergeTextFormat::write clicked, failed to write to file");
-            }
+
+            destination.write_fmt(format_args!("{}{}={}\n",
+                prefix,
+                NAME_TAG,
+                chapter.get_title().unwrap_or(super::DEFAULT_TITLE),
+            )).expect("MKVMergeTextFormat::write clicked, failed to write to file");
         }
     }
 }

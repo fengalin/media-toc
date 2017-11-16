@@ -14,6 +14,7 @@ use media::{ContextMessage, ExportContext, PlaybackContext};
 use media::ContextMessage::*;
 
 use toc;
+use toc::{Exporter, MatroskaTocFormat};
 
 use super::MainController;
 
@@ -196,11 +197,31 @@ impl ExportController {
                         let this = this_rc.borrow();
                         let export_ctx = this.export_ctx.as_ref()
                             .expect("ExportContext::listener(InitDone) couldn't get ExportContext");
-                        match export_ctx.export() {
-                            Ok(_) => (),
-                            Err(err) => {
+
+                        match export_ctx.get_muxer() {
+                            Some(muxer) => {
+                                let info = this.playback_ctx.as_ref().unwrap()
+                                    .info
+                                        .lock()
+                                            .expect(concat!(
+                                                "ExportController::listener(InitDone) ",
+                                                "failed to lock media info",
+                                            ));
+
+                                let exporter = MatroskaTocFormat::new();
+                                exporter.export(&info.metadata, &info.chapters, &muxer);
+
+                                match export_ctx.export() {
+                                    Ok(_) => (),
+                                    Err(err) => {
+                                        this.switch_to_available();
+                                        eprintln!("ERROR: failed to export media: {}", err);
+                                    }
+                                }
+                            }
+                            None => {
                                 this.switch_to_available();
-                                eprintln!("ERROR: failed to export media: {}", err);
+                                eprintln!("ExportContext::listener(InitDone) couldn't get ")
                             }
                         }
                     }
