@@ -466,16 +466,16 @@ impl MainController {
         self.keep_going = true;
         self.register_listener(LISTENER_PERIOD, ui_rx);
 
-        match PlaybackContext::new(
-            filepath,
-            self.audio_ctrl.borrow().get_dbl_buffer_mtx(),
-            ctx_tx,
-        ) {
+        let dbl_buffer_mtx = self.audio_ctrl.borrow().get_dbl_buffer_mtx().clone();
+        match PlaybackContext::new(filepath, dbl_buffer_mtx, ctx_tx) {
             Ok(context) => {
                 self.context = Some(context);
                 self.export_toc_btn.set_sensitive(true);
             }
-            Err(error) => eprintln!("Error opening media: {}", error),
+            Err(error) => {
+                self.remove_listener();
+                eprintln!("Error opening media: {}", error);
+            }
         };
     }
 }

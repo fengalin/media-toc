@@ -5,7 +5,11 @@ use gstreamer::PadExt;
 extern crate glib;
 use glib::ObjectExt;
 
+use std::sync::mpsc::Sender;
+
 use std::path::PathBuf;
+
+use super::ContextMessage;
 
 pub struct ExportContext {
     pipeline: gst::Pipeline,
@@ -19,10 +23,11 @@ impl ExportContext {
     pub fn new(
         input_path: PathBuf,
         output_path: PathBuf,
+        ctx_tx: Sender<ContextMessage>,
     ) -> Result<ExportContext, String> {
         println!("\n\n* Exporting {:?} to {:?}...", input_path, output_path);
 
-        let mut ctx = ExportContext {
+        let mut this = ExportContext {
             pipeline: gst::Pipeline::new("pipeline"),
             muxer: None,
 
@@ -30,15 +35,23 @@ impl ExportContext {
             output_path: output_path,
         };
 
-        ctx.build_pipeline();
+        this.build_pipeline();
+        this.register_bus_inspector(ctx_tx);
 
-        /*match ctx.pipeline.set_state(gst::State::Paused) {
+        match this.pipeline.set_state(gst::State::Paused) {
             gst::StateChangeReturn::Failure => Err("Could not set media in Paused state".into()),
-            _ => Ok(ctx),
-        }*/
-        match ctx.pipeline.set_state(gst::State::Playing) {
+            _ => Ok(this),
+        }
+    }
+
+    /*pub fn get_toc_setter(&self) -> Option<Box<&TocSetterExt>> {
+        self.muxer.as_ref().map(|muxer| Box::new(muxer))
+    }*/
+
+    pub fn export(&self) -> Result<(), String> {
+        match self.pipeline.set_state(gst::State::Playing) {
             gst::StateChangeReturn::Failure => Err("Could not set media in palying state".into()),
-            _ => Ok(ctx),
+            _ => Ok(()),
         }
     }
 
@@ -99,6 +112,48 @@ impl ExportContext {
             for element in &[&queue, &muxer] {
                 element.sync_state_with_parent().unwrap();
             }
+        });
+    }
+
+    // Uses ctx_tx to notify the UI controllers about the inspection process
+    fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
+        let mut init_done = false;
+        self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
+            match msg.view() {
+                gst::MessageView::Eos(..) => {
+                    ctx_tx.send(ContextMessage::Eos).expect(
+                        "Failed to notify UI",
+                    );
+                    return glib::Continue(false);
+                }
+                gst::MessageView::Error(err) => {
+                    eprintln!(
+                        "Error from {}: {} ({:?})",
+                        msg.get_src().get_path_string(),
+                        err.get_error(),
+                        err.get_debug()
+                    );
+                    ctx_tx.send(ContextMessage::FailedToOpenMedia).expect(
+                        "Failed to notify UI",
+                    );
+                    return glib::Continue(false);
+                }
+                gst::MessageView::AsyncDone(_) => {
+                    if !init_done {
+                        init_done = true;
+                        ctx_tx.send(ContextMessage::InitDone).expect(
+                            "Failed to notify UI",
+                        );
+                    } else {
+                        ctx_tx.send(ContextMessage::AsyncDone).expect(
+                            "Failed to notify UI",
+                        );
+                    }
+                }
+                _ => (),
+            }
+
+            glib::Continue(true)
         });
     }
 }

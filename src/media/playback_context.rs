@@ -25,7 +25,7 @@ use std::i32;
 use toc;
 use toc::{Chapter, Timestamp};
 
-use super::{AlignedImage, DoubleAudioBuffer, MediaInfo};
+use super::{AlignedImage, ContextMessage, DoubleAudioBuffer, MediaInfo};
 
 macro_rules! assign_tag(
     ($metadata_map:expr, $name:expr, $tags:expr, $TagType:ty) => {
@@ -48,13 +48,6 @@ lazy_static! {
                 "gstreamer1-plugins-bad-free-gtk or gstreamer1.0-plugins-bad, ",
                 "depenging on your distribution."
             ));
-}
-
-pub enum ContextMessage {
-    AsyncDone,
-    Eos,
-    FailedToOpenMedia,
-    InitDone,
 }
 
 pub struct PlaybackContext {
@@ -88,7 +81,7 @@ impl PlaybackContext {
 
         let file_name = String::from(path.file_name().unwrap().to_str().unwrap());
 
-        let mut ctx = PlaybackContext {
+        let mut this = PlaybackContext {
             pipeline: gst::Pipeline::new("pipeline"),
             position_element: None,
             position_query: gst::Query::new_position(gst::Format::Time),
@@ -100,16 +93,16 @@ impl PlaybackContext {
             info: Arc::new(Mutex::new(MediaInfo::new())),
         };
 
-        ctx.info.lock()
+        this.info.lock()
             .expect("PlaybackContext::new failed to lock media info")
             .metadata
                 .insert(toc::METADATA_FILE_NAME.to_owned(), file_name);
 
-        ctx.build_pipeline(dbl_audio_buffer_mtx, (*VIDEO_SINK).clone());
-        ctx.register_bus_inspector(ctx_tx);
+        this.build_pipeline(dbl_audio_buffer_mtx, (*VIDEO_SINK).clone());
+        this.register_bus_inspector(ctx_tx);
 
-        match ctx.pause() {
-            Ok(_) => Ok(ctx),
+        match this.pause() {
+            Ok(_) => Ok(this),
             Err(error) => Err(error),
         }
     }

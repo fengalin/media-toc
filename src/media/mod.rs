@@ -17,7 +17,14 @@ pub mod media_info;
 pub use self::media_info::MediaInfo;
 
 pub mod playback_context;
-pub use self::playback_context::{PlaybackContext, ContextMessage};
+pub use self::playback_context::PlaybackContext;
 
 pub mod sample_extractor;
 pub use self::sample_extractor::SampleExtractor;
+
+pub enum ContextMessage {
+    AsyncDone,
+    Eos,
+    FailedToOpenMedia,
+    InitDone,
+}
