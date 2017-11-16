@@ -13,8 +13,6 @@ extern crate gtk;
 
 extern crate lazy_static;
 
-use url::Url;
-
 use std::path::PathBuf;
 
 use std::sync::mpsc::Sender;
@@ -190,20 +188,23 @@ impl PlaybackContext {
         dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
         video_sink: gst::Element,
     ) {
-        let src = gst::ElementFactory::make("uridecodebin", "input").unwrap();
-        let url = match Url::from_file_path(self.path.as_path()) {
-            Ok(url) => url.into_string(),
-            Err(_) => "Failed to convert path to URL".to_owned(),
-        };
-        src.set_property("uri", &gst::Value::from(&url)).unwrap();
-        self.pipeline.add(&src).unwrap();
+        let file_src = gst::ElementFactory::make("filesrc", None).unwrap();
+        file_src.set_property(
+            "location",
+            &gst::Value::from(self.path.to_str().unwrap())
+        ).unwrap();
+
+        let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
+
+        self.pipeline.add_many(&[&file_src, &decodebin]).unwrap();
+        file_src.link(&decodebin).unwrap();
 
         let audio_sink = gst::ElementFactory::make("autoaudiosink", "audio_playback_sink").unwrap();
 
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
         let info_arc_mtx = Arc::clone(&self.info);
-        src.connect_pad_added(move |_, src_pad| {
+        decodebin.connect_pad_added(move |_, src_pad| {
             let pipeline = &pipeline_clone;
 
             let caps = src_pad.get_current_caps().unwrap();
