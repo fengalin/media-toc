@@ -106,12 +106,18 @@ impl ExportController {
                 let mut output_file = File::create(target_path)
                     .expect("ExportController::export_btn clicked couldn't create output file");
 
-                let info = this.playback_ctx.as_ref().unwrap().info.lock()
-                    .expect(
-                        "ExportController::export_btn clicked, failed to lock media info",
-                    );
-                toc::Factory::get_writer(&format)
-                    .write(&info.metadata, &info.chapters, &mut output_file);
+                {
+                    let info = this.playback_ctx.as_ref().unwrap().info.lock()
+                        .expect(
+                            "ExportController::export_btn clicked, failed to lock media info",
+                        );
+                    toc::Factory::get_writer(&format)
+                        .write(&info.metadata, &info.chapters, &mut output_file);
+                }
+
+                main_ctrl_clone.borrow_mut()
+                    .restore_context(this.playback_ctx.take().unwrap());
+                this.export_dlg.hide();
             } else {
                 // export toc within a media container with the streams
                 let (ctx_tx, ui_rx) = channel();
