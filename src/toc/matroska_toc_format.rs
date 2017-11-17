@@ -11,6 +11,7 @@ use std::i64;
 use super::{Chapter, Exporter};
 
 static EXTENSION: &'static str = "toc.mkv";
+static AUDIO_EXTENSION: &'static str = "toc.mka";
 
 pub struct MatroskaTocFormat {
 }
@@ -18,6 +19,10 @@ pub struct MatroskaTocFormat {
 impl MatroskaTocFormat {
     pub fn get_extension() -> &'static str {
         &EXTENSION
+    }
+
+    pub fn get_audio_extension() -> &'static str {
+        &AUDIO_EXTENSION
     }
 
     pub fn new() -> Self {

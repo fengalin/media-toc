@@ -89,7 +89,14 @@ impl ExportController {
             this.switch_to_available();
 
             let (format, is_standalone) = this.get_selected_format();
-            let extension = toc::Factory::get_extension(&format);
+
+            let is_audio_only = {
+                this.playback_ctx.as_ref().unwrap().info.lock()
+                    .expect(
+                        "ExportController::export_btn clicked, failed to lock media info",
+                    ).video_best.is_none()
+            };
+            let extension = toc::Factory::get_extension(&format, is_audio_only);
 
             let media_path = this.playback_ctx.as_ref().unwrap().path.clone();
             let target_path = media_path.with_file_name(&format!("{}.{}",

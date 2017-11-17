@@ -15,10 +15,15 @@ impl Factory {
         result
     }
 
-    pub fn get_extension(format: &Format) -> &'static str {
+    pub fn get_extension(format: &Format, is_audio_only: bool) -> &'static str {
         match format {
             &Format::CueSheet => CueSheetFormat::get_extension(),
-            &Format::Matroska => MatroskaTocFormat::get_extension(),
+            &Format::Matroska =>
+                if !is_audio_only {
+                    MatroskaTocFormat::get_extension()
+                } else {
+                    MatroskaTocFormat::get_audio_extension()
+                },
             &Format::MKVMergeText => MKVMergeTextFormat::get_extension(),
         }
     }
