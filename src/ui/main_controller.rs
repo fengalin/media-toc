@@ -231,6 +231,7 @@ impl MainController {
         };
 
         self.play_pause_btn.set_icon_name("media-playback-start");
+        self.window.set_sensitive(false);
     }
 
     fn export_toc(&mut self) {
@@ -247,6 +248,7 @@ impl MainController {
     pub fn restore_context(&mut self, context: PlaybackContext) {
         self.context = Some(context);
         self.state = ControllerState::Paused;
+        self.window.set_sensitive(true);
     }
 
     fn handle_eos(&mut self) {
@@ -445,7 +447,8 @@ impl MainController {
             }
             self.open_media(file_dlg.get_filename().unwrap());
         } else {
-            self.state = ControllerState::Paused;;
+            self.state = ControllerState::Paused;
+            self.window.set_sensitive(true);
         }
 
         file_dlg.close();
@@ -473,9 +476,10 @@ impl MainController {
                 self.export_toc_btn.set_sensitive(true);
             }
             Err(error) => {
-                self.remove_listener();
                 eprintln!("Error opening media: {}", error);
             }
         };
+
+        self.window.set_sensitive(true);
     }
 }
