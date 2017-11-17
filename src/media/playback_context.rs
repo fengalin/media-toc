@@ -468,6 +468,7 @@ impl PlaybackContext {
             "Failed to lock media info while reading tag data",
         );
         assign_tag!(info.metadata, toc::METADATA_TITLE, tags, gst::tags::Title);
+        assign_tag!(info.metadata, toc::METADATA_TITLE, tags, gst::tags::Album);
         assign_tag!(info.metadata, toc::METADATA_ARTIST, tags, gst::tags::Artist);
         assign_tag!(info.metadata, toc::METADATA_ARTIST, tags, gst::tags::AlbumArtist);
 
