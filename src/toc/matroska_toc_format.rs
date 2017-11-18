@@ -87,8 +87,8 @@ impl Exporter for MatroskaTocFormat {
                         .set_tags(tag_list);
 
                     let start = chapter.start.nano_total as i64;
-                    let end = chapter.start.nano_total as i64;
-                    toc_entry.set_start_stop_times(start, end);
+                    let end = chapter.end.nano_total as i64;
+                    toc_sub_entry.get_mut().unwrap().set_start_stop_times(start, end);
 
                     if start < min_pos {
                         min_pos = start;
