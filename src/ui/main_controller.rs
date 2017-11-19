@@ -251,14 +251,6 @@ impl MainController {
         self.window.set_sensitive(true);
     }
 
-    fn handle_eos(&mut self) {
-        #[cfg(feature = "trace-main-controller")]
-        println!("MainController::handle_eos");
-
-        self.play_pause_btn.set_icon_name("media-playback-start");
-        self.state = ControllerState::EOS;
-    }
-
     fn remove_listener(&mut self) {
         if let Some(source_id) = self.listener_src.take() {
             glib::source_remove(source_id);
@@ -325,14 +317,14 @@ impl MainController {
 
                         this.audio_ctrl.borrow_mut().tick();
 
-                        this.handle_eos();
+                        #[cfg(feature = "trace-main-controller")]
+                        println!("MainController::listener(eos)");
 
-                        // Remove listener and tracker.
-                        // Note: tracker will be register again in case of
-                        // a seek. Listener is of no use anymore because
-                        // the context won't send any more Eos nor AsyncDone
-                        // after an EOS.
-                        keep_going = false;
+                        this.play_pause_btn.set_icon_name("media-playback-start");
+                        this.state = ControllerState::EOS;
+
+                        // The tracker will be register again in case of a seek
+                        this.remove_tracker();
                     }
                     FailedToOpenMedia => {
                         eprintln!("ERROR: failed to open media");
@@ -377,8 +369,6 @@ impl MainController {
             #[cfg(feature = "profiling-tracker")]
             let start = Utc::now();
 
-            let mut keep_going = true;
-
             let mut this = this_rc.borrow_mut();
 
             #[cfg(feature = "profiling-tracker")]
@@ -390,30 +380,8 @@ impl MainController {
                 .expect("MainController::tracker no context while getting position")
                 .get_position();
 
-            let is_eos = if let Some(duration) = this.duration {
-                if position >= duration {
-                    if !this.seeking {
-                        // this check is necessary as EOS is not sent
-                        // in case of a seek after EOS
-                        this.handle_eos();
-                        this.tracker_src = None;
-                        keep_going = false;
-                    }
-                    true
-                } else if this.seeking {
-                    // this check is necessary as AsyncDone is not sent
-                    // in case of a seek after EOS
-                    this.seeking = false;
-                    false
-                } else {
-                    false
-                }
-            } else {
-                false
-            };
-
             if !this.seeking {
-                this.info_ctrl.borrow_mut().tick(position, is_eos);
+                this.info_ctrl.borrow_mut().tick(position, false);
                 this.audio_ctrl.borrow_mut().tick();
             }
 
@@ -428,7 +396,7 @@ impl MainController {
                 end.time().format("%H:%M:%S%.6f"),
             );
 
-            glib::Continue(this.keep_going && keep_going)
+            glib::Continue(this.keep_going)
         }));
     }
 

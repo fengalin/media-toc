@@ -415,7 +415,6 @@ impl PlaybackContext {
                     ctx_tx.send(ContextMessage::Eos).expect(
                         "Failed to notify UI",
                     );
-                    return glib::Continue(false);
                 }
                 gst::MessageView::Error(err) => {
                     eprintln!(
