@@ -374,13 +374,10 @@ impl MainController {
             #[cfg(feature = "profiling-tracker")]
             let before_tick = Utc::now();
 
-            let position = this
-                .context
-                .as_mut()
-                .expect("MainController::tracker no context while getting position")
-                .get_position();
-
             if !this.seeking {
+                let position = this.context.as_mut()
+                    .expect("MainController::tracker no context while getting position")
+                    .get_position();
                 this.info_ctrl.borrow_mut().tick(position, false);
                 this.audio_ctrl.borrow_mut().tick();
             }
