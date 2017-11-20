@@ -46,7 +46,6 @@ pub struct MainController {
 
     context: Option<PlaybackContext>,
     state: ControllerState,
-    duration: Option<u64>, // duration is accurately known at eos
     seeking: bool,
 
     requires_async_dialog: bool,    // when pipeline contains video, dialogs must wait for
@@ -78,7 +77,6 @@ impl MainController {
 
             context: None,
             state: ControllerState::Stopped,
-            duration: None,
             seeking: false,
 
             requires_async_dialog: false,
@@ -307,13 +305,8 @@ impl MainController {
                         let mut this = this_rc.borrow_mut();
 
                         let position = this.get_position();
-                        this.duration = Some(position);
-
-                        {
-                            let mut info_ctrl = this.info_ctrl.borrow_mut();
-                            info_ctrl.update_duration(position);
-                            info_ctrl.tick(position, true);
-                        }
+                        this.info_ctrl.borrow_mut()
+                            .tick(position, true);
 
                         this.audio_ctrl.borrow_mut().tick();
 
@@ -426,7 +419,6 @@ impl MainController {
         self.audio_ctrl.borrow_mut().cleanup();
         self.header_bar.set_subtitle("");
         self.export_toc_btn.set_sensitive(false);
-        self.duration = None;
 
         let (ctx_tx, ui_rx) = channel();
 

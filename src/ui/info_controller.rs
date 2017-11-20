@@ -207,7 +207,12 @@ impl InfoController {
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
-        self.update_duration(context.get_duration());
+        let duration = context.get_duration();
+        self.duration = duration;
+        self.timeline_scale.set_range(0f64, duration as f64);
+        self.duration_lbl.set_label(
+            &Timestamp::format(duration, false),
+        );
 
         let media_path = context.path.clone();
         let file_stem = media_path.file_stem()
@@ -308,14 +313,6 @@ impl InfoController {
         self.timeline_scale.clear_marks();
         self.timeline_scale.set_value(0f64);
         self.duration = 0;
-    }
-
-    pub fn update_duration(&mut self, duration: u64) {
-        self.duration = duration;
-        self.timeline_scale.set_range(0f64, duration as f64);
-        self.duration_lbl.set_label(
-            &Timestamp::format(duration, false),
-        );
     }
 
     fn repeat_at(main_ctrl: &Option<Weak<RefCell<MainController>>>, position: u64) {
