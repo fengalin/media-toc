@@ -1,6 +1,6 @@
 extern crate gstreamer as gst;
 use gstreamer::prelude::*;
-use gstreamer::PadExt;
+use gstreamer::{PadExt, QueryView};
 
 extern crate glib;
 use glib::ObjectExt;
@@ -14,6 +14,7 @@ use super::ContextMessage;
 pub struct ExportContext {
     pipeline: gst::Pipeline,
     pub muxer: Option<gst::Element>,
+    position_query: gst::Query,
 
     pub input_path: PathBuf,
     pub output_path: PathBuf,
@@ -30,6 +31,7 @@ impl ExportContext {
         let mut this = ExportContext {
             pipeline: gst::Pipeline::new("pipeline"),
             muxer: None,
+            position_query: gst::Query::new_position(gst::Format::Time),
 
             input_path: input_path,
             output_path: output_path,
@@ -52,6 +54,16 @@ impl ExportContext {
         match self.pipeline.set_state(gst::State::Playing) {
             gst::StateChangeReturn::Failure => Err("Could not set media in palying state".into()),
             _ => Ok(()),
+        }
+    }
+
+    pub fn get_position(&mut self) -> u64 {
+        self.muxer.as_ref()
+            .unwrap()
+            .query(self.position_query.get_mut().unwrap());
+        match self.position_query.view() {
+            QueryView::Position(ref position) => position.get_result().to_value() as u64,
+            _ => unreachable!(),
         }
     }
 

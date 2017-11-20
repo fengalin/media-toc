@@ -23,6 +23,7 @@ const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
 pub struct ExportController {
     export_dlg: gtk::Dialog,
     export_btn: gtk::Button,
+    progress_bar: gtk::ProgressBar,
 
     mkvmerge_txt_rdbtn: gtk::RadioButton,
     cue_rdbtn: gtk::RadioButton,
@@ -30,6 +31,7 @@ pub struct ExportController {
 
     pub playback_ctx: Option<PlaybackContext>,
     export_ctx: Option<ExportContext>,
+    duration: u64,
 
     this_opt: Option<Rc<RefCell<ExportController>>>,
     listener_src: Option<glib::SourceId>,
@@ -44,6 +46,7 @@ impl ExportController {
         let this = Rc::new(RefCell::new(ExportController {
             export_dlg: export_dlg,
             export_btn: builder.get_object("export-btn").unwrap(),
+            progress_bar: builder.get_object("export-progress").unwrap(),
 
             mkvmerge_txt_rdbtn: builder.get_object("mkvmerge_txt-rdbtn").unwrap(),
             cue_rdbtn: builder.get_object("cue-rdbtn").unwrap(),
@@ -51,6 +54,7 @@ impl ExportController {
 
             playback_ctx: None,
             export_ctx: None,
+            duration: 0,
 
             this_opt: None,
             listener_src: None,
@@ -114,7 +118,8 @@ impl ExportController {
                     .expect("ExportController::export_btn clicked couldn't create output file");
 
                 {
-                    let info = this.playback_ctx.as_ref().unwrap().info.lock()
+                    let info = this.playback_ctx.as_ref()
+                        .unwrap().info.lock()
                         .expect(
                             "ExportController::export_btn clicked, failed to lock media info",
                         );
@@ -126,6 +131,9 @@ impl ExportController {
                     .restore_context(this.playback_ctx.take().unwrap());
                 this.export_dlg.hide();
             } else {
+                this.duration = this.playback_ctx.as_ref()
+                    .unwrap()
+                    .get_duration();
                 // export toc within a media container with the streams
                 let (ctx_tx, ui_rx) = channel();
 
@@ -135,7 +143,6 @@ impl ExportController {
                     Ok(export_ctx) => {
                         this.switch_to_busy();
                         this.export_ctx = Some(export_ctx);
-                        println!("Exporting...");
                     },
                     Err(error) => {
                         eprintln!("Error exporting media: {}", error);
@@ -201,13 +208,23 @@ impl ExportController {
         self.listener_src = Some(gtk::timeout_add(timeout, move || {
             let mut keep_going = true;
 
+            let mut this = this_rc.borrow_mut();
+
+            if this.duration > 0 {
+                let position =
+                    match this.export_ctx.as_mut() {
+                        Some(export_ctx) => export_ctx.get_position(),
+                        None => 0,
+                    };
+                this.progress_bar.set_fraction(position as f64 / this.duration as f64);
+            }
+
             for message in ui_rx.try_iter() {
                 match message {
                     AsyncDone => {
                         println!("ExportContext::listener(AsyncDone)");
                     }
                     InitDone => {
-                        let this = this_rc.borrow();
                         let export_ctx = this.export_ctx.as_ref()
                             .expect("ExportContext::listener(InitDone) couldn't get ExportContext");
 
@@ -239,17 +256,14 @@ impl ExportController {
                         }
                     }
                     Eos => {
-                        let mut this = this_rc.borrow_mut();
                         this.switch_to_available();
                         main_ctrl.borrow_mut()
                             .restore_context(this.playback_ctx.take().unwrap());
                         this.export_dlg.hide();
-                        println!("Done");
                         keep_going = false;
                     }
                     FailedToOpenMedia => {
-                        this_rc.borrow()
-                            .switch_to_available();
+                        this.switch_to_available();
                         eprintln!("ERROR: failed to export media");
                         keep_going = false;
                     }
@@ -261,7 +275,6 @@ impl ExportController {
             }
 
             if !keep_going {
-                let mut this = this_rc.borrow_mut();
                 this.listener_src = None;
             }
 
