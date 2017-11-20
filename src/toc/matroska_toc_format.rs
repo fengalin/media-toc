@@ -52,7 +52,6 @@ impl Exporter for MatroskaTocFormat {
                 }
             }
 
-            println!("**** SETTING Tags");
             tag_setter.merge_tags(&tag_list, gst::TagMergeMode::Append)
         }
 
@@ -99,13 +98,10 @@ impl Exporter for MatroskaTocFormat {
 
                     toc_entry.append_sub_entry(toc_sub_entry);
                 }
-
-                toc_entry.set_start_stop_times(min_pos, max_pos);
             }
 
             toc.get_mut().unwrap().append_entry(toc_entry);
 
-            println!("**** SETTING TOC");
             toc_setter.set_toc(&toc);
         }
     }
