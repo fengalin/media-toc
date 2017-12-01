@@ -1,13 +1,13 @@
 extern crate gstreamer as gst;
 use gstreamer::prelude::*;
-use gstreamer::{PadExt, QueryView};
+use gstreamer::{ClockTime, PadExt, QueryView};
 
 extern crate glib;
 use glib::ObjectExt;
 
 use std::sync::mpsc::Sender;
 
-use std::path::PathBuf;
+use std::path::Path;
 
 use super::ContextMessage;
 
@@ -15,15 +15,12 @@ pub struct ExportContext {
     pipeline: gst::Pipeline,
     pub muxer: Option<gst::Element>,
     position_query: gst::Query,
-
-    pub input_path: PathBuf,
-    pub output_path: PathBuf,
 }
 
 impl ExportContext {
     pub fn new(
-        input_path: PathBuf,
-        output_path: PathBuf,
+        input_path: &Path,
+        output_path: &Path,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<ExportContext, String> {
         println!("\n\n* Exporting {:?} to {:?}...", input_path, output_path);
@@ -32,12 +29,9 @@ impl ExportContext {
             pipeline: gst::Pipeline::new("pipeline"),
             muxer: None,
             position_query: gst::Query::new_position(gst::Format::Time),
-
-            input_path: input_path,
-            output_path: output_path,
         };
 
-        this.build_pipeline();
+        this.build_pipeline(input_path, output_path);
         this.register_bus_inspector(ctx_tx);
 
         match this.pipeline.set_state(gst::State::Paused) {
@@ -57,6 +51,25 @@ impl ExportContext {
         }
     }
 
+    pub fn export_part(&self,
+        _path: &Path,
+        start: u64,
+        end: u64,
+    ) -> Result<(), glib::error::BoolError> {
+        // FIXME: update the filesink with path
+
+        println!("seeking to {}, {}", start, end);
+
+        self.pipeline.seek(
+            1f64,
+            gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE | gst::SeekFlags::SEGMENT,
+            gst::SeekType::Set,
+            ClockTime::from(start),
+            gst::SeekType::Set,
+            ClockTime::from(end),
+        )
+    }
+
     pub fn get_position(&mut self) -> u64 {
         self.muxer.as_ref()
             .unwrap()
@@ -70,12 +83,14 @@ impl ExportContext {
     // TODO: handle errors
     fn build_pipeline(
         &mut self,
+        input_path: &Path,
+        output_path: &Path,
     ) {
         // Input
         let filesrc = gst::ElementFactory::make("filesrc", None).unwrap();
         filesrc.set_property(
             "location",
-            &gst::Value::from(self.input_path.to_str().unwrap())
+            &gst::Value::from(input_path.to_str().unwrap())
         ).unwrap();
 
         let parsebin = gst::ElementFactory::make("parsebin", None).unwrap();
@@ -96,10 +111,10 @@ impl ExportContext {
             );
         muxer.set_property("writing-app", &gst::Value::from("media-toc")).unwrap();
 
-        let filesink = gst::ElementFactory::make("filesink", None).unwrap();
+        let filesink = gst::ElementFactory::make("filesink", "filesink").unwrap();
         filesink.set_property(
             "location",
-            &gst::Value::from(self.output_path.to_str().unwrap())
+            &gst::Value::from(output_path.to_str().unwrap())
         ).unwrap();
 
         {

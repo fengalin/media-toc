@@ -3,22 +3,29 @@ extern crate glib;
 extern crate gtk;
 use gtk::prelude::*;
 
-use std::fs::File;
-
-use std::sync::mpsc::{channel, Receiver};
-
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::fs::File;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use std::sync::mpsc::{channel, Receiver};
 
 use media::{ContextMessage, ExportContext, PlaybackContext};
 use media::ContextMessage::*;
 
 use toc;
-use toc::{Exporter, MatroskaTocFormat};
+use toc::{Chapter, DEFAULT_TITLE, Exporter, MatroskaTocFormat};
 
 use super::MainController;
 
 const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
+
+#[derive(Clone, PartialEq)]
+enum ExportType {
+    ExternalToc,
+    None,
+    SingleFileWithToc,
+    Split,
+}
 
 pub struct ExportController {
     export_dlg: gtk::Dialog,
@@ -28,9 +35,15 @@ pub struct ExportController {
     mkvmerge_txt_rdbtn: gtk::RadioButton,
     cue_rdbtn: gtk::RadioButton,
     mkv_rdbtn: gtk::RadioButton,
+    split_rdbtn: gtk::RadioButton,
 
     pub playback_ctx: Option<PlaybackContext>,
     export_ctx: Option<ExportContext>,
+    export_type: ExportType,
+    target_path: PathBuf,
+    extension: String,
+    idx: usize,
+    current_chapter: Option<Chapter>,
     duration: u64,
 
     this_opt: Option<Rc<RefCell<ExportController>>>,
@@ -51,9 +64,15 @@ impl ExportController {
             mkvmerge_txt_rdbtn: builder.get_object("mkvmerge_txt-rdbtn").unwrap(),
             cue_rdbtn: builder.get_object("cue-rdbtn").unwrap(),
             mkv_rdbtn: builder.get_object("mkv-rdbtn").unwrap(),
+            split_rdbtn: builder.get_object("split-rdbtn").unwrap(),
 
             playback_ctx: None,
             export_ctx: None,
+            export_type: ExportType::None,
+            target_path: PathBuf::new(),
+            extension: String::new(),
+            idx: 0,
+            current_chapter: None,
             duration: 0,
 
             this_opt: None,
@@ -92,7 +111,9 @@ impl ExportController {
 
             this.switch_to_available();
 
-            let (format, is_standalone) = this.get_selected_format();
+            let (format, export_type) = this.get_selected_format();
+            this.export_type = export_type.clone();
+            this.idx = 0;
 
             let is_audio_only = {
                 this.playback_ctx.as_ref().unwrap().info.lock()
@@ -100,59 +121,56 @@ impl ExportController {
                         "ExportController::export_btn clicked, failed to lock media info",
                     ).video_best.is_none()
             };
-            let extension = toc::Factory::get_extension(&format, is_audio_only);
+            this.extension = toc::Factory::get_extension(&format, is_audio_only).to_owned();
 
             let media_path = this.playback_ctx.as_ref().unwrap().path.clone();
-            let target_path = media_path.with_file_name(&format!("{}.{}",
-                media_path.file_stem()
-                    .expect("ExportController::export_btn clicked, failed to get file_stem")
-                    .to_str()
-                    .expect("ExportController::export_btn clicked, failed to get file_stem as str"),
-                extension,
-            ));
+            this.target_path = media_path.with_extension(&this.extension);
 
-            if is_standalone {
-                // export toc as a standalone file
-                // TODO: handle file related errors
-                let mut output_file = File::create(target_path)
-                    .expect("ExportController::export_btn clicked couldn't create output file");
+            match export_type {
+                ExportType::ExternalToc => {
+                    // export toc as a standalone file
+                    // TODO: handle file related errors
+                    let mut output_file = File::create(&this.target_path)
+                        .expect("ExportController::export_btn clicked couldn't create output file");
 
-                {
-                    let info = this.playback_ctx.as_ref()
-                        .unwrap().info.lock()
-                        .expect(
-                            "ExportController::export_btn clicked, failed to lock media info",
-                        );
-                    toc::Factory::get_writer(&format)
-                        .write(&info.metadata, &info.chapters, &mut output_file);
-                }
-
-                main_ctrl_clone.borrow_mut()
-                    .restore_context(this.playback_ctx.take().unwrap());
-                this.export_dlg.hide();
-            } else {
-                this.duration = this.playback_ctx.as_ref()
-                    .unwrap()
-                    .get_duration();
-                // export toc within a media container with the streams
-                let (ctx_tx, ui_rx) = channel();
-
-                this.register_listener(LISTENER_PERIOD, ui_rx, main_ctrl_clone.clone());
-
-                match ExportContext::new(media_path, target_path, ctx_tx) {
-                    Ok(export_ctx) => {
-                        this.switch_to_busy();
-                        this.export_ctx = Some(export_ctx);
-                    },
-                    Err(error) => {
-                        eprintln!("Error exporting media: {}", error);
-                        this.remove_listener();
-                        this.switch_to_available();
-                        main_ctrl_clone.borrow_mut()
-                            .restore_context(this.playback_ctx.take().unwrap());
-                        this.export_dlg.hide();
+                    {
+                        let info = this.playback_ctx.as_ref()
+                            .unwrap().info.lock()
+                            .expect(
+                                "ExportController::export_btn clicked, failed to lock media info",
+                            );
+                        toc::Factory::get_writer(&format)
+                            .write(&info.metadata, &info.chapters, &mut output_file);
                     }
-                };
+
+                    main_ctrl_clone.borrow_mut()
+                        .restore_context(this.playback_ctx.take().unwrap());
+                    this.export_dlg.hide();
+                }
+                ExportType::Split => {
+                    this.next_chapter();
+
+                    let first_path =
+                        match this.current_chapter {
+                            Some(ref chapter) => this.get_split_path(chapter),
+                            None => // No chapter => export the whole file
+                                this.target_path.clone(),
+                        };
+                    this.build_export_context(
+                        Rc::clone(&main_ctrl_clone),
+                        &media_path,
+                        &first_path,
+                    );
+                }
+                ExportType::SingleFileWithToc => {
+                    let target_path = this.target_path.clone();
+                    this.build_export_context(
+                        Rc::clone(&main_ctrl_clone),
+                        &media_path,
+                        &target_path,
+                    );
+                }
+                _ => (),
             }
         });
     }
@@ -162,13 +180,86 @@ impl ExportController {
         self.export_dlg.present();
     }
 
-    fn get_selected_format(&self) -> (toc::Format, bool) {
+    fn build_export_context(&mut self,
+        main_ctrl: Rc<RefCell<MainController>>,
+        media_path: &Path,
+        export_path: &Path,
+    ) {
+        self.duration = self.playback_ctx.as_ref()
+            .unwrap()
+            .get_duration();
+        // export toc within a media container with the streams
+        let (ctx_tx, ui_rx) = channel();
+
+        self.register_listener(LISTENER_PERIOD, ui_rx, Rc::clone(&main_ctrl));
+
+        match ExportContext::new(media_path, export_path, ctx_tx) {
+            Ok(export_ctx) => {
+                self.switch_to_busy();
+                self.export_ctx = Some(export_ctx);
+            },
+            Err(error) => {
+                eprintln!("Error exporting media: {}", error);
+                self.remove_listener();
+                self.switch_to_available();
+                main_ctrl.borrow_mut()
+                    .restore_context(self.playback_ctx.take().unwrap());
+                self.export_dlg.hide();
+            }
+        };
+    }
+
+    fn next_chapter(&mut self) {
+        let next_chapter = {
+            let info = self.playback_ctx.as_ref().unwrap()
+                .info.lock()
+                    .expect("ExportController::next_chapter failed to lock media info");
+
+            info.chapters.get(self.idx)
+                .map(|chapter| chapter.clone().to_owned())
+        };
+
+        self.current_chapter = next_chapter;
+        if let Some(_) = self.current_chapter {
+            self.idx += 1;
+        }
+    }
+
+    fn get_split_path(&self, chapter: &Chapter) -> PathBuf {
+        let mut split_name = String::new();
+
+        let info = self.playback_ctx.as_ref().unwrap()
+            .info.lock()
+                .expect("ExportController::get_split_name failed to lock media info");
+
+        // TODO: make format customisable
+        if let Some(artist) = info.get_artist() {
+            split_name += &format!("{} - ", artist);
+        }
+        if let Some(title) = info.get_title() {
+            split_name += &format!("{} - ", title);
+        }
+
+        split_name +=
+            &format!(
+                "{:02}. {}.{}",
+                self.idx + 1,
+                chapter.get_title().unwrap_or(DEFAULT_TITLE),
+                self.extension,
+            );
+
+        self.target_path.with_file_name(split_name)
+    }
+
+    fn get_selected_format(&self) -> (toc::Format, ExportType) {
         if self.mkvmerge_txt_rdbtn.get_active() {
-            (toc::Format::MKVMergeText, true)
+            (toc::Format::MKVMergeText, ExportType::ExternalToc)
         } else if self.cue_rdbtn.get_active() {
-            (toc::Format::CueSheet, true)
+            (toc::Format::CueSheet, ExportType::ExternalToc)
         } else if self.mkv_rdbtn.get_active() {
-            (toc::Format::Matroska, false)
+            (toc::Format::Matroska, ExportType::SingleFileWithToc)
+        } else if self.split_rdbtn.get_active() {
+            (toc::Format::Matroska, ExportType::Split)
         } else {
             unreachable!("ExportController::get_selected_format no selected radio button");
         }
@@ -230,23 +321,68 @@ impl ExportController {
 
                         match export_ctx.get_muxer() {
                             Some(muxer) => {
-                                let info = this.playback_ctx.as_ref().unwrap()
-                                    .info
-                                        .lock()
-                                            .expect(concat!(
-                                                "ExportController::listener(InitDone) ",
-                                                "failed to lock media info",
-                                            ));
-
-                                let exporter = MatroskaTocFormat::new();
-                                exporter.export(&info.metadata, &info.chapters, &muxer);
-
-                                match export_ctx.export() {
-                                    Ok(_) => (),
-                                    Err(err) => {
-                                        this.switch_to_available();
-                                        eprintln!("ERROR: failed to export media: {}", err);
+                                match this.export_type {
+                                    ExportType::Split => {
+                                        match this.current_chapter {
+                                            Some(ref chapter) => {
+                                                println!("Split chapter found");
+                                                let target_path = this.get_split_path(chapter);
+                                                println!("target_path {:?}", target_path);
+                                                match export_ctx.export_part(
+                                                    &target_path,
+                                                    chapter.start.nano_total,
+                                                    chapter.end.nano_total,
+                                                ) {
+                                                    Ok(_) => println!("export part"),
+                                                    Err(_) => {
+                                                        this.switch_to_available();
+                                                        eprintln!(
+                                                            "ERROR: failed to export part {:?}",
+                                                            target_path,
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                            None => {
+                                                println!("Split no chapter");
+                                                match export_ctx.export() {
+                                                    Ok(_) => (),
+                                                    Err(err) => {
+                                                        this.switch_to_available();
+                                                        eprintln!(
+                                                            "ERROR: failed to export media: {}",
+                                                            err,
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
+                                    ExportType::SingleFileWithToc => {
+                                        let exporter = MatroskaTocFormat::new();
+                                        {
+                                            let info = this.playback_ctx.as_ref().unwrap()
+                                                .info
+                                                    .lock()
+                                                        .expect(concat!(
+                                                            "ExportController::listener(InitDone) ",
+                                                            "failed to lock media info",
+                                                        ));
+                                            exporter.export(&info.metadata, &info.chapters, &muxer);
+                                        }
+
+                                        match export_ctx.export() {
+                                            Ok(_) => (),
+                                            Err(err) => {
+                                                this.switch_to_available();
+                                                eprintln!("ERROR: failed to export media: {}", err);
+                                            }
+                                        }
+                                    }
+                                    _ => unreachable!(concat!(
+                                        "ExportController::listener(InitDone) ",
+                                        "Unexpected export type",
+                                    )),
                                 }
                             }
                             None => {
