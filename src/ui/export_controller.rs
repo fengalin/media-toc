@@ -177,6 +177,7 @@ impl ExportController {
 
     pub fn open(&mut self, playback_ctx: PlaybackContext) {
         self.playback_ctx = Some(playback_ctx);
+        self.progress_bar.set_fraction(0f64);
         self.export_dlg.present();
     }
 
