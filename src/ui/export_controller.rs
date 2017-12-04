@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
 
-use media::{ContextMessage, ExportContext, PlaybackContext};
+use media::{ContextMessage, PlaybackContext, SplitterContext, TocSetterContext};
 use media::ContextMessage::*;
 
 use toc;
@@ -38,7 +38,8 @@ pub struct ExportController {
     split_rdbtn: gtk::RadioButton,
 
     pub playback_ctx: Option<PlaybackContext>,
-    export_ctx: Option<ExportContext>,
+    toc_setter_ctx: Option<TocSetterContext>,
+    splitter_ctx: Option<SplitterContext>,
     export_type: ExportType,
     target_path: PathBuf,
     extension: String,
@@ -67,7 +68,8 @@ impl ExportController {
             split_rdbtn: builder.get_object("split-rdbtn").unwrap(),
 
             playback_ctx: None,
-            export_ctx: None,
+            toc_setter_ctx: None,
+            splitter_ctx: None,
             export_type: ExportType::None,
             target_path: PathBuf::new(),
             extension: String::new(),
@@ -150,21 +152,31 @@ impl ExportController {
                 ExportType::Split => {
                     this.next_chapter();
 
-                    let first_path =
-                        match this.current_chapter {
-                            Some(ref chapter) => this.get_split_path(chapter),
-                            None => // No chapter => export the whole file
-                                this.target_path.clone(),
-                        };
-                    this.build_export_context(
-                        Rc::clone(&main_ctrl_clone),
-                        &media_path,
-                        &first_path,
-                    );
+                    let (target_path, can_split) =
+                    match this.current_chapter {
+                        Some(ref chapter) =>
+                            (this.get_split_path(chapter), true),
+                        None => // No chapter => export the whole file
+                            (this.target_path.clone(), false),
+                    };
+
+                    if can_split {
+                        this.build_splitter_context(
+                            Rc::clone(&main_ctrl_clone),
+                            &media_path,
+                            &target_path,
+                        );
+                    } else {
+                        this.build_toc_setter_context(
+                            Rc::clone(&main_ctrl_clone),
+                            &media_path,
+                            &target_path,
+                        );
+                    }
                 }
                 ExportType::SingleFileWithToc => {
                     let target_path = this.target_path.clone();
-                    this.build_export_context(
+                    this.build_toc_setter_context(
                         Rc::clone(&main_ctrl_clone),
                         &media_path,
                         &target_path,
@@ -181,7 +193,7 @@ impl ExportController {
         self.export_dlg.present();
     }
 
-    fn build_export_context(&mut self,
+    fn build_toc_setter_context(&mut self,
         main_ctrl: Rc<RefCell<MainController>>,
         media_path: &Path,
         export_path: &Path,
@@ -189,15 +201,42 @@ impl ExportController {
         self.duration = self.playback_ctx.as_ref()
             .unwrap()
             .get_duration();
-        // export toc within a media container with the streams
         let (ctx_tx, ui_rx) = channel();
 
-        self.register_listener(LISTENER_PERIOD, ui_rx, Rc::clone(&main_ctrl));
+        self.register_toc_setter_listener(LISTENER_PERIOD, ui_rx, Rc::clone(&main_ctrl));
 
-        match ExportContext::new(media_path, export_path, ctx_tx) {
-            Ok(export_ctx) => {
+        match TocSetterContext::new(media_path, export_path, ctx_tx) {
+            Ok(toc_setter_ctx) => {
                 self.switch_to_busy();
-                self.export_ctx = Some(export_ctx);
+                self.toc_setter_ctx = Some(toc_setter_ctx);
+            },
+            Err(error) => {
+                eprintln!("Error exporting media: {}", error);
+                self.remove_listener();
+                self.switch_to_available();
+                main_ctrl.borrow_mut()
+                    .restore_context(self.playback_ctx.take().unwrap());
+                self.export_dlg.hide();
+            }
+        };
+    }
+
+    fn build_splitter_context(&mut self,
+        main_ctrl: Rc<RefCell<MainController>>,
+        media_path: &Path,
+        export_path: &Path,
+    ) {
+        self.duration = self.playback_ctx.as_ref()
+            .unwrap()
+            .get_duration();
+        let (ctx_tx, ui_rx) = channel();
+
+        self.register_splitter_listener(LISTENER_PERIOD, ui_rx, Rc::clone(&main_ctrl));
+
+        match SplitterContext::new(media_path, export_path, ctx_tx) {
+            Ok(splitter_ctx) => {
+                self.switch_to_busy();
+                self.splitter_ctx = Some(splitter_ctx);
             },
             Err(error) => {
                 eprintln!("Error exporting media: {}", error);
@@ -244,7 +283,7 @@ impl ExportController {
         split_name +=
             &format!(
                 "{:02}. {}.{}",
-                self.idx + 1,
+                self.idx,
                 chapter.get_title().unwrap_or(DEFAULT_TITLE),
                 self.extension,
             );
@@ -286,7 +325,7 @@ impl ExportController {
         }
     }
 
-    fn register_listener(&mut self,
+    fn register_toc_setter_listener(&mut self,
         timeout: u32,
         ui_rx: Receiver<ContextMessage>,
         main_ctrl: Rc<RefCell<MainController>>,
@@ -304,8 +343,8 @@ impl ExportController {
 
             if this.duration > 0 {
                 let position =
-                    match this.export_ctx.as_mut() {
-                        Some(export_ctx) => export_ctx.get_position(),
+                    match this.toc_setter_ctx.as_mut() {
+                        Some(toc_setter_ctx) => toc_setter_ctx.get_position(),
                         None => 0,
                     };
                 this.progress_bar.set_fraction(position as f64 / this.duration as f64);
@@ -314,83 +353,36 @@ impl ExportController {
             for message in ui_rx.try_iter() {
                 match message {
                     AsyncDone => {
-                        println!("ExportContext::listener(AsyncDone)");
+                        println!("ExportContext::toc_setter(AsyncDone)");
                     }
                     InitDone => {
-                        let export_ctx = this.export_ctx.as_ref()
-                            .expect("ExportContext::listener(InitDone) couldn't get ExportContext");
+                        let mut toc_setter_ctx = this.toc_setter_ctx.take()
+                            .expect("ExportContext::toc_setter(InitDone) couldn't get ExportContext");
 
-                        match export_ctx.get_muxer() {
-                            Some(muxer) => {
-                                match this.export_type {
-                                    ExportType::Split => {
-                                        match this.current_chapter {
-                                            Some(ref chapter) => {
-                                                println!("Split chapter found");
-                                                let target_path = this.get_split_path(chapter);
-                                                println!("target_path {:?}", target_path);
-                                                match export_ctx.export_part(
-                                                    &target_path,
-                                                    chapter.start.nano_total,
-                                                    chapter.end.nano_total,
-                                                ) {
-                                                    Ok(_) => println!("export part"),
-                                                    Err(_) => {
-                                                        this.switch_to_available();
-                                                        eprintln!(
-                                                            "ERROR: failed to export part {:?}",
-                                                            target_path,
-                                                        );
-                                                    }
-                                                }
-                                            }
-                                            None => {
-                                                println!("Split no chapter");
-                                                match export_ctx.export() {
-                                                    Ok(_) => (),
-                                                    Err(err) => {
-                                                        this.switch_to_available();
-                                                        eprintln!(
-                                                            "ERROR: failed to export media: {}",
-                                                            err,
-                                                        );
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    ExportType::SingleFileWithToc => {
-                                        let exporter = MatroskaTocFormat::new();
-                                        {
-                                            let info = this.playback_ctx.as_ref().unwrap()
-                                                .info
-                                                    .lock()
-                                                        .expect(concat!(
-                                                            "ExportController::listener(InitDone) ",
-                                                            "failed to lock media info",
-                                                        ));
-                                            exporter.export(&info.metadata, &info.chapters, &muxer);
-                                        }
+                        let exporter = MatroskaTocFormat::new();
+                        {
+                            let muxer = toc_setter_ctx.get_muxer()
+                                .expect("ExportContext::toc_setter(InitDone) couldn't get muxer");
 
-                                        match export_ctx.export() {
-                                            Ok(_) => (),
-                                            Err(err) => {
-                                                this.switch_to_available();
-                                                eprintln!("ERROR: failed to export media: {}", err);
-                                            }
-                                        }
-                                    }
-                                    _ => unreachable!(concat!(
-                                        "ExportController::listener(InitDone) ",
-                                        "Unexpected export type",
-                                    )),
-                                }
-                            }
-                            None => {
+                            let info = this.playback_ctx.as_ref().unwrap()
+                                .info
+                                    .lock()
+                                        .expect(concat!(
+                                            "ExportController::toc_setter(InitDone) ",
+                                            "failed to lock media info",
+                                        ));
+                            exporter.export(&info.metadata, &info.chapters, &muxer);
+                        }
+
+                        match toc_setter_ctx.export() {
+                            Ok(_) => (),
+                            Err(err) => {
                                 this.switch_to_available();
-                                eprintln!("ExportContext::listener(InitDone) couldn't get ")
+                                eprintln!("ERROR: failed to export media: {}", err);
                             }
                         }
+
+                        this.toc_setter_ctx = Some(toc_setter_ctx);
                     }
                     Eos => {
                         this.switch_to_available();
@@ -399,11 +391,167 @@ impl ExportController {
                         this.export_dlg.hide();
                         keep_going = false;
                     }
-                    FailedToOpenMedia => {
+                    FailedToExport => {
                         this.switch_to_available();
                         eprintln!("ERROR: failed to export media");
                         keep_going = false;
                     }
+                    _ => (),
+                };
+
+                if !keep_going {
+                    break;
+                }
+            }
+
+            if !keep_going {
+                this.listener_src = None;
+            }
+
+            glib::Continue(keep_going)
+        }));
+    }
+
+    fn register_splitter_listener(&mut self,
+        timeout: u32,
+        ui_rx: Receiver<ContextMessage>,
+        main_ctrl: Rc<RefCell<MainController>>,
+    ) {
+        if self.listener_src.is_some() {
+            return;
+        }
+
+        let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
+
+        self.listener_src = Some(gtk::timeout_add(timeout, move || {
+            let mut keep_going = true;
+
+            let mut this = this_rc.borrow_mut();
+
+            if this.duration > 0 {
+                let position =
+                    match this.splitter_ctx.as_mut() {
+                        Some(splitter_ctx) => splitter_ctx.get_position(),
+                        None => 0,
+                    };
+                this.progress_bar.set_fraction(position as f64 / this.duration as f64);
+            }
+
+            for message in ui_rx.try_iter() {
+                match message {
+                    AsyncDone => {
+                        println!("ExportContext::splitter(AsyncDone)");
+
+                        /*let next_path = this.current_chapter.as_ref().map(|chapter| {
+                            this.get_split_path(chapter)
+                        });
+
+                        match next_path {
+                            Some(next_path) => {
+                                /*this.splitter_ctx.as_mut()
+                                    .expect("ExportContext::splitter(AsyncDone) couldn't get ExportContext")
+                                    .reset_output_path(&next_path);*/
+                            }
+                            None =>  {
+                                println!("ExportContext::splitter(AsyncDone): no more chapters");
+                                this.switch_to_available();
+                                main_ctrl.borrow_mut()
+                                    .restore_context(this.playback_ctx.take().unwrap());
+                                this.export_dlg.hide();
+                                keep_going = false;
+                            }
+                        }*/
+                    }
+                    InitDone => {
+                        println!("ExportContext::splitter(InitDone)");
+                        let splitter_ctx = this.splitter_ctx.take()
+                            .expect("ExportContext::splitter(InitDone) couldn't get ExportContext");
+
+                        {
+                            let chapter = this.current_chapter.as_ref()
+                                .expect("ExportController::slipt(InitDone) no chapter");
+                            println!("Split: chapter found");
+                            match splitter_ctx.export_chapter(
+                                chapter.start.nano_total,
+                                chapter.end.nano_total,
+                            ) {
+                                Ok(_) => (),
+                                Err(_) => {
+                                    this.switch_to_available();
+                                    eprintln!("ERROR: failed to export first chapter");
+                                }
+                            };
+                        }
+
+                        this.splitter_ctx = Some(splitter_ctx);
+                    }
+                    Eos => {
+                        println!("ExportContext::splitter(Eos)");
+                        this.switch_to_available();
+                        main_ctrl.borrow_mut()
+                            .restore_context(this.playback_ctx.take().unwrap());
+                        this.export_dlg.hide();
+                        keep_going = false;
+                    }
+                    FailedToExport => {
+                        this.switch_to_available();
+                        eprintln!("ERROR: failed to export media");
+                        keep_going = false;
+                    }
+                    SeekDone => {
+                        println!("ExportContext::splitter(SeekDone)");
+                        let splitter_ctx = this.splitter_ctx.take()
+                            .expect("ExportContext::listener(SegmentDone) couldn't get ExportContext");
+
+                        this.next_chapter();
+                        if let Some(ref _chapter) = this.current_chapter {
+                            /*match splitter_ctx.export() {
+                                Ok(_) => (),
+                                Err(err) => {
+                                    this.switch_to_available();
+                                    eprintln!("ERROR: failed to export chapter: {}", err);
+                                }
+                            }*/
+                            /*let target_path = this.get_split_path(chapter);
+                            match splitter_ctx.reset_output_path(&target_path) {
+                                Ok(_) => (),
+                                Err(_) => {
+                                    this.switch_to_available();
+                                    eprintln!(
+                                        "ERROR: failed to reset_output_path to {:?}",
+                                        target_path,
+                                    );
+                                }
+                            };*/
+
+                            /*println!("target_path {:?}", target_path);
+                            match splitter_ctx.export_chapter(
+                                chapter.start.nano_total,
+                                chapter.end.nano_total,
+                            ) {
+                                Ok(_) => (),
+                                Err(_) => {
+                                    this.switch_to_available();
+                                    eprintln!(
+                                        "ERROR: failed to define part {:?}",
+                                        target_path,
+                                    );
+                                }
+                            }*/
+                        }
+
+                        if this.current_chapter.is_none() {
+                            println!("Split: no more chapter");
+                            this.switch_to_available();
+                            main_ctrl.borrow_mut()
+                                .restore_context(this.playback_ctx.take().unwrap());
+                            this.export_dlg.hide();
+                            keep_going = false;
+                        }
+
+                        this.splitter_ctx = Some(splitter_ctx);
+                    }
+                    _ => (),
                 };
 
                 if !keep_going {
