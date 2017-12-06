@@ -1,9 +1,8 @@
 extern crate gstreamer as gst;
 use gstreamer::prelude::*;
-use gstreamer::{ClockTime, PadExt, QueryView};
+use gstreamer::{ClockTime, QueryView, TocSetterExt};
 
 extern crate glib;
-use glib::ObjectExt;
 
 use std::sync::mpsc::Sender;
 
@@ -13,7 +12,7 @@ use super::ContextMessage;
 
 pub struct SplitterContext {
     pipeline: gst::Pipeline,
-    filesink: Option<gst::Element>,
+    tag_toc_element: Option<gst::Element>,
     position_ref: Option<gst::Element>,
     position_query: gst::Query,
 }
@@ -22,68 +21,25 @@ impl SplitterContext {
     pub fn new(
         input_path: &Path,
         output_path: &Path,
+        start: u64,
+        end: u64,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<SplitterContext, String> {
-        println!("\n\n* Exporting {:?} to {:?}...", input_path, output_path);
+        println!("\n\n* Exporting {:?}...", input_path);
 
         let mut this = SplitterContext {
             pipeline: gst::Pipeline::new("pipeline"),
-            filesink: None,
+            tag_toc_element: None,
             position_ref: None,
             position_query: gst::Query::new_position(gst::Format::Time),
         };
 
         this.build_pipeline(input_path, output_path);
-        this.register_bus_inspector(ctx_tx);
+        this.register_bus_inspector(start, end, ctx_tx);
 
         match this.pipeline.set_state(gst::State::Paused) {
             gst::StateChangeReturn::Failure => Err("Could not set media in Paused state".into()),
             _ => Ok(this),
-        }
-    }
-
-    pub fn export(&self) -> Result<(), String> {
-        match self.pipeline.set_state(gst::State::Playing) {
-            gst::StateChangeReturn::Failure => Err("Could not set media in palying state".into()),
-            _ => {
-                Ok(())
-            },
-        }
-    }
-
-    pub fn reset_output_path(&self, path: &Path) -> Result<(), ()> {
-        match self.pipeline.set_state(gst::State::Null) {
-            gst::StateChangeReturn::Failure => return Err(()),
-            _ => (),
-        };
-
-        let filesink = self.filesink.as_ref()
-            .expect("ExportController::export_part can't get filesink");
-        filesink.set_property(
-            "location",
-            &gst::Value::from(path.with_extension("ogg").to_str().unwrap())
-        ).unwrap();
-
-        match self.pipeline.set_state(gst::State::Paused) {
-            gst::StateChangeReturn::Failure => return Err(()),
-            _ => (),
-        };
-        Ok(())
-    }
-
-    pub fn export_chapter(&self, start: u64, end: u64) -> Result<(), ()> {
-        println!("seeking to {}, {}", start, end);
-
-        match self.pipeline.seek(
-            1f64,
-            gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE | gst::SeekFlags::SEGMENT,
-            gst::SeekType::Set,
-            ClockTime::from(start),
-            gst::SeekType::Set,
-            ClockTime::from(end),
-        ) {
-            Ok(_) => { println!("seek ok"); Ok(()) },
-            Err(_) => Err(()),
         }
     }
 
@@ -98,8 +54,7 @@ impl SplitterContext {
     }
 
     // TODO: handle errors
-    fn build_pipeline(
-        &mut self,
+    fn build_pipeline(&mut self,
         input_path: &Path,
         output_path: &Path,
     ) {
@@ -108,15 +63,21 @@ impl SplitterContext {
          * to export splitted chapters with audio and video (and subtitles):
          * - matroska-mux drops seek events explicitely (a message states: "discard for now").
          * This means that it is currently not possible to build a pipeline that would allow
-         * seeking in a matroska media (using demux to interprete timstamp) and mux back to
+         * seeking in a matroska media (using demux to interprete timestamps) and mux back to
          * to matroska. One solution would be to export streams to files and mux back
          * crossing fingers to make sure everything remains in sync.
          * - nlesrc (from gstreamer-editing-services) allows extracting frames from a starting
          * positiong for a given duration. However, it is designed to work with single stream
          * medias and decodes to raw formats.
+         * - filesink can't change the file location without setting the pipeline to Null
+         * which also unlinks elements.
+         * - wavenc doesn't send header after a second seek in segment mode.
+         *
+         * The two last issues lead to building a new pipeline for each chapter.
          *
          * Until I design a GUI for the user to select which stream to export to which codec,
-         * current solution is to keep only the audio track and to save it as a wave file */
+         * current solution is to keep only the audio track and to save it as a wave file
+         * which matches the initial purpose of this application */
 
         // Input
         let filesrc = gst::ElementFactory::make("filesrc", None).unwrap();
@@ -127,20 +88,23 @@ impl SplitterContext {
         let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
 
         // Output sink
-        let filesink = gst::ElementFactory::make("filesink", "filesink").unwrap();
-        filesink.set_property(
+        let audio_enc = gst::ElementFactory::make("wavenc", "audioenc").unwrap();
+        let outsink = gst::ElementFactory::make("filesink", "filesink").unwrap();
+        outsink.set_property(
             "location",
             &gst::Value::from(output_path.with_extension("wave").to_str().unwrap())
         ).unwrap();
+
         {
-            self.pipeline.add_many(&[&filesrc, &decodebin, &filesink]).unwrap();
+            self.pipeline.add_many(&[&filesrc, &decodebin, &audio_enc, &outsink]).unwrap();
             filesrc.link(&decodebin).unwrap();
             decodebin.sync_state_with_parent().unwrap();
+            audio_enc.link(&outsink).unwrap();
+            outsink.sync_state_with_parent().unwrap();
         }
 
-        // TODO: add a tag setter element
         self.position_ref = Some(decodebin.clone());
-        self.filesink = Some(filesink.clone());
+        self.tag_toc_element = Some(audio_enc.clone());
 
         let pipeline_cb = self.pipeline.clone();
         decodebin.connect_pad_added(move |_element, pad| {
@@ -155,15 +119,12 @@ impl SplitterContext {
             queue.sync_state_with_parent().unwrap();
             let queue_src_pad = queue.get_static_pad("src").unwrap();
 
-            if name.starts_with("audio/") {
-                println!("audio caps: {:?}", caps);
-                let audio_conv = gst::ElementFactory::make("audioconvert", None).unwrap();
-                let audio_enc = gst::ElementFactory::make("wavenc", None).unwrap();
-                pipeline_cb.add_many(&[&audio_conv, &audio_enc]).unwrap();
-                gst::Element::link_many(&[&queue, &audio_conv, &audio_enc, &filesink]).unwrap();
+            if name.starts_with("audio/") && pipeline_cb.get_by_name("audioconvert").is_none() {
+                let audio_conv = gst::ElementFactory::make("audioconvert", "audioconvert").unwrap();
+                pipeline_cb.add(&audio_conv).unwrap();
+                gst::Element::link_many(&[&queue, &audio_conv, &audio_enc]).unwrap();
                 audio_conv.sync_state_with_parent().unwrap();
                 audio_enc.sync_state_with_parent().unwrap();
-                filesink.sync_state_with_parent().unwrap();
             } else {
                 let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
                 pipeline_cb.add(&fakesink).unwrap();
@@ -175,12 +136,27 @@ impl SplitterContext {
     }
 
     // Uses ctx_tx to notify the UI controllers about the inspection process
-    fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
+    fn register_bus_inspector(&self,
+        start: u64,
+        end: u64,
+        ctx_tx: Sender<ContextMessage>,
+    ) {
         let mut init_done = false;
-        let pipeline_cb = self.pipeline.clone();
+        let pipeline = self.pipeline.clone();
+        let tag_toc_element = self.tag_toc_element.as_ref()
+            .expect("SplitContext::register_bus_inspector no tag toc element")
+            .clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
+                    match pipeline.set_state(gst::State::Null) {
+                        gst::StateChangeReturn::Failure =>
+                            ctx_tx.send(ContextMessage::FailedToExport).expect(
+                                "Error: Failed to notify UI",
+                            ),
+                        _ => (),
+                    }
+                    init_done = false;
                     ctx_tx.send(ContextMessage::Eos).expect(
                         "Eos: Failed to notify UI",
                     );
@@ -199,43 +175,45 @@ impl SplitterContext {
                     return glib::Continue(false);
                 }
                 gst::MessageView::AsyncDone(_) => {
-                    println!("gst::MessageView::AsyncDone");
                     if !init_done {
                         init_done = true;
-                        ctx_tx.send(ContextMessage::InitDone).expect(
-                            "InitDone: Failed to notify UI",
-                        );
-                    } else {
-                        ctx_tx.send(ContextMessage::AsyncDone).expect(
-                            "AsyncDone: Failed to notify UI",
-                        );
-                    }
-                }
-                gst::MessageView::StateChanged(state_changed) => {
-                    println!("gst::MessageView::StateChanged {:?} => {:?} ({:?})",
-                        state_changed.get_old(),
-                        state_changed.get_current(),
-                        state_changed.get_pending(),
-                    );
-                    if state_changed.get_current() == gst::State::Null {
-                        init_done = false;
-                    }
-                }
-                gst::MessageView::SegmentDone(_) => {
-                    println!("gst::MessageView::SegmentDone");
-                    match pipeline_cb.set_state(gst::State::Playing) {
-                        gst::StateChangeReturn::Failure =>
-                            ctx_tx.send(ContextMessage::FailedToExport).expect(
-                                "Error: Failed to notify UI",
+
+                        // TODO: set tags
+                        let tag_setter =
+                            tag_toc_element.clone().dynamic_cast::<gst::TagSetter>()
+                                .expect("SplitterContext(AsyncDone) not a TagSetter");
+                        tag_setter.reset_tags();
+
+                        // Don't export initial media's toc
+                        // FIXME: actually remove the toc (see wavenc source code)
+                        let toc_setter =
+                            tag_toc_element.clone().dynamic_cast::<gst::TocSetter>()
+                                .expect("SplitterContext(AsyncDone) not a TocSetter");
+                        toc_setter.reset();
+
+                        match pipeline.seek(
+                            1f64,
+                            gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
+                            gst::SeekType::Set,
+                            ClockTime::from(start),
+                            gst::SeekType::Set,
+                            ClockTime::from(end),
+                        ) {
+                            Ok(_) => (),
+                            Err(_) =>
+                                ctx_tx.send(ContextMessage::FailedToExport).expect(
+                                    "Error: Failed to notify UI",
                             ),
-                        _ => ()
-                            /*ctx_tx.send(ContextMessage::SeekDone).expect(
-                                "SegmentDone: Failed to notify UI",
-                            )*/,
+                        };
+                    } else {
+                        match pipeline.set_state(gst::State::Playing) {
+                            gst::StateChangeReturn::Failure =>
+                                ctx_tx.send(ContextMessage::FailedToExport).expect(
+                                    "Error: Failed to notify UI",
+                            ),
+                            _ => ()
+                        }
                     }
-                }
-                gst::MessageView::NewClock(_) => {
-                    println!("gst::MessageView::NewClock");
                 }
                 _ => (()),
             }

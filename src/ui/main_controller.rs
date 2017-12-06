@@ -328,7 +328,6 @@ impl MainController {
                         this.keep_going = false;
                         keep_going = false;
                     }
-                    SeekDone => (), // TODO: use this
                     _ => (),
                 };
 

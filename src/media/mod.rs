@@ -31,5 +31,4 @@ pub enum ContextMessage {
     FailedToOpenMedia,
     FailedToExport,
     InitDone,
-    SeekDone,
 }
