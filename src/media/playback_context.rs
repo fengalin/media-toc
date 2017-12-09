@@ -113,7 +113,15 @@ impl PlaybackContext {
     }
 
     pub fn get_position(&mut self) -> u64 {
-        self.position_element.as_ref().unwrap()
+        let pipeline = self.pipeline.clone();
+        self.position_element
+            .get_or_insert_with(|| if let Some(video) = pipeline.get_by_name("video_sink") {
+                video
+            } else if let Some(audio) = pipeline.get_by_name("audio_playback_sink") {
+                audio
+            } else {
+                panic!("No sink in pipeline");
+            })
             .query(self.position_query.get_mut().unwrap());
         match self.position_query.view() {
             QueryView::Position(ref position) => position.get_result().to_value() as u64,
@@ -192,8 +200,6 @@ impl PlaybackContext {
         file_src.link(&decodebin).unwrap();
 
         let audio_sink = gst::ElementFactory::make("autoaudiosink", "audio_playback_sink").unwrap();
-
-        self.position_element = Some(decodebin.clone());
 
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
