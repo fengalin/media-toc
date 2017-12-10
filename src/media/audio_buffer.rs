@@ -381,7 +381,12 @@ impl AudioBuffer {
         }
 
         let mut segment = gst::Segment::new();
-        segment.set_start(self.sample_duration * (segment_lower as u64) + 1);
+        segment.set_format(gst::Format::Time);
+        segment.set_start(
+            ClockTime::from_nseconds(
+                self.sample_duration * (segment_lower as u64) + 1
+            )
+        );
 
         let self_lower = self.lower;
 
@@ -396,7 +401,7 @@ impl AudioBuffer {
         );
 
         self.push_gst_sample(
-            gst::Sample::new(Some(buffer), Some(caps), Some(&segment), None),
+            gst::Sample::new(Some(&buffer), Some(&caps), Some(&segment), None),
             self_lower, // never drain buffer in this test
         );
     }
