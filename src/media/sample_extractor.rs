@@ -76,7 +76,7 @@ pub trait SampleExtractor: Send {
             )
             .query(state.position_query.get_mut().unwrap());
         let position = match state.position_query.view() {
-            QueryView::Position(ref position) => position.get_result().to_value() as u64,
+            QueryView::Position(ref position) => position.get_result().get_value() as u64,
             _ => unreachable!(),
         };
         (position, (position / state.sample_duration) as usize)

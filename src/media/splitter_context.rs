@@ -48,7 +48,7 @@ impl SplitterContext {
             .unwrap()
             .query(self.position_query.get_mut().unwrap());
         match self.position_query.view() {
-            QueryView::Position(ref position) => position.get_result().to_value() as u64,
+            QueryView::Position(ref position) => position.get_result().get_value() as u64,
             _ => unreachable!(),
         }
     }
@@ -165,7 +165,9 @@ impl SplitterContext {
                 gst::MessageView::Error(err) => {
                     eprintln!(
                         "Error from {}: {} ({:?})",
-                        msg.get_src().get_path_string(),
+                        msg.get_src()
+                            .map(|s| s.get_path_string())
+                            .unwrap_or_else(|| String::from("None")),
                         err.get_error(),
                         err.get_debug()
                     );

@@ -45,10 +45,10 @@ impl Exporter for MatroskaTocFormat {
             {
                 let tag_list = tag_list.get_mut().unwrap();
                 if let Some(title) = metadata.get(super::METADATA_TITLE) {
-                    tag_list.add::<gst::tags::Title>(title, gst::TagMergeMode::Append);
+                    tag_list.add::<gst::tags::Title>(&title.as_str(), gst::TagMergeMode::Append);
                 }
                 if let Some(artist) = metadata.get(super::METADATA_ARTIST) {
-                    tag_list.add::<gst::tags::Artist>(artist, gst::TagMergeMode::Append);
+                    tag_list.add::<gst::tags::Artist>(&artist.as_str(), gst::TagMergeMode::Append);
                 }
             }
 
@@ -79,7 +79,7 @@ impl Exporter for MatroskaTocFormat {
                     let mut tag_list = gst::TagList::new();
                     tag_list.get_mut().unwrap()
                         .add::<gst::tags::Title>(
-                            &chapter.get_title().unwrap_or(super::DEFAULT_TITLE).to_owned(),
+                            &chapter.get_title().unwrap_or(super::DEFAULT_TITLE),
                             gst::TagMergeMode::Append,
                         );
                     toc_sub_entry.get_mut().unwrap()
