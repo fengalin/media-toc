@@ -399,7 +399,7 @@ impl AudioBuffer {
         );
 
         self.push_gst_sample(
-            gst::Sample::new(Some(&buffer), Some(&caps), Some(&segment), None),
+            &gst::Sample::new(Some(&buffer), Some(&caps), Some(&segment), None),
             self_lower, // never drain buffer in this test
         );
     }
