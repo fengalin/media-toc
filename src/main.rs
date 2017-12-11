@@ -39,7 +39,9 @@ fn main() {
 
     let main_ctrl = {
         let builder = Builder::new_from_string(include_str!("ui/media-toc.ui"));
-        builder.add_from_string(include_str!("ui/media-toc-export.ui")).unwrap();
+        builder
+            .add_from_string(include_str!("ui/media-toc-export.ui"))
+            .unwrap();
         MainController::new(&builder)
     };
     main_ctrl.borrow().show_all();

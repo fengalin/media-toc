@@ -69,19 +69,17 @@ impl Timestamp {
         // parse last part, expecting 000.000 or 000.000.000
         let last = parts.pop().unwrap();
         let mut dot_parts: Vec<&str> = last.split('.').collect();
-        ts.us =
-            if dot_parts.len() == 3 {
-                dot_parts.pop().unwrap().parse::<u64>().unwrap()
-            } else {
-                0
-            };
+        ts.us = if dot_parts.len() == 3 {
+            dot_parts.pop().unwrap().parse::<u64>().unwrap()
+        } else {
+            0
+        };
 
-        ts.ms =
-            if dot_parts.len() == 2 {
-                dot_parts.pop().unwrap().parse::<u64>().unwrap()
-            } else {
-                0
-            };
+        ts.ms = if dot_parts.len() == 2 {
+            dot_parts.pop().unwrap().parse::<u64>().unwrap()
+        } else {
+            0
+        };
 
         ts.s = dot_parts.pop().unwrap().parse::<u64>().unwrap();
 
@@ -95,14 +93,8 @@ impl Timestamp {
             panic!("Timestamp::from_string too many parts in {}", input);
         }
 
-        ts.nano_total =
-            (
-                (
-                    (
-                        (ts.h * 60 + ts.m) * 60 + ts.s
-                    ) * 1_000 + ts.ms
-                ) * 1_000 + ts.us
-            ) * 1_000;
+        ts.nano_total = ((((ts.h * 60 + ts.m) * 60 + ts.s) * 1_000 + ts.ms) * 1_000 + ts.us) *
+            1_000;
 
         ts
     }
@@ -169,7 +161,10 @@ mod tests {
         assert_eq!(ts.ms, 10);
         assert_eq!(ts.us, 0);
         assert_eq!(ts.nano, 0);
-        assert_eq!(ts.nano_total, ((((10 * 60 + 42) * 60 + 20) * 1_000) + 10) * 1_000 * 1_000);
+        assert_eq!(
+            ts.nano_total,
+            ((((10 * 60 + 42) * 60 + 20) * 1_000) + 10) * 1_000 * 1_000
+        );
 
         let ts = Timestamp::from_string("42:20.010");
         assert_eq!(ts.h, 0);
@@ -178,7 +173,10 @@ mod tests {
         assert_eq!(ts.ms, 10);
         assert_eq!(ts.us, 0);
         assert_eq!(ts.nano, 0);
-        assert_eq!(ts.nano_total, (((42 * 60 + 20) * 1_000) + 10) * 1_000 * 1_000);
+        assert_eq!(
+            ts.nano_total,
+            (((42 * 60 + 20) * 1_000) + 10) * 1_000 * 1_000
+        );
 
         let ts = Timestamp::from_string("42:20.010.015");
         assert_eq!(ts.h, 0);
@@ -187,6 +185,9 @@ mod tests {
         assert_eq!(ts.ms, 10);
         assert_eq!(ts.us, 15);
         assert_eq!(ts.nano, 0);
-        assert_eq!(ts.nano_total, ((((42 * 60 + 20) * 1_000) + 10) * 1_000 + 15) * 1_000);
-   }
+        assert_eq!(
+            ts.nano_total,
+            ((((42 * 60 + 20) * 1_000) + 10) * 1_000 + 15) * 1_000
+        );
+    }
 }

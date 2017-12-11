@@ -44,9 +44,11 @@ impl SplitterContext {
     }
 
     pub fn get_position(&mut self) -> u64 {
-        self.position_ref.as_ref()
-            .unwrap()
-            .query(self.position_query.get_mut().unwrap());
+        self.position_ref.as_ref().unwrap().query(
+            self.position_query
+                .get_mut()
+                .unwrap(),
+        );
         match self.position_query.view() {
             QueryView::Position(ref position) => position.get_result().get_value() as u64,
             _ => unreachable!(),
@@ -54,10 +56,7 @@ impl SplitterContext {
     }
 
     // TODO: handle errors
-    fn build_pipeline(&mut self,
-        input_path: &Path,
-        output_path: &Path,
-    ) {
+    fn build_pipeline(&mut self, input_path: &Path, output_path: &Path) {
         // FIXME: multiple issues
         /* There are multiple showstoppers to implementing something ideal
          * to export splitted chapters with audio and video (and subtitles):
@@ -81,22 +80,25 @@ impl SplitterContext {
 
         // Input
         let filesrc = gst::ElementFactory::make("filesrc", None).unwrap();
-        filesrc.set_property(
-            "location",
-            &gst::Value::from(input_path.to_str().unwrap())
-        ).unwrap();
+        filesrc
+            .set_property("location", &gst::Value::from(input_path.to_str().unwrap()))
+            .unwrap();
         let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
 
         // Output sink
         let audio_enc = gst::ElementFactory::make("wavenc", "audioenc").unwrap();
         let outsink = gst::ElementFactory::make("filesink", "filesink").unwrap();
-        outsink.set_property(
-            "location",
-            &gst::Value::from(output_path.with_extension("wave").to_str().unwrap())
-        ).unwrap();
+        outsink
+            .set_property(
+                "location",
+                &gst::Value::from(output_path.with_extension("wave").to_str().unwrap()),
+            )
+            .unwrap();
 
         {
-            self.pipeline.add_many(&[&filesrc, &decodebin, &audio_enc, &outsink]).unwrap();
+            self.pipeline
+                .add_many(&[&filesrc, &decodebin, &audio_enc, &outsink])
+                .unwrap();
             filesrc.link(&decodebin).unwrap();
             decodebin.sync_state_with_parent().unwrap();
             audio_enc.link(&outsink).unwrap();
@@ -129,21 +131,21 @@ impl SplitterContext {
                 let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
                 pipeline_cb.add(&fakesink).unwrap();
                 let fakesink_sink_pad = fakesink.get_static_pad("sink").unwrap();
-                assert_eq!(queue_src_pad.link(&fakesink_sink_pad), gst::PadLinkReturn::Ok);
+                assert_eq!(
+                    queue_src_pad.link(&fakesink_sink_pad),
+                    gst::PadLinkReturn::Ok
+                );
                 fakesink.sync_state_with_parent().unwrap();
             }
         });
     }
 
     // Uses ctx_tx to notify the UI controllers about the inspection process
-    fn register_bus_inspector(&self,
-        start: u64,
-        end: u64,
-        ctx_tx: Sender<ContextMessage>,
-    ) {
+    fn register_bus_inspector(&self, start: u64, end: u64, ctx_tx: Sender<ContextMessage>) {
         let mut init_done = false;
         let pipeline = self.pipeline.clone();
-        let tag_toc_element = self.tag_toc_element.as_ref()
+        let tag_toc_element = self.tag_toc_element
+            .as_ref()
             .expect("SplitContext::register_bus_inspector no tag toc element")
             .clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
@@ -163,9 +165,11 @@ impl SplitterContext {
                 gst::MessageView::Error(err) => {
                     eprintln!(
                         "Error from {}: {} ({:?})",
-                        msg.get_src()
-                            .map(|s| s.get_path_string())
-                            .unwrap_or_else(|| String::from("None")),
+                        msg.get_src().map(|s| s.get_path_string()).unwrap_or_else(
+                            || {
+                                String::from("None")
+                            },
+                        ),
                         err.get_error(),
                         err.get_debug()
                     );
@@ -179,16 +183,18 @@ impl SplitterContext {
                         init_done = true;
 
                         // TODO: set tags
-                        let tag_setter =
-                            tag_toc_element.clone().dynamic_cast::<gst::TagSetter>()
-                                .expect("SplitterContext(AsyncDone) not a TagSetter");
+                        let tag_setter = tag_toc_element
+                            .clone()
+                            .dynamic_cast::<gst::TagSetter>()
+                            .expect("SplitterContext(AsyncDone) not a TagSetter");
                         tag_setter.reset_tags();
 
                         // Don't export initial media's toc
                         // FIXME: actually remove the toc (see wavenc source code)
-                        let toc_setter =
-                            tag_toc_element.clone().dynamic_cast::<gst::TocSetter>()
-                                .expect("SplitterContext(AsyncDone) not a TocSetter");
+                        let toc_setter = tag_toc_element
+                            .clone()
+                            .dynamic_cast::<gst::TocSetter>()
+                            .expect("SplitterContext(AsyncDone) not a TocSetter");
                         toc_setter.reset();
 
                         match pipeline.seek(
@@ -200,13 +206,15 @@ impl SplitterContext {
                             ClockTime::from(end),
                         ) {
                             Ok(_) => (),
-                            Err(_) =>
+                            Err(_) => {
                                 ctx_tx.send(ContextMessage::FailedToExport).expect(
                                     "Error: Failed to notify UI",
-                            ),
+                                )
+                            }
                         };
                     } else if pipeline.set_state(gst::State::Playing) ==
-                                gst::StateChangeReturn::Failure {
+                               gst::StateChangeReturn::Failure
+                    {
                         ctx_tx.send(ContextMessage::FailedToExport).expect(
                             "Error: Failed to notify UI",
                         );

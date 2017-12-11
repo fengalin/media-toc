@@ -94,7 +94,7 @@ impl ExportController {
 
     pub fn register_callbacks(
         this_rc: &Rc<RefCell<Self>>,
-        main_ctrl: &Rc<RefCell<MainController>>
+        main_ctrl: &Rc<RefCell<MainController>>,
     ) {
         let this = this_rc.borrow();
 
@@ -102,7 +102,11 @@ impl ExportController {
         let main_ctrl_clone = Rc::clone(main_ctrl);
         this.export_dlg.connect_delete_event(move |dlg, _| {
             main_ctrl_clone.borrow_mut().restore_context(
-                this_clone.borrow_mut().playback_ctx.take().unwrap()
+                this_clone
+                    .borrow_mut()
+                    .playback_ctx
+                    .take()
+                    .unwrap(),
             );
             dlg.hide_on_delete();
             Inhibit(true)
@@ -120,10 +124,16 @@ impl ExportController {
             this.idx = 0;
 
             let is_audio_only = {
-                this.playback_ctx.as_ref().unwrap().info.lock()
+                this.playback_ctx
+                    .as_ref()
+                    .unwrap()
+                    .info
+                    .lock()
                     .expect(
                         "ExportController::export_btn clicked, failed to lock media info",
-                    ).video_best.is_none()
+                    )
+                    .video_best
+                    .is_none()
             };
             this.extension = toc::Factory::get_extension(&format, is_audio_only).to_owned();
 
@@ -134,29 +144,32 @@ impl ExportController {
                 this.remove_listener();
             }
 
-            this.duration = this.playback_ctx.as_ref()
-                .unwrap()
-                .get_duration();
+            this.duration = this.playback_ctx.as_ref().unwrap().get_duration();
 
             match export_type {
                 ExportType::ExternalToc => {
                     // export toc as a standalone file
                     // TODO: handle file related errors
-                    let mut output_file = File::create(&this.target_path)
-                        .expect("ExportController::export_btn clicked couldn't create output file");
+                    let mut output_file = File::create(&this.target_path).expect(
+                        "ExportController::export_btn clicked couldn't create output file",
+                    );
 
                     {
-                        let info = this.playback_ctx.as_ref()
-                            .unwrap().info.lock()
-                            .expect(
-                                "ExportController::export_btn clicked, failed to lock media info",
-                            );
-                        toc::Factory::get_writer(&format)
-                            .write(&info.metadata, &info.chapters, &mut output_file);
+                        let info = this.playback_ctx.as_ref().unwrap().info.lock().expect(
+                            "ExportController::export_btn clicked, failed to lock media info",
+                        );
+                        toc::Factory::get_writer(&format).write(
+                            &info.metadata,
+                            &info.chapters,
+                            &mut output_file,
+                        );
                     }
 
-                    main_ctrl_clone.borrow_mut()
-                        .restore_context(this.playback_ctx.take().unwrap());
+                    main_ctrl_clone.borrow_mut().restore_context(
+                        this.playback_ctx
+                            .take()
+                            .unwrap(),
+                    );
                     this.export_dlg.hide();
                 }
                 ExportType::Split => {
@@ -164,7 +177,8 @@ impl ExportController {
 
                     if has_chapters {
                         this.build_splitter_context(&main_ctrl_clone);
-                    } else { // No chapter => export the whole file
+                    } else {
+                        // No chapter => export the whole file
                         let target_path = this.target_path.clone();
                         this.build_toc_setter_context(&main_ctrl_clone, &target_path);
                     }
@@ -184,7 +198,8 @@ impl ExportController {
         self.export_dlg.present();
     }
 
-    fn build_toc_setter_context(&mut self,
+    fn build_toc_setter_context(
+        &mut self,
         main_ctrl: &Rc<RefCell<MainController>>,
         export_path: &Path,
     ) {
@@ -197,28 +212,28 @@ impl ExportController {
             Ok(toc_setter_ctx) => {
                 self.switch_to_busy();
                 self.toc_setter_ctx = Some(toc_setter_ctx);
-            },
+            }
             Err(error) => {
                 eprintln!("Error exporting media: {}", error);
                 self.remove_listener();
                 self.switch_to_available();
-                main_ctrl.borrow_mut()
-                    .restore_context(self.playback_ctx.take().unwrap());
+                main_ctrl.borrow_mut().restore_context(
+                    self.playback_ctx.take().unwrap(),
+                );
                 self.export_dlg.hide();
             }
         };
     }
 
-    fn build_splitter_context(&mut self,
-        main_ctrl: &Rc<RefCell<MainController>>,
-    ) {
+    fn build_splitter_context(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
         let (ctx_tx, ui_rx) = channel();
 
         self.register_splitter_listener(LISTENER_PERIOD, ui_rx, Rc::clone(main_ctrl));
 
         let (output_path, start, end) = {
-            let chapter = self.current_chapter.as_ref()
-                .expect("ExportController::build_splitter_context no chapter");
+            let chapter = self.current_chapter.as_ref().expect(
+                "ExportController::build_splitter_context no chapter",
+            );
             (
                 self.get_split_path(chapter),
                 chapter.start.nano_total,
@@ -231,13 +246,14 @@ impl ExportController {
             Ok(splitter_ctx) => {
                 self.switch_to_busy();
                 self.splitter_ctx = Some(splitter_ctx);
-            },
+            }
             Err(error) => {
                 eprintln!("Error exporting media: {}", error);
                 self.remove_listener();
                 self.switch_to_available();
-                main_ctrl.borrow_mut()
-                    .restore_context(self.playback_ctx.take().unwrap());
+                main_ctrl.borrow_mut().restore_context(
+                    self.playback_ctx.take().unwrap(),
+                );
                 self.export_dlg.hide();
             }
         };
@@ -245,12 +261,13 @@ impl ExportController {
 
     fn next_chapter(&mut self) -> Option<&Chapter> {
         let next_chapter = {
-            let info = self.playback_ctx.as_ref().unwrap()
-                .info.lock()
-                    .expect("ExportController::next_chapter failed to lock media info");
+            let info = self.playback_ctx.as_ref().unwrap().info.lock().expect(
+                "ExportController::next_chapter failed to lock media info",
+            );
 
-            info.chapters.get(self.idx)
-                .map(|chapter| chapter.clone().to_owned())
+            info.chapters.get(self.idx).map(|chapter| {
+                chapter.clone().to_owned()
+            })
         };
 
         self.current_chapter = next_chapter;
@@ -264,9 +281,9 @@ impl ExportController {
     fn get_split_path(&self, chapter: &Chapter) -> PathBuf {
         let mut split_name = String::new();
 
-        let info = self.playback_ctx.as_ref().unwrap()
-            .info.lock()
-                .expect("ExportController::get_split_name failed to lock media info");
+        let info = self.playback_ctx.as_ref().unwrap().info.lock().expect(
+            "ExportController::get_split_name failed to lock media info",
+        );
 
         // TODO: make format customisable
         if let Some(artist) = info.get_artist() {
@@ -276,8 +293,7 @@ impl ExportController {
             split_name += &format!("{} - ", title);
         }
 
-        split_name +=
-            &format!(
+        split_name += &format!(
                 "{:02}. {}.{}",
                 self.idx,
                 chapter.get_title().unwrap_or(DEFAULT_TITLE),
@@ -323,7 +339,8 @@ impl ExportController {
         }
     }
 
-    fn register_toc_setter_listener(&mut self,
+    fn register_toc_setter_listener(
+        &mut self,
         timeout: u32,
         ui_rx: Receiver<ContextMessage>,
         main_ctrl: Rc<RefCell<MainController>>,
@@ -336,12 +353,13 @@ impl ExportController {
             let mut this = this_rc.borrow_mut();
 
             if this.duration > 0 {
-                let position =
-                    match this.toc_setter_ctx.as_mut() {
-                        Some(toc_setter_ctx) => toc_setter_ctx.get_position(),
-                        None => 0,
-                    };
-                this.progress_bar.set_fraction(position as f64 / this.duration as f64);
+                let position = match this.toc_setter_ctx.as_mut() {
+                    Some(toc_setter_ctx) => toc_setter_ctx.get_position(),
+                    None => 0,
+                };
+                this.progress_bar.set_fraction(
+                    position as f64 / this.duration as f64,
+                );
             }
 
             for message in ui_rx.try_iter() {
@@ -350,21 +368,22 @@ impl ExportController {
                         println!("ExportContext::toc_setter(AsyncDone)");
                     }
                     InitDone => {
-                        let mut toc_setter_ctx = this.toc_setter_ctx.take()
-                            .expect("ExportContext::toc_setter(InitDone) couldn't get ExportContext");
+                        let mut toc_setter_ctx = this.toc_setter_ctx.take().expect(
+                            "ExportContext::toc_setter(InitDone) couldn't get ExportContext",
+                        );
 
                         let exporter = MatroskaTocFormat::new();
                         {
-                            let muxer = toc_setter_ctx.get_muxer()
-                                .expect("ExportContext::toc_setter(InitDone) couldn't get muxer");
+                            let muxer = toc_setter_ctx.get_muxer().expect(
+                                "ExportContext::toc_setter(InitDone) couldn't get muxer",
+                            );
 
-                            let info = this.playback_ctx.as_ref().unwrap()
-                                .info
-                                    .lock()
-                                        .expect(concat!(
+                            let info = this.playback_ctx.as_ref().unwrap().info.lock().expect(
+                                concat!(
                                             "ExportController::toc_setter(InitDone) ",
                                             "failed to lock media info",
-                                        ));
+                                        ),
+                            );
                             exporter.export(&info.metadata, &info.chapters, muxer);
                         }
 
@@ -380,8 +399,9 @@ impl ExportController {
                     }
                     Eos => {
                         this.switch_to_available();
-                        main_ctrl.borrow_mut()
-                            .restore_context(this.playback_ctx.take().unwrap());
+                        main_ctrl.borrow_mut().restore_context(
+                            this.playback_ctx.take().unwrap(),
+                        );
                         this.export_dlg.hide();
                         keep_going = false;
                     }
@@ -406,7 +426,8 @@ impl ExportController {
         }));
     }
 
-    fn register_splitter_listener(&mut self,
+    fn register_splitter_listener(
+        &mut self,
         timeout: u32,
         ui_rx: Receiver<ContextMessage>,
         main_ctrl: Rc<RefCell<MainController>>,
@@ -419,12 +440,13 @@ impl ExportController {
             let mut this = this_rc.borrow_mut();
 
             if this.duration > 0 {
-                let position =
-                    match this.splitter_ctx.as_mut() {
-                        Some(splitter_ctx) => splitter_ctx.get_position(),
-                        None => 0,
-                    };
-                this.progress_bar.set_fraction(position as f64 / this.duration as f64);
+                let position = match this.splitter_ctx.as_mut() {
+                    Some(splitter_ctx) => splitter_ctx.get_position(),
+                    None => 0,
+                };
+                this.progress_bar.set_fraction(
+                    position as f64 / this.duration as f64,
+                );
             }
 
             for message in ui_rx.try_iter() {
@@ -436,8 +458,9 @@ impl ExportController {
                             this.build_splitter_context(&main_ctrl);
                         } else {
                             this.switch_to_available();
-                            main_ctrl.borrow_mut()
-                                .restore_context(this.playback_ctx.take().unwrap());
+                            main_ctrl.borrow_mut().restore_context(
+                                this.playback_ctx.take().unwrap(),
+                            );
                             this.export_dlg.hide();
                         }
 

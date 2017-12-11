@@ -65,7 +65,10 @@ impl<'a> ChapterEntry<'a> {
     }
 
     pub fn get_start_str(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> String {
-        store.get_value(iter, START_STR_COL).get::<String>().unwrap()
+        store
+            .get_value(iter, START_STR_COL)
+            .get::<String>()
+            .unwrap()
     }
 
     pub fn get_end(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> u64 {
@@ -99,7 +102,8 @@ impl ChapterTreeManager {
         self.add_column(treeview, "End", END_STR_COL, false, false);
     }
 
-    fn add_column(&self,
+    fn add_column(
+        &self,
         treeview: &gtk::TreeView,
         title: &str,
         col_id: i32,
@@ -133,9 +137,7 @@ impl ChapterTreeManager {
         self.selected_iter.clone()
     }
 
-    pub fn get_chapter_at_iter<'a: 'b, 'b>(&'a self,
-        iter: &'a gtk::TreeIter
-    ) -> ChapterEntry<'b> {
+    pub fn get_chapter_at_iter<'a: 'b, 'b>(&'a self, iter: &'a gtk::TreeIter) -> ChapterEntry<'b> {
         ChapterEntry::new(&self.store, iter)
     }
 
@@ -181,16 +183,16 @@ impl ChapterTreeManager {
 
         self.iter = self.store.get_iter_first();
 
-        self.selected_iter =
-            match self.iter {
-                Some(ref iter) =>
-                    if ChapterEntry::get_start(&self.store, iter) == 0 {
-                        Some(iter.clone())
-                    } else {
-                        None
-                    },
-                None => None,
-            };
+        self.selected_iter = match self.iter {
+            Some(ref iter) => {
+                if ChapterEntry::get_start(&self.store, iter) == 0 {
+                    Some(iter.clone())
+                } else {
+                    None
+                }
+            }
+            None => None,
+        };
     }
 
     // Iterate over the chapters and apply func to all elements until the last
@@ -199,40 +201,38 @@ impl ChapterTreeManager {
     // If first_iter is_some, iterate from first_iter
     pub fn for_each<F>(&self, first_iter: Option<gtk::TreeIter>, mut func: F)
     where
-        F: FnMut(ChapterEntry) -> bool // closure must return true to keep going
+        F: FnMut(ChapterEntry) -> bool, // closure must return true to keep going
     {
-        let iter =
-            match first_iter {
-                Some(first_iter) => first_iter,
-                None =>
-                    match self.store.get_iter_first() {
-                        Some(first_iter) => first_iter,
-                        None => return,
-                    },
-            };
+        let iter = match first_iter {
+            Some(first_iter) => first_iter,
+            None => {
+                match self.store.get_iter_first() {
+                    Some(first_iter) => first_iter,
+                    None => return,
+                }
+            }
+        };
 
-        while func(ChapterEntry::new(&self.store, &iter)) &&
-            self.store.iter_next(&iter) {}
+        while func(ChapterEntry::new(&self.store, &iter)) && self.store.iter_next(&iter) {}
     }
 
     // Update chapter according to the given position
     // Returns (has_changed, prev_selected_iter)
     pub fn update_position(&mut self, position: u64) -> (bool, Option<gtk::TreeIter>) {
-        let has_changed =
-            match self.selected_iter {
-                Some(ref selected_iter) => {
-                    if position >= ChapterEntry::get_start(&self.store, selected_iter) &&
-                        position < ChapterEntry::get_end(&self.store, selected_iter)
-                    {
-                        // regular case: position in current chapter => don't change anything
-                        // this check is here to save time in the most frequent case
-                        return (false, None);
-                    }
-                    // chapter has changed
-                    true
+        let has_changed = match self.selected_iter {
+            Some(ref selected_iter) => {
+                if position >= ChapterEntry::get_start(&self.store, selected_iter) &&
+                    position < ChapterEntry::get_end(&self.store, selected_iter)
+                {
+                    // regular case: position in current chapter => don't change anything
+                    // this check is here to save time in the most frequent case
+                    return (false, None);
                 }
-                None => false,
-            };
+                // chapter has changed
+                true
+            }
+            None => false,
+        };
 
         let prev_selected_iter = self.selected_iter.take();
 
@@ -240,33 +240,31 @@ impl ChapterTreeManager {
             // not in selected_iter or selected_iter not defined yet => find current chapter
             let mut searching_forward = true;
             while if position >= ChapterEntry::get_start(&self.store, &iter) &&
-                        position < ChapterEntry::get_end(&self.store, &iter)
-                {
-                    // position is in iter
-                    self.selected_iter = Some(iter.clone());
-                    self.iter = Some(iter);
-                    return (true, prev_selected_iter);
-                } else if position >= ChapterEntry::get_end(&self.store, &iter) &&
-                            searching_forward
-                {
-                    // position is after iter and we were already searching forward
-                    self.store.iter_next(&iter)
-                } else if position < ChapterEntry::get_start(&self.store, &iter) {
-                    // position before iter
-                    searching_forward = false;
-                    if self.store.iter_previous(&iter) {
-                        // iter is still valid
-                        true
-                    } else {
-                        // before first chapter
-                        self.iter = self.store.get_iter_first();
-                        return (has_changed, prev_selected_iter);
-                    }
+                position < ChapterEntry::get_end(&self.store, &iter)
+            {
+                // position is in iter
+                self.selected_iter = Some(iter.clone());
+                self.iter = Some(iter);
+                return (true, prev_selected_iter);
+            } else if position >= ChapterEntry::get_end(&self.store, &iter) && searching_forward {
+                // position is after iter and we were already searching forward
+                self.store.iter_next(&iter)
+            } else if position < ChapterEntry::get_start(&self.store, &iter) {
+                // position before iter
+                searching_forward = false;
+                if self.store.iter_previous(&iter) {
+                    // iter is still valid
+                    true
                 } else {
-                    // in a gap between two chapters
-                    self.iter = Some(iter);
+                    // before first chapter
+                    self.iter = self.store.get_iter_first();
                     return (has_changed, prev_selected_iter);
                 }
+            } else {
+                // in a gap between two chapters
+                self.iter = Some(iter);
+                return (has_changed, prev_selected_iter);
+            }
             {}
 
             // passed the end of the last chapter
@@ -287,46 +285,45 @@ impl ChapterTreeManager {
 
     // Returns an iter on the new chapter
     pub fn add_chapter(&mut self, position: u64, duration: u64) -> Option<gtk::TreeIter> {
-        let (new_iter, end, end_str) =
-            match self.selected_iter.take() {
-                Some(selected_iter) => {
-                    // a chapter is currently selected
-                    let (current_start, current_end, current_end_str) = {
-                        let selected_chapter = ChapterEntry::new(&self.store, &selected_iter);
-                        (
-                            selected_chapter.start(),
-                            selected_chapter.end(),
-                            selected_chapter.end_str(),
-                        )
-                    };
+        let (new_iter, end, end_str) = match self.selected_iter.take() {
+            Some(selected_iter) => {
+                // a chapter is currently selected
+                let (current_start, current_end, current_end_str) = {
+                    let selected_chapter = ChapterEntry::new(&self.store, &selected_iter);
+                    (
+                        selected_chapter.start(),
+                        selected_chapter.end(),
+                        selected_chapter.end_str(),
+                    )
+                };
 
-                    if current_start != position {
-                        // update currently selected chapter end
-                        // to match the start of the newly added chapter
-                        self.store.set(
-                            &selected_iter,
-                            &[END_COL as u32, END_STR_COL as u32],
-                            &[&position, &Timestamp::format(position, false)],
-                        );
+                if current_start != position {
+                    // update currently selected chapter end
+                    // to match the start of the newly added chapter
+                    self.store.set(
+                        &selected_iter,
+                        &[END_COL as u32, END_STR_COL as u32],
+                        &[&position, &Timestamp::format(position, false)],
+                    );
 
-                        // insert new chapter after current
-                        let new_iter = self.store.insert_after(None, &selected_iter);
-                        (new_iter, current_end, current_end_str)
-                    } else {
-                        // attempting to add the new chapter at current position
-                        return None;
-                    }
+                    // insert new chapter after current
+                    let new_iter = self.store.insert_after(None, &selected_iter);
+                    (new_iter, current_end, current_end_str)
+                } else {
+                    // attempting to add the new chapter at current position
+                    return None;
                 }
-                None =>
-                    match self.iter.take() {
-                        Some(iter) => {
-                            // chapters are available, but none is selected:
-                            // either position is before the first chapter
-                            // or in a gap between two chapters
-                            let iter_chapter = ChapterEntry::new(&self.store, &iter);
-                            let start = iter_chapter.start();
-                            if position > start {
-                                panic!(
+            }
+            None => {
+                match self.iter.take() {
+                    Some(iter) => {
+                        // chapters are available, but none is selected:
+                        // either position is before the first chapter
+                        // or in a gap between two chapters
+                        let iter_chapter = ChapterEntry::new(&self.store, &iter);
+                        let start = iter_chapter.start();
+                        if position > start {
+                            panic!(
                                     concat!(
                                         "ChapterTreeManager::add_chapter inconsistent position",
                                         " {} with regard to current iter [{}, {}]",
@@ -335,35 +332,35 @@ impl ChapterTreeManager {
                                     iter_chapter.start(),
                                     iter_chapter.end(),
                                 );
-                            }
-
-                            // iter is next chapter
-
-                            (
-                                self.store.insert_before(None, &iter),
-                                start,
-                                iter_chapter.start_str(),
-                            )
                         }
-                        None => {
-                            // No chapter in iter:
-                            // either position is passed the end of last chapter
-                            // or there is no chapter
-                            let insert_position =
-                                match self.store.get_iter_first() {
+
+                        // iter is next chapter
+
+                        (
+                            self.store.insert_before(None, &iter),
+                            start,
+                            iter_chapter.start_str(),
+                        )
+                    }
+                    None => {
+                        // No chapter in iter:
+                        // either position is passed the end of last chapter
+                        // or there is no chapter
+                        let insert_position = match self.store.get_iter_first() {
                                     None => // No chapter yet => inset at the beginning
                                         0i32,
                                     Some(_) => // store contains chapters => insert at the end
                                         -1i32,
                                 };
-                            (
-                                self.store.insert(None, insert_position),
-                                duration,
-                                Timestamp::format(duration, false),
-                            )
-                        }
+                        (
+                            self.store.insert(None, insert_position),
+                            duration,
+                            Timestamp::format(duration, false),
+                        )
                     }
-            };
+                }
+            }
+        };
 
         self.store.set(
             &new_iter,
@@ -372,14 +369,14 @@ impl ChapterTreeManager {
                 START_COL as u32,
                 START_STR_COL as u32,
                 END_COL as u32,
-                END_STR_COL as u32
+                END_STR_COL as u32,
             ],
             &[
                 &*DEFAULT_TITLE,
                 &position,
                 &Timestamp::format(position, false),
                 &end,
-                &end_str
+                &end_str,
             ],
         );
 
@@ -393,22 +390,21 @@ impl ChapterTreeManager {
         match self.selected_iter.take() {
             Some(selected_iter) => {
                 let prev_iter = selected_iter.clone();
-                let next_selected_iter =
-                    if self.store.iter_previous(&prev_iter) {
-                        // a previous chapter is available => update its end
-                        // with the end of currently selected chapter
-                        let selected_chapter = ChapterEntry::new(&self.store, &selected_iter);
-                        self.store.set(
-                            &prev_iter,
-                            &[END_COL as u32, END_STR_COL as u32],
-                            &[&selected_chapter.end(), &selected_chapter.end_str()],
-                        );
+                let next_selected_iter = if self.store.iter_previous(&prev_iter) {
+                    // a previous chapter is available => update its end
+                    // with the end of currently selected chapter
+                    let selected_chapter = ChapterEntry::new(&self.store, &selected_iter);
+                    self.store.set(
+                        &prev_iter,
+                        &[END_COL as u32, END_STR_COL as u32],
+                        &[&selected_chapter.end(), &selected_chapter.end_str()],
+                    );
 
-                        Some(prev_iter)
-                    } else {
-                        // no chapter before => nothing to select
-                        None
-                    };
+                    Some(prev_iter)
+                } else {
+                    // no chapter before => nothing to select
+                    None
+                };
 
                 self.store.remove(&selected_iter);
                 self.selected_iter = next_selected_iter.clone();

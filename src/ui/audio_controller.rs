@@ -179,13 +179,11 @@ impl AudioController {
                     .expect(
                         "AudioController::size-allocate: couldn't lock dbl_buffer_mtx",
                     )
-                    .set_conditions(
-                        Box::new(WaveformConditions::new(
-                            requested_duration,
-                            allocation.width,
-                            allocation.height,
-                        )),
-                    );
+                    .set_conditions(Box::new(WaveformConditions::new(
+                        requested_duration,
+                        allocation.width,
+                        allocation.height,
+                    )));
             }
 
             self.is_active = true;

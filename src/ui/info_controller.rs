@@ -52,18 +52,15 @@ pub struct InfoController {
 
 impl InfoController {
     pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
-        let add_chapter_btn: gtk::ToolButton = builder
-            .get_object("add_chapter-toolbutton")
-            .unwrap();
+        let add_chapter_btn: gtk::ToolButton =
+            builder.get_object("add_chapter-toolbutton").unwrap();
         add_chapter_btn.set_sensitive(false);
-        let del_chapter_btn: gtk::ToolButton = builder
-            .get_object("remove_chapter-toolbutton")
-            .unwrap();
+        let del_chapter_btn: gtk::ToolButton =
+            builder.get_object("remove_chapter-toolbutton").unwrap();
         del_chapter_btn.set_sensitive(false);
 
-        let chapter_manager = ChapterTreeManager::new_from(
-            builder.get_object("chapters-tree-store").unwrap()
-        );
+        let chapter_manager =
+            ChapterTreeManager::new_from(builder.get_object("chapters-tree-store").unwrap());
         let chapter_treeview: gtk::TreeView = builder.get_object("chapter-treeview").unwrap();
         chapter_manager.init_treeview(&chapter_treeview);
 
@@ -215,24 +212,29 @@ impl InfoController {
         );
 
         let media_path = context.path.clone();
-        let file_stem = media_path.file_stem()
+        let file_stem = media_path
+            .file_stem()
             .expect("InfoController::new_media clicked, failed to get file_stem")
             .to_str()
-            .expect("InfoController::new_media clicked, failed to get file_stem as str");
+            .expect(
+                "InfoController::new_media clicked, failed to get file_stem as str",
+            );
 
         // check the presence of toc files
         let toc_extensions = toc::Factory::get_extensions();
         let test_path = media_path.clone();
-        let mut toc_candidates = toc_extensions.into_iter()
-            .filter_map(|(extension, format)| {
-                let path =
-                    test_path.clone().with_file_name(&format!("{}.{}", file_stem, extension));
+        let mut toc_candidates = toc_extensions.into_iter().filter_map(
+            |(extension, format)| {
+                let path = test_path.clone().with_file_name(
+                    &format!("{}.{}", file_stem, extension),
+                );
                 if path.is_file() {
                     Some((path, format))
                 } else {
                     None
                 }
-            });
+            },
+        );
 
         {
             let mut info = context.info.lock().expect(
@@ -247,19 +249,40 @@ impl InfoController {
                 }
             };
 
-            self.title_lbl.set_label(info.get_title().unwrap_or(&EMPTY_REPLACEMENT));
-            self.artist_lbl.set_label(info.get_artist().unwrap_or(&EMPTY_REPLACEMENT));
-            self.container_lbl.set_label(info.get_container().unwrap_or(&EMPTY_REPLACEMENT));
-            self.audio_codec_lbl.set_label(info.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));
-            self.video_codec_lbl.set_label(info.get_video_codec().unwrap_or(&EMPTY_REPLACEMENT));
+            self.title_lbl.set_label(
+                info.get_title().unwrap_or(&EMPTY_REPLACEMENT),
+            );
+            self.artist_lbl.set_label(info.get_artist().unwrap_or(
+                &EMPTY_REPLACEMENT,
+            ));
+            self.container_lbl.set_label(
+                info.get_container().unwrap_or(
+                    &EMPTY_REPLACEMENT,
+                ),
+            );
+            self.audio_codec_lbl.set_label(
+                info.get_audio_codec().unwrap_or(
+                    &EMPTY_REPLACEMENT,
+                ),
+            );
+            self.video_codec_lbl.set_label(
+                info.get_video_codec().unwrap_or(
+                    &EMPTY_REPLACEMENT,
+                ),
+            );
 
             match toc_candidates.next() {
                 Some((toc_path, format)) => {
-                    let mut toc_file = File::open(toc_path)
-                        .expect("InfoController::new_media failed to open toc file");
+                    let mut toc_file = File::open(toc_path).expect(
+                        "InfoController::new_media failed to open toc file",
+                    );
                     let mut chapters = Vec::<Chapter>::new();
-                    toc::Factory::get_reader(&format)
-                        .read(self.duration, &mut toc_file, &mut info.metadata, &mut chapters);
+                    toc::Factory::get_reader(&format).read(
+                        self.duration,
+                        &mut toc_file,
+                        &mut info.metadata,
+                        &mut chapters,
+                    );
                     self.chapter_manager.replace_with(&chapters);
                 }
                 None => self.chapter_manager.replace_with(&info.chapters),
@@ -293,11 +316,7 @@ impl InfoController {
 
         let timeline_scale = self.timeline_scale.clone();
         self.chapter_manager.for_each(None, move |chapter| {
-            timeline_scale.add_mark(
-                chapter.start() as f64,
-                gtk::PositionType::Top,
-                None,
-            );
+            timeline_scale.add_mark(chapter.start() as f64, gtk::PositionType::Top, None);
             true // keep going until the last chapter
         });
     }
@@ -330,8 +349,7 @@ impl InfoController {
     pub fn tick(&mut self, position: u64, is_eos: bool) {
         self.timeline_scale.set_value(position as f64);
 
-        let (mut has_changed, prev_selected_iter) =
-            self.chapter_manager.update_position(position);
+        let (mut has_changed, prev_selected_iter) = self.chapter_manager.update_position(position);
 
         if self.repeat_chapter {
             // repeat is activated
@@ -347,8 +365,11 @@ impl InfoController {
 
                     // unselect chapter in order to avoid tracing change to current position
                     self.chapter_manager.unselect();
-                    InfoController::repeat_at(&self.main_ctrl,
-                        self.chapter_manager.get_chapter_at_iter(prev_selected_iter).start()
+                    InfoController::repeat_at(
+                        &self.main_ctrl,
+                        self.chapter_manager
+                            .get_chapter_at_iter(prev_selected_iter)
+                            .start(),
                     );
                 }
             }
@@ -406,8 +427,7 @@ impl InfoController {
 
     pub fn remove_chapter(&mut self) {
         match self.chapter_manager.remove_selected_chapter() {
-            Some(new_iter) =>
-                self.chapter_treeview.get_selection().select_iter(&new_iter),
+            Some(new_iter) => self.chapter_treeview.get_selection().select_iter(&new_iter),
             None => {
                 self.chapter_treeview.get_selection().unselect_all();
                 self.del_chapter_btn.set_sensitive(false);

@@ -16,8 +16,7 @@ lazy_static! {
     static ref CHAPTER_TAG_LEN: usize = CHAPTER_TAG.len();
 }
 
-pub struct MKVMergeTextFormat {
-}
+pub struct MKVMergeTextFormat {}
 
 impl MKVMergeTextFormat {
     pub fn get_extension() -> &'static str {
@@ -25,22 +24,24 @@ impl MKVMergeTextFormat {
     }
 
     pub fn new_as_boxed() -> Box<Self> {
-        Box::new(MKVMergeTextFormat{})
+        Box::new(MKVMergeTextFormat {})
     }
 }
 
 // FIXME: handle errors
 
 impl Reader for MKVMergeTextFormat {
-    fn read(&self,
+    fn read(
+        &self,
         duration: u64,
         source: &mut Read,
         _metadata: &mut HashMap<String, String>,
         chapters: &mut Vec<Chapter>,
     ) {
         let mut content = String::new();
-        source.read_to_string(&mut content)
-            .expect("MKVMergeTextFormat::read failed to read source content");
+        source.read_to_string(&mut content).expect(
+            "MKVMergeTextFormat::read failed to read source content",
+        );
 
         chapters.clear();
 
@@ -49,19 +50,18 @@ impl Reader for MKVMergeTextFormat {
             if parts.len() == 2 {
                 let tag = parts[0];
                 let value = parts[1];
-                if tag.starts_with(CHAPTER_TAG) &&
-                    tag.len() >= *CHAPTER_TAG_LEN + CHAPTER_NB_LEN
-                {
-                    let chapter_nb =
-                        match tag[*CHAPTER_TAG_LEN..*CHAPTER_TAG_LEN + CHAPTER_NB_LEN]
-                            .parse::<usize>()
-                        {
-                            Ok(chapter_nb) => chapter_nb,
-                            Err(_) => panic!(
+                if tag.starts_with(CHAPTER_TAG) && tag.len() >= *CHAPTER_TAG_LEN + CHAPTER_NB_LEN {
+                    let chapter_nb = match tag[*CHAPTER_TAG_LEN..
+                                                     *CHAPTER_TAG_LEN + CHAPTER_NB_LEN]
+                        .parse::<usize>() {
+                        Ok(chapter_nb) => chapter_nb,
+                        Err(_) => {
+                            panic!(
                                 "MKVMergeTextFormat::read couldn't find chapter nb for: {}",
                                 line,
-                            ),
-                        };
+                            )
+                        }
+                    };
 
                     if tag.ends_with(NAME_TAG) {
                         if chapter_nb <= chapters.len() {
@@ -77,7 +77,8 @@ impl Reader for MKVMergeTextFormat {
 
                         if chapter_nb > 1 {
                             // update previous chapter's end
-                            chapters.get_mut(chapter_nb - 2)
+                            chapters
+                                .get_mut(chapter_nb - 2)
                                 .expect("MKVMergeTextFormat::read inconsistent numbering")
                                 .end = start;
                         }
@@ -104,25 +105,28 @@ impl Reader for MKVMergeTextFormat {
 }
 
 impl Writer for MKVMergeTextFormat {
-    fn write(&self,
+    fn write(
+        &self,
         _metadata: &HashMap<String, String>,
         chapters: &[Chapter],
-        destination: &mut Write
+        destination: &mut Write,
     ) {
         for (index, chapter) in chapters.iter().enumerate() {
             let prefix = format!("{}{:02}", CHAPTER_TAG, index + 1);
-            destination.write_fmt(
-                format_args!("{}={}\n",
+            destination
+                .write_fmt(format_args!("{}={}\n",
                     prefix,
                     chapter.start.format_with_hours(),
                 ))
                 .expect("MKVMergeTextFormat::write clicked, failed to write to file");
 
-            destination.write_fmt(format_args!("{}{}={}\n",
+            destination
+                .write_fmt(format_args!("{}{}={}\n",
                 prefix,
                 NAME_TAG,
                 chapter.get_title().unwrap_or(super::DEFAULT_TITLE),
-            )).expect("MKVMergeTextFormat::write clicked, failed to write to file");
+            ))
+                .expect("MKVMergeTextFormat::write clicked, failed to write to file");
         }
     }
 }

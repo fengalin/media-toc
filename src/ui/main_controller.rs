@@ -49,11 +49,10 @@ pub struct MainController {
     state: ControllerState,
     seeking: bool,
 
-    requires_async_dialog: bool,    // when pipeline contains video, dialogs must wait for
-                                    // asyncdone before opening a dialog otherwise the listener
-                                    // may borrow the MainController while the dialog is already
-                                    // using it leading to a borrowing conflict
-
+    requires_async_dialog: bool, // when pipeline contains video, dialogs must wait for
+    // asyncdone before opening a dialog otherwise the listener
+    // may borrow the MainController while the dialog is already
+    // using it leading to a borrowing conflict
     this_opt: Option<Rc<RefCell<MainController>>>,
     keep_going: bool,
     listener_src: Option<glib::SourceId>,
@@ -281,11 +280,12 @@ impl MainController {
                             "MainController: InitDone but no context available",
                         );
 
-                        this.requires_async_dialog = context.info.lock()
-                            .expect(
-                                "MainController:: failed to lock media info in InitDone",
-                            )
-                            .video_best.is_some();
+                        this.requires_async_dialog = context
+                            .info
+                            .lock()
+                            .expect("MainController:: failed to lock media info in InitDone")
+                            .video_best
+                            .is_some();
 
                         this.header_bar.set_subtitle(
                             Some(context.file_name.as_str()),
@@ -303,8 +303,7 @@ impl MainController {
                         let mut this = this_rc.borrow_mut();
 
                         let position = this.get_position();
-                        this.info_ctrl.borrow_mut()
-                            .tick(position, true);
+                        this.info_ctrl.borrow_mut().tick(position, true);
 
                         this.audio_ctrl.borrow_mut().tick();
 
@@ -367,7 +366,8 @@ impl MainController {
             let before_tick = Utc::now();
 
             if !this.seeking {
-                let position = this.context.as_mut()
+                let position = this.context
+                    .as_mut()
                     .expect("MainController::tracker no context while getting position")
                     .get_position();
                 this.info_ctrl.borrow_mut().tick(position, false);

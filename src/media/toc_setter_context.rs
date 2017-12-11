@@ -47,16 +47,16 @@ impl TocSetterContext {
     pub fn export(&mut self) -> Result<(), String> {
         match self.pipeline.set_state(gst::State::Playing) {
             gst::StateChangeReturn::Failure => Err("Could not set media in palying state".into()),
-            _ => {
-                Ok(())
-            },
+            _ => Ok(()),
         }
     }
 
     pub fn get_position(&mut self) -> u64 {
-        self.muxer.as_ref()
-            .unwrap()
-            .query(self.position_query.get_mut().unwrap());
+        self.muxer.as_ref().unwrap().query(
+            self.position_query
+                .get_mut()
+                .unwrap(),
+        );
         match self.position_query.view() {
             QueryView::Position(ref position) => position.get_result().get_value() as u64,
             _ => unreachable!(),
@@ -64,17 +64,12 @@ impl TocSetterContext {
     }
 
     // TODO: handle errors
-    fn build_pipeline(
-        &mut self,
-        input_path: &Path,
-        output_path: &Path,
-    ) {
+    fn build_pipeline(&mut self, input_path: &Path, output_path: &Path) {
         // Input
         let filesrc = gst::ElementFactory::make("filesrc", None).unwrap();
-        filesrc.set_property(
-            "location",
-            &gst::Value::from(input_path.to_str().unwrap())
-        ).unwrap();
+        filesrc
+            .set_property("location", &gst::Value::from(input_path.to_str().unwrap()))
+            .unwrap();
 
         let parsebin = gst::ElementFactory::make("parsebin", None).unwrap();
 
@@ -85,20 +80,18 @@ impl TocSetterContext {
         }
 
         // Muxer and output sink
-        let muxer = gst::ElementFactory::make("matroskamux", None)
-            .expect(
-                concat!(
-                    "TocSetterContext::build_pipeline couldn't find matroskamux plugin. ",
-                    "Please install the gstreamer good plugins package"
-                )
-            );
-        muxer.set_property("writing-app", &gst::Value::from("media-toc")).unwrap();
+        let muxer = gst::ElementFactory::make("matroskamux", None).expect(concat!(
+            "TocSetterContext::build_pipeline couldn't find matroskamux plugin. ",
+            "Please install the gstreamer good plugins package"
+        ));
+        muxer
+            .set_property("writing-app", &gst::Value::from("media-toc"))
+            .unwrap();
 
         let filesink = gst::ElementFactory::make("filesink", "filesink").unwrap();
-        filesink.set_property(
-            "location",
-            &gst::Value::from(output_path.to_str().unwrap())
-        ).unwrap();
+        filesink
+            .set_property("location", &gst::Value::from(output_path.to_str().unwrap()))
+            .unwrap();
 
         {
             self.pipeline.add_many(&[&muxer, &filesink]).unwrap();
@@ -139,9 +132,11 @@ impl TocSetterContext {
                 gst::MessageView::Error(err) => {
                     eprintln!(
                         "Error from {}: {} ({:?})",
-                        msg.get_src()
-                            .map(|s| s.get_path_string())
-                            .unwrap_or_else(|| String::from("None")),
+                        msg.get_src().map(|s| s.get_path_string()).unwrap_or_else(
+                            || {
+                                String::from("None")
+                            },
+                        ),
                         err.get_error(),
                         err.get_debug()
                     );

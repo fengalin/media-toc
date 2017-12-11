@@ -2,8 +2,7 @@ use std::boxed::Box;
 
 use super::{CueSheetFormat, Format, MatroskaTocFormat, MKVMergeTextFormat, Reader, Writer};
 
-pub struct Factory {
-}
+pub struct Factory {}
 
 impl Factory {
     pub fn get_extensions() -> Vec<(&'static str, Format)> {
@@ -18,12 +17,13 @@ impl Factory {
     pub fn get_extension(format: &Format, is_audio_only: bool) -> &'static str {
         match *format {
             Format::CueSheet => CueSheetFormat::get_extension(),
-            Format::Matroska =>
+            Format::Matroska => {
                 if !is_audio_only {
                     MatroskaTocFormat::get_extension()
                 } else {
                     MatroskaTocFormat::get_audio_extension()
-                },
+                }
+            }
             Format::MKVMergeText => MKVMergeTextFormat::get_extension(),
         }
     }

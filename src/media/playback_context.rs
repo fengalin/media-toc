@@ -91,10 +91,11 @@ impl PlaybackContext {
             info: Arc::new(Mutex::new(MediaInfo::new())),
         };
 
-        this.info.lock()
+        this.info
+            .lock()
             .expect("PlaybackContext::new failed to lock media info")
             .metadata
-                .insert(toc::METADATA_FILE_NAME.to_owned(), file_name);
+            .insert(toc::METADATA_FILE_NAME.to_owned(), file_name);
 
         this.build_pipeline(dbl_audio_buffer_mtx, (*VIDEO_SINK).clone());
         this.register_bus_inspector(ctx_tx);
@@ -183,10 +184,9 @@ impl PlaybackContext {
         video_sink: gst::Element,
     ) {
         let file_src = gst::ElementFactory::make("filesrc", None).unwrap();
-        file_src.set_property(
-            "location",
-            &gst::Value::from(self.path.to_str().unwrap())
-        ).unwrap();
+        file_src
+            .set_property("location", &gst::Value::from(self.path.to_str().unwrap()))
+            .unwrap();
 
         let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
 
@@ -364,21 +364,19 @@ impl PlaybackContext {
                         .expect("appsink: eos: couldn't lock dbl_audio_buffer")
                         .handle_eos();
                 })
-                .new_sample(move |appsink| {
-                    match appsink.pull_sample() {
-                        Some(sample) => {
-                            {
-                                dbl_audio_buffer_mtx
-                                    .lock()
-                                    .expect("appsink: new_samples: couldn't lock dbl_audio_buffer")
-                                    .push_gst_sample(&sample);
-                            }
-                            gst::FlowReturn::Ok
+                .new_sample(move |appsink| match appsink.pull_sample() {
+                    Some(sample) => {
+                        {
+                            dbl_audio_buffer_mtx
+                                .lock()
+                                .expect("appsink: new_samples: couldn't lock dbl_audio_buffer")
+                                .push_gst_sample(&sample);
                         }
-                        None => gst::FlowReturn::Eos,
+                        gst::FlowReturn::Ok
                     }
-            })
-            .build()
+                    None => gst::FlowReturn::Eos,
+                })
+                .build(),
         );
     }
 
@@ -413,9 +411,11 @@ impl PlaybackContext {
                 gst::MessageView::Error(err) => {
                     eprintln!(
                         "Error from {}: {} ({:?})",
-                        msg.get_src()
-                            .map(|s| s.get_path_string())
-                            .unwrap_or_else(|| String::from("None")),
+                        msg.get_src().map(|s| s.get_path_string()).unwrap_or_else(
+                            || {
+                                String::from("None")
+                            },
+                        ),
                         err.get_error(),
                         err.get_debug()
                     );
@@ -465,11 +465,31 @@ impl PlaybackContext {
         assign_tag!(info.metadata, toc::METADATA_TITLE, tags, gst::tags::Title);
         assign_tag!(info.metadata, toc::METADATA_TITLE, tags, gst::tags::Album);
         assign_tag!(info.metadata, toc::METADATA_ARTIST, tags, gst::tags::Artist);
-        assign_tag!(info.metadata, toc::METADATA_ARTIST, tags, gst::tags::AlbumArtist);
+        assign_tag!(
+            info.metadata,
+            toc::METADATA_ARTIST,
+            tags,
+            gst::tags::AlbumArtist
+        );
 
-        assign_tag!(info.metadata, toc::METADATA_AUDIO_CODEC, tags, gst::tags::AudioCodec);
-        assign_tag!(info.metadata, toc::METADATA_VIDEO_CODEC, tags, gst::tags::VideoCodec);
-        assign_tag!(info.metadata, toc::METADATA_CONTAINER, tags, gst::tags::ContainerFormat);
+        assign_tag!(
+            info.metadata,
+            toc::METADATA_AUDIO_CODEC,
+            tags,
+            gst::tags::AudioCodec
+        );
+        assign_tag!(
+            info.metadata,
+            toc::METADATA_VIDEO_CODEC,
+            tags,
+            gst::tags::VideoCodec
+        );
+        assign_tag!(
+            info.metadata,
+            toc::METADATA_CONTAINER,
+            tags,
+            gst::tags::ContainerFormat
+        );
 
         // TODO: distinguish front/back cover (take the first one?)
         if let Some(image_tag) = tags.get::<gst::tags::Image>() {

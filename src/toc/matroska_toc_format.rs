@@ -13,8 +13,7 @@ use super::{Chapter, Exporter};
 static EXTENSION: &'static str = "toc.mkv";
 static AUDIO_EXTENSION: &'static str = "toc.mka";
 
-pub struct MatroskaTocFormat {
-}
+pub struct MatroskaTocFormat {}
 
 impl MatroskaTocFormat {
     pub fn get_extension() -> &'static str {
@@ -26,20 +25,22 @@ impl MatroskaTocFormat {
     }
 
     pub fn new() -> Self {
-        MatroskaTocFormat{}
+        MatroskaTocFormat {}
     }
 }
 
 impl Exporter for MatroskaTocFormat {
-    fn export(&self,
+    fn export(
+        &self,
         metadata: &HashMap<String, String>,
         chapters: &[Chapter],
         destination: &gst::Element,
     ) {
         {
-            let tag_setter =
-                destination.clone().dynamic_cast::<gst::TagSetter>()
-                    .expect("MatroskaTocFormat::export muxer is not a TagSetter");
+            let tag_setter = destination
+                .clone()
+                .dynamic_cast::<gst::TagSetter>()
+                .expect("MatroskaTocFormat::export muxer is not a TagSetter");
 
             let mut tag_list = gst::TagList::new();
             {
@@ -56,9 +57,10 @@ impl Exporter for MatroskaTocFormat {
         }
 
         {
-            let toc_setter =
-                destination.clone().dynamic_cast::<gst::TocSetter>()
-                    .expect("MatroskaTocFormat::export muxer is not a TocSetter");
+            let toc_setter = destination
+                .clone()
+                .dynamic_cast::<gst::TocSetter>()
+                .expect("MatroskaTocFormat::export muxer is not a TocSetter");
 
             toc_setter.reset();
 
@@ -71,23 +73,22 @@ impl Exporter for MatroskaTocFormat {
                 let mut max_pos = 0i64;
 
                 for (index, chapter) in chapters.iter().enumerate() {
-                    let mut toc_sub_entry = TocEntry::new(
-                        TocEntryType::Chapter,
-                        &format!("{:02}", index + 1),
-                    );
+                    let mut toc_sub_entry =
+                        TocEntry::new(TocEntryType::Chapter, &format!("{:02}", index + 1));
 
                     let mut tag_list = gst::TagList::new();
-                    tag_list.get_mut().unwrap()
-                        .add::<gst::tags::Title>(
-                            &chapter.get_title().unwrap_or(super::DEFAULT_TITLE),
-                            gst::TagMergeMode::Append,
-                        );
-                    toc_sub_entry.get_mut().unwrap()
-                        .set_tags(tag_list);
+                    tag_list.get_mut().unwrap().add::<gst::tags::Title>(
+                        &chapter.get_title().unwrap_or(super::DEFAULT_TITLE),
+                        gst::TagMergeMode::Append,
+                    );
+                    toc_sub_entry.get_mut().unwrap().set_tags(tag_list);
 
                     let start = chapter.start.nano_total as i64;
                     let end = chapter.end.nano_total as i64;
-                    toc_sub_entry.get_mut().unwrap().set_start_stop_times(start, end);
+                    toc_sub_entry.get_mut().unwrap().set_start_stop_times(
+                        start,
+                        end,
+                    );
 
                     if start < min_pos {
                         min_pos = start;

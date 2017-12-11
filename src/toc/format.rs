@@ -7,7 +7,8 @@ use std::io::{Read, Write};
 use super::Chapter;
 
 pub trait Reader {
-    fn read(&self,
+    fn read(
+        &self,
         duration: u64,
         source: &mut Read,
         metadata: &mut HashMap<String, String>,
@@ -16,7 +17,8 @@ pub trait Reader {
 }
 
 pub trait Writer {
-    fn write(&self,
+    fn write(
+        &self,
         metadata: &HashMap<String, String>,
         chapters: &[Chapter],
         destination: &mut Write,
@@ -24,7 +26,8 @@ pub trait Writer {
 }
 
 pub trait Exporter {
-    fn export(&self,
+    fn export(
+        &self,
         metadata: &HashMap<String, String>,
         chapters: &[Chapter],
         destination: &gst::Element,

@@ -115,7 +115,8 @@ impl DoubleAudioBuffer {
     // by the concrete implementation of the SampleExtractor.
     pub fn set_conditions<T: Any + Clone>(&mut self, conditions: Box<T>) {
         {
-            self.working_buffer.as_mut()
+            self.working_buffer
+                .as_mut()
                 .expect(
                     "DoubleAudioBuffer::set_conditions failed to take working buffer",
                 )

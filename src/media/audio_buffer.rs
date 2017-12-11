@@ -107,7 +107,7 @@ impl AudioBuffer {
         self.eos = false;
 
         let segment_lower = (sample.get_segment().unwrap().get_start().get_value() as u64 /
-            self.sample_duration) as usize;
+                                 self.sample_duration) as usize;
         let buffer_sample_len = incoming_samples.len() / self.channels;
         let buffer_pts = buffer.get_pts().unwrap();
 
@@ -382,11 +382,9 @@ impl AudioBuffer {
 
         let mut segment = gst::Segment::new();
         segment.set_format(gst::Format::Time);
-        segment.set_start(
-            ClockTime::from_nseconds(
-                self.sample_duration * (segment_lower as u64) + 1
-            )
-        );
+        segment.set_start(ClockTime::from_nseconds(
+            self.sample_duration * (segment_lower as u64) + 1,
+        ));
 
         let self_lower = self.lower;
 
