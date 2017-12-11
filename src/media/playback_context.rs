@@ -371,7 +371,7 @@ impl PlaybackContext {
                                 dbl_audio_buffer_mtx
                                     .lock()
                                     .expect("appsink: new_samples: couldn't lock dbl_audio_buffer")
-                                    .push_gst_sample(sample);
+                                    .push_gst_sample(&sample);
                             }
                             gst::FlowReturn::Ok
                         }
@@ -438,14 +438,14 @@ impl PlaybackContext {
                 }
                 gst::MessageView::Tag(msg_tag) => {
                     if !init_done {
-                        PlaybackContext::add_tags(msg_tag.get_tags(), &info_arc_mtx);
+                        PlaybackContext::add_tags(&msg_tag.get_tags(), &info_arc_mtx);
                     }
                 }
                 gst::MessageView::Toc(msg_toc) => {
                     if !init_done {
                         let (toc, _) = msg_toc.get_toc();
                         if toc.get_scope() == TocScope::Global {
-                            PlaybackContext::add_toc(toc, &info_arc_mtx);
+                            PlaybackContext::add_toc(&toc, &info_arc_mtx);
                         } else {
                             println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
                         }
@@ -458,7 +458,7 @@ impl PlaybackContext {
         });
     }
 
-    fn add_tags(tags: gst::TagList, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
+    fn add_tags(tags: &gst::TagList, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
         let info = &mut info_arc_mtx.lock().expect(
             "Failed to lock media info while reading tag data",
         );
@@ -483,7 +483,7 @@ impl PlaybackContext {
         }
     }
 
-    fn add_toc(toc: gst::Toc, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
+    fn add_toc(toc: &gst::Toc, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
         let info = &mut info_arc_mtx.lock().expect(
             "Failed to lock media info while reading toc data",
         );

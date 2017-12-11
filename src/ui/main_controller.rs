@@ -10,6 +10,7 @@ use std::cell::RefCell;
 
 use std::path::PathBuf;
 
+use std::sync::Arc;
 use std::sync::mpsc::{channel, Receiver};
 
 use gtk::prelude::*;
@@ -60,7 +61,7 @@ pub struct MainController {
 }
 
 impl MainController {
-    pub fn new(builder: gtk::Builder) -> Rc<RefCell<Self>> {
+    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
         let export_toc_btn: gtk::Button = builder.get_object("export_toc-btn").unwrap();
         export_toc_btn.set_sensitive(false);
 
@@ -70,10 +71,10 @@ impl MainController {
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
             export_toc_btn: export_toc_btn,
 
-            video_ctrl: VideoController::new(&builder),
-            info_ctrl: InfoController::new(&builder),
-            audio_ctrl: AudioController::new(&builder),
-            export_ctrl: ExportController::new(&builder),
+            video_ctrl: VideoController::new(builder),
+            info_ctrl: InfoController::new(builder),
+            audio_ctrl: AudioController::new(builder),
+            export_ctrl: ExportController::new(builder),
 
             context: None,
             state: ControllerState::Stopped,
@@ -233,13 +234,10 @@ impl MainController {
     }
 
     fn export_toc(&mut self) {
-        match self.context.take() {
-            Some(mut context) => {
-                self.info_ctrl.borrow().export_chapters(&mut context);
-                self.export_ctrl.borrow_mut().open(context);
-                self.state = ControllerState::Paused;
-            }
-            None => (),
+        if let Some(mut context) = self.context.take() {
+            self.info_ctrl.borrow().export_chapters(&mut context);
+            self.export_ctrl.borrow_mut().open(context);
+            self.state = ControllerState::Paused;
         }
     }
 
@@ -427,7 +425,7 @@ impl MainController {
         self.keep_going = true;
         self.register_listener(LISTENER_PERIOD, ui_rx);
 
-        let dbl_buffer_mtx = self.audio_ctrl.borrow().get_dbl_buffer_mtx().clone();
+        let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.borrow().get_dbl_buffer_mtx());
         match PlaybackContext::new(filepath, dbl_buffer_mtx, ctx_tx) {
             Ok(context) => {
                 self.context = Some(context);

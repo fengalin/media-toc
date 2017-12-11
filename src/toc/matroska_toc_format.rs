@@ -18,11 +18,11 @@ pub struct MatroskaTocFormat {
 
 impl MatroskaTocFormat {
     pub fn get_extension() -> &'static str {
-        &EXTENSION
+        EXTENSION
     }
 
     pub fn get_audio_extension() -> &'static str {
-        &AUDIO_EXTENSION
+        AUDIO_EXTENSION
     }
 
     pub fn new() -> Self {

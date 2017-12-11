@@ -88,7 +88,7 @@ impl AudioBuffer {
     // Samples are stores as f64 suitable for on screen rendering.
     // Incoming samples are merged to the existing buffer when possible
     // Returns: number of samples received
-    pub fn push_gst_sample(&mut self, sample: gst::Sample, lower_to_keep: usize) -> usize {
+    pub fn push_gst_sample(&mut self, sample: &gst::Sample, lower_to_keep: usize) -> usize {
         #[cfg(feature = "profiling-audio-buffer")]
         let start = Utc::now();
 

@@ -140,7 +140,7 @@ impl DoubleAudioBuffer {
         self.extract_samples();
     }
 
-    pub fn push_gst_sample(&mut self, sample: gst::Sample) {
+    pub fn push_gst_sample(&mut self, sample: &gst::Sample) {
         // store incoming samples
         self.samples_since_last_extract += self.audio_buffer.push_gst_sample(
             sample,

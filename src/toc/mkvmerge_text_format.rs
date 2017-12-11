@@ -21,7 +21,7 @@ pub struct MKVMergeTextFormat {
 
 impl MKVMergeTextFormat {
     pub fn get_extension() -> &'static str {
-        &EXTENSION
+        EXTENSION
     }
 
     pub fn new_as_boxed() -> Box<Self> {
@@ -71,26 +71,23 @@ impl Reader for MKVMergeTextFormat {
                                 line,
                             );
                         }
-                    } else {
-                        // new chapter
-                        if chapter_nb == chapters.len() + 1 {
-                            let mut chapter = Chapter::empty();
-                            let start = Timestamp::from_string(&value);
+                    } else if chapter_nb == chapters.len() + 1 {
+                        let mut chapter = Chapter::empty();
+                        let start = Timestamp::from_string(value);
 
-                            if chapter_nb > 1 {
-                                // update previous chapter's end
-                                chapters.get_mut(chapter_nb - 2)
-                                    .expect("MKVMergeTextFormat::read inconsistent numbering")
-                                    .end = start.clone();
-                            }
-
-                            chapter.start = start;
-                            chapters.push(chapter);
-                        } else {
-                            panic!("MKVMergeTextFormat::read inconsistent chapter nb for: {}",
-                                line,
-                            );
+                        if chapter_nb > 1 {
+                            // update previous chapter's end
+                            chapters.get_mut(chapter_nb - 2)
+                                .expect("MKVMergeTextFormat::read inconsistent numbering")
+                                .end = start;
                         }
+
+                        chapter.start = start;
+                        chapters.push(chapter);
+                    } else {
+                        panic!("MKVMergeTextFormat::read inconsistent chapter nb for: {}",
+                            line,
+                        );
                     }
                 } else {
                     panic!("MKVMergeTextFormat::read unexpected format for: {}", line);
@@ -100,10 +97,9 @@ impl Reader for MKVMergeTextFormat {
             }
         }
 
-        match chapters.last_mut() {
-            Some(last_chapter) => last_chapter.end = Timestamp::from_nano(duration),
-            None => (),
-        };
+        if let Some(last_chapter) = chapters.last_mut() {
+            last_chapter.end = Timestamp::from_nano(duration);
+        }
     }
 }
 

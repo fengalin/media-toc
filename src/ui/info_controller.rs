@@ -227,9 +227,10 @@ impl InfoController {
             .filter_map(|(extension, format)| {
                 let path =
                     test_path.clone().with_file_name(&format!("{}.{}", file_stem, extension));
-                match path.is_file() {
-                    true => Some((path, format)),
-                    false => None,
+                if path.is_file() {
+                    Some((path, format))
+                } else {
+                    None
                 }
             });
 
@@ -246,11 +247,11 @@ impl InfoController {
                 }
             };
 
-            self.title_lbl.set_label(&info.get_title().unwrap_or(&EMPTY_REPLACEMENT));
-            self.artist_lbl.set_label(&info.get_artist().unwrap_or(&EMPTY_REPLACEMENT));
-            self.container_lbl.set_label(&info.get_container().unwrap_or(&EMPTY_REPLACEMENT));
-            self.audio_codec_lbl.set_label(&info.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));
-            self.video_codec_lbl.set_label(&info.get_video_codec().unwrap_or(&EMPTY_REPLACEMENT));
+            self.title_lbl.set_label(info.get_title().unwrap_or(&EMPTY_REPLACEMENT));
+            self.artist_lbl.set_label(info.get_artist().unwrap_or(&EMPTY_REPLACEMENT));
+            self.container_lbl.set_label(info.get_container().unwrap_or(&EMPTY_REPLACEMENT));
+            self.audio_codec_lbl.set_label(info.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));
+            self.video_codec_lbl.set_label(info.get_video_codec().unwrap_or(&EMPTY_REPLACEMENT));
 
             match toc_candidates.next() {
                 Some((toc_path, format)) => {

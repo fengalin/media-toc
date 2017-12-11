@@ -163,15 +163,15 @@ impl ExportController {
                     let has_chapters = this.next_chapter().is_some();
 
                     if has_chapters {
-                        this.build_splitter_context(Rc::clone(&main_ctrl_clone));
+                        this.build_splitter_context(&main_ctrl_clone);
                     } else { // No chapter => export the whole file
                         let target_path = this.target_path.clone();
-                        this.build_toc_setter_context(Rc::clone(&main_ctrl_clone), &target_path);
+                        this.build_toc_setter_context(&main_ctrl_clone, &target_path);
                     }
                 }
                 ExportType::SingleFileWithToc => {
                     let target_path = this.target_path.clone();
-                    this.build_toc_setter_context(Rc::clone(&main_ctrl_clone), &target_path);
+                    this.build_toc_setter_context(&main_ctrl_clone, &target_path);
                 }
                 _ => (),
             }
@@ -185,12 +185,12 @@ impl ExportController {
     }
 
     fn build_toc_setter_context(&mut self,
-        main_ctrl: Rc<RefCell<MainController>>,
+        main_ctrl: &Rc<RefCell<MainController>>,
         export_path: &Path,
     ) {
         let (ctx_tx, ui_rx) = channel();
 
-        self.register_toc_setter_listener(LISTENER_PERIOD, ui_rx, Rc::clone(&main_ctrl));
+        self.register_toc_setter_listener(LISTENER_PERIOD, ui_rx, Rc::clone(main_ctrl));
 
         let media_path = self.media_path.clone();
         match TocSetterContext::new(&media_path, export_path, ctx_tx) {
@@ -210,11 +210,11 @@ impl ExportController {
     }
 
     fn build_splitter_context(&mut self,
-        main_ctrl: Rc<RefCell<MainController>>,
+        main_ctrl: &Rc<RefCell<MainController>>,
     ) {
         let (ctx_tx, ui_rx) = channel();
 
-        self.register_splitter_listener(LISTENER_PERIOD, ui_rx, Rc::clone(&main_ctrl));
+        self.register_splitter_listener(LISTENER_PERIOD, ui_rx, Rc::clone(main_ctrl));
 
         let (output_path, start, end) = {
             let chapter = self.current_chapter.as_ref()
@@ -254,7 +254,7 @@ impl ExportController {
         };
 
         self.current_chapter = next_chapter;
-        if let Some(_) = self.current_chapter {
+        if self.current_chapter.is_some() {
             self.idx += 1;
         }
 
@@ -365,7 +365,7 @@ impl ExportController {
                                             "ExportController::toc_setter(InitDone) ",
                                             "failed to lock media info",
                                         ));
-                            exporter.export(&info.metadata, &info.chapters, &muxer);
+                            exporter.export(&info.metadata, &info.chapters, muxer);
                         }
 
                         match toc_setter_ctx.export() {
@@ -433,7 +433,7 @@ impl ExportController {
                         let has_more = this.next_chapter().is_some();
                         if has_more {
                             // build a new context for next chapter
-                            this.build_splitter_context(Rc::clone(&main_ctrl));
+                            this.build_splitter_context(&main_ctrl);
                         } else {
                             this.switch_to_available();
                             main_ctrl.borrow_mut()

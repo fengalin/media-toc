@@ -37,9 +37,11 @@ fn main() {
     // TODO: there's a `Settings` struct in GTK:
     // https://github.com/gtk-rs/gtk/blob/master/src/auto/settings.rs
 
-    let builder = Builder::new_from_string(include_str!("ui/media-toc.ui"));
-    builder.add_from_string(include_str!("ui/media-toc-export.ui")).unwrap();
-    let main_ctrl = MainController::new(builder);
+    let main_ctrl = {
+        let builder = Builder::new_from_string(include_str!("ui/media-toc.ui"));
+        builder.add_from_string(include_str!("ui/media-toc-export.ui")).unwrap();
+        MainController::new(&builder)
+    };
     main_ctrl.borrow().show_all();
 
     gtk::main();

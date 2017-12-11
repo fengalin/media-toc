@@ -149,12 +149,10 @@ impl SplitterContext {
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
-                    match pipeline.set_state(gst::State::Null) {
-                        gst::StateChangeReturn::Failure =>
-                            ctx_tx.send(ContextMessage::FailedToExport).expect(
-                                "Error: Failed to notify UI",
-                            ),
-                        _ => (),
+                    if pipeline.set_state(gst::State::Null) == gst::StateChangeReturn::Failure {
+                        ctx_tx.send(ContextMessage::FailedToExport).expect(
+                            "Error: Failed to notify UI",
+                        );
                     }
                     init_done = false;
                     ctx_tx.send(ContextMessage::Eos).expect(
@@ -207,17 +205,14 @@ impl SplitterContext {
                                     "Error: Failed to notify UI",
                             ),
                         };
-                    } else {
-                        match pipeline.set_state(gst::State::Playing) {
-                            gst::StateChangeReturn::Failure =>
-                                ctx_tx.send(ContextMessage::FailedToExport).expect(
-                                    "Error: Failed to notify UI",
-                            ),
-                            _ => ()
-                        }
+                    } else if pipeline.set_state(gst::State::Playing) ==
+                                gst::StateChangeReturn::Failure {
+                        ctx_tx.send(ContextMessage::FailedToExport).expect(
+                            "Error: Failed to notify UI",
+                        );
                     }
                 }
-                _ => (()),
+                _ => (),
             }
 
             glib::Continue(true)
