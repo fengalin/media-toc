@@ -29,6 +29,7 @@ pub enum ControllerState {
     PendingSelectMedia,
     Playing,
     Stopped,
+    Seeking(bool, bool), // (must_switch_to_play, was_paused)
 }
 
 const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
@@ -47,7 +48,6 @@ pub struct MainController {
 
     context: Option<PlaybackContext>,
     state: ControllerState,
-    seeking: bool,
 
     requires_async_dialog: bool, // when pipeline contains video, dialogs must wait for
     // asyncdone before opening a dialog otherwise the listener
@@ -77,7 +77,6 @@ impl MainController {
 
             context: None,
             state: ControllerState::Stopped,
-            seeking: false,
 
             requires_async_dialog: false,
 
@@ -190,28 +189,22 @@ impl MainController {
 
     pub fn seek(&mut self, position: u64, accurate: bool) {
         if self.state != ControllerState::Stopped {
-            self.seeking = true;
+            if self.state == ControllerState::Playing || self.state == ControllerState::Paused {
+                self.info_ctrl.borrow_mut().seek(position, &self.state);
+                self.audio_ctrl.borrow_mut().seek(position, &self.state);
+            }
+
+            let must_switch_to_play = (self.state == ControllerState::EOS) ||
+                (self.state == ControllerState::Ready);
+            self.state = ControllerState::Seeking(
+                must_switch_to_play,
+                self.state == ControllerState::Paused,
+            );
 
             self.context
                 .as_ref()
                 .expect("MainController::seek no context")
                 .seek(position, accurate);
-
-            if self.state == ControllerState::EOS || self.state == ControllerState::Ready {
-                if self.state == ControllerState::Ready {
-                    self.context
-                        .as_ref()
-                        .expect("MainController::seek no context")
-                        .play()
-                        .unwrap();
-                }
-                self.register_tracker();
-                self.play_pause_btn.set_icon_name("media-playback-pause");
-                self.state = ControllerState::Playing;
-            }
-
-            self.info_ctrl.borrow_mut().seek(position, &self.state);
-            self.audio_ctrl.borrow_mut().seek(position, &self.state);
         }
     }
 
@@ -266,11 +259,27 @@ impl MainController {
                 match message {
                     AsyncDone => {
                         let mut this = this_rc.borrow_mut();
-                        this.seeking = false;
                         match this.state {
                             ControllerState::PendingSelectMedia => this.select_media(),
                             ControllerState::PendingExportToc => this.export_toc(),
+                            ControllerState::Seeking(true, _) => {
+                                this.context
+                                    .as_ref()
+                                    .expect("MainController::seek no context")
+                                    .play()
+                                    .unwrap();
+                                this.register_tracker();
+                                this.play_pause_btn.set_icon_name("media-playback-pause");
+                            }
                             _ => (),
+                        }
+
+                        if let ControllerState::Seeking(_, was_paused) = this.state {
+                            if !was_paused {
+                                this.state = ControllerState::Playing;
+                            } else {
+                                this.state = ControllerState::Paused;
+                            }
                         }
                     }
                     InitDone => {
@@ -365,7 +374,7 @@ impl MainController {
             #[cfg(feature = "profiling-tracker")]
             let before_tick = Utc::now();
 
-            if !this.seeking {
+            if this.state == ControllerState::Playing || this.state == ControllerState::Paused {
                 let position = this.context
                     .as_mut()
                     .expect("MainController::tracker no context while getting position")
@@ -421,7 +430,6 @@ impl MainController {
 
         let (ctx_tx, ui_rx) = channel();
 
-        self.seeking = false;
         self.keep_going = true;
         self.register_listener(LISTENER_PERIOD, ui_rx);
 
