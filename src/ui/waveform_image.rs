@@ -270,6 +270,7 @@ impl WaveformImage {
         lower: usize,
         upper: usize,
         can_skip: bool,
+        ignore_eos: bool,
     ) {
         #[cfg(feature = "profile-waveform-image")]
         let start = Utc::now();
@@ -279,7 +280,7 @@ impl WaveformImage {
         // for a given req_step_duration and avoiding flickering
         // between redraws.
         let mut lower = lower / self.sample_step * self.sample_step;
-        let upper = if audio_buffer.eos && upper == audio_buffer.upper ||
+        let upper = if !ignore_eos && audio_buffer.eos && upper == audio_buffer.upper ||
             self.contains_eos &&
                 (upper == self.upper || (!self.force_redraw && lower >= self.lower))
         {
@@ -1213,7 +1214,7 @@ mod tests {
             incoming_lower,
             incoming_upper
         );
-        waveform.render(&audio_buffer, lower_to_extract, upper_to_extract, false);
+        waveform.render(&audio_buffer, lower_to_extract, upper_to_extract, false, false);
 
         let image = waveform.get_image();
 

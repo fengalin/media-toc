@@ -36,6 +36,8 @@ pub struct AudioController {
     playback_needs_refresh: bool,
 
     requested_duration: f64,
+    cursor_pos: u64,
+    last_visible_pos: u64,
 
     waveform_mtx: Arc<Mutex<Box<SampleExtractor>>>,
     dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
@@ -59,6 +61,9 @@ impl AudioController {
             playback_needs_refresh: false,
 
             requested_duration: INIT_REQ_DURATION,
+            cursor_pos: 0,
+            last_visible_pos: 0,
+
             waveform_mtx: waveform_mtx,
             dbl_buffer_mtx: dbl_buffer_mtx,
         }))
@@ -92,26 +97,26 @@ impl AudioController {
         this.drawingarea.connect_button_press_event(
             move |_, event_button| {
                 match event_button.get_button() {
-                    1 => {
-                        if let Some(sample_nb) = {
-                            let mut this = this_clone.borrow_mut();
-                            let waveform_buffer_grd = &mut *this.waveform_mtx.lock().expect(
-                                "Couldn't lock waveform buffer in audio controller draw",
-                            );
-                            waveform_buffer_grd
-                                .as_mut_any()
-                                .downcast_mut::<WaveformBuffer>()
-                                .expect(concat!(
-                                    "AudioController::drawingarea::button_press_event ",
-                                    "SamplesExtratctor is not a waveform buffer",
-                                ))
-                                .get_sample_nb_at(event_button.get_position().0)
-                        }
-                        {
-                            main_ctrl_clone.borrow_mut().seek(sample_nb, true); // accurate (slow)
+                    1 => { // left click => seek
+                        let position_opt = this_clone.borrow()
+                            .get_position_at(event_button.get_position().0);
+                        if let Some(position) = position_opt {
+                            main_ctrl_clone.borrow_mut().seek(position, true); // accurate (slow)
                         }
                     }
-                    2 => {
+                    3 => { // right click => segment playback
+                        let (position_opt, cursor_pos, last_pos) = {
+                            let this = this_clone.borrow();
+                            (
+                                this.get_position_at(event_button.get_position().0),
+                                this.cursor_pos,
+                                this.last_visible_pos,
+                            )
+                        };
+                        if let Some(position) = position_opt {
+                            main_ctrl_clone.borrow_mut()
+                                .play_range(position, last_pos, cursor_pos);
+                        }
                     }
                     _ => (),
                 }
@@ -156,6 +161,8 @@ impl AudioController {
                 .cleanup();
         }
         self.requested_duration = INIT_REQ_DURATION;
+        self.cursor_pos = 0;
+        self.last_visible_pos = 0;
         self.drawingarea.queue_draw();
     }
 
@@ -221,6 +228,18 @@ impl AudioController {
         self.drawingarea.queue_draw();
     }
 
+    pub fn start_play_range(&mut self) {
+        self.waveform_mtx
+            .lock()
+            .expect("AudioController::seek: Couldn't lock waveform_mtx")
+            .as_mut_any()
+            .downcast_mut::<WaveformBuffer>()
+            .expect(
+                "AudioController::seek: SamplesExtratctor is not a WaveformBuffer",
+            )
+            .start_play_range();
+    }
+
     pub fn tick(&mut self) {
         if self.is_active {
             if self.playback_needs_refresh {
@@ -235,6 +254,20 @@ impl AudioController {
 
             self.drawingarea.queue_draw();
         }
+    }
+
+    fn get_position_at(&self, x: f64) -> Option<u64> {
+        let waveform_buffer_grd = &mut *self.waveform_mtx.lock().expect(
+            "Couldn't lock waveform buffer in audio controller draw",
+        );
+        waveform_buffer_grd
+            .as_any()
+            .downcast_ref::<WaveformBuffer>()
+            .expect(concat!(
+                "AudioController::get_current_and_sample_at ",
+                "SamplesExtratctor is not a waveform buffer",
+            ))
+            .get_position_at(x)
     }
 
     fn clean_cairo_context(&self, cr: &cairo::Context) {
@@ -335,6 +368,8 @@ impl AudioController {
                 cr.show_text(&last_text);
             }
 
+            self.last_visible_pos = last_pos.timestamp;
+
             // make sure the rest of the image is filled with background's color
             cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
             cr.rectangle(last_pos.x, 0f64, width - last_pos.x, height);
@@ -359,6 +394,8 @@ impl AudioController {
             cr.move_to(current_pos.x, 0f64);
             cr.line_to(current_pos.x, height);
             cr.stroke();
+
+            self.cursor_pos = current_pos.timestamp;
         }
 
         #[cfg(feature = "profiling-audio-draw")]

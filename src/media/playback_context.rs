@@ -177,6 +177,19 @@ impl PlaybackContext {
             .unwrap();
     }
 
+    pub fn seek_range(&self, start: u64, end: u64) {
+        self.pipeline.seek(
+                1f64,
+                gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
+                gst::SeekType::Set,
+                ClockTime::from(start),
+                gst::SeekType::Set,
+                ClockTime::from(end),
+            )
+            .ok()
+            .unwrap();
+    }
+
     // TODO: handle errors
     fn build_pipeline(
         &mut self,

@@ -38,6 +38,7 @@ impl SampleExtractionState {
 
 pub trait SampleExtractor: Send {
     fn as_mut_any(&mut self) -> &mut Any;
+    fn as_any(&self) -> &Any;
     fn get_extraction_state(&self) -> &SampleExtractionState;
     fn get_extraction_state_mut(&mut self) -> &mut SampleExtractionState;
 

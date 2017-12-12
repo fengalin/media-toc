@@ -20,7 +20,7 @@ use media::ContextMessage::*;
 
 use super::{AudioController, ExportController, InfoController, VideoController};
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ControllerState {
     EOS,
     Ready,
@@ -28,8 +28,10 @@ pub enum ControllerState {
     PendingExportToc,
     PendingSelectMedia,
     Playing,
+    PlayingRange(u64),
     Stopped,
     Seeking(bool, bool), // (must_switch_to_play, was_paused)
+    SeekingRange(u64), // position to restore
 }
 
 const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
@@ -208,6 +210,22 @@ impl MainController {
         }
     }
 
+    pub fn play_range(&mut self, start: u64, end: u64, pos_to_restore: u64) {
+        if self.state == ControllerState::Paused {
+            self.info_ctrl.borrow_mut().start_play_range();
+            self.audio_ctrl.borrow_mut().start_play_range();
+
+            self.state = ControllerState::SeekingRange(pos_to_restore);
+
+            self.context
+                .as_ref()
+                .expect("MainController::play_range no context")
+                .seek_range(start, end);
+
+            self.register_tracker();
+        }
+    }
+
     pub fn get_position(&mut self) -> u64 {
         self.context
             .as_mut()
@@ -266,7 +284,7 @@ impl MainController {
                                 if must_switch_to_play {
                                     this.context
                                         .as_ref()
-                                        .expect("MainController::seek no context")
+                                        .expect("MainController::listener(AsyncDone) no context")
                                         .play()
                                         .unwrap();
                                     this.register_tracker();
@@ -277,6 +295,14 @@ impl MainController {
                                 } else {
                                     this.state = ControllerState::Playing;
                                 }
+                            }
+                            ControllerState::SeekingRange(pos_to_restore) => {
+                                this.context
+                                    .as_ref()
+                                    .expect("MainController::listener(AsyncDone) no context")
+                                    .play()
+                                    .unwrap();
+                                this.state = ControllerState::PlayingRange(pos_to_restore);
                             }
                             _ => (),
                         }
@@ -291,7 +317,7 @@ impl MainController {
                         this.requires_async_dialog = context
                             .info
                             .lock()
-                            .expect("MainController:: failed to lock media info in InitDone")
+                            .expect("MainController::listener(InitDone) failed to lock media info")
                             .video_best
                             .is_some();
 
@@ -309,20 +335,39 @@ impl MainController {
                     }
                     Eos => {
                         let mut this = this_rc.borrow_mut();
+                        match this.state {
+                            ControllerState::PlayingRange(pos_to_restore) => {
+                                // end of range => pause and seek back to pos_to_restore
+                                this.context
+                                    .as_ref()
+                                    .expect("MainController::listener(eos) no context")
+                                    .pause()
+                                    .unwrap();
+                                this.state = ControllerState::Paused;
+                                this.remove_tracker();
+                                this.seek(pos_to_restore, true); // accurate
+                            }
+                            ControllerState::Playing => { // regular EOS
+                                let position = this.get_position();
+                                this.info_ctrl.borrow_mut().tick(position, true);
 
-                        let position = this.get_position();
-                        this.info_ctrl.borrow_mut().tick(position, true);
+                                this.audio_ctrl.borrow_mut().tick();
 
-                        this.audio_ctrl.borrow_mut().tick();
+                                #[cfg(feature = "trace-main-controller")]
+                                println!("MainController::listener(eos)");
 
-                        #[cfg(feature = "trace-main-controller")]
-                        println!("MainController::listener(eos)");
+                                this.play_pause_btn.set_icon_name("media-playback-start");
+                                this.state = ControllerState::EOS;
 
-                        this.play_pause_btn.set_icon_name("media-playback-start");
-                        this.state = ControllerState::EOS;
-
-                        // The tracker will be register again in case of a seek
-                        this.remove_tracker();
+                                // The tracker will be register again in case of a seek
+                                this.remove_tracker();
+                            }
+                            _ => { // inconsistent state
+                                println!("MainController::listener(eos) inconsistent state {:?}",
+                                    this.state);
+                                this.state = ControllerState::Paused;
+                            }
+                        }
                     }
                     FailedToOpenMedia => {
                         eprintln!("ERROR: failed to open media");
@@ -373,7 +418,7 @@ impl MainController {
             #[cfg(feature = "profiling-tracker")]
             let before_tick = Utc::now();
 
-            if this.state == ControllerState::Playing || this.state == ControllerState::Paused {
+            {
                 let position = this.context
                     .as_mut()
                     .expect("MainController::tracker no context while getting position")

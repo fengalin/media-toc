@@ -54,10 +54,11 @@ pub struct WaveformBuffer {
 
     previous_sample: usize,
     current_sample: usize,
-    cursor_sample: usize,
-    cursor_position: u64,
+    cursor_sample: usize,   // The sample nb currently under the cursor (might be different from
+                            // current sample during seeks)
+    cursor_position: u64,   // The timestamp at the cursor's position
     first_visible_sample: Option<usize>,
-    first_visible_sample_lock: Option<i64>,
+    first_visible_sample_lock: Option<(i64, bool)>, // (1st position, keep lock)
     sought_sample: Option<usize>,
     pub playback_needs_refresh: bool,
 
@@ -165,7 +166,10 @@ impl WaveformBuffer {
                     // => lock the first sample so that the cursor appears
                     // at the sought position without abrutely scrolling
                     // the waveform.
-                    self.first_visible_sample_lock = Some(first_visible_sample as i64);
+                    self.first_visible_sample_lock = Some((
+                        first_visible_sample as i64,
+                        false, // don't keep lock when scrolling is possible
+                    ));
                 }
             }
         } else {
@@ -177,9 +181,22 @@ impl WaveformBuffer {
         self.cursor_sample = sought_sample;
     }
 
-    pub fn get_sample_nb_at(&mut self, x: f64) -> Option<u64> {
+    pub fn start_play_range(&mut self) {
+        if self.image.sample_step == 0 {
+            return;
+        }
+
+        if let Some(first_visible_sample) = self.first_visible_sample {
+            self.first_visible_sample_lock = Some((
+                first_visible_sample as i64,
+                true, // keep lock on full playback range
+            ));
+        }
+    }
+
+    pub fn get_position_at(&self, x: f64) -> Option<u64> {
         match self.first_visible_sample {
-            Some(first_visible_sample) => {
+            Some(ref first_visible_sample) => {
                 let sample_at_x = first_visible_sample +
                     (x as usize) / self.image.x_step * self.image.sample_step;
 
@@ -201,17 +218,18 @@ impl WaveformBuffer {
 
             if self.cursor_sample >= self.image.lower {
                 // current sample appears after first buffer sample
-                if let Some(first_visible_sample_lock) = self.first_visible_sample_lock {
+                if let Some((first_visible_sample_lock, keep_lock)) =
+                        self.first_visible_sample_lock
+                {
                     // There is a position lock constraint
-                    // (resulting from an in window seek).
-                    let center_offset = self.cursor_sample as i64 -
+                    let offset_to_center = self.cursor_sample as i64 -
                         self.half_req_sample_window as i64 -
                         first_visible_sample_lock;
-                    if center_offset < -(2 * self.image.sample_step as i64) {
+                    if keep_lock || offset_to_center < -(2 * self.image.sample_step as i64) {
                         // cursor in first half of the window
                         // keep origin on the first sample upon seek
                         Some((first_visible_sample_lock as usize).max(self.image.lower))
-                    } else if (center_offset as usize) <= 2 * self.image.sample_step {
+                    } else if (offset_to_center as usize) <= 2 * self.image.sample_step {
                         // reached the center => keep cursor there
                         self.first_visible_sample_lock = None;
                         self.sought_sample = None;
@@ -234,7 +252,7 @@ impl WaveformBuffer {
                                 delta_cursor,
                         );
 
-                        self.first_visible_sample_lock = Some(next_lower);
+                        self.first_visible_sample_lock = Some((next_lower, false));
                         Some(next_lower as usize)
                     } else {
                         // Not enough overhead to get cursor back to center
@@ -247,7 +265,8 @@ impl WaveformBuffer {
                                 if !self.image.contains_eos {
                                     // but keep the constraint in case more samples
                                     // are added afterward
-                                    self.first_visible_sample_lock = Some(next_lower as i64);
+                                    self.first_visible_sample_lock =
+                                        Some((next_lower as i64, false));
                                 } else {
                                     // reached EOS => don't expect returning to center
                                     self.first_visible_sample_lock = None;
@@ -398,12 +417,15 @@ impl WaveformBuffer {
                                 self.cursor_sample,
                             );
 
-                            if let Some(_first_visible_sample_lock) =
+                            if let Some((_first_visible_sample_lock, keep_lock)) =
                                 self.first_visible_sample_lock
                             {
                                 // There is a first visible sample constraint
                                 // => adapt it to match the new zoom
-                                self.first_visible_sample_lock = Some(new_first_visible_sample);
+                                self.first_visible_sample_lock = Some((
+                                    new_first_visible_sample,
+                                    keep_lock,
+                                ));
                             }
 
                             Some(new_first_visible_sample as usize)
@@ -563,20 +585,20 @@ impl WaveformBuffer {
         } else {
             // not able to merge buffer with current waveform
             // synchronize on latest segment received
-                #[cfg(feature = "trace-waveform-buffer")]
+            #[cfg(feature = "trace-waveform-buffer")]
             println!(
-                    concat!(
-                        "WaveformBuffer{}::get_sample_range not able to merge: ",
-                        "cursor {}, image [{}, {}], buffer [{}, {}], segment: {}",
-                    ),
-                    self.image.id,
-                    self.cursor_sample,
-                    self.image.lower,
-                    self.image.upper,
-                    audio_buffer.lower,
-                    audio_buffer.upper,
-                    audio_buffer.segment_lower,
-                );
+                concat!(
+                    "WaveformBuffer{}::get_sample_range not able to merge: ",
+                    "cursor {}, image [{}, {}], buffer [{}, {}], segment: {}",
+                ),
+                self.image.id,
+                self.cursor_sample,
+                self.image.lower,
+                self.image.upper,
+                audio_buffer.lower,
+                audio_buffer.upper,
+                audio_buffer.segment_lower,
+            );
 
             self.first_visible_sample = None;
             self.first_visible_sample_lock = None;
@@ -626,10 +648,25 @@ impl WaveformBuffer {
                             self.cursor_sample,
                         );
 
-                        self.first_visible_sample = None;
-                        self.first_visible_sample_lock = None;
+                        match self.first_visible_sample_lock {
+                            Some((first_visible_sample, true)) => {
+                                // don't remove lock
+                                let first_visible_sample = first_visible_sample as usize;
+                                Some((
+                                    first_visible_sample,
+                                    upper.min(
+                                        first_visible_sample + self.req_sample_window +
+                                            self.half_req_sample_window,
+                                    ),
+                                ))
+                            }
+                            _ => {
+                                self.first_visible_sample = None;
+                                self.first_visible_sample_lock = None;
 
-                        None
+                                None
+                            }
+                        }
                     }
                 }
                 None => {
@@ -726,6 +763,10 @@ impl WaveformConditions {
 
 impl SampleExtractor for WaveformBuffer {
     fn as_mut_any(&mut self) -> &mut Any {
+        self
+    }
+
+    fn as_any(&self) -> &Any {
         self
     }
 
@@ -855,33 +896,44 @@ impl SampleExtractor for WaveformBuffer {
         // the waveform image and the AudioBuffer
         let (lower, upper) = self.get_sample_range(audio_buffer);
 
+        // FIXME: This is an ugly workaround to bypass the eos status
+        // which is set on the audio_buffer when a range playback is complete.
+        // The problem is that if the buffer really contained eos, it will
+        // be ignored.
+        let ignore_eos = match self.first_visible_sample_lock {
+            Some((_, true)) => true,
+            _ => false,
+        };
+
         self.image.render(
             audio_buffer,
             lower,
             upper,
             self.is_confortable,
+            ignore_eos,
         );
 
-        self.playback_needs_refresh = if audio_buffer.eos && !self.image.contains_eos {
-            // there won't be any refresh on behalf of audio_buffer
-            // and image will still need more sample if playback continues
-            #[cfg(feature = "trace-waveform-buffer")]
-            println!("WaveformBuffer{}::extract_samples setting playback_needs_refresh",
-                self.image.id,
-            );
+        self.playback_needs_refresh =
+            if !ignore_eos && audio_buffer.eos && !self.image.contains_eos {
+                // there won't be any refresh on behalf of audio_buffer
+                // and image will still need more sample if playback continues
+                #[cfg(feature = "trace-waveform-buffer")]
+                println!("WaveformBuffer{}::extract_samples setting playback_needs_refresh",
+                    self.image.id,
+                );
 
-            true
-        } else {
-            #[cfg(feature = "trace-waveform-buffer")]
-            {
-                if self.playback_needs_refresh {
-                    println!("WaveformBuffer{}::extract_samples resetting playback_needs_refresh",
-                        self.image.id,
-                    );
+                true
+            } else {
+                #[cfg(feature = "trace-waveform-buffer")]
+                {
+                    if self.playback_needs_refresh {
+                        println!("WaveformBuffer{}::extract_samples resetting playback_needs_refresh",
+                            self.image.id,
+                        );
+                    }
                 }
-            }
-            false
-        };
+                false
+            };
 
         // first_visible_sample is no longer reliable
         self.first_visible_sample = None;
@@ -892,19 +944,29 @@ impl SampleExtractor for WaveformBuffer {
             // Note: current state is up to date (updated from DoubleAudioBuffer)
 
             let (lower, upper) = self.get_sample_range(audio_buffer);
-            self.image.render(audio_buffer, lower, upper, false);
+
+            // FIXME: This is an ugly workaround to bypass the eos status
+            // which is set on the audio_buffer when a range playback is complete.
+            // The problem is that if the buffer really contained eos, it will
+            // be ignored.
+            let ignore_eos = match self.first_visible_sample_lock {
+                Some((_, true)) => true,
+                _ => false,
+            };
+
+            self.image.render(audio_buffer, lower, upper, false, ignore_eos);
 
             self.playback_needs_refresh = {
                 #[cfg(feature = "trace-waveform-buffer")]
                 {
-                    if self.playback_needs_refresh && self.image.contains_eos {
+                    if !ignore_eos && self.playback_needs_refresh && self.image.contains_eos {
                         println!("WaveformBuffer{}::refresh resetting playback_needs_refresh",
                             self.image.id,
                         );
                     }
                 }
 
-                !self.image.contains_eos
+                !ignore_eos && !self.image.contains_eos
             };
 
             // first_visible_sample is no longer reliable

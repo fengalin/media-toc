@@ -403,6 +403,10 @@ impl InfoController {
         }
     }
 
+    pub fn start_play_range(&mut self) {
+        self.chapter_manager.prepare_for_seek();
+    }
+
     fn get_position(&self) -> u64 {
         let main_ctrl_rc = self.main_ctrl.as_ref().unwrap().upgrade().expect(
             "InfoController::get_position can't upgrade main_ctrl",
