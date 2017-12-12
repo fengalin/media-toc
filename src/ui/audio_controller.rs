@@ -91,25 +91,29 @@ impl AudioController {
         let this_clone = Rc::clone(this_rc);
         this.drawingarea.connect_button_press_event(
             move |_, event_button| {
-                let button = event_button.get_button();
-                if button == 1 {
-                    if let Some(position) = {
-                        let mut this = this_clone.borrow_mut();
-                        let waveform_buffer_grd = &mut *this.waveform_mtx.lock().expect(
-                            "Couldn't lock waveform buffer in audio controller draw",
-                        );
-                        waveform_buffer_grd
-                            .as_mut_any()
-                            .downcast_mut::<WaveformBuffer>()
-                            .expect(concat!(
-                                "AudioController::drawingarea::button_press_event ",
-                                "SamplesExtratctor is not a waveform buffer",
-                            ))
-                            .get_position(event_button.get_position().0)
+                match event_button.get_button() {
+                    1 => {
+                        if let Some(sample_nb) = {
+                            let mut this = this_clone.borrow_mut();
+                            let waveform_buffer_grd = &mut *this.waveform_mtx.lock().expect(
+                                "Couldn't lock waveform buffer in audio controller draw",
+                            );
+                            waveform_buffer_grd
+                                .as_mut_any()
+                                .downcast_mut::<WaveformBuffer>()
+                                .expect(concat!(
+                                    "AudioController::drawingarea::button_press_event ",
+                                    "SamplesExtratctor is not a waveform buffer",
+                                ))
+                                .get_sample_nb_at(event_button.get_position().0)
+                        }
+                        {
+                            main_ctrl_clone.borrow_mut().seek(sample_nb, true); // accurate (slow)
+                        }
                     }
-                    {
-                        main_ctrl_clone.borrow_mut().seek(position, true); // accurate (slow)
+                    2 => {
                     }
+                    _ => (),
                 }
                 Inhibit(true)
             },

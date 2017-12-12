@@ -177,15 +177,14 @@ impl WaveformBuffer {
         self.cursor_sample = sought_sample;
     }
 
-    // Get the stream position from the in-window x coordinate.
-    pub fn get_position(&mut self, x: f64) -> Option<u64> {
+    pub fn get_sample_nb_at(&mut self, x: f64) -> Option<u64> {
         match self.first_visible_sample {
             Some(first_visible_sample) => {
-                let sought_sample = first_visible_sample +
+                let sample_at_x = first_visible_sample +
                     (x as usize) / self.image.x_step * self.image.sample_step;
 
-                if !self.image.contains_eos || sought_sample < self.image.upper {
-                    Some(sought_sample as u64 * self.state.sample_duration)
+                if !self.image.contains_eos || sample_at_x < self.image.upper {
+                    Some(sample_at_x as u64 * self.state.sample_duration)
                 } else {
                     // not a valid position
                     None
