@@ -262,24 +262,23 @@ impl MainController {
                         match this.state {
                             ControllerState::PendingSelectMedia => this.select_media(),
                             ControllerState::PendingExportToc => this.export_toc(),
-                            ControllerState::Seeking(true, _) => {
-                                this.context
-                                    .as_ref()
-                                    .expect("MainController::seek no context")
-                                    .play()
-                                    .unwrap();
-                                this.register_tracker();
-                                this.play_pause_btn.set_icon_name("media-playback-pause");
+                            ControllerState::Seeking(must_switch_to_play, was_paused) => {
+                                if must_switch_to_play {
+                                    this.context
+                                        .as_ref()
+                                        .expect("MainController::seek no context")
+                                        .play()
+                                        .unwrap();
+                                    this.register_tracker();
+                                    this.play_pause_btn.set_icon_name("media-playback-pause");
+                                    this.state = ControllerState::Playing;
+                                } else if was_paused {
+                                    this.state = ControllerState::Paused;
+                                } else {
+                                    this.state = ControllerState::Playing;
+                                }
                             }
                             _ => (),
-                        }
-
-                        if let ControllerState::Seeking(_, was_paused) = this.state {
-                            if !was_paused {
-                                this.state = ControllerState::Playing;
-                            } else {
-                                this.state = ControllerState::Paused;
-                            }
                         }
                     }
                     InitDone => {
