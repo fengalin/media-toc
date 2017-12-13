@@ -188,6 +188,9 @@ impl PlaybackContext {
             )
             .ok()
             .unwrap();
+        if self.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
+            println!("Seeking range: Could not set media in palying state");
+        }
     }
 
     // TODO: handle errors

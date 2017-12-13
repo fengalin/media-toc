@@ -31,7 +31,6 @@ pub enum ControllerState {
     PlayingRange(u64),
     Stopped,
     Seeking(bool, bool), // (must_switch_to_play, was_paused)
-    SeekingRange(u64), // position to restore
 }
 
 const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
@@ -215,7 +214,7 @@ impl MainController {
             self.info_ctrl.borrow_mut().start_play_range();
             self.audio_ctrl.borrow_mut().start_play_range();
 
-            self.state = ControllerState::SeekingRange(pos_to_restore);
+            self.state = ControllerState::PlayingRange(pos_to_restore);
 
             self.context
                 .as_ref()
@@ -295,14 +294,6 @@ impl MainController {
                                 } else {
                                     this.state = ControllerState::Playing;
                                 }
-                            }
-                            ControllerState::SeekingRange(pos_to_restore) => {
-                                this.context
-                                    .as_ref()
-                                    .expect("MainController::listener(AsyncDone) no context")
-                                    .play()
-                                    .unwrap();
-                                this.state = ControllerState::PlayingRange(pos_to_restore);
                             }
                             _ => (),
                         }
