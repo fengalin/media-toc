@@ -28,6 +28,7 @@ pub struct DoubleAudioBuffer {
     exposed_buffer_mtx: Arc<Mutex<Box<SampleExtractor>>>,
     working_buffer: Option<Box<SampleExtractor>>,
     lower_to_keep: usize,
+    can_handle_eos: bool, // accept / ignore eos (required for range seeks handling)
 }
 
 impl DoubleAudioBuffer {
@@ -44,6 +45,7 @@ impl DoubleAudioBuffer {
             exposed_buffer_mtx: Arc::new(Mutex::new(exposed_buffer)),
             working_buffer: Some(working_buffer),
             lower_to_keep: 0,
+            can_handle_eos: true,
         }
     }
 
@@ -70,6 +72,7 @@ impl DoubleAudioBuffer {
             )
             .cleanup();
         self.lower_to_keep = 0;
+        self.can_handle_eos = true;
     }
 
     // Initialize buffer with audio stream capabilities
@@ -131,14 +134,24 @@ impl DoubleAudioBuffer {
         }
     }
 
+    pub fn ignore_eos(&mut self) {
+        self.can_handle_eos = false;
+    }
+
+    pub fn accept_eos(&mut self) {
+        self.can_handle_eos = true;
+    }
+
     pub fn handle_eos(&mut self) {
-        self.audio_buffer.handle_eos();
-        // extract last samples and swap
-        self.extract_samples();
-        // do it again to update second extractor too
-        // this is required in case of a subsequent seek
-        // in the extractors' range
-        self.extract_samples();
+        if self.can_handle_eos {
+            self.audio_buffer.handle_eos();
+            // extract last samples and swap
+            self.extract_samples();
+            // do it again to update second extractor too
+            // this is required in case of a subsequent seek
+            // in the extractors' range
+            self.extract_samples();
+        }
     }
 
     pub fn push_gst_sample(&mut self, sample: &gst::Sample) {

@@ -53,6 +53,8 @@ pub struct PlaybackContext {
     position_element: Option<gst::Element>,
     position_query: gst::Query,
 
+    dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
+
     pub path: PathBuf,
     pub file_name: String,
     pub name: String,
@@ -83,6 +85,8 @@ impl PlaybackContext {
             pipeline: gst::Pipeline::new("pipeline"),
             position_element: None,
             position_query: gst::Query::new_position(gst::Format::Time),
+
+            dbl_audio_buffer_mtx: Arc::clone(&dbl_audio_buffer_mtx),
 
             file_name: file_name.clone(),
             name: String::from(path.file_stem().unwrap().to_str().unwrap()),
@@ -143,7 +147,12 @@ impl PlaybackContext {
         current
     }
 
-    pub fn play(&self) -> Result<(), String> {
+    pub fn play(&mut self) -> Result<(), String> {
+        self.dbl_audio_buffer_mtx
+            .lock()
+            .expect("PlaybackContext::play: couldn't lock dbl_audio_buffer_mtx")
+            .accept_eos();
+
         if self.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
             return Err("Could not set media in palying state".into());
         }
@@ -178,6 +187,13 @@ impl PlaybackContext {
     }
 
     pub fn seek_range(&self, start: u64, end: u64) {
+        // EOS will be emitted at the end of the range
+        // => ignore it so as not to confuse mechnisms that expect the actual end of stream
+        self.dbl_audio_buffer_mtx
+            .lock()
+            .expect("PlaybackContext::play: couldn't lock dbl_audio_buffer_mtx")
+            .ignore_eos();
+
         self.pipeline.seek(
                 1f64,
                 gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
@@ -190,6 +206,10 @@ impl PlaybackContext {
             .unwrap();
         if self.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
             println!("Seeking range: Could not set media in palying state");
+            self.dbl_audio_buffer_mtx
+                .lock()
+                .expect("PlaybackContext::play: couldn't lock dbl_audio_buffer_mtx")
+                .accept_eos();
         }
     }
 

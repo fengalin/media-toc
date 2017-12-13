@@ -152,7 +152,7 @@ impl MainController {
     }
 
     fn play_pause(&mut self) {
-        let context = match self.context.take() {
+        let mut context = match self.context.take() {
             Some(context) => context,
             None => {
                 self.select_media();
@@ -288,7 +288,7 @@ impl MainController {
                             ControllerState::Seeking(must_switch_to_play, must_keep_paused) => {
                                 if must_switch_to_play {
                                     this.context
-                                        .as_ref()
+                                        .as_mut()
                                         .expect("MainController::listener(AsyncDone) no context")
                                         .play()
                                         .unwrap();
