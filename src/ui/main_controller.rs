@@ -198,7 +198,10 @@ impl MainController {
                 }
 
                 let (must_switch_to_play, must_keep_paused) = match self.state {
-                    ControllerState::EOS | ControllerState::Ready => (true, false),
+                    ControllerState::EOS |
+                        ControllerState::Ready |
+                        ControllerState::Seeking(true, false) => (true, false),
+                    ControllerState::Seeking(true, true) => (true, true),
                     ControllerState::Paused => (false, true),
                     _ => (false, false),
                 };
@@ -344,7 +347,6 @@ impl MainController {
                             _ => {
                                 let position = this.get_position();
                                 this.info_ctrl.borrow_mut().tick(position, true);
-
                                 this.audio_ctrl.borrow_mut().tick();
 
                                 #[cfg(feature = "trace-main-controller")]
