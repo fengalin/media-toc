@@ -228,7 +228,7 @@ impl WaveformBuffer {
                     if keep_lock || offset_to_center < -(2 * self.image.sample_step as i64) {
                         // cursor in first half of the window
                         // keep origin on the first sample upon seek
-                        Some((first_visible_sample_lock as usize).max(self.image.lower))
+                        Some(first_visible_sample_lock as usize)
                     } else if (offset_to_center as usize) <= 2 * self.image.sample_step {
                         // reached the center => keep cursor there
                         self.first_visible_sample_lock = None;
@@ -510,8 +510,8 @@ impl WaveformBuffer {
                     self.cursor_sample <= first_visible_sample + self.req_sample_window
                 {
                     Some(SamplePosition {
-                        x: ((self.cursor_sample - first_visible_sample) * self.image.x_step /
-                                self.image.sample_step) as f64,
+                        x: ((self.cursor_sample as f64 - first_visible_sample as f64) /
+                            self.image.sample_step_f),
                         timestamp: self.cursor_position,
                     })
                 } else {
