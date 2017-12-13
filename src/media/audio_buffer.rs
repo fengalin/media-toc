@@ -107,8 +107,6 @@ impl AudioBuffer {
             .as_slice_of::<i16>()
             .expect("Couldn't get audio samples as i16");
 
-        self.eos = false;
-
         let segment_lower = (sample.get_segment().unwrap().get_start().get_value() as u64 /
                                  self.sample_duration) as usize;
         let buffer_sample_len = incoming_samples.len() / self.channels;
@@ -162,6 +160,7 @@ impl AudioBuffer {
                     // self.lower unchanged
                     self.upper = incoming_upper;
                     self.upper_was_updated = true;
+                    self.eos = false;
                     self.last_buffer_upper = incoming_upper;
 
                     (
@@ -208,6 +207,7 @@ impl AudioBuffer {
                     let previous_upper = self.upper;
                     self.upper = incoming_upper;
                     self.upper_was_updated = true;
+                    self.eos = false;
                     // self.first_pts unchanged
                     self.last_buffer_upper = incoming_upper;
                     (
@@ -251,6 +251,7 @@ impl AudioBuffer {
                     self.lower = incoming_lower;
                     self.upper = incoming_upper;
                     self.upper_was_updated = true;
+                    self.eos = false;
                     self.last_buffer_upper = incoming_upper;
                     (
                         true, // lower_changed
@@ -267,6 +268,7 @@ impl AudioBuffer {
                 self.lower = segment_lower;
                 self.upper = segment_lower + buffer_sample_len;
                 self.upper_was_updated = true;
+                self.eos = false;
                 self.last_buffer_upper = self.upper;
                 (
                     true, // lower_changed
