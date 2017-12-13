@@ -341,7 +341,7 @@ impl MainController {
                                 this.remove_tracker();
                                 this.seek(pos_to_restore, true); // accurate
                             }
-                            ControllerState::Playing => { // regular EOS
+                            _ => {
                                 let position = this.get_position();
                                 this.info_ctrl.borrow_mut().tick(position, true);
 
@@ -355,11 +355,6 @@ impl MainController {
 
                                 // The tracker will be register again in case of a seek
                                 this.remove_tracker();
-                            }
-                            _ => { // inconsistent state
-                                println!("MainController::listener(eos) inconsistent state {:?}",
-                                    this.state);
-                                this.state = ControllerState::Paused;
                             }
                         }
                     }
