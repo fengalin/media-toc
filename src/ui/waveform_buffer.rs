@@ -531,14 +531,16 @@ impl WaveformBuffer {
                             self.cursor_sample + self.half_req_sample_window <= self.image.upper;
 
                         let last_x = delta_x.min(self.width_f);
-                        Some(SamplePosition {
-                            x: last_x,
-                            timestamp: (first_visible_sample +
-                                            (last_x as usize) / self.image.x_step *
-                                                self.image.sample_step) as
-                                u64 *
-                                self.state.sample_duration,
-                        })
+                        if last_x.is_sign_positive() {
+                            Some(SamplePosition {
+                                x: last_x,
+                                timestamp: (first_visible_sample +
+                                                (last_x * self.image.sample_step_f) as usize
+                                            ) as u64 * self.state.sample_duration,
+                            })
+                        } else {
+                            None
+                        }
                     }
                     None => {
                         self.is_confortable = false;
