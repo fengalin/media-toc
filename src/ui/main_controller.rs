@@ -30,7 +30,7 @@ pub enum ControllerState {
     Playing,
     PlayingRange(u64),
     Stopped,
-    Seeking(bool, bool), // (must_switch_to_play, was_paused)
+    Seeking(bool, bool), // (must_switch_to_play, must_keep_paused)
 }
 
 const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
@@ -189,23 +189,26 @@ impl MainController {
     }
 
     pub fn seek(&mut self, position: u64, accurate: bool) {
-        if self.state != ControllerState::Stopped {
-            if self.state == ControllerState::Playing || self.state == ControllerState::Paused {
-                self.info_ctrl.borrow_mut().seek(position, &self.state);
-                self.audio_ctrl.borrow_mut().seek(position, &self.state);
+        match self.state {
+            ControllerState::Stopped | ControllerState::PlayingRange(_) => (),
+            _ => {
+                if self.state == ControllerState::Playing || self.state == ControllerState::Paused {
+                    self.info_ctrl.borrow_mut().seek(position, &self.state);
+                    self.audio_ctrl.borrow_mut().seek(position, &self.state);
+                }
+
+                let (must_switch_to_play, must_keep_paused) = match self.state {
+                    ControllerState::EOS | ControllerState::Ready => (true, false),
+                    ControllerState::Paused => (false, true),
+                    _ => (false, false),
+                };
+                self.state = ControllerState::Seeking(must_switch_to_play, must_keep_paused);
+
+                self.context
+                    .as_ref()
+                    .expect("MainController::seek no context")
+                    .seek(position, accurate);
             }
-
-            let must_switch_to_play = (self.state == ControllerState::EOS) ||
-                (self.state == ControllerState::Ready);
-            self.state = ControllerState::Seeking(
-                must_switch_to_play,
-                self.state == ControllerState::Paused,
-            );
-
-            self.context
-                .as_ref()
-                .expect("MainController::seek no context")
-                .seek(position, accurate);
         }
     }
 
@@ -279,7 +282,7 @@ impl MainController {
                         match this.state {
                             ControllerState::PendingSelectMedia => this.select_media(),
                             ControllerState::PendingExportToc => this.export_toc(),
-                            ControllerState::Seeking(must_switch_to_play, was_paused) => {
+                            ControllerState::Seeking(must_switch_to_play, must_keep_paused) => {
                                 if must_switch_to_play {
                                     this.context
                                         .as_ref()
@@ -289,7 +292,7 @@ impl MainController {
                                     this.register_tracker();
                                     this.play_pause_btn.set_icon_name("media-playback-pause");
                                     this.state = ControllerState::Playing;
-                                } else if was_paused {
+                                } else if must_keep_paused {
                                     this.state = ControllerState::Paused;
                                 } else {
                                     this.state = ControllerState::Playing;
