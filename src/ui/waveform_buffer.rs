@@ -924,11 +924,6 @@ impl SampleExtractor for WaveformBuffer {
             }
             false
         };
-
-        match self.first_visible_sample_lock {
-            Some((_, true)) => (), // keep lock => don't discard self.first_visible_sample
-            _ => self.first_visible_sample = None, // first_visible_sample is no longer reliable
-        }
     }
 
     fn refresh(&mut self, audio_buffer: &AudioBuffer) {
@@ -950,11 +945,6 @@ impl SampleExtractor for WaveformBuffer {
 
                 !self.image.contains_eos
             };
-
-            match self.first_visible_sample_lock {
-                Some((_, true)) => (), // keep lock => don't discard self.first_visible_sample
-                _ => self.first_visible_sample = None, // first_visible_sample is no longer reliable
-            }
         } // else: no need to refresh
     }
 
