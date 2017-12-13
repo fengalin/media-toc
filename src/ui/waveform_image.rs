@@ -270,7 +270,6 @@ impl WaveformImage {
         lower: usize,
         upper: usize,
         can_skip: bool,
-        ignore_eos: bool,
     ) {
         #[cfg(feature = "profile-waveform-image")]
         let start = Utc::now();
@@ -280,12 +279,13 @@ impl WaveformImage {
         // for a given req_step_duration and avoiding flickering
         // between redraws.
         let mut lower = lower / self.sample_step * self.sample_step;
-        let upper = if audio_buffer.eos && upper == audio_buffer.upper ||
+        let upper = upper / self.sample_step * self.sample_step;
+        if audio_buffer.eos && upper == audio_buffer.upper ||
             self.contains_eos &&
                 (upper == self.upper || (!self.force_redraw && lower >= self.lower))
         {
             // reached eos or image already contains eos and won't change
-            if !self.contains_eos && !ignore_eos {
+            if !self.contains_eos {
                 #[cfg(any(test, feature = "trace-waveform-rendering"))]
                 println!(
                     concat!(
@@ -302,11 +302,8 @@ impl WaveformImage {
 
                 self.contains_eos = true;
             }
-
-            // get the full range
-            upper
         } else {
-            if self.contains_eos && !ignore_eos {
+            if self.contains_eos {
                 self.contains_eos = false;
 
                 #[cfg(any(test, feature = "trace-waveform-rendering"))]
@@ -325,8 +322,7 @@ impl WaveformImage {
                     audio_buffer.eos,
                 );
             }
-            upper / self.sample_step * self.sample_step
-        };
+        }
 
         if lower < audio_buffer.lower {
             // first sample might be smaller than audio_buffer.lower

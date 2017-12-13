@@ -895,48 +895,38 @@ impl SampleExtractor for WaveformBuffer {
         // Get the available sample range considering both
         // the waveform image and the AudioBuffer
         let (lower, upper) = self.get_sample_range(audio_buffer);
-
-        // FIXME: This is an ugly workaround to bypass the eos status
-        // which is set on the audio_buffer when a range playback is complete.
-        // The problem is that if the buffer really contained eos, it will
-        // be ignored.
-        let ignore_eos = match self.first_visible_sample_lock {
-            Some((_, true)) => true,
-            _ => false,
-        };
-
         self.image.render(
             audio_buffer,
             lower,
             upper,
             self.is_confortable,
-            ignore_eos,
         );
 
-        self.playback_needs_refresh =
-            if !ignore_eos && audio_buffer.eos && !self.image.contains_eos {
-                // there won't be any refresh on behalf of audio_buffer
-                // and image will still need more sample if playback continues
-                #[cfg(feature = "trace-waveform-buffer")]
-                println!("WaveformBuffer{}::extract_samples setting playback_needs_refresh",
-                    self.image.id,
-                );
+        self.playback_needs_refresh = if audio_buffer.eos && !self.image.contains_eos {
+            // there won't be any refresh on behalf of audio_buffer
+            // and image will still need more sample if playback continues
+            #[cfg(feature = "trace-waveform-buffer")]
+            println!("WaveformBuffer{}::extract_samples setting playback_needs_refresh",
+                self.image.id,
+            );
 
-                true
-            } else {
-                #[cfg(feature = "trace-waveform-buffer")]
-                {
-                    if self.playback_needs_refresh {
-                        println!("WaveformBuffer{}::extract_samples resetting playback_needs_refresh",
-                            self.image.id,
-                        );
-                    }
+            true
+        } else {
+            #[cfg(feature = "trace-waveform-buffer")]
+            {
+                if self.playback_needs_refresh {
+                    println!("WaveformBuffer{}::extract_samples resetting playback_needs_refresh",
+                        self.image.id,
+                    );
                 }
-                false
-            };
+            }
+            false
+        };
 
-        // first_visible_sample is no longer reliable
-        self.first_visible_sample = None;
+        match self.first_visible_sample_lock {
+            Some((_, true)) => (), // keep lock => don't discard self.first_visible_sample
+            _ => self.first_visible_sample = None, // first_visible_sample is no longer reliable
+        }
     }
 
     fn refresh(&mut self, audio_buffer: &AudioBuffer) {
@@ -944,33 +934,25 @@ impl SampleExtractor for WaveformBuffer {
             // Note: current state is up to date (updated from DoubleAudioBuffer)
 
             let (lower, upper) = self.get_sample_range(audio_buffer);
-
-            // FIXME: This is an ugly workaround to bypass the eos status
-            // which is set on the audio_buffer when a range playback is complete.
-            // The problem is that if the buffer really contained eos, it will
-            // be ignored.
-            let ignore_eos = match self.first_visible_sample_lock {
-                Some((_, true)) => true,
-                _ => false,
-            };
-
-            self.image.render(audio_buffer, lower, upper, false, ignore_eos);
+            self.image.render(audio_buffer, lower, upper, false);
 
             self.playback_needs_refresh = {
                 #[cfg(feature = "trace-waveform-buffer")]
                 {
-                    if !ignore_eos && self.playback_needs_refresh && self.image.contains_eos {
+                    if self.playback_needs_refresh && self.image.contains_eos {
                         println!("WaveformBuffer{}::refresh resetting playback_needs_refresh",
                             self.image.id,
                         );
                     }
                 }
 
-                !ignore_eos && !self.image.contains_eos
+                !self.image.contains_eos
             };
 
-            // first_visible_sample is no longer reliable
-            self.first_visible_sample = None;
+            match self.first_visible_sample_lock {
+                Some((_, true)) => (), // keep lock => don't discard self.first_visible_sample
+                _ => self.first_visible_sample = None, // first_visible_sample is no longer reliable
+            }
         } // else: no need to refresh
     }
 

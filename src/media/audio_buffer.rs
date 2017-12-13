@@ -31,6 +31,7 @@ pub struct AudioBuffer {
     last_buffer_upper: usize,
     pub lower: usize,
     pub upper: usize,
+    upper_was_updated: bool,
     pub samples: VecDeque<i16>,
 }
 
@@ -51,6 +52,7 @@ impl AudioBuffer {
             last_buffer_upper: 0,
             lower: 0,
             upper: 0,
+            upper_was_updated: false,
             samples: VecDeque::new(),
         }
     }
@@ -79,6 +81,7 @@ impl AudioBuffer {
         self.last_buffer_upper = 0;
         self.lower = 0;
         self.upper = 0;
+        self.upper_was_updated = false;
         self.samples.clear();
     }
 
@@ -158,6 +161,7 @@ impl AudioBuffer {
                     println!("AudioBuffer case 1. appending to the end (full)");
                     // self.lower unchanged
                     self.upper = incoming_upper;
+                    self.upper_was_updated = true;
                     self.last_buffer_upper = incoming_upper;
 
                     (
@@ -179,6 +183,7 @@ impl AudioBuffer {
                         incoming_lower,
                         incoming_upper
                     );
+                    self.upper_was_updated = false;
                     self.last_buffer_upper = incoming_upper;
                     (
                         false, // lower_changed
@@ -202,6 +207,7 @@ impl AudioBuffer {
                     // self.lower unchanged
                     let previous_upper = self.upper;
                     self.upper = incoming_upper;
+                    self.upper_was_updated = true;
                     // self.first_pts unchanged
                     self.last_buffer_upper = incoming_upper;
                     (
@@ -223,6 +229,7 @@ impl AudioBuffer {
                     let upper_to_add = self.lower;
                     self.lower = incoming_lower;
                     // self.upper unchanged
+                    self.upper_was_updated = false;
                     self.last_buffer_upper = incoming_upper;
                     (
                         true, // lower_changed
@@ -243,6 +250,7 @@ impl AudioBuffer {
                     self.samples.clear();
                     self.lower = incoming_lower;
                     self.upper = incoming_upper;
+                    self.upper_was_updated = true;
                     self.last_buffer_upper = incoming_upper;
                     (
                         true, // lower_changed
@@ -258,6 +266,7 @@ impl AudioBuffer {
                 self.segment_lower = segment_lower;
                 self.lower = segment_lower;
                 self.upper = segment_lower + buffer_sample_len;
+                self.upper_was_updated = true;
                 self.last_buffer_upper = self.upper;
                 (
                     true, // lower_changed
@@ -326,7 +335,11 @@ impl AudioBuffer {
     }
 
     pub fn handle_eos(&mut self) {
-        if !self.samples.is_empty() {
+        // EOS can be received when seeking within a range
+        // in our case, this occurs in paused mode at the end of a range playback.
+        // In this situation, the last samples received should already be contained
+        // in the AudioBuffer.
+        if self.upper_was_updated && !self.samples.is_empty() {
             self.eos = true;
         }
     }
