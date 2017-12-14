@@ -23,7 +23,9 @@ At the moment, **media-toc** can:
 the chapters list and marks at the beginning of each chapter on the timeline.
 - Play/Pause the audio and video, draw the audio waveform and select current chapter in the list
 while playing.
-- Seek in the media by clicking on the waveform, on the timeline or in the chapters list.
+- Seek in the media by left clicking on the waveform, on the timeline or in the chapters list.
+- Play from a position until the end of current time frame by right clicking on the waveform
+at the starting position in paused mode.
 - Zoom in/out the waveform on the time axis.
 - Add/remove a chapter.
 - Export the table of contents to:
@@ -53,7 +55,9 @@ of the media. This will change automatically if you add new chapters.
 in the media.
 6. In order to precisely define the start of the new chapter, pause the media by clicking on the
 play/pause button, then use the `+` button next to the waveform to zoom in. You can then seek around
-current sample by clicking on the waveform.
+current sample by clicking on the waveform. You can also play the media in current time frame by
+right clicking at the starting position. Use the zoom, left click and right click until you reach
+the position for the chapter to add.
 7. When the cursor (the vertical yellow bar) matches the start of the chapter to add, click on the
 `+` icon under the tree view at the bottom right of the window.
 8. Click in the newly added chapter title column and fill a title for this chapter.
