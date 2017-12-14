@@ -202,7 +202,8 @@ impl MainController {
                         ControllerState::Ready |
                         ControllerState::Seeking(true, false) => (true, false),
                     ControllerState::Seeking(true, true) => (true, true),
-                    ControllerState::Paused => (false, true),
+                    ControllerState::Paused |
+                        ControllerState::Seeking(false, true) => (false, true),
                     _ => (false, false),
                 };
                 self.state = ControllerState::Seeking(must_switch_to_play, must_keep_paused);
@@ -306,7 +307,6 @@ impl MainController {
                     }
                     InitDone => {
                         let mut this = this_rc.borrow_mut();
-
                         let context = this.context.take().expect(
                             "MainController: InitDone but no context available",
                         );
@@ -364,8 +364,8 @@ impl MainController {
                         eprintln!("ERROR: failed to open media");
 
                         let mut this = this_rc.borrow_mut();
-
                         this.context = None;
+                        this.state = ControllerState::Stopped;
                         this.keep_going = false;
                         keep_going = false;
                     }
