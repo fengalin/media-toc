@@ -26,6 +26,8 @@ const MAX_REQ_DURATION: f64 = 32_000_000_000f64; // 32 s / 1000 px
 const INIT_REQ_DURATION: f64 = 4_000_000_000f64; // 4 s / 1000 px
 const STEP_REQ_DURATION: f64 = 2f64;
 
+const MIN_RANGE_DURATION: u64 = 100_000_000; // 100 ms
+
 pub struct AudioController {
     container: gtk::Box,
     drawingarea: gtk::DrawingArea,
@@ -113,9 +115,12 @@ impl AudioController {
                                 this.last_visible_pos,
                             )
                         };
-                        if let Some(position) = position_opt {
+                        if let Some(start_pos) = position_opt {
+                            // get a reasonable range so that we can still hear
+                            // something even when there are few samples in current window
+                            let end_pos = start_pos + MIN_RANGE_DURATION.max(last_pos - start_pos);
                             main_ctrl_clone.borrow_mut()
-                                .play_range(position, last_pos, cursor_pos);
+                                .play_range(start_pos, end_pos, cursor_pos);
                         }
                     }
                     _ => (),
