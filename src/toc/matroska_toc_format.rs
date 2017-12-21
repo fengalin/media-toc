@@ -62,15 +62,10 @@ impl Exporter for MatroskaTocFormat {
                 .dynamic_cast::<gst::TocSetter>()
                 .expect("MatroskaTocFormat::export muxer is not a TocSetter");
 
-            toc_setter.reset();
-
             let mut toc = Toc::new(TocScope::Global);
             let mut toc_entry = TocEntry::new(TocEntryType::Edition, "00");
             {
                 let toc_entry = toc_entry.get_mut().unwrap();
-
-                let mut min_pos = i64::MAX;
-                let mut max_pos = 0i64;
 
                 for (index, chapter) in chapters.iter().enumerate() {
                     let mut toc_sub_entry =
@@ -85,17 +80,7 @@ impl Exporter for MatroskaTocFormat {
 
                     let start = chapter.start.nano_total as i64;
                     let end = chapter.end.nano_total as i64;
-                    toc_sub_entry.get_mut().unwrap().set_start_stop_times(
-                        start,
-                        end,
-                    );
-
-                    if start < min_pos {
-                        min_pos = start;
-                    }
-                    if end > max_pos {
-                        max_pos = end;
-                    }
+                    toc_sub_entry.get_mut().unwrap().set_start_stop_times(start, end);
 
                     toc_entry.append_sub_entry(toc_sub_entry);
                 }

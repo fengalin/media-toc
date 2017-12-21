@@ -1,6 +1,6 @@
 extern crate gstreamer as gst;
 use gstreamer::prelude::*;
-use gstreamer::{ClockTime, QueryView, TocSetterExt};
+use gstreamer::{ClockTime, QueryView};
 
 extern crate glib;
 
@@ -159,10 +159,6 @@ impl SplitterContext {
     fn register_bus_inspector(&self, start: u64, end: u64, ctx_tx: Sender<ContextMessage>) {
         let mut init_done = false;
         let pipeline = self.pipeline.clone();
-        let tag_toc_element = self.tag_toc_element
-            .as_ref()
-            .expect("SplitContext::register_bus_inspector no tag toc element")
-            .clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
@@ -196,22 +192,6 @@ impl SplitterContext {
                 gst::MessageView::AsyncDone(_) => {
                     if !init_done {
                         init_done = true;
-
-                        // TODO: set tags
-                        let tag_setter = tag_toc_element
-                            .clone()
-                            .dynamic_cast::<gst::TagSetter>()
-                            .expect("SplitterContext(AsyncDone) not a TagSetter");
-                        tag_setter.reset_tags();
-
-                        // Don't export initial media's toc
-                        // FIXME: actually remove the toc (see wavenc source code)
-                        let toc_setter = tag_toc_element
-                            .clone()
-                            .dynamic_cast::<gst::TocSetter>()
-                            .expect("SplitterContext(AsyncDone) not a TocSetter");
-                        toc_setter.reset();
-
                         match pipeline.seek(
                             1f64,
                             gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
