@@ -112,6 +112,20 @@ impl TocSetterContext {
             let muxer_sink_pad = muxer.get_compatible_pad(&queue_src_pad, None).unwrap();
             assert_eq!(queue_src_pad.link(&muxer_sink_pad), gst::PadLinkReturn::Ok);
 
+            // Listen to incoming events and drop Upstream TOCs
+            muxer_sink_pad.add_probe(gst::PadProbeType::EVENT_DOWNSTREAM, |_pad, probe_info| {
+                if let Some(ref data) = probe_info.data {
+                    match data {
+                        &gst::PadProbeData::Event(ref event) => match event.view() {
+                            gst::EventView::Toc(ref _toc) => return gst::PadProbeReturn::Drop,
+                            _ => (),
+                        },
+                        _ => (),
+                    }
+                }
+                gst::PadProbeReturn::Ok
+            });
+
             for element in &[&queue, &muxer] {
                 element.sync_state_with_parent().unwrap();
             }
