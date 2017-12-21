@@ -87,6 +87,21 @@ impl SplitterContext {
 
         // Output sink
         let audio_enc = gst::ElementFactory::make("wavenc", "audioenc").unwrap();
+        // Catch events and drop the upstream TOC
+        let audio_enc_sink_pad = audio_enc.get_static_pad("sink").unwrap();
+        audio_enc_sink_pad.add_probe(gst::PadProbeType::EVENT_DOWNSTREAM, |_pad, probe_info| {
+            if let Some(ref data) = probe_info.data {
+                match data {
+                    &gst::PadProbeData::Event(ref event) => match event.view() {
+                        gst::EventView::Toc(ref _toc) => return gst::PadProbeReturn::Drop,
+                        _ => (),
+                    },
+                    _ => (),
+                }
+            }
+            gst::PadProbeReturn::Ok
+        });
+
         let outsink = gst::ElementFactory::make("filesink", "filesink").unwrap();
         outsink
             .set_property(
