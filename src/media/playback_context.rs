@@ -393,7 +393,7 @@ impl PlaybackContext {
 
         let dbl_audio_buffer_mtx_eos = Arc::clone(&dbl_audio_buffer_mtx);
         appsink.set_callbacks(
-            gst_app::AppSinkCallbacksBuilder::new()
+            gst_app::AppSinkCallbacks::new()
                 .eos(move |_| {
                     dbl_audio_buffer_mtx_eos
                         .lock()
