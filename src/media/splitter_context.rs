@@ -8,11 +8,13 @@ use std::sync::mpsc::Sender;
 
 use std::path::Path;
 
+use std::sync::{Arc, Mutex};
+
 use super::ContextMessage;
 
 pub struct SplitterContext {
     pipeline: gst::Pipeline,
-    tag_toc_element: Option<gst::Element>,
+    audio_enc: Option<gst::Element>,
     position_ref: Option<gst::Element>,
     position_query: gst::Query,
 }
@@ -25,17 +27,17 @@ impl SplitterContext {
         end: u64,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<SplitterContext, String> {
-        println!("\n\n* Exporting {:?}...", input_path);
+        println!("\n\n* Exporting {:?} to {:?}...", input_path, output_path);
 
         let mut this = SplitterContext {
             pipeline: gst::Pipeline::new("pipeline"),
-            tag_toc_element: None,
+            audio_enc: None,
             position_ref: None,
             position_query: gst::Query::new_position(gst::Format::Time),
         };
 
-        this.build_pipeline(input_path, output_path);
-        this.register_bus_inspector(start, end, ctx_tx);
+        this.build_pipeline(input_path, output_path, start, end);
+        this.register_bus_inspector(ctx_tx);
 
         match this.pipeline.set_state(gst::State::Paused) {
             gst::StateChangeReturn::Failure => Err("Could not set media in Paused state".into()),
@@ -56,26 +58,27 @@ impl SplitterContext {
     }
 
     // TODO: handle errors
-    fn build_pipeline(&mut self, input_path: &Path, output_path: &Path) {
+    fn build_pipeline(&mut self, input_path: &Path, output_path: &Path, start: u64, end: u64) {
         // FIXME: multiple issues
         /* There are multiple showstoppers to implementing something ideal
          * to export splitted chapters with audio and video (and subtitles):
-         * - matroska-mux drops seek events explicitely (a message states: "discard for now").
+         * 1. matroska-mux drops seek events explicitely (a message states: "discard for now").
          * This means that it is currently not possible to build a pipeline that would allow
          * seeking in a matroska media (using demux to interprete timestamps) and mux back to
          * to matroska. One solution would be to export streams to files and mux back
          * crossing fingers to make sure everything remains in sync.
-         * - nlesrc (from gstreamer-editing-services) allows extracting frames from a starting
+         * 2. nlesrc (from gstreamer-editing-services) allows extracting frames from a starting
          * positiong for a given duration. However, it is designed to work with single stream
          * medias and decodes to raw formats.
-         * - filesink can't change the file location without setting the pipeline to Null
+         * 3. filesink can't change the file location without setting the pipeline to Null
          * which also unlinks elements.
-         * - wavenc doesn't send header after a second seek in segment mode.
+         * 4. wavenc doesn't send header after a second seek in segment mode.
+         * 5. flacenc can't handle a seek.
          *
-         * The two last issues lead to building a new pipeline for each chapter.
+         * Issues 3 & 4 lead to building a new pipeline for each chapter.
          *
          * Until I design a GUI for the user to select which stream to export to which codec,
-         * current solution is to keep only the audio track and to save it as a wave file
+         * current solution is to keep only the audio track and to save it as a flac file
          * which matches the initial purpose of this application */
 
         // Input
@@ -86,7 +89,8 @@ impl SplitterContext {
         let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
 
         // Output sink
-        let audio_enc = gst::ElementFactory::make("wavenc", "audioenc").unwrap();
+        let audio_enc = gst::ElementFactory::make("flacenc", "audioenc").unwrap();
+
         // Catch events and drop the upstream TOC
         let audio_enc_sink_pad = audio_enc.get_static_pad("sink").unwrap();
         audio_enc_sink_pad.add_probe(gst::PadProbeType::EVENT_DOWNSTREAM, |_pad, probe_info| {
@@ -102,11 +106,57 @@ impl SplitterContext {
             gst::PadProbeReturn::Ok
         });
 
+        // Some encoders (such as flacenc) starts encoding the preroll buffers when switching to
+        // paused mode. When the seek is performed buffers from the new segments are appended
+        // to the ones from the preroll. Moreover, flacenc doesn't handle discontinuities.
+        // As a workaround, we will drop buffers before the seek. The first buffer with the Discont
+        // flag show that it is possible to seek. The next buffer with the Discont flag corresponds
+        // to the first buffer from the target segment
+        let seek_done = Arc::new(Mutex::new(false));
+        let pipeline = self.pipeline.clone();
+        audio_enc_sink_pad.add_probe(gst::PadProbeType::BUFFER, move |_pad, probe_info| {
+            if let Some(ref data) = probe_info.data {
+                match data {
+                    &gst::PadProbeData::Buffer(ref buffer) => {
+                        if buffer.get_flags() & gst::BufferFlags::DISCONT ==
+                                gst::BufferFlags::DISCONT
+                        {
+                            let mut seek_done_grp = seek_done.lock()
+                                .expect("audio_enc_sink_pad(buffer):: couldn't lock seek_done");
+                            if *seek_done_grp == false {
+                                // First buffer before seek
+                                // let's seek and drop buffers until seek start sending new segment
+                                match pipeline.seek(
+                                    1f64,
+                                    gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
+                                    gst::SeekType::Set,
+                                    ClockTime::from(start),
+                                    gst::SeekType::Set,
+                                    ClockTime::from(end),
+                                ) {
+                                    Ok(_) => (),
+                                    Err(_) => {
+                                        eprintln!("Error: Failed to seek");
+                                    }
+                                };
+                                *seek_done_grp = true;
+                            } else {
+                                // First Discont buffer after seek => stop dropping buffers
+                                return gst::PadProbeReturn::Remove;
+                            }
+                        }
+                    },
+                    _ => (),
+                }
+            }
+            gst::PadProbeReturn::Drop
+        });
+
         let outsink = gst::ElementFactory::make("filesink", "filesink").unwrap();
         outsink
             .set_property(
                 "location",
-                &gst::Value::from(output_path.with_extension("wave").to_str().unwrap()),
+                &gst::Value::from(output_path.with_extension("flac").to_str().unwrap()),
             )
             .unwrap();
 
@@ -121,7 +171,7 @@ impl SplitterContext {
         }
 
         self.position_ref = Some(decodebin.clone());
-        self.tag_toc_element = Some(audio_enc.clone());
+        self.audio_enc = Some(audio_enc.clone());
 
         let pipeline_cb = self.pipeline.clone();
         decodebin.connect_pad_added(move |_element, pad| {
@@ -155,9 +205,8 @@ impl SplitterContext {
         });
     }
 
-    // Uses ctx_tx to notify the UI controllers about the inspection process
-    fn register_bus_inspector(&self, start: u64, end: u64, ctx_tx: Sender<ContextMessage>) {
-        let mut init_done = false;
+    // Uses ctx_tx to notify the UI controllers
+    fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
         let pipeline = self.pipeline.clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
@@ -167,7 +216,6 @@ impl SplitterContext {
                             "Error: Failed to notify UI",
                         );
                     }
-                    init_done = false;
                     ctx_tx.send(ContextMessage::Eos).expect(
                         "Eos: Failed to notify UI",
                     );
@@ -190,26 +238,8 @@ impl SplitterContext {
                     return glib::Continue(false);
                 }
                 gst::MessageView::AsyncDone(_) => {
-                    if !init_done {
-                        init_done = true;
-                        match pipeline.seek(
-                            1f64,
-                            gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
-                            gst::SeekType::Set,
-                            ClockTime::from(start),
-                            gst::SeekType::Set,
-                            ClockTime::from(end),
-                        ) {
-                            Ok(_) => (),
-                            Err(_) => {
-                                ctx_tx.send(ContextMessage::FailedToExport).expect(
-                                    "Error: Failed to notify UI",
-                                )
-                            }
-                        };
-                    } else if pipeline.set_state(gst::State::Playing) ==
-                               gst::StateChangeReturn::Failure
-                    {
+                    // Start splitting
+                    if pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
                         ctx_tx.send(ContextMessage::FailedToExport).expect(
                             "Error: Failed to notify UI",
                         );
