@@ -11,6 +11,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use super::ContextMessage;
+use toc;
 
 pub struct SplitterContext {
     pipeline: gst::Pipeline,
@@ -23,6 +24,7 @@ impl SplitterContext {
     pub fn new(
         input_path: &Path,
         output_path: &Path,
+        format: &toc::Format,
         start: u64,
         end: u64,
         ctx_tx: Sender<ContextMessage>,
@@ -36,7 +38,7 @@ impl SplitterContext {
             position_query: gst::Query::new_position(gst::Format::Time),
         };
 
-        this.build_pipeline(input_path, output_path, start, end);
+        this.build_pipeline(input_path, output_path, format, start, end);
         this.register_bus_inspector(ctx_tx);
 
         match this.pipeline.set_state(gst::State::Paused) {
@@ -58,7 +60,14 @@ impl SplitterContext {
     }
 
     // TODO: handle errors
-    fn build_pipeline(&mut self, input_path: &Path, output_path: &Path, start: u64, end: u64) {
+    fn build_pipeline(
+        &mut self,
+        input_path: &Path,
+        output_path: &Path,
+        format: &toc::Format,
+        start: u64,
+        end: u64,
+    ) {
         // FIXME: multiple issues
         /* There are multiple showstoppers to implementing something ideal
          * to export splitted chapters with audio and video (and subtitles):
@@ -89,7 +98,11 @@ impl SplitterContext {
         let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
 
         // Output sink
-        let audio_enc = gst::ElementFactory::make("flacenc", "audioenc").unwrap();
+        let audio_enc = match format {
+            &toc::Format::Flac => gst::ElementFactory::make("flacenc", "audioenc").unwrap(),
+            &toc::Format::Wave => gst::ElementFactory::make("wavenc", "audioenc").unwrap(),
+            _ => panic!("SplitterContext::build_pipeline unsupported format: {:?}", format),
+        };
 
         // Catch events and drop the upstream TOC
         let audio_enc_sink_pad = audio_enc.get_static_pad("sink").unwrap();
@@ -154,10 +167,7 @@ impl SplitterContext {
 
         let outsink = gst::ElementFactory::make("filesink", "filesink").unwrap();
         outsink
-            .set_property(
-                "location",
-                &gst::Value::from(output_path.with_extension("flac").to_str().unwrap()),
-            )
+            .set_property("location", &gst::Value::from(output_path.to_str().unwrap()))
             .unwrap();
 
         {

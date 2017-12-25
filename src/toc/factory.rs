@@ -17,6 +17,7 @@ impl Factory {
     pub fn get_extension(format: &Format, is_audio_only: bool) -> &'static str {
         match *format {
             Format::CueSheet => CueSheetFormat::get_extension(),
+            Format::Flac => "flac",
             Format::Matroska => {
                 if !is_audio_only {
                     MatroskaTocFormat::get_extension()
@@ -25,22 +26,27 @@ impl Factory {
                 }
             }
             Format::MKVMergeText => MKVMergeTextFormat::get_extension(),
+            Format::Wave => "wave",
         }
     }
 
     pub fn get_reader(format: &Format) -> Box<Reader> {
         match *format {
             Format::CueSheet => unimplemented!("Reader for toc::Format::CueSheet"),
+            Format::Flac => unimplemented!("Reader for toc::Format::Flac"),
             Format::Matroska => unimplemented!("Reader for toc::Format::Matroska"),
             Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),
+            Format::Wave => unimplemented!("Reader for toc::Format::Wave"),
         }
     }
 
     pub fn get_writer(format: &Format) -> Box<Writer> {
         match *format {
             Format::CueSheet => CueSheetFormat::new_as_boxed(),
-            Format::Matroska => unimplemented!("Reader for toc::Format::Matroska"),
+            Format::Flac => unimplemented!("Writer for toc::Format::Wave"),
+            Format::Matroska => unimplemented!("Writer for toc::Format::Matroska"),
             Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),
+            Format::Wave => unimplemented!("Writer for toc::Format::Wave"),
         }
     }
 }

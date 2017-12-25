@@ -36,10 +36,13 @@ pub struct ExportController {
     cue_rdbtn: gtk::RadioButton,
     mkv_rdbtn: gtk::RadioButton,
     split_rdbtn: gtk::RadioButton,
+    split_to_flac_rdbtn: gtk::RadioButton,
+    split_to_wave_rdbtn: gtk::RadioButton,
 
     pub playback_ctx: Option<PlaybackContext>,
     toc_setter_ctx: Option<TocSetterContext>,
     splitter_ctx: Option<SplitterContext>,
+    export_format: toc::Format,
     export_type: ExportType,
     media_path: PathBuf,
     target_path: PathBuf,
@@ -67,10 +70,13 @@ impl ExportController {
             cue_rdbtn: builder.get_object("cue-rdbtn").unwrap(),
             mkv_rdbtn: builder.get_object("mkv-rdbtn").unwrap(),
             split_rdbtn: builder.get_object("split-rdbtn").unwrap(),
+            split_to_flac_rdbtn: builder.get_object("split_to_flac-rdbtn").unwrap(),
+            split_to_wave_rdbtn: builder.get_object("split_to_wave-rdbtn").unwrap(),
 
             playback_ctx: None,
             toc_setter_ctx: None,
             splitter_ctx: None,
+            export_format: toc::Format::MKVMergeText,
             export_type: ExportType::None,
             media_path: PathBuf::new(),
             target_path: PathBuf::new(),
@@ -87,6 +93,10 @@ impl ExportController {
             let mut this_mut = this.borrow_mut();
             let this_rc = Rc::clone(&this);
             this_mut.this_opt = Some(this_rc);
+
+            // Split radio button not active initially => disable sub radio buttons
+            this_mut.split_to_flac_rdbtn.set_sensitive(false);
+            this_mut.split_to_wave_rdbtn.set_sensitive(false);
         }
 
         this
@@ -113,6 +123,15 @@ impl ExportController {
         });
 
         let this_clone = Rc::clone(this_rc);
+        this.split_rdbtn.connect_property_active_notify(move |_| {
+            // Enable / disable split sub radio button depending on whether split is selected
+            let this = this_clone.borrow();
+            let state = this.split_rdbtn.get_active();
+            this.split_to_flac_rdbtn.set_sensitive(state);
+            this.split_to_wave_rdbtn.set_sensitive(state);
+        });
+
+        let this_clone = Rc::clone(this_rc);
         let main_ctrl_clone = Rc::clone(main_ctrl);
         this.export_btn.connect_clicked(move |_| {
             let mut this = this_clone.borrow_mut();
@@ -120,6 +139,7 @@ impl ExportController {
             this.switch_to_available();
 
             let (format, export_type) = this.get_selected_format();
+            this.export_format = format;
             this.export_type = export_type.clone();
             this.idx = 0;
 
@@ -135,7 +155,10 @@ impl ExportController {
                     .video_best
                     .is_none()
             };
-            this.extension = toc::Factory::get_extension(&format, is_audio_only).to_owned();
+            this.extension = toc::Factory::get_extension(
+                &this.export_format,
+                is_audio_only,
+            ).to_owned();
 
             this.media_path = this.playback_ctx.as_ref().unwrap().path.clone();
             this.target_path = this.media_path.with_extension(&this.extension);
@@ -158,7 +181,7 @@ impl ExportController {
                         let info = this.playback_ctx.as_ref().unwrap().info.lock().expect(
                             "ExportController::export_btn clicked, failed to lock media info",
                         );
-                        toc::Factory::get_writer(&format).write(
+                        toc::Factory::get_writer(&this.export_format).write(
                             &info.metadata,
                             &info.chapters,
                             &mut output_file,
@@ -242,7 +265,14 @@ impl ExportController {
         };
 
         let media_path = self.media_path.clone();
-        match SplitterContext::new(&media_path, &output_path, start, end, ctx_tx) {
+        match SplitterContext::new(
+            &media_path,
+            &output_path,
+            &self.export_format,
+            start,
+            end,
+            ctx_tx,
+        ) {
             Ok(splitter_ctx) => {
                 self.switch_to_busy();
                 self.splitter_ctx = Some(splitter_ctx);
@@ -311,7 +341,13 @@ impl ExportController {
         } else if self.mkv_rdbtn.get_active() {
             (toc::Format::Matroska, ExportType::SingleFileWithToc)
         } else if self.split_rdbtn.get_active() {
-            (toc::Format::Matroska, ExportType::Split)
+            if self.split_to_flac_rdbtn.get_active() {
+                (toc::Format::Flac, ExportType::Split)
+            } else if self.split_to_wave_rdbtn.get_active() {
+                (toc::Format::Wave, ExportType::Split)
+            } else {
+                unreachable!("ExportController::get_selected_format no selected radio button");
+            }
         } else {
             unreachable!("ExportController::get_selected_format no selected radio button");
         }

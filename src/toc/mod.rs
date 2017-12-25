@@ -1,3 +1,5 @@
+// FIXME: this module is becoming closer to "metadata" than "toc"
+
 pub mod chapter;
 pub use self::chapter::Chapter;
 
@@ -28,9 +30,11 @@ pub static METADATA_VIDEO_CODEC: &'static str = "video_codec";
 
 pub static DEFAULT_TITLE: &'static str = "untitled";
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Format {
     CueSheet,
+    Flac,
     Matroska,
     MKVMergeText,
+    Wave,
 }
