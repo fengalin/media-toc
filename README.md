@@ -35,8 +35,8 @@ at the starting position in paused mode.
 	to reactivate table of contents handling in `matroskamux`.
 	* [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
 	* [Cue Sheet](http://wiki.hydrogenaud.io/index.php?title=Cue_sheet).
-- Split the media file's first audio stream into wave files: one file per chapter. I'll add an UI
-to allow selecting the stream to split later.
+- Split the media file's first audio stream into `flac` or `wave` files: one file per chapter. I'll
+add an UI to allow selecting the stream to split later.
 - Import the table of contents from:
 	* A Matroska container.
 	* [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
@@ -95,7 +95,8 @@ Currently, only the first audio stream can be exported.
 or open a media for which you already defined a table of contents (see [this how-to](#how-to-save-the-toc)).
 2. Click on the export button (the "multiple documents" icon) on the right side of the header bar.
 3. Select `Split into one file per chapter`.
-4. Click on `Export`. When the export is complete, wave files will be created in the media's folder.
+4. Select to desired output format: `flac` or `wave`.
+5. Click on `Export`. When the export is complete, wave files will be created in the media's folder.
 The files are named after the artist, media title, chapter number and chapter title.
 
 ## Use `mkvmerge` to add the toc to an existing Matrsoka media
