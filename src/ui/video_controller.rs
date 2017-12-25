@@ -1,5 +1,5 @@
 extern crate gtk;
-use gtk::{BoxExt, WidgetExt};
+use gtk::{BoxExt, Inhibit, WidgetExt};
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -22,7 +22,13 @@ impl VideoController {
         VideoController { container: container }
     }
 
-    pub fn register_callbacks(&self, _: &Rc<RefCell<MainController>>) {}
+    pub fn register_callbacks(&self, main_ctrl: &Rc<RefCell<MainController>>) {
+        let main_ctrl_clone = Rc::clone(main_ctrl);
+        self.container.connect_button_press_event(move |_, _event_button| {
+            main_ctrl_clone.borrow_mut().play_pause();
+            Inhibit(false)
+        });
+    }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
         let has_video = context
