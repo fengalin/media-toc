@@ -239,6 +239,10 @@ impl MainController {
             .get_position()
     }
 
+    pub fn refresh_info(&mut self, position: u64) {
+        self.info_ctrl.borrow_mut().tick(position, false);
+    }
+
     fn hold(&mut self) {
         self.remove_tracker();
         if let Some(context) = self.context.as_mut() {
@@ -345,8 +349,6 @@ impl MainController {
                                 this.seek(pos_to_restore, true); // accurate
                             }
                             _ => {
-                                let position = this.get_position();
-                                this.info_ctrl.borrow_mut().tick(position, true);
                                 this.audio_ctrl.borrow_mut().tick();
 
                                 #[cfg(feature = "trace-main-controller")]
@@ -379,8 +381,8 @@ impl MainController {
 
             if !keep_going {
                 let mut this = this_rc.borrow_mut();
-                this.listener_src = None;
-                this.tracker_src = None;
+                this.remove_listener();
+                this.remove_tracker();
             }
 
             glib::Continue(keep_going)
@@ -404,19 +406,11 @@ impl MainController {
             #[cfg(feature = "profiling-tracker")]
             let start = Utc::now();
 
-            let mut this = this_rc.borrow_mut();
-
             #[cfg(feature = "profiling-tracker")]
             let before_tick = Utc::now();
 
-            {
-                let position = this.context
-                    .as_mut()
-                    .expect("MainController::tracker no context while getting position")
-                    .get_position();
-                this.info_ctrl.borrow_mut().tick(position, false);
-                this.audio_ctrl.borrow_mut().tick();
-            }
+            let this = this_rc.borrow_mut();
+            this.audio_ctrl.borrow_mut().tick();
 
             #[cfg(feature = "profiling-tracker")]
             let end = Utc::now();
@@ -429,7 +423,7 @@ impl MainController {
                 end.time().format("%H:%M:%S%.6f"),
             );
 
-            glib::Continue(this.keep_going)
+            glib::Continue(true)
         }));
     }
 

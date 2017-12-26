@@ -34,7 +34,7 @@ pub struct SamplePosition {
 pub struct ImagePositions {
     pub first: SamplePosition,
     pub last: Option<SamplePosition>,
-    pub current: Option<SamplePosition>,
+    pub current: Option<f64>,
 }
 
 // A WaveformBuffer hosts one of the two buffers of the double buffering
@@ -483,7 +483,7 @@ impl WaveformBuffer {
     // Get the waveform as an image in current conditions.
     // This function is to be called as close as possible to
     // the actual presentation of the waveform.
-    pub fn get_image(&mut self) -> Option<(&cairo::ImageSurface, ImagePositions)> {
+    pub fn get_image(&mut self) -> (u64, Option<(&cairo::ImageSurface, ImagePositions)>) {
         #[cfg(feature = "trace-waveform-buffer")]
         {
             if let Some(sought_sample) = self.sought_sample {
@@ -509,11 +509,10 @@ impl WaveformBuffer {
                 let cursor_opt = if self.cursor_sample >= first_visible_sample &&
                     self.cursor_sample <= first_visible_sample + self.req_sample_window
                 {
-                    Some(SamplePosition {
-                        x: ((self.cursor_sample as f64 - first_visible_sample as f64) /
-                            self.image.sample_step_f),
-                        timestamp: self.cursor_position,
-                    })
+                    Some(
+                        ((self.cursor_sample as f64 - first_visible_sample as f64) /
+                            self.image.sample_step_f)
+                    )
                 } else {
                     None
                 };
@@ -548,21 +547,24 @@ impl WaveformBuffer {
                     }
                 };
 
-                Some((
-                    self.image.get_image(),
-                    ImagePositions {
-                        first: SamplePosition {
-                            x: x_offset,
-                            timestamp: first_visible_sample as u64 * self.state.sample_duration,
+                (
+                    self.cursor_position,
+                    Some((
+                        self.image.get_image(),
+                        ImagePositions {
+                            first: SamplePosition {
+                                x: x_offset,
+                                timestamp: first_visible_sample as u64 * self.state.sample_duration,
+                            },
+                            last: last_opt,
+                            current: cursor_opt,
                         },
-                        last: last_opt,
-                        current: cursor_opt,
-                    },
-                ))
+                    ))
+                )
             }
             None => {
                 self.is_confortable = false;
-                None
+                (self.cursor_position, None)
             }
         }
     }

@@ -38,7 +38,7 @@ pub struct AudioController {
     playback_needs_refresh: bool,
 
     requested_duration: f64,
-    cursor_pos: u64,
+    current_position: u64,
     last_visible_pos: u64,
 
     waveform_mtx: Arc<Mutex<Box<SampleExtractor>>>,
@@ -63,7 +63,7 @@ impl AudioController {
             playback_needs_refresh: false,
 
             requested_duration: INIT_REQ_DURATION,
-            cursor_pos: 0,
+            current_position: 0,
             last_visible_pos: 0,
 
             waveform_mtx: waveform_mtx,
@@ -79,10 +79,11 @@ impl AudioController {
 
         // draw
         let this_clone = Rc::clone(this_rc);
+        let main_ctrl_clone = Rc::clone(main_ctrl);
         this.drawingarea.connect_draw(
             move |drawing_area, cairo_ctx| {
-                let mut this = this_clone.borrow_mut();
-                this.draw(drawing_area, cairo_ctx)
+                this_clone.borrow_mut()
+                    .draw(&main_ctrl_clone, drawing_area, cairo_ctx)
             },
         );
 
@@ -107,11 +108,11 @@ impl AudioController {
                         }
                     }
                     3 => { // right click => segment playback
-                        let (position_opt, cursor_pos, last_pos) = {
+                        let (position_opt, current_position, last_pos) = {
                             let this = this_clone.borrow();
                             (
                                 this.get_position_at(event_button.get_position().0),
-                                this.cursor_pos,
+                                this.current_position,
                                 this.last_visible_pos,
                             )
                         };
@@ -120,7 +121,7 @@ impl AudioController {
                             // something even when there are few samples in current window
                             let end_pos = start_pos + MIN_RANGE_DURATION.max(last_pos - start_pos);
                             main_ctrl_clone.borrow_mut()
-                                .play_range(start_pos, end_pos, cursor_pos);
+                                .play_range(start_pos, end_pos, current_position);
                         }
                     }
                     _ => (),
@@ -166,7 +167,7 @@ impl AudioController {
                 .cleanup();
         }
         self.requested_duration = INIT_REQ_DURATION;
-        self.cursor_pos = 0;
+        self.current_position = 0;
         self.last_visible_pos = 0;
         self.drawingarea.queue_draw();
     }
@@ -280,7 +281,12 @@ impl AudioController {
         cr.paint();
     }
 
-    fn draw(&mut self, drawingarea: &gtk::DrawingArea, cr: &cairo::Context) -> Inhibit {
+    fn draw(
+        &mut self,
+        main_ctrl: &Rc<RefCell<MainController>>,
+        drawingarea: &gtk::DrawingArea,
+        cr: &cairo::Context
+    ) -> Inhibit {
         #[cfg(feature = "profiling-audio-draw")]
         let before_init = Utc::now();
 
@@ -303,7 +309,7 @@ impl AudioController {
         #[cfg(feature = "profiling-audio-draw")]
         let mut _before_image = Utc::now();
 
-        let image_positions = {
+        let (current_position, image_positions) = {
             let waveform_grd = &mut *self.waveform_mtx.lock().expect(
                 "AudioController::draw: couldn't lock waveform_mtx",
             );
@@ -325,7 +331,8 @@ impl AudioController {
 
             self.playback_needs_refresh = waveform_buffer.playback_needs_refresh;
 
-            match waveform_buffer.get_image() {
+            let (current_position, image_opt) = waveform_buffer.get_image();
+            match image_opt {
                 Some((image, image_positions)) => {
                     #[cfg(feature = "profiling-audio-draw")]
                     let _before_image = Utc::now();
@@ -333,7 +340,7 @@ impl AudioController {
                     cr.set_source_surface(image, -image_positions.first.x, 0f64);
                     cr.paint();
 
-                    image_positions
+                    (current_position, image_positions)
                 }
                 None => {
                     self.clean_cairo_context(cr);
@@ -345,6 +352,8 @@ impl AudioController {
                 }
             }
         };
+
+        self.current_position = current_position;
 
         #[cfg(feature = "profiling-audio-draw")]
         let before_pos = Utc::now();
@@ -381,26 +390,32 @@ impl AudioController {
             cr.fill();
         }
 
-        if let Some(current_pos) = image_positions.current {
+        if let Some(current_x) = image_positions.current {
             // draw current pos
             cr.set_source_rgb(1f64, 1f64, 0f64);
 
-            let cursor_text = Timestamp::format(current_pos.timestamp, true);
+            let cursor_text = Timestamp::format(self.current_position, true);
             let cursor_text_width = 5f64 + cr.text_extents(&cursor_text).width;
-            let cursor_text_x = if current_pos.x + cursor_text_width < width {
-                current_pos.x + 5f64
+            let cursor_text_x = if current_x + cursor_text_width < width {
+                current_x + 5f64
             } else {
-                current_pos.x - cursor_text_width
+                current_x - cursor_text_width
             };
             cr.move_to(cursor_text_x, 15f64);
             cr.show_text(&cursor_text);
 
             cr.set_line_width(1f64);
-            cr.move_to(current_pos.x, 0f64);
-            cr.line_to(current_pos.x, height);
+            cr.move_to(current_x, 0f64);
+            cr.line_to(current_x, height);
             cr.stroke();
+        }
 
-            self.cursor_pos = current_pos.timestamp;
+        #[cfg(feature = "profiling-audio-draw")]
+        let before_refresh_info = Utc::now();
+
+        match main_ctrl.try_borrow_mut() {
+            Ok(mut main_ctrl) => main_ctrl.refresh_info(self.current_position),
+            Err(_) => (),
         }
 
         #[cfg(feature = "profiling-audio-draw")]
@@ -408,12 +423,13 @@ impl AudioController {
 
         #[cfg(feature = "profiling-audio-draw")]
         println!(
-            "audio-draw,{},{},{},{},{},{}",
+            "audio-draw,{},{},{},{},{},{},{}",
             before_init.time().format("%H:%M:%S%.6f"),
             before_lock.time().format("%H:%M:%S%.6f"),
             _before_cndt.time().format("%H:%M:%S%.6f"),
             _before_image.time().format("%H:%M:%S%.6f"),
             before_pos.time().format("%H:%M:%S%.6f"),
+            before_refresh_info.time().format("%H:%M:%S%.6f"),
             end.time().format("%H:%M:%S%.6f"),
         );
 
