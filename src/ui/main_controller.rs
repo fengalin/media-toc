@@ -2,9 +2,6 @@ extern crate glib;
 extern crate gstreamer as gst;
 extern crate gtk;
 
-#[cfg(any(feature = "profiling-listener", feature = "profiling-tracker"))]
-use chrono::Utc;
-
 use std::rc::Rc;
 use std::cell::RefCell;
 
