@@ -34,7 +34,6 @@ pub enum ControllerState {
 }
 
 const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
-const TRACKER_PERIOD: u32 = 17; //  17 ms (60 Hz)
 
 pub struct MainController {
     window: gtk::ApplicationWindow,
@@ -57,7 +56,6 @@ pub struct MainController {
     this_opt: Option<Rc<RefCell<MainController>>>,
     keep_going: bool,
     listener_src: Option<glib::SourceId>,
-    tracker_src: Option<glib::SourceId>,
 }
 
 impl MainController {
@@ -84,7 +82,6 @@ impl MainController {
             this_opt: None,
             keep_going: true,
             listener_src: None,
-            tracker_src: None,
         }));
 
         {
@@ -163,7 +160,7 @@ impl MainController {
         if self.state != ControllerState::EOS {
             match context.get_state() {
                 gst::State::Paused => {
-                    self.register_tracker();
+                    AudioController::register_tick_callback(&self.audio_ctrl);
                     self.play_pause_btn.set_icon_name("media-playback-pause");
                     self.state = ControllerState::Playing;
                     context.play().unwrap();
@@ -172,7 +169,7 @@ impl MainController {
                 gst::State::Playing => {
                     context.pause().unwrap();
                     self.play_pause_btn.set_icon_name("media-playback-start");
-                    self.remove_tracker();
+                    AudioController::remove_tick_callback(&self.audio_ctrl);
                     self.state = ControllerState::Paused;
                     self.context = Some(context);
                 }
@@ -228,7 +225,7 @@ impl MainController {
                 .expect("MainController::play_range no context")
                 .seek_range(start, end);
 
-            self.register_tracker();
+            AudioController::register_tick_callback(&self.audio_ctrl);
         }
     }
 
@@ -244,7 +241,7 @@ impl MainController {
     }
 
     fn hold(&mut self) {
-        self.remove_tracker();
+        AudioController::remove_tick_callback(&self.audio_ctrl);
         if let Some(context) = self.context.as_mut() {
             context.pause().unwrap();
         };
@@ -297,7 +294,7 @@ impl MainController {
                                         .expect("MainController::listener(AsyncDone) no context")
                                         .play()
                                         .unwrap();
-                                    this.register_tracker();
+                                    AudioController::register_tick_callback(&this.audio_ctrl);
                                     this.play_pause_btn.set_icon_name("media-playback-pause");
                                     this.state = ControllerState::Playing;
                                 } else if must_keep_paused {
@@ -345,20 +342,18 @@ impl MainController {
                                     .pause()
                                     .unwrap();
                                 this.state = ControllerState::Paused;
-                                this.remove_tracker();
+                                AudioController::remove_tick_callback(&this.audio_ctrl);
                                 this.seek(pos_to_restore, true); // accurate
                             }
                             _ => {
-                                this.audio_ctrl.borrow_mut().tick();
-
                                 #[cfg(feature = "trace-main-controller")]
                                 println!("MainController::listener(eos)");
 
                                 this.play_pause_btn.set_icon_name("media-playback-start");
                                 this.state = ControllerState::EOS;
 
-                                // The tracker will be register again in case of a seek
-                                this.remove_tracker();
+                                // The tick callback will be register again in case of a seek
+                                AudioController::remove_tick_callback(&this.audio_ctrl);
                             }
                         }
                     }
@@ -382,48 +377,10 @@ impl MainController {
             if !keep_going {
                 let mut this = this_rc.borrow_mut();
                 this.remove_listener();
-                this.remove_tracker();
+                AudioController::remove_tick_callback(&this.audio_ctrl);
             }
 
             glib::Continue(keep_going)
-        }));
-    }
-
-    fn remove_tracker(&mut self) {
-        if let Some(source_id) = self.tracker_src.take() {
-            glib::source_remove(source_id);
-        }
-    }
-
-    fn register_tracker(&mut self) {
-        if self.tracker_src.is_some() {
-            return;
-        }
-
-        let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
-
-        self.tracker_src = Some(gtk::timeout_add(TRACKER_PERIOD, move || {
-            #[cfg(feature = "profiling-tracker")]
-            let start = Utc::now();
-
-            #[cfg(feature = "profiling-tracker")]
-            let before_tick = Utc::now();
-
-            let this = this_rc.borrow_mut();
-            this.audio_ctrl.borrow_mut().tick();
-
-            #[cfg(feature = "profiling-tracker")]
-            let end = Utc::now();
-
-            #[cfg(feature = "profiling-tracker")]
-            println!(
-                "tracker,{},{},{}",
-                start.time().format("%H:%M:%S%.6f"),
-                before_tick.time().format("%H:%M:%S%.6f"),
-                end.time().format("%H:%M:%S%.6f"),
-            );
-
-            glib::Continue(true)
         }));
     }
 

@@ -1,7 +1,8 @@
 extern crate cairo;
+extern crate glib;
 
 extern crate gtk;
-use gtk::{Inhibit, ToolButtonExt, WidgetExt};
+use gtk::{Inhibit, ToolButtonExt, WidgetExt, WidgetExtManual};
 
 #[cfg(feature = "profiling-audio-draw")]
 use chrono::Utc;
@@ -43,6 +44,8 @@ pub struct AudioController {
 
     waveform_mtx: Arc<Mutex<Box<SampleExtractor>>>,
     dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
+
+    tick_cb_id: Option<u32>,
 }
 
 impl AudioController {
@@ -68,6 +71,8 @@ impl AudioController {
 
             waveform_mtx: waveform_mtx,
             dbl_buffer_mtx: dbl_buffer_mtx,
+
+            tick_cb_id: None,
         }))
     }
 
@@ -157,6 +162,10 @@ impl AudioController {
         });
     }
 
+    pub fn redraw(&self) {
+        self.drawingarea.queue_draw();
+    }
+
     pub fn cleanup(&mut self) {
         self.is_active = false;
         self.playback_needs_refresh = false;
@@ -169,7 +178,7 @@ impl AudioController {
         self.requested_duration = INIT_REQ_DURATION;
         self.current_position = 0;
         self.last_visible_pos = 0;
-        self.drawingarea.queue_draw();
+        self.redraw();
     }
 
     pub fn get_dbl_buffer_mtx(&self) -> Arc<Mutex<DoubleAudioBuffer>> {
@@ -231,7 +240,7 @@ impl AudioController {
                 .expect("AudioController::seek: couldn't lock dbl_buffer_mtx")
                 .refresh(false); // don't keep continuity
         }
-        self.drawingarea.queue_draw();
+        self.redraw();
     }
 
     pub fn start_play_range(&mut self) {
@@ -246,20 +255,39 @@ impl AudioController {
             .start_play_range();
     }
 
-    pub fn tick(&mut self) {
-        if self.is_active {
-            if self.playback_needs_refresh {
-                #[cfg(feature = "trace-audio-controller")]
-                println!("AudioController::tick forcing refresh");
-
-                self.dbl_buffer_mtx
-                    .lock()
-                    .expect("AudioController::tick: couldn't lock dbl_buffer_mtx")
-                    .refresh(true); // keep continuity
-            }
-
-            self.drawingarea.queue_draw();
+    pub fn remove_tick_callback(this_rc: &Rc<RefCell<Self>>) {
+        let mut this = this_rc.borrow_mut();
+        if let Some(tick_cb_id) = this.tick_cb_id.take() {
+            this.drawingarea.remove_tick_callback(tick_cb_id);
         }
+    }
+
+    pub fn register_tick_callback(this_rc: &Rc<RefCell<Self>>) {
+        let mut this = this_rc.borrow_mut();
+        if this.tick_cb_id.is_some() {
+            return;
+        }
+
+        let this_rc = Rc::clone(this_rc);
+        this.tick_cb_id = Some(
+            this.drawingarea.add_tick_callback(move |_da, _frame_clock| {
+                let this = this_rc.borrow_mut();
+                if this.is_active {
+                    if this.playback_needs_refresh {
+                        #[cfg(feature = "trace-audio-controller")]
+                        println!("AudioController::tick forcing refresh");
+
+                        this.dbl_buffer_mtx
+                            .lock()
+                            .expect("AudioController::tick: couldn't lock dbl_buffer_mtx")
+                            .refresh(true); // keep continuity
+                    }
+
+                    this.redraw();
+                }
+                glib::Continue(true)
+            })
+        );
     }
 
     fn get_position_at(&self, x: f64) -> Option<u64> {
@@ -457,6 +485,6 @@ impl AudioController {
                 );
         }
 
-        self.drawingarea.queue_draw();
+        self.redraw();
     }
 }
