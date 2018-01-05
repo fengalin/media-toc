@@ -87,7 +87,7 @@ or open a media for which you already defined a table of contents (see [this how
 4. Click on `Export`. When the export is complete, a new file with the same name as your media and
 ending with `.toc.mkv` will be created in the media's folder.
 
-## Split the audio stream into wave files, one file per chapter
+## Split the audio stream into Flac or Wave files, one file per chapter
 
 Currently, only the first audio stream can be exported.
 
