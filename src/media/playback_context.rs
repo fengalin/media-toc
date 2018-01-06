@@ -20,20 +20,9 @@ use std::sync::{Arc, Mutex};
 
 use std::i32;
 
-use toc;
 use toc::{Chapter, Timestamp};
 
-use super::{AlignedImage, ContextMessage, DoubleAudioBuffer, MediaInfo};
-
-macro_rules! assign_tag(
-    ($metadata_map:expr, $name:expr, $tags:expr, $TagType:ty) => {
-        if let Some(tag) = $tags.get::<$TagType>() {
-            $metadata_map.entry($name.to_owned()).or_insert_with(move || {
-                tag.get().unwrap().to_owned()
-            });
-        }
-    };
-);
+use super::{ContextMessage, DoubleAudioBuffer, MediaInfo};
 
 // The video_sink must be created in the main UI thread
 // as it contains a gtk::Widget
@@ -98,8 +87,7 @@ impl PlaybackContext {
         this.info
             .lock()
             .expect("PlaybackContext::new failed to lock media info")
-            .metadata
-            .insert(toc::METADATA_FILE_NAME.to_owned(), file_name);
+            .file_name = file_name;
 
         this.build_pipeline(dbl_audio_buffer_mtx, (*VIDEO_SINK).clone());
         this.register_bus_inspector(ctx_tx);
@@ -474,7 +462,13 @@ impl PlaybackContext {
                 }
                 gst::MessageView::Tag(msg_tag) => {
                     if !init_done {
-                        PlaybackContext::add_tags(&msg_tag.get_tags(), &info_arc_mtx);
+                        let info = &mut info_arc_mtx.lock().expect(
+                            "Failed to lock media info while reading toc data",
+                        );
+                        info.tags = info.tags.merge(
+                            &msg_tag.get_tags(),
+                            gst::TagMergeMode::Replace
+                        );
                     }
                 }
                 gst::MessageView::Toc(msg_toc) => {
@@ -492,51 +486,6 @@ impl PlaybackContext {
 
             glib::Continue(true)
         });
-    }
-
-    fn add_tags(tags: &gst::TagList, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
-        let info = &mut info_arc_mtx.lock().expect(
-            "Failed to lock media info while reading tag data",
-        );
-        assign_tag!(info.metadata, toc::METADATA_TITLE, tags, gst::tags::Title);
-        assign_tag!(info.metadata, toc::METADATA_TITLE, tags, gst::tags::Album);
-        assign_tag!(info.metadata, toc::METADATA_ARTIST, tags, gst::tags::Artist);
-        assign_tag!(
-            info.metadata,
-            toc::METADATA_ARTIST,
-            tags,
-            gst::tags::AlbumArtist
-        );
-
-        assign_tag!(
-            info.metadata,
-            toc::METADATA_AUDIO_CODEC,
-            tags,
-            gst::tags::AudioCodec
-        );
-        assign_tag!(
-            info.metadata,
-            toc::METADATA_VIDEO_CODEC,
-            tags,
-            gst::tags::VideoCodec
-        );
-        assign_tag!(
-            info.metadata,
-            toc::METADATA_CONTAINER,
-            tags,
-            gst::tags::ContainerFormat
-        );
-
-        // TODO: distinguish front/back cover (take the first one?)
-        if let Some(image_tag) = tags.get::<gst::tags::Image>() {
-            if let Some(sample) = image_tag.get() {
-                if let Some(buffer) = sample.get_buffer() {
-                    if let Some(map) = buffer.map_readable() {
-                        info.thumbnail = AlignedImage::from_uknown_buffer(map.as_slice()).ok();
-                    }
-                }
-            }
-        }
     }
 
     fn add_toc(toc: &gst::Toc, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {

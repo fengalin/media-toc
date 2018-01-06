@@ -1,8 +1,9 @@
 extern crate gstreamer as gst;
 
-use std::collections::HashMap;
-
 use std::io::{Read, Write};
+
+// FIXME: rename toc to metadata and move media_info to metadata
+use media::MediaInfo;
 
 use super::Chapter;
 
@@ -11,7 +12,7 @@ pub trait Reader {
         &self,
         duration: u64,
         source: &mut Read,
-        metadata: &mut HashMap<String, String>,
+        info: &MediaInfo,
         chapters: &mut Vec<Chapter>,
     );
 }
@@ -19,7 +20,7 @@ pub trait Reader {
 pub trait Writer {
     fn write(
         &self,
-        metadata: &HashMap<String, String>,
+        info: &MediaInfo,
         chapters: &[Chapter],
         destination: &mut Write,
     );
@@ -28,7 +29,7 @@ pub trait Writer {
 pub trait Exporter {
     fn export(
         &self,
-        metadata: &HashMap<String, String>,
+        info: &MediaInfo,
         chapters: &[Chapter],
         destination: &gst::Element,
     );

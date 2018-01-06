@@ -1,6 +1,3 @@
-pub mod aligned_image;
-pub use self::aligned_image::AlignedImage;
-
 pub mod audio_channel;
 pub use self::audio_channel::{AudioChannel, AudioChannelSide};
 

@@ -4,9 +4,10 @@ use glib::Cast;
 extern crate gstreamer as gst;
 use gstreamer::{TagSetterExt, Toc, TocEntry, TocEntryType, TocScope, TocSetterExt};
 
-use std::collections::HashMap;
-
 use std::i64;
+
+// FIXME: rename toc to metadata and move media_info to metadata
+use media::MediaInfo;
 
 use super::{Chapter, Exporter};
 
@@ -32,7 +33,7 @@ impl MatroskaTocFormat {
 impl Exporter for MatroskaTocFormat {
     fn export(
         &self,
-        metadata: &HashMap<String, String>,
+        info: &MediaInfo,
         chapters: &[Chapter],
         destination: &gst::Element,
     ) {
@@ -42,18 +43,7 @@ impl Exporter for MatroskaTocFormat {
                 .dynamic_cast::<gst::TagSetter>()
                 .expect("MatroskaTocFormat::export muxer is not a TagSetter");
 
-            let mut tag_list = gst::TagList::new();
-            {
-                let tag_list = tag_list.get_mut().unwrap();
-                if let Some(title) = metadata.get(super::METADATA_TITLE) {
-                    tag_list.add::<gst::tags::Title>(&title.as_str(), gst::TagMergeMode::Append);
-                }
-                if let Some(artist) = metadata.get(super::METADATA_ARTIST) {
-                    tag_list.add::<gst::tags::Artist>(&artist.as_str(), gst::TagMergeMode::Append);
-                }
-            }
-
-            tag_setter.merge_tags(&tag_list, gst::TagMergeMode::Append)
+            tag_setter.merge_tags(&info.tags, gst::TagMergeMode::Replace)
         }
 
         {

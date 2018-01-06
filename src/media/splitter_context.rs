@@ -110,6 +110,7 @@ impl SplitterContext {
             if let Some(ref data) = probe_info.data {
                 match data {
                     &gst::PadProbeData::Event(ref event) => match event.view() {
+                        gst::EventView::Tag(ref _tag) => return gst::PadProbeReturn::Drop,
                         gst::EventView::Toc(ref _toc) => return gst::PadProbeReturn::Drop,
                         _ => (),
                     },

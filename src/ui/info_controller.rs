@@ -40,7 +40,7 @@ pub struct InfoController {
     add_chapter_btn: gtk::ToolButton,
     del_chapter_btn: gtk::ToolButton,
 
-    thumbnail: Option<ImageSurface>,
+    thumbnail: Option<cairo::ImageSurface>,
 
     chapter_manager: ChapterTreeManager,
 
@@ -179,9 +179,7 @@ impl InfoController {
         cairo_ctx: &cairo::Context,
     ) -> Inhibit {
         // Thumbnail draw
-        if let Some(ref thumbnail) = self.thumbnail {
-            let surface = &thumbnail.surface;
-
+        if let Some(ref surface) = self.thumbnail {
             let allocation = drawingarea.get_allocation();
             let alloc_ratio = f64::from(allocation.width) / f64::from(allocation.height);
             let surface_ratio = f64::from(surface.get_width()) / f64::from(surface.get_height());
@@ -241,13 +239,14 @@ impl InfoController {
                 "InfoController::new_media failed to lock media info",
             );
 
-            info.fix();
-
-            if let Some(thumbnail) = info.thumbnail.take() {
-                if let Ok(image) = ImageSurface::from_aligned_image(thumbnail) {
-                    self.thumbnail = Some(image);
+            if let Some(ref image_sample) = info.get_image(0) {
+                if let Some(ref image_buffer) = image_sample.get_buffer() {
+                    if let Some(ref image_map) = image_buffer.map_readable() {
+                        self.thumbnail =
+                            ImageSurface::create_from_uknown(image_map.as_slice()).ok();
+                    }
                 }
-            };
+            }
 
             self.title_lbl.set_label(
                 info.get_title().unwrap_or(&EMPTY_REPLACEMENT),
@@ -280,7 +279,7 @@ impl InfoController {
                     toc::Factory::get_reader(&format).read(
                         self.duration,
                         &mut toc_file,
-                        &mut info.metadata,
+                        &mut info,
                         &mut chapters,
                     );
                     self.chapter_manager.replace_with(&chapters);

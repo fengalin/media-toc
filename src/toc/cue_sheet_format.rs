@@ -1,6 +1,7 @@
-use std::collections::HashMap;
-
 use std::io::Write;
+
+// FIXME: rename toc to metadata and move media_info to metadata
+use media::MediaInfo;
 
 use super::{Chapter, Writer};
 
@@ -21,41 +22,39 @@ impl CueSheetFormat {
 impl Writer for CueSheetFormat {
     fn write(
         &self,
-        metadata: &HashMap<String, String>,
+        info: &MediaInfo,
         chapters: &[Chapter],
         destination: &mut Write,
     ) {
-        let title = metadata.get(super::METADATA_TITLE);
+        let title = info.get_title();
         if let Some(title) = title {
             destination
                 .write_fmt(format_args!("TITLE \"{}\"\n", title))
                 .expect("CueSheetFormat::write clicked, failed to write to file");
         }
 
-        let artist = metadata.get(super::METADATA_ARTIST);
+        let artist = info.get_artist();
         if let Some(artist) = artist {
             destination
                 .write_fmt(format_args!("PERFORMER \"{}\"\n", artist))
                 .expect("CueSheetFormat::write clicked, failed to write to file");
         }
 
-        if let Some(file_name) = metadata.get(super::METADATA_FILE_NAME) {
-            let audio_codec = match metadata.get(super::METADATA_AUDIO_CODEC) {
-                Some(audio_codec) => {
-                    if audio_codec.to_lowercase().find("mp3").is_some() {
-                        "MP3"
-                    } else if audio_codec.to_lowercase().find("aiff").is_some() {
-                        "AIFF"
-                    } else {
-                        "WAVE"
-                    }
+        let audio_codec = match info.get_audio_codec() {
+            Some(audio_codec) => {
+                if audio_codec.to_lowercase().find("mp3").is_some() {
+                    "MP3"
+                } else if audio_codec.to_lowercase().find("aiff").is_some() {
+                    "AIFF"
+                } else {
+                    "WAVE"
                 }
-                None => "WAVE",
-            };
-            destination
-                .write_fmt(format_args!("FILE \"{}\" {}\n", file_name, audio_codec))
-                .expect("CueSheetFormat::write clicked, failed to write to file");
-        }
+            }
+            None => "WAVE",
+        };
+        destination
+            .write_fmt(format_args!("FILE \"{}\" {}\n", info.get_file_name(), audio_codec))
+            .expect("CueSheetFormat::write clicked, failed to write to file");
 
         for (index, chapter) in chapters.iter().enumerate() {
             // FIXME: are there other TRACK types than AUDIO?

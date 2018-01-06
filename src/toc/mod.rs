@@ -21,12 +21,7 @@ pub use self::mkvmerge_text_format::MKVMergeTextFormat;
 pub mod timestamp;
 pub use self::timestamp::Timestamp;
 
-pub static METADATA_ARTIST: &'static str = "artist";
-pub static METADATA_AUDIO_CODEC: &'static str = "audio_codec";
-pub static METADATA_CONTAINER: &'static str = "media_container";
-pub static METADATA_FILE_NAME: &'static str = "file_name";
 pub static METADATA_TITLE: &'static str = "title";
-pub static METADATA_VIDEO_CODEC: &'static str = "video_codec";
 
 pub static DEFAULT_TITLE: &'static str = "untitled";
 

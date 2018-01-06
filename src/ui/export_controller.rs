@@ -182,7 +182,7 @@ impl ExportController {
                             "ExportController::export_btn clicked, failed to lock media info",
                         );
                         toc::Factory::get_writer(&this.export_format).write(
-                            &info.metadata,
+                            &info,
                             &info.chapters,
                             &mut output_file,
                         );
@@ -420,7 +420,7 @@ impl ExportController {
                                             "failed to lock media info",
                                         ),
                             );
-                            exporter.export(&info.metadata, &info.chapters, muxer);
+                            exporter.export(&info, &info.chapters, muxer);
                         }
 
                         match toc_setter_ctx.export() {

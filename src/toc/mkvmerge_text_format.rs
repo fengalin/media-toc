@@ -1,8 +1,9 @@
 extern crate lazy_static;
 
-use std::collections::HashMap;
-
 use std::io::{Read, Write};
+
+// FIXME: rename toc to metadata and move media_info to metadata
+use media::MediaInfo;
 
 use super::{Chapter, Reader, Timestamp, Writer};
 
@@ -35,7 +36,7 @@ impl Reader for MKVMergeTextFormat {
         &self,
         duration: u64,
         source: &mut Read,
-        _metadata: &mut HashMap<String, String>,
+        _info: &MediaInfo,
         chapters: &mut Vec<Chapter>,
     ) {
         let mut content = String::new();
@@ -107,7 +108,7 @@ impl Reader for MKVMergeTextFormat {
 impl Writer for MKVMergeTextFormat {
     fn write(
         &self,
-        _metadata: &HashMap<String, String>,
+        _info: &MediaInfo,
         chapters: &[Chapter],
         destination: &mut Write,
     ) {
