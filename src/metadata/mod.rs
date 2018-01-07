@@ -1,5 +1,3 @@
-// FIXME: this module is becoming closer to "metadata" than "toc"
-
 pub mod chapter;
 pub use self::chapter::Chapter;
 

@@ -3,7 +3,7 @@ use gtk::prelude::*;
 
 extern crate lazy_static;
 
-use toc::{Chapter, Timestamp};
+use metadata::{Chapter, Timestamp};
 
 const START_COL: i32 = 0;
 const END_COL: i32 = 1;

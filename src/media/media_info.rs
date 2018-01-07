@@ -2,7 +2,7 @@ extern crate gstreamer as gst;
 
 use std::collections::HashMap;
 
-use toc::Chapter;
+use metadata::Chapter;
 
 pub struct MediaInfo {
     pub file_name: String,

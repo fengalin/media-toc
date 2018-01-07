@@ -21,11 +21,10 @@ extern crate chrono;
 
 use gtk::{Builder, BuilderExt};
 
+mod metadata;
+mod media;
 mod ui;
 use ui::MainController;
-
-mod media;
-mod toc;
 
 fn main() {
     if gtk::init().is_err() {

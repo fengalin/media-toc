@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 
 use media::{PlaybackContext, DoubleAudioBuffer, SampleExtractor};
 
-use toc::Timestamp;
+use metadata::Timestamp;
 
 use super::{ControllerState, DoubleWaveformBuffer, MainController, WaveformBuffer,
             WaveformConditions, BACKGROUND_COLOR};

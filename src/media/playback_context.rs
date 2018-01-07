@@ -20,7 +20,7 @@ use std::sync::{Arc, Mutex};
 
 use std::i32;
 
-use toc::{Chapter, Timestamp};
+use metadata::{Chapter, Timestamp};
 
 use super::{ContextMessage, DoubleAudioBuffer, MediaInfo};
 

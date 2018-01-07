@@ -14,8 +14,8 @@ use std::cell::RefCell;
 
 use media::PlaybackContext;
 
-use toc;
-use toc::{Chapter, Timestamp};
+use metadata;
+use metadata::{Chapter, Timestamp};
 
 use super::{ChapterTreeManager, ControllerState, ImageSurface, MainController};
 
@@ -219,7 +219,7 @@ impl InfoController {
             );
 
         // check the presence of toc files
-        let toc_extensions = toc::Factory::get_extensions();
+        let toc_extensions = metadata::Factory::get_extensions();
         let test_path = media_path.clone();
         let mut toc_candidates = toc_extensions.into_iter().filter_map(
             |(extension, format)| {
@@ -276,7 +276,7 @@ impl InfoController {
                         "InfoController::new_media failed to open toc file",
                     );
                     let mut chapters = Vec::<Chapter>::new();
-                    toc::Factory::get_reader(&format).read(
+                    metadata::Factory::get_reader(&format).read(
                         self.duration,
                         &mut toc_file,
                         &mut info,

@@ -11,7 +11,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use super::ContextMessage;
-use toc;
+use metadata;
 
 pub struct SplitterContext {
     pipeline: gst::Pipeline,
@@ -24,7 +24,7 @@ impl SplitterContext {
     pub fn new(
         input_path: &Path,
         output_path: &Path,
-        format: &toc::Format,
+        format: &metadata::Format,
         start: u64,
         end: u64,
         ctx_tx: Sender<ContextMessage>,
@@ -64,7 +64,7 @@ impl SplitterContext {
         &mut self,
         input_path: &Path,
         output_path: &Path,
-        format: &toc::Format,
+        format: &metadata::Format,
         start: u64,
         end: u64,
     ) {
@@ -99,8 +99,8 @@ impl SplitterContext {
 
         // Output sink
         let audio_enc = match format {
-            &toc::Format::Flac => gst::ElementFactory::make("flacenc", "audioenc").unwrap(),
-            &toc::Format::Wave => gst::ElementFactory::make("wavenc", "audioenc").unwrap(),
+            &metadata::Format::Flac => gst::ElementFactory::make("flacenc", "audioenc").unwrap(),
+            &metadata::Format::Wave => gst::ElementFactory::make("wavenc", "audioenc").unwrap(),
             _ => panic!("SplitterContext::build_pipeline unsupported format: {:?}", format),
         };
 

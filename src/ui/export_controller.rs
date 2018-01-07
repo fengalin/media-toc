@@ -12,8 +12,8 @@ use std::sync::mpsc::{channel, Receiver};
 use media::{ContextMessage, PlaybackContext, SplitterContext, TocSetterContext};
 use media::ContextMessage::*;
 
-use toc;
-use toc::{Chapter, DEFAULT_TITLE, Exporter, MatroskaTocFormat};
+use metadata;
+use metadata::{Chapter, DEFAULT_TITLE, Exporter, MatroskaTocFormat};
 
 use super::MainController;
 
@@ -42,7 +42,7 @@ pub struct ExportController {
     pub playback_ctx: Option<PlaybackContext>,
     toc_setter_ctx: Option<TocSetterContext>,
     splitter_ctx: Option<SplitterContext>,
-    export_format: toc::Format,
+    export_format: metadata::Format,
     export_type: ExportType,
     media_path: PathBuf,
     target_path: PathBuf,
@@ -76,7 +76,7 @@ impl ExportController {
             playback_ctx: None,
             toc_setter_ctx: None,
             splitter_ctx: None,
-            export_format: toc::Format::MKVMergeText,
+            export_format: metadata::Format::MKVMergeText,
             export_type: ExportType::None,
             media_path: PathBuf::new(),
             target_path: PathBuf::new(),
@@ -155,7 +155,7 @@ impl ExportController {
                     .video_best
                     .is_none()
             };
-            this.extension = toc::Factory::get_extension(
+            this.extension = metadata::Factory::get_extension(
                 &this.export_format,
                 is_audio_only,
             ).to_owned();
@@ -181,7 +181,7 @@ impl ExportController {
                         let info = this.playback_ctx.as_ref().unwrap().info.lock().expect(
                             "ExportController::export_btn clicked, failed to lock media info",
                         );
-                        toc::Factory::get_writer(&this.export_format).write(
+                        metadata::Factory::get_writer(&this.export_format).write(
                             &info,
                             &info.chapters,
                             &mut output_file,
@@ -333,18 +333,18 @@ impl ExportController {
         self.target_path.with_file_name(split_name)
     }
 
-    fn get_selected_format(&self) -> (toc::Format, ExportType) {
+    fn get_selected_format(&self) -> (metadata::Format, ExportType) {
         if self.mkvmerge_txt_rdbtn.get_active() {
-            (toc::Format::MKVMergeText, ExportType::ExternalToc)
+            (metadata::Format::MKVMergeText, ExportType::ExternalToc)
         } else if self.cue_rdbtn.get_active() {
-            (toc::Format::CueSheet, ExportType::ExternalToc)
+            (metadata::Format::CueSheet, ExportType::ExternalToc)
         } else if self.mkv_rdbtn.get_active() {
-            (toc::Format::Matroska, ExportType::SingleFileWithToc)
+            (metadata::Format::Matroska, ExportType::SingleFileWithToc)
         } else if self.split_rdbtn.get_active() {
             if self.split_to_flac_rdbtn.get_active() {
-                (toc::Format::Flac, ExportType::Split)
+                (metadata::Format::Flac, ExportType::Split)
             } else if self.split_to_wave_rdbtn.get_active() {
-                (toc::Format::Wave, ExportType::Split)
+                (metadata::Format::Wave, ExportType::Split)
             } else {
                 unreachable!("ExportController::get_selected_format no selected radio button");
             }
