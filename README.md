@@ -96,7 +96,8 @@ or open a media for which you already defined a table of contents (see [this how
 2. Click on the export button (the "multiple documents" icon) on the right side of the header bar.
 3. Select `Split into one file per chapter`.
 4. Select to desired output format: `flac` or `wave`.
-5. Click on `Export`. When the export is complete, wave files will be created in the media's folder.
+5. Click on `Export`. When the export is complete, flac or wave files will be created in the media's
+folder.
 The files are named after the artist, media title, chapter number and chapter title.
 
 ## Use `mkvmerge` to add the toc to an existing Matrsoka media

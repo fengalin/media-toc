@@ -50,7 +50,7 @@ impl Exporter for MatroskaTocFormat {
                 .expect("MatroskaTocFormat::export muxer is not a TocSetter");
 
             let mut toc = Toc::new(TocScope::Global);
-            let mut toc_entry = TocEntry::new(TocEntryType::Edition, "00");
+            let mut toc_entry = TocEntry::new(TocEntryType::Edition, "");
             {
                 let toc_entry = toc_entry.get_mut().unwrap();
 
