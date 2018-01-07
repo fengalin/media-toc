@@ -150,7 +150,7 @@ impl fmt::Display for Timestamp {
 
 #[cfg(test)]
 mod tests {
-    use toc::Timestamp;
+    use metadata::Timestamp;
 
     #[test]
     fn parse_string() {
