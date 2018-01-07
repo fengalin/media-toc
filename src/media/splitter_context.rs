@@ -27,6 +27,7 @@ impl SplitterContext {
         format: &metadata::Format,
         start: u64,
         end: u64,
+        tags: gst::TagList,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<SplitterContext, String> {
         println!("\n\n* Exporting {:?} to {:?}...", input_path, output_path);
@@ -39,7 +40,7 @@ impl SplitterContext {
         };
 
         this.build_pipeline(input_path, output_path, format, start, end);
-        this.register_bus_inspector(ctx_tx);
+        this.register_bus_inspector(tags, ctx_tx);
 
         match this.pipeline.set_state(gst::State::Paused) {
             gst::StateChangeReturn::Failure => Err("Could not set media in Paused state".into()),
@@ -104,7 +105,7 @@ impl SplitterContext {
             _ => panic!("SplitterContext::build_pipeline unsupported format: {:?}", format),
         };
 
-        // Catch events and drop the upstream TOC
+        // Catch events and drop the upstream Tags & TOC
         let audio_enc_sink_pad = audio_enc.get_static_pad("sink").unwrap();
         audio_enc_sink_pad.add_probe(gst::PadProbeType::EVENT_DOWNSTREAM, |_pad, probe_info| {
             if let Some(ref data) = probe_info.data {
@@ -217,7 +218,8 @@ impl SplitterContext {
     }
 
     // Uses ctx_tx to notify the UI controllers
-    fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
+    fn register_bus_inspector(&self, tags: gst::TagList, ctx_tx: Sender<ContextMessage>) {
+        let audio_enc = self.audio_enc.clone();
         let pipeline = self.pipeline.clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
@@ -249,6 +251,16 @@ impl SplitterContext {
                     return glib::Continue(false);
                 }
                 gst::MessageView::AsyncDone(_) => {
+                    // Add tags
+                    if let Some(ref audio_enc) = audio_enc {
+                        let tag_setter = audio_enc
+                            .clone()
+                            .dynamic_cast::<gst::TagSetter>()
+                            .expect("SplitterContext::msg_bus audio_enc is not a TagSetter");
+
+                        tag_setter.merge_tags(&tags, gst::TagMergeMode::ReplaceAll);
+                    }
+
                     // Start splitting
                     if pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
                         ctx_tx.send(ContextMessage::FailedToExport).expect(

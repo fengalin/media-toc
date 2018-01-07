@@ -1,4 +1,5 @@
 extern crate glib;
+extern crate gstreamer as gst;
 
 extern crate gtk;
 use gtk::prelude::*;
@@ -18,6 +19,15 @@ use metadata::{Chapter, DEFAULT_TITLE, Exporter, MatroskaTocFormat};
 use super::MainController;
 
 const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
+
+
+macro_rules! add_tag_from(
+    ($tags:expr, $original_tags:expr, $TagType:ty) => {
+        if let Some(tag) = $original_tags.get_index::<$TagType>(0) {
+            $tags.add::<$TagType>(tag.get().as_ref().unwrap(), gst::TagMergeMode::Replace);
+        }
+    };
+);
 
 #[derive(Clone, PartialEq)]
 enum ExportType {
@@ -253,7 +263,7 @@ impl ExportController {
 
         self.register_splitter_listener(LISTENER_PERIOD, ui_rx, Rc::clone(main_ctrl));
 
-        let (output_path, start, end) = {
+        let (output_path, start, end, tags) = {
             let chapter = self.current_chapter.as_ref().expect(
                 "ExportController::build_splitter_context no chapter",
             );
@@ -261,6 +271,7 @@ impl ExportController {
                 self.get_split_path(chapter),
                 chapter.start.nano_total,
                 chapter.end.nano_total,
+                self.get_chapter_tags(chapter),
             )
         };
 
@@ -271,6 +282,7 @@ impl ExportController {
             &self.export_format,
             start,
             end,
+            tags,
             ctx_tx,
         ) {
             Ok(splitter_ctx) => {
@@ -331,6 +343,98 @@ impl ExportController {
             );
 
         self.target_path.with_file_name(split_name)
+    }
+
+    fn get_chapter_tags(&self, chapter: &Chapter) -> gst::TagList {
+        let mut tags = gst::TagList::new();
+        {
+            let tags = tags.get_mut().unwrap();
+            let (chapter_count, duration) = {
+                let info = self.playback_ctx.as_ref().unwrap().info.lock().expect(
+                    "ExportController::get_chapter_tags failed to lock media info",
+                );
+
+                // Select tags suitable for a track
+                add_tag_from!(tags, info.tags, gst::tags::Artist);
+                add_tag_from!(tags, info.tags, gst::tags::ArtistSortname);
+                add_tag_from!(tags, info.tags, gst::tags::Album);
+                add_tag_from!(tags, info.tags, gst::tags::AlbumSortname);
+                add_tag_from!(tags, info.tags, gst::tags::AlbumArtist);
+                add_tag_from!(tags, info.tags, gst::tags::AlbumArtistSortname);
+                add_tag_from!(tags, info.tags, gst::tags::Date);
+                add_tag_from!(tags, info.tags, gst::tags::DateTime);
+                add_tag_from!(tags, info.tags, gst::tags::Genre);
+                add_tag_from!(tags, info.tags, gst::tags::Comment);
+                add_tag_from!(tags, info.tags, gst::tags::ExtendedComment);
+                add_tag_from!(tags, info.tags, gst::tags::AlbumVolumeNumber);
+                add_tag_from!(tags, info.tags, gst::tags::AlbumVolumeCount);
+                add_tag_from!(tags, info.tags, gst::tags::Location);
+                add_tag_from!(tags, info.tags, gst::tags::Homepage);
+                add_tag_from!(tags, info.tags, gst::tags::Description);
+                add_tag_from!(tags, info.tags, gst::tags::Version);
+                add_tag_from!(tags, info.tags, gst::tags::ISRC);
+                add_tag_from!(tags, info.tags, gst::tags::Organization);
+                add_tag_from!(tags, info.tags, gst::tags::Copyright);
+                add_tag_from!(tags, info.tags, gst::tags::CopyrightUri);
+                add_tag_from!(tags, info.tags, gst::tags::Composer);
+                add_tag_from!(tags, info.tags, gst::tags::Conductor);
+                add_tag_from!(tags, info.tags, gst::tags::Contact);
+                add_tag_from!(tags, info.tags, gst::tags::License);
+                add_tag_from!(tags, info.tags, gst::tags::LicenseUri);
+                add_tag_from!(tags, info.tags, gst::tags::Performer);
+                add_tag_from!(tags, info.tags, gst::tags::Contact);
+                add_tag_from!(tags, info.tags, gst::tags::AlbumGain);
+                add_tag_from!(tags, info.tags, gst::tags::AlbumPeak);
+                add_tag_from!(tags, info.tags, gst::tags::ReferenceLevel);
+                add_tag_from!(tags, info.tags, gst::tags::LanguageCode);
+                add_tag_from!(tags, info.tags, gst::tags::LanguageName);
+                add_tag_from!(tags, info.tags, gst::tags::BeatsPerMinute);
+                add_tag_from!(tags, info.tags, gst::tags::Keywords);
+                add_tag_from!(tags, info.tags, gst::tags::GeoLocationName);
+                add_tag_from!(tags, info.tags, gst::tags::GeoLocationLatitude);
+                add_tag_from!(tags, info.tags, gst::tags::GeoLocationLongitute);
+                add_tag_from!(tags, info.tags, gst::tags::GeoLocationElevation);
+                add_tag_from!(tags, info.tags, gst::tags::GeoLocationCity);
+                add_tag_from!(tags, info.tags, gst::tags::GeoLocationCountry);
+                add_tag_from!(tags, info.tags, gst::tags::GeoLocationSublocation);
+                add_tag_from!(tags, info.tags, gst::tags::GeoLocationHorizontalError);
+                add_tag_from!(tags, info.tags, gst::tags::GeoLocationMovementDirection);
+                add_tag_from!(tags, info.tags, gst::tags::GeoLocationMovementSpeed);
+                add_tag_from!(tags, info.tags, gst::tags::GeoLocationCaptureDirection);
+                add_tag_from!(tags, info.tags, gst::tags::ShowName);
+                add_tag_from!(tags, info.tags, gst::tags::ShowSortname);
+                add_tag_from!(tags, info.tags, gst::tags::ShowEpisodeNumber);
+                add_tag_from!(tags, info.tags, gst::tags::ShowSeasonNumber);
+                add_tag_from!(tags, info.tags, gst::tags::ComposerSortname);
+                add_tag_from!(tags, info.tags, gst::tags::Publisher);
+                add_tag_from!(tags, info.tags, gst::tags::InterpretedBy);
+                add_tag_from!(tags, info.tags, gst::tags::PrivateData);
+
+                for ref image_iter in info.tags.iter_tag::<gst::tags::Image>() {
+                    tags.add::<gst::tags::Image>(
+                        image_iter.get().as_ref().unwrap(),
+                        gst::TagMergeMode::Append
+                    );
+                }
+
+                (info.chapters.len(), chapter.end.nano_total - chapter.start.nano_total)
+            };
+
+            // Add track specific tags
+            if let Some(title) = chapter.get_title() {
+                tags.add::<gst::tags::Title>(&title, gst::TagMergeMode::Replace);
+            }
+
+            tags.add::<gst::tags::TrackNumber>(&(self.idx as u32), gst::TagMergeMode::Replace);
+            tags.add::<gst::tags::TrackCount>(&(chapter_count as u32), gst::TagMergeMode::Replace);
+            tags.add::<gst::tags::Duration>(
+                &gst::ClockTime::from_nseconds(duration),
+                gst::TagMergeMode::Replace,
+            );
+            tags.add::<gst::tags::ApplicationName>(&"media-toc", gst::TagMergeMode::Replace);
+        }
+
+        tags
     }
 
     fn get_selected_format(&self) -> (metadata::Format, ExportType) {

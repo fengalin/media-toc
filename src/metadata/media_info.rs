@@ -46,6 +46,14 @@ impl MediaInfo {
                 self.tags.get_index::<gst::tags::AlbumArtist>(0)
                     .map(|value| value.get().unwrap())
             )
+            .or(
+                self.tags.get_index::<gst::tags::ArtistSortname>(0)
+                    .map(|value| value.get().unwrap())
+            )
+            .or(
+                self.tags.get_index::<gst::tags::AlbumArtistSortname>(0)
+                    .map(|value| value.get().unwrap())
+            )
     }
 
     pub fn get_title(&self) -> Option<&str> {
