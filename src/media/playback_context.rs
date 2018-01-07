@@ -20,9 +20,9 @@ use std::sync::{Arc, Mutex};
 
 use std::i32;
 
-use metadata::{Chapter, Timestamp};
+use metadata::{Chapter, MediaInfo, Timestamp};
 
-use super::{ContextMessage, DoubleAudioBuffer, MediaInfo};
+use super::{ContextMessage, DoubleAudioBuffer};
 
 // The video_sink must be created in the main UI thread
 // as it contains a gtk::Widget

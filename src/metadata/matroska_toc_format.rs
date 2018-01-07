@@ -6,10 +6,7 @@ use gstreamer::{TagSetterExt, Toc, TocEntry, TocEntryType, TocScope, TocSetterEx
 
 use std::i64;
 
-// FIXME: rename toc to metadata and move media_info to metadata
-use media::MediaInfo;
-
-use super::{Chapter, Exporter};
+use super::{Chapter, MediaInfo, Exporter};
 
 static EXTENSION: &'static str = "toc.mkv";
 static AUDIO_EXTENSION: &'static str = "toc.mka";

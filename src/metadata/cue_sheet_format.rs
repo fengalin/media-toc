@@ -1,9 +1,6 @@
 use std::io::Write;
 
-// FIXME: rename toc to metadata and move media_info to metadata
-use media::MediaInfo;
-
-use super::{Chapter, Writer};
+use super::{Chapter, MediaInfo, Writer};
 
 static EXTENSION: &'static str = "cue";
 

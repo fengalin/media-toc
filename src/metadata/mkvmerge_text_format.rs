@@ -2,10 +2,7 @@ extern crate lazy_static;
 
 use std::io::{Read, Write};
 
-// FIXME: rename toc to metadata and move media_info to metadata
-use media::MediaInfo;
-
-use super::{Chapter, Reader, Timestamp, Writer};
+use super::{Chapter, MediaInfo, Reader, Timestamp, Writer};
 
 static EXTENSION: &'static str = "txt";
 

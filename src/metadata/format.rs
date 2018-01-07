@@ -2,10 +2,7 @@ extern crate gstreamer as gst;
 
 use std::io::{Read, Write};
 
-// FIXME: rename toc to metadata and move media_info to metadata
-use media::MediaInfo;
-
-use super::Chapter;
+use super::{Chapter, MediaInfo};
 
 pub trait Reader {
     fn read(
