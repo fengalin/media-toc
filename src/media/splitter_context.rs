@@ -15,7 +15,7 @@ use metadata;
 
 pub struct SplitterContext {
     pipeline: gst::Pipeline,
-    audio_enc: Option<gst::Element>,
+    tag_setter: Option<gst::Element>,
     position_ref: Option<gst::Element>,
     position_query: gst::Query,
 }
@@ -34,7 +34,7 @@ impl SplitterContext {
 
         let mut this = SplitterContext {
             pipeline: gst::Pipeline::new("pipeline"),
-            audio_enc: None,
+            tag_setter: None,
             position_ref: None,
             position_query: gst::Query::new_position(gst::Format::Time),
         };
@@ -98,10 +98,21 @@ impl SplitterContext {
             .unwrap();
         let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
 
-        // Output sink
+        self.pipeline
+            .add_many(&[&filesrc, &decodebin])
+            .unwrap();
+
+        filesrc.link(&decodebin).unwrap();
+        decodebin.sync_state_with_parent().unwrap();
+
+        self.position_ref = Some(decodebin.clone());
+
+        // Audio encoder
         let audio_enc = match format {
-            &metadata::Format::Flac => gst::ElementFactory::make("flacenc", "audioenc").unwrap(),
-            &metadata::Format::Wave => gst::ElementFactory::make("wavenc", "audioenc").unwrap(),
+            &metadata::Format::Flac => gst::ElementFactory::make("flacenc", None).unwrap(),
+            &metadata::Format::Wave => gst::ElementFactory::make("wavenc", None).unwrap(),
+            &metadata::Format::Opus => gst::ElementFactory::make("opusenc", None).unwrap(),
+            &metadata::Format::Vorbis => gst::ElementFactory::make("vorbisenc", None).unwrap(),
             _ => panic!("SplitterContext::build_pipeline unsupported format: {:?}", format),
         };
 
@@ -167,23 +178,32 @@ impl SplitterContext {
             gst::PadProbeReturn::Drop
         });
 
+        self.pipeline.add(&audio_enc).unwrap();
+
+        // add a muxer when required
+        let (audio_muxer, tag_setter) = match format {
+            &metadata::Format::Flac | &metadata::Format::Wave =>
+                (audio_enc.clone(), audio_enc.clone()),
+            &metadata::Format::Opus | &metadata::Format::Vorbis => {
+                let ogg_muxer = gst::ElementFactory::make("oggmux", None).unwrap();
+                self.pipeline.add(&ogg_muxer).unwrap();
+                audio_enc.link(&ogg_muxer).unwrap();
+                (ogg_muxer, audio_enc.clone())
+            }
+            _ => panic!("SplitterContext::build_pipeline unsupported format: {:?}", format),
+        };
+
+        self.tag_setter = Some(tag_setter);
+
+        // Output sink
         let outsink = gst::ElementFactory::make("filesink", "filesink").unwrap();
         outsink
             .set_property("location", &gst::Value::from(output_path.to_str().unwrap()))
             .unwrap();
 
-        {
-            self.pipeline
-                .add_many(&[&filesrc, &decodebin, &audio_enc, &outsink])
-                .unwrap();
-            filesrc.link(&decodebin).unwrap();
-            decodebin.sync_state_with_parent().unwrap();
-            audio_enc.link(&outsink).unwrap();
-            outsink.sync_state_with_parent().unwrap();
-        }
-
-        self.position_ref = Some(decodebin.clone());
-        self.audio_enc = Some(audio_enc.clone());
+        self.pipeline.add(&outsink).unwrap();
+        audio_muxer.link(&outsink).unwrap();
+        outsink.sync_state_with_parent().unwrap();
 
         let pipeline_cb = self.pipeline.clone();
         decodebin.connect_pad_added(move |_element, pad| {
@@ -219,7 +239,7 @@ impl SplitterContext {
 
     // Uses ctx_tx to notify the UI controllers
     fn register_bus_inspector(&self, tags: gst::TagList, ctx_tx: Sender<ContextMessage>) {
-        let audio_enc = self.audio_enc.clone();
+        let tag_setter = self.tag_setter.clone();
         let pipeline = self.pipeline.clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
@@ -252,11 +272,11 @@ impl SplitterContext {
                 }
                 gst::MessageView::AsyncDone(_) => {
                     // Add tags
-                    if let Some(ref audio_enc) = audio_enc {
-                        let tag_setter = audio_enc
+                    if let Some(ref tag_setter) = tag_setter {
+                        let tag_setter = tag_setter
                             .clone()
                             .dynamic_cast::<gst::TagSetter>()
-                            .expect("SplitterContext::msg_bus audio_enc is not a TagSetter");
+                            .expect("SplitterContext::msg_bus tag_setter is not a TagSetter");
 
                         tag_setter.merge_tags(&tags, gst::TagMergeMode::ReplaceAll);
                     }

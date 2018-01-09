@@ -26,6 +26,8 @@ impl Factory {
                 }
             }
             Format::MKVMergeText => MKVMergeTextFormat::get_extension(),
+            Format::Opus => "opus",
+            Format::Vorbis => "oga",
             Format::Wave => "wave",
         }
     }
@@ -36,6 +38,8 @@ impl Factory {
             Format::Flac => unimplemented!("Reader for toc::Format::Flac"),
             Format::Matroska => unimplemented!("Reader for toc::Format::Matroska"),
             Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),
+            Format::Opus => unimplemented!("Reader for toc::Format::Opus"),
+            Format::Vorbis => unimplemented!("Reader for toc::Format::Vorbis"),
             Format::Wave => unimplemented!("Reader for toc::Format::Wave"),
         }
     }
@@ -46,6 +50,8 @@ impl Factory {
             Format::Flac => unimplemented!("Writer for toc::Format::Wave"),
             Format::Matroska => unimplemented!("Writer for toc::Format::Matroska"),
             Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),
+            Format::Opus => unimplemented!("Writer for toc::Format::Opus"),
+            Format::Vorbis => unimplemented!("Writer for toc::Format::Vorbis"),
             Format::Wave => unimplemented!("Writer for toc::Format::Wave"),
         }
     }

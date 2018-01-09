@@ -32,5 +32,7 @@ pub enum Format {
     Flac,
     Matroska,
     MKVMergeText,
+    Opus,
+    Vorbis,
     Wave,
 }

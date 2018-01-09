@@ -48,6 +48,8 @@ pub struct ExportController {
     split_rdbtn: gtk::RadioButton,
     split_to_flac_rdbtn: gtk::RadioButton,
     split_to_wave_rdbtn: gtk::RadioButton,
+    split_to_opus_rdbtn: gtk::RadioButton,
+    split_to_vorbis_rdbtn: gtk::RadioButton,
 
     pub playback_ctx: Option<PlaybackContext>,
     toc_setter_ctx: Option<TocSetterContext>,
@@ -82,6 +84,8 @@ impl ExportController {
             split_rdbtn: builder.get_object("split-rdbtn").unwrap(),
             split_to_flac_rdbtn: builder.get_object("split_to_flac-rdbtn").unwrap(),
             split_to_wave_rdbtn: builder.get_object("split_to_wave-rdbtn").unwrap(),
+            split_to_opus_rdbtn: builder.get_object("split_to_opus-rdbtn").unwrap(),
+            split_to_vorbis_rdbtn: builder.get_object("split_to_vorbis-rdbtn").unwrap(),
 
             playback_ctx: None,
             toc_setter_ctx: None,
@@ -105,8 +109,7 @@ impl ExportController {
             this_mut.this_opt = Some(this_rc);
 
             // Split radio button not active initially => disable sub radio buttons
-            this_mut.split_to_flac_rdbtn.set_sensitive(false);
-            this_mut.split_to_wave_rdbtn.set_sensitive(false);
+            this_mut.set_split_sub_btn_sensitivity();
         }
 
         this
@@ -135,10 +138,8 @@ impl ExportController {
         let this_clone = Rc::clone(this_rc);
         this.split_rdbtn.connect_property_active_notify(move |_| {
             // Enable / disable split sub radio button depending on whether split is selected
-            let this = this_clone.borrow();
-            let state = this.split_rdbtn.get_active();
-            this.split_to_flac_rdbtn.set_sensitive(state);
-            this.split_to_wave_rdbtn.set_sensitive(state);
+            this_clone.borrow()
+                .set_split_sub_btn_sensitivity();
         });
 
         let this_clone = Rc::clone(this_rc);
@@ -449,6 +450,10 @@ impl ExportController {
                 (metadata::Format::Flac, ExportType::Split)
             } else if self.split_to_wave_rdbtn.get_active() {
                 (metadata::Format::Wave, ExportType::Split)
+            } else if self.split_to_opus_rdbtn.get_active() {
+                (metadata::Format::Opus, ExportType::Split)
+            } else if self.split_to_vorbis_rdbtn.get_active() {
+                (metadata::Format::Vorbis, ExportType::Split)
             } else {
                 unreachable!("ExportController::get_selected_format no selected radio button");
             }
@@ -463,6 +468,7 @@ impl ExportController {
         self.cue_rdbtn.set_sensitive(false);
         self.mkv_rdbtn.set_sensitive(false);
         self.split_rdbtn.set_sensitive(false);
+        self.set_split_sub_btn_sensitivity();
     }
 
     fn switch_to_available(&self) {
@@ -471,6 +477,15 @@ impl ExportController {
         self.cue_rdbtn.set_sensitive(true);
         self.mkv_rdbtn.set_sensitive(true);
         self.split_rdbtn.set_sensitive(true);
+        self.set_split_sub_btn_sensitivity();
+    }
+
+    pub fn set_split_sub_btn_sensitivity(&self) {
+        let state = self.split_rdbtn.get_active();
+        self.split_to_flac_rdbtn.set_sensitive(state);
+        self.split_to_wave_rdbtn.set_sensitive(state);
+        self.split_to_opus_rdbtn.set_sensitive(state);
+        self.split_to_vorbis_rdbtn.set_sensitive(state);
     }
 
     fn remove_listener(&mut self) {
