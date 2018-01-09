@@ -238,7 +238,7 @@ impl AudioController {
             self.dbl_buffer_mtx
                 .lock()
                 .expect("AudioController::seek: couldn't lock dbl_buffer_mtx")
-                .refresh(false); // don't keep continuity
+                .refresh(false); // not playing
         }
         self.redraw();
     }
@@ -280,7 +280,7 @@ impl AudioController {
                         this.dbl_buffer_mtx
                             .lock()
                             .expect("AudioController::tick: couldn't lock dbl_buffer_mtx")
-                            .refresh(true); // keep continuity
+                            .refresh(true); // is playing
                     }
 
                     this.redraw();

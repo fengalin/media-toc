@@ -193,7 +193,7 @@ impl DoubleAudioBuffer {
         // self.exposed_buffer_mtx
     }
 
-    pub fn refresh(&mut self, keep_continuity: bool) {
+    pub fn refresh(&mut self, is_playing: bool) {
         // refresh with current conditions
         let mut working_buffer = self.working_buffer.take().expect(
             "DoubleAudioBuffer::refresh: failed to take working buffer",
@@ -204,8 +204,8 @@ impl DoubleAudioBuffer {
                 "DoubleAudioBuffer:::refresh: failed to lock the exposed buffer",
             );
 
-            if !keep_continuity {
-                exposed_buffer_box.drop_continuity();
+            if !is_playing {
+                exposed_buffer_box.switch_to_paused();
             }
 
             // get latest state from the previously exposed buffer
@@ -231,7 +231,7 @@ impl DoubleAudioBuffer {
     pub fn refresh_with_conditions<T: Any + Clone>(
         &mut self,
         conditions: Box<T>,
-        keep_continuity: bool,
+        is_playing: bool,
     ) {
         let mut working_buffer = self.working_buffer.take().expect(
             "DoubleAudioBuffer::refresh: failed to take working buffer",
@@ -242,8 +242,8 @@ impl DoubleAudioBuffer {
                 "DoubleAudioBuffer:::refresh: failed to lock the exposed buffer",
             );
 
-            if !keep_continuity {
-                exposed_buffer_box.drop_continuity();
+            if !is_playing {
+                exposed_buffer_box.switch_to_paused();
             }
 
             // get latest state from the previously exposed buffer
