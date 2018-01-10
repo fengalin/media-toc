@@ -50,6 +50,7 @@ pub struct ExportController {
     split_to_wave_rdbtn: gtk::RadioButton,
     split_to_opus_rdbtn: gtk::RadioButton,
     split_to_vorbis_rdbtn: gtk::RadioButton,
+    split_to_mp3_rdbtn: gtk::RadioButton,
 
     pub playback_ctx: Option<PlaybackContext>,
     toc_setter_ctx: Option<TocSetterContext>,
@@ -86,6 +87,7 @@ impl ExportController {
             split_to_wave_rdbtn: builder.get_object("split_to_wave-rdbtn").unwrap(),
             split_to_opus_rdbtn: builder.get_object("split_to_opus-rdbtn").unwrap(),
             split_to_vorbis_rdbtn: builder.get_object("split_to_vorbis-rdbtn").unwrap(),
+            split_to_mp3_rdbtn: builder.get_object("split_to_mp3-rdbtn").unwrap(),
 
             playback_ctx: None,
             toc_setter_ctx: None,
@@ -454,6 +456,8 @@ impl ExportController {
                 (metadata::Format::Opus, ExportType::Split)
             } else if self.split_to_vorbis_rdbtn.get_active() {
                 (metadata::Format::Vorbis, ExportType::Split)
+            } else if self.split_to_mp3_rdbtn.get_active() {
+                (metadata::Format::MP3, ExportType::Split)
             } else {
                 unreachable!("ExportController::get_selected_format no selected radio button");
             }
@@ -486,6 +490,7 @@ impl ExportController {
         self.split_to_wave_rdbtn.set_sensitive(state);
         self.split_to_opus_rdbtn.set_sensitive(state);
         self.split_to_vorbis_rdbtn.set_sensitive(state);
+        self.split_to_mp3_rdbtn.set_sensitive(state);
     }
 
     fn remove_listener(&mut self) {

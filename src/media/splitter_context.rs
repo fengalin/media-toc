@@ -109,6 +109,7 @@ impl SplitterContext {
             metadata::Format::Wave => gst::ElementFactory::make("wavenc", None).unwrap(),
             metadata::Format::Opus => gst::ElementFactory::make("opusenc", None).unwrap(),
             metadata::Format::Vorbis => gst::ElementFactory::make("vorbisenc", None).unwrap(),
+            metadata::Format::MP3 => gst::ElementFactory::make("lamemp3enc", None).unwrap(),
             _ => panic!("SplitterContext::build_pipeline unsupported format: {:?}", self.format),
         };
 
@@ -177,14 +178,20 @@ impl SplitterContext {
         self.pipeline.add(&audio_enc).unwrap();
 
         // add a muxer when required
-        let (audio_muxer, tag_setter) = match self.format {
+        let (tag_setter, audio_muxer) = match self.format {
             metadata::Format::Flac | metadata::Format::Wave =>
                 (audio_enc.clone(), audio_enc.clone()),
             metadata::Format::Opus | metadata::Format::Vorbis => {
                 let ogg_muxer = gst::ElementFactory::make("oggmux", None).unwrap();
                 self.pipeline.add(&ogg_muxer).unwrap();
                 audio_enc.link(&ogg_muxer).unwrap();
-                (ogg_muxer, audio_enc.clone())
+                (audio_enc.clone(), ogg_muxer)
+            }
+            metadata::Format::MP3 => {
+                let id3v2_muxer = gst::ElementFactory::make("id3v2mux", None).unwrap();
+                self.pipeline.add(&id3v2_muxer).unwrap();
+                audio_enc.link(&id3v2_muxer).unwrap();
+                (id3v2_muxer.clone(), id3v2_muxer)
             }
             _ => panic!("SplitterContext::build_pipeline unsupported format: {:?}", self.format),
         };
