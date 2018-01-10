@@ -15,9 +15,11 @@ use metadata;
 
 pub struct SplitterContext {
     pipeline: gst::Pipeline,
-    tag_setter: Option<gst::Element>,
     position_ref: Option<gst::Element>,
     position_query: gst::Query,
+
+    format: metadata::Format,
+    tags: gst::TagList,
 }
 
 impl SplitterContext {
@@ -34,13 +36,15 @@ impl SplitterContext {
 
         let mut this = SplitterContext {
             pipeline: gst::Pipeline::new("pipeline"),
-            tag_setter: None,
             position_ref: None,
             position_query: gst::Query::new_position(gst::Format::Time),
+
+            format: format.clone(),
+            tags: tags,
         };
 
-        this.build_pipeline(input_path, output_path, format, start, end);
-        this.register_bus_inspector(tags, ctx_tx);
+        this.build_pipeline(input_path, output_path, start, end);
+        this.register_bus_inspector(ctx_tx);
 
         match this.pipeline.set_state(gst::State::Paused) {
             gst::StateChangeReturn::Failure => Err("Could not set media in Paused state".into()),
@@ -61,15 +65,7 @@ impl SplitterContext {
     }
 
     // TODO: handle errors
-    fn build_pipeline(
-        &mut self,
-        input_path: &Path,
-        output_path: &Path,
-        format: &metadata::Format,
-        start: u64,
-        end: u64,
-    ) {
-        // FIXME: multiple issues
+    fn build_pipeline(&mut self, input_path: &Path, output_path: &Path, start: u64, end: u64) {
         /* There are multiple showstoppers to implementing something ideal
          * to export splitted chapters with audio and video (and subtitles):
          * 1. matroska-mux drops seek events explicitely (a message states: "discard for now").
@@ -108,12 +104,12 @@ impl SplitterContext {
         self.position_ref = Some(decodebin.clone());
 
         // Audio encoder
-        let audio_enc = match format {
-            &metadata::Format::Flac => gst::ElementFactory::make("flacenc", None).unwrap(),
-            &metadata::Format::Wave => gst::ElementFactory::make("wavenc", None).unwrap(),
-            &metadata::Format::Opus => gst::ElementFactory::make("opusenc", None).unwrap(),
-            &metadata::Format::Vorbis => gst::ElementFactory::make("vorbisenc", None).unwrap(),
-            _ => panic!("SplitterContext::build_pipeline unsupported format: {:?}", format),
+        let audio_enc = match self.format {
+            metadata::Format::Flac => gst::ElementFactory::make("flacenc", None).unwrap(),
+            metadata::Format::Wave => gst::ElementFactory::make("wavenc", None).unwrap(),
+            metadata::Format::Opus => gst::ElementFactory::make("opusenc", None).unwrap(),
+            metadata::Format::Vorbis => gst::ElementFactory::make("vorbisenc", None).unwrap(),
+            _ => panic!("SplitterContext::build_pipeline unsupported format: {:?}", self.format),
         };
 
         // Catch events and drop the upstream Tags & TOC
@@ -181,19 +177,25 @@ impl SplitterContext {
         self.pipeline.add(&audio_enc).unwrap();
 
         // add a muxer when required
-        let (audio_muxer, tag_setter) = match format {
-            &metadata::Format::Flac | &metadata::Format::Wave =>
+        let (audio_muxer, tag_setter) = match self.format {
+            metadata::Format::Flac | metadata::Format::Wave =>
                 (audio_enc.clone(), audio_enc.clone()),
-            &metadata::Format::Opus | &metadata::Format::Vorbis => {
+            metadata::Format::Opus | metadata::Format::Vorbis => {
                 let ogg_muxer = gst::ElementFactory::make("oggmux", None).unwrap();
                 self.pipeline.add(&ogg_muxer).unwrap();
                 audio_enc.link(&ogg_muxer).unwrap();
                 (ogg_muxer, audio_enc.clone())
             }
-            _ => panic!("SplitterContext::build_pipeline unsupported format: {:?}", format),
+            _ => panic!("SplitterContext::build_pipeline unsupported format: {:?}", self.format),
         };
 
-        self.tag_setter = Some(tag_setter);
+        //self.tag_setter = Some(tag_setter);
+        let tag_setter = tag_setter
+            .clone()
+            .dynamic_cast::<gst::TagSetter>()
+            .expect("SplitterContext::build_pipeline tag_setter is not a TagSetter");
+
+        tag_setter.merge_tags(&self.tags, gst::TagMergeMode::ReplaceAll);
 
         // Output sink
         let outsink = gst::ElementFactory::make("filesink", "filesink").unwrap();
@@ -238,8 +240,7 @@ impl SplitterContext {
     }
 
     // Uses ctx_tx to notify the UI controllers
-    fn register_bus_inspector(&self, tags: gst::TagList, ctx_tx: Sender<ContextMessage>) {
-        let tag_setter = self.tag_setter.clone();
+    fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
         let pipeline = self.pipeline.clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
@@ -271,16 +272,6 @@ impl SplitterContext {
                     return glib::Continue(false);
                 }
                 gst::MessageView::AsyncDone(_) => {
-                    // Add tags
-                    if let Some(ref tag_setter) = tag_setter {
-                        let tag_setter = tag_setter
-                            .clone()
-                            .dynamic_cast::<gst::TagSetter>()
-                            .expect("SplitterContext::msg_bus tag_setter is not a TagSetter");
-
-                        tag_setter.merge_tags(&tags, gst::TagMergeMode::ReplaceAll);
-                    }
-
                     // Start splitting
                     if pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
                         ctx_tx.send(ContextMessage::FailedToExport).expect(
