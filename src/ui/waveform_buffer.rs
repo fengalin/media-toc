@@ -117,13 +117,12 @@ impl WaveformBuffer {
             if self.image.contains_eos && sample >= self.image.upper {
                 sample = self.image.upper - 1;
             }
-            match self.sought_sample {
+            match self.sought_sample.take() {
                 None => {
                     self.previous_sample = self.current_sample;
                 }
                 Some(_) => {
                     // stream has sync after a seek
-                    self.sought_sample = None;
                     // reset previous_sample because of the discontinuity
                     self.previous_sample = sample;
                 }
@@ -132,7 +131,7 @@ impl WaveformBuffer {
             self.current_sample = sample;
             self.cursor_sample = sample;
             self.cursor_position = position;
-        } // else don't override self.previous_sample
+        }
     }
 
     pub fn seek(&mut self, position: u64, is_playing: bool) {
@@ -676,8 +675,13 @@ impl WaveformBuffer {
 
                         match self.first_visible_sample_lock.take() {
                             None => {
-                                self.first_visible_sample = None;
-                                None
+                                if self.playback_needs_refresh {
+                                    // refresh to the full available range
+                                    Some((first_visible_sample, upper))
+                                } else {
+                                    self.first_visible_sample = None;
+                                    None
+                                }
                             }
                             Some((first_visible_sample, lock_state)) => match lock_state {
                                 LockState::Playing => {
