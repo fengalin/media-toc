@@ -89,7 +89,7 @@ ending with `.toc.mkv` will be created in the media's folder.
 
 ## Split the audio stream into one file per chapter
 
-Currently, only the first audio stream can be exported.
+Currently, `media-toc` can only export the first audio stream.
 
 1. Open a media with a table of contents, define the chapters as explained in [this how-to](#how-to-create-the-toc)
 or open a media for which you already defined a table of contents (see [this how-to](#how-to-save-the-toc)).
@@ -101,7 +101,7 @@ The files are named after the artist, media title, chapter number and chapter ti
 
 ## Use `mkvmerge` to add the toc to an existing Matrsoka media
 
-Currently exporting the table of contents to a Matroska container requires a patched version of
+Currently, exporting the table of contents to a Matroska container requires a patched version of
 `gst-plugins-good`. If you don't know how to patch `gst-plugins-good`, you can follow these
 instructions to use `mkvmerge`:
 
