@@ -311,6 +311,8 @@ impl ChapterTreeManager {
                     (new_iter, current_end, current_end_str)
                 } else {
                     // attempting to add the new chapter at current position
+                    // => restore current state
+                    self.selected_iter = Some(selected_iter);
                     return None;
                 }
             }
