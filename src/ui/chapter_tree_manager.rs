@@ -117,10 +117,10 @@ impl ChapterTreeManager {
         if is_editable {
             renderer.set_property_editable(true);
             let store_clone = self.store.clone();
-            renderer.connect_edited(move |_, tree_path, value| if let Some(iter) =
-                store_clone.get_iter(&tree_path)
-            {
-                store_clone.set_value(&iter, TITLE_COL as u32, &gtk::Value::from(value));
+            renderer.connect_edited(move |_, tree_path, value| {
+                if let Some(iter) = store_clone.get_iter(&tree_path) {
+                    store_clone.set_value(&iter, TITLE_COL as u32, &gtk::Value::from(value));
+                }
             });
         }
 
@@ -205,12 +205,10 @@ impl ChapterTreeManager {
     {
         let iter = match first_iter {
             Some(first_iter) => first_iter,
-            None => {
-                match self.store.get_iter_first() {
-                    Some(first_iter) => first_iter,
-                    None => return,
-                }
-            }
+            None => match self.store.get_iter_first() {
+                Some(first_iter) => first_iter,
+                None => return,
+            },
         };
 
         while func(ChapterEntry::new(&self.store, &iter)) && self.store.iter_next(&iter) {}
@@ -221,8 +219,8 @@ impl ChapterTreeManager {
     pub fn update_position(&mut self, position: u64) -> (bool, Option<gtk::TreeIter>) {
         let has_changed = match self.selected_iter {
             Some(ref selected_iter) => {
-                if position >= ChapterEntry::get_start(&self.store, selected_iter) &&
-                    position < ChapterEntry::get_end(&self.store, selected_iter)
+                if position >= ChapterEntry::get_start(&self.store, selected_iter)
+                    && position < ChapterEntry::get_end(&self.store, selected_iter)
                 {
                     // regular case: position in current chapter => don't change anything
                     // this check is here to save time in the most frequent case
@@ -239,8 +237,8 @@ impl ChapterTreeManager {
         if let Some(iter) = self.iter.take() {
             // not in selected_iter or selected_iter not defined yet => find current chapter
             let mut searching_forward = true;
-            while if position >= ChapterEntry::get_start(&self.store, &iter) &&
-                position < ChapterEntry::get_end(&self.store, &iter)
+            while if position >= ChapterEntry::get_start(&self.store, &iter)
+                && position < ChapterEntry::get_end(&self.store, &iter)
             {
                 // position is in iter
                 self.selected_iter = Some(iter.clone());
@@ -264,8 +262,7 @@ impl ChapterTreeManager {
                 // in a gap between two chapters
                 self.iter = Some(iter);
                 return (has_changed, prev_selected_iter);
-            }
-            {}
+            } {}
 
             // passed the end of the last chapter
             // prevent from searching in subsequent calls
@@ -326,14 +323,14 @@ impl ChapterTreeManager {
                         let start = iter_chapter.start();
                         if position > start {
                             panic!(
-                                    concat!(
-                                        "ChapterTreeManager::add_chapter inconsistent position",
-                                        " {} with regard to current iter [{}, {}]",
-                                    ),
-                                    position,
-                                    iter_chapter.start(),
-                                    iter_chapter.end(),
-                                );
+                                concat!(
+                                    "ChapterTreeManager::add_chapter inconsistent position",
+                                    " {} with regard to current iter [{}, {}]",
+                                ),
+                                position,
+                                iter_chapter.start(),
+                                iter_chapter.end(),
+                            );
                         }
 
                         // iter is next chapter

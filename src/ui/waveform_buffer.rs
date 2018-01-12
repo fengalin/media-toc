@@ -61,9 +61,9 @@ pub struct WaveformBuffer {
 
     previous_sample: usize,
     current_sample: usize,
-    cursor_sample: usize,   // The sample nb currently under the cursor (might be different from
-                            // current sample during seeks)
-    cursor_position: u64,   // The timestamp at the cursor's position
+    cursor_sample: usize, // The sample nb currently under the cursor (might be different from
+    // current sample during seeks)
+    cursor_position: u64, // The timestamp at the cursor's position
     first_visible_sample: Option<usize>,
     first_visible_sample_lock: Option<(i64, LockState)>, // (1st position, LockState)
     sought_sample: Option<usize>,
@@ -139,8 +139,8 @@ impl WaveformBuffer {
             return;
         }
 
-        let sought_sample = (position / self.state.sample_duration) as usize /
-            self.image.sample_step * self.image.sample_step;
+        let sought_sample = (position / self.state.sample_duration) as usize
+            / self.image.sample_step * self.image.sample_step;
 
         #[cfg(feature = "trace-waveform-buffer")]
         println!(
@@ -162,9 +162,9 @@ impl WaveformBuffer {
             // to the sought position without shifting the waveform if possible
 
             if let Some(first_visible_sample) = self.first_visible_sample {
-                if sought_sample >= first_visible_sample &&
-                    sought_sample <= first_visible_sample + self.req_sample_window &&
-                    self.image.upper - self.image.lower >= self.req_sample_window
+                if sought_sample >= first_visible_sample
+                    && sought_sample <= first_visible_sample + self.req_sample_window
+                    && self.image.upper - self.image.lower >= self.req_sample_window
                 {
                     // sought sample is in current window
                     // and the window is large enough for a constraint
@@ -190,7 +190,7 @@ impl WaveformBuffer {
                         Some(first_visible_sample as usize)
                     }
                     _ => None,
-                }
+                },
                 None => None,
             };
         }
@@ -213,8 +213,8 @@ impl WaveformBuffer {
     pub fn get_position_at(&self, x: f64) -> Option<u64> {
         match self.first_visible_sample {
             Some(ref first_visible_sample) => {
-                let sample_at_x = first_visible_sample +
-                    (x as usize) / self.image.x_step * self.image.sample_step;
+                let sample_at_x = first_visible_sample
+                    + (x as usize) / self.image.x_step * self.image.sample_step;
 
                 if !self.image.contains_eos || sample_at_x < self.image.upper {
                     Some(sample_at_x as u64 * self.state.sample_duration)
@@ -235,15 +235,15 @@ impl WaveformBuffer {
             if self.cursor_sample >= self.image.lower {
                 // current sample appears after first buffer sample
                 if let Some((first_visible_sample_lock, lock_state)) =
-                        self.first_visible_sample_lock.take()
+                    self.first_visible_sample_lock.take()
                 {
                     // There is a position lock constraint
 
                     match lock_state {
                         LockState::Playing => {
-                            let offset_to_center = self.cursor_sample as i64 -
-                                self.half_req_sample_window as i64 -
-                                first_visible_sample_lock;
+                            let offset_to_center = self.cursor_sample as i64
+                                - self.half_req_sample_window as i64
+                                - first_visible_sample_lock;
 
                             if offset_to_center < -(2 * self.image.sample_step as i64) {
                                 // cursor in first half of the window
@@ -254,24 +254,24 @@ impl WaveformBuffer {
                             } else if (offset_to_center as usize) <= 2 * self.image.sample_step {
                                 // reached the center => keep cursor there
                                 self.sought_sample = None;
-                                Some(self.image.lower.max(
-                                    self.cursor_sample -
-                                        self.half_req_sample_window,
-                                ))
-                            } else if first_visible_sample_lock as usize + self.req_sample_window <
-                                       self.image.upper
+                                Some(
+                                    self.image
+                                        .lower
+                                        .max(self.cursor_sample - self.half_req_sample_window),
+                                )
+                            } else if first_visible_sample_lock as usize + self.req_sample_window
+                                < self.image.upper
                             {
                                 // Cursor is on the right half of the window
                                 // and the target sample window doesn't exceed the end
                                 // of the rendered waveform yet
                                 // => progressively get cursor back to center
-                                let previous_offset = self.previous_sample as i64 -
-                                    first_visible_sample_lock;
-                                let delta_cursor = self.cursor_sample as i64 -
-                                    self.previous_sample as i64;
+                                let previous_offset =
+                                    self.previous_sample as i64 - first_visible_sample_lock;
+                                let delta_cursor =
+                                    self.cursor_sample as i64 - self.previous_sample as i64;
                                 let next_lower = (self.image.lower as i64).max(
-                                    self.cursor_sample as i64 - previous_offset +
-                                        delta_cursor,
+                                    self.cursor_sample as i64 - previous_offset + delta_cursor,
                                 );
 
                                 self.first_visible_sample_lock =
@@ -280,24 +280,25 @@ impl WaveformBuffer {
                             } else {
                                 // Not enough overhead to get cursor back to center
                                 // Follow toward the last sample
-                                let next_lower =
-                                    if self.image.lower + self.req_sample_window < self.image.upper {
-                                        // buffer window is larger than req_sample_window
-                                        // set last buffer to the right
-                                        let next_lower = self.image.upper - self.req_sample_window;
-                                        if !self.image.contains_eos {
-                                            // but keep the constraint in case more samples
-                                            // are added afterward
-                                            self.first_visible_sample_lock =
-                                                Some((next_lower as i64, LockState::Playing));
-                                        } // else reached EOS => don't expect returning to center
+                                let next_lower = if self.image.lower + self.req_sample_window
+                                    < self.image.upper
+                                {
+                                    // buffer window is larger than req_sample_window
+                                    // set last buffer to the right
+                                    let next_lower = self.image.upper - self.req_sample_window;
+                                    if !self.image.contains_eos {
+                                        // but keep the constraint in case more samples
+                                        // are added afterward
+                                        self.first_visible_sample_lock =
+                                            Some((next_lower as i64, LockState::Playing));
+                                    } // else reached EOS => don't expect returning to center
 
-                                        next_lower
-                                    } else {
-                                        // buffer window is smaller than req_sample_window
-                                        // set first sample to the left
-                                        self.image.lower
-                                    };
+                                    next_lower
+                                } else {
+                                    // buffer window is smaller than req_sample_window
+                                    // set first sample to the left
+                                    self.image.lower
+                                };
 
                                 Some(next_lower)
                             }
@@ -413,11 +414,8 @@ impl WaveformBuffer {
             true
         };
 
-        self.image.update_dimensions(
-            self.sample_step_f,
-            width,
-            height,
-        );
+        self.image
+            .update_dimensions(self.sample_step_f, width, height);
 
         if duration_changed || width_changed {
             self.update_sample_window();
@@ -426,9 +424,9 @@ impl WaveformBuffer {
             if scale_factor != 0f64 {
                 self.first_visible_sample = match self.first_visible_sample {
                     Some(first_visible_sample) => {
-                        let new_first_visible_sample = first_visible_sample as i64 +
-                            ((self.cursor_sample as i64 - first_visible_sample as i64) as
-                                 f64 * (1f64 - scale_factor)) as i64;
+                        let new_first_visible_sample = first_visible_sample as i64
+                            + ((self.cursor_sample as i64 - first_visible_sample as i64) as f64
+                                * (1f64 - scale_factor)) as i64;
 
                         if new_first_visible_sample > self.image.sample_step as i64 {
                             #[cfg(feature = "trace-waveform-buffer")]
@@ -474,12 +472,12 @@ impl WaveformBuffer {
         // compute a sample step which will produce an integer number of
         // samples per pixel or an integer number of pixels per samples
 
-        self.sample_step_f =
-            if self.req_duration_per_1000px >= self.state.duration_per_1000_samples {
-                (self.req_duration_per_1000px / self.state.duration_per_1000_samples).floor()
-            } else {
-                1f64 / (self.state.duration_per_1000_samples / self.req_duration_per_1000px).ceil()
-            };
+        self.sample_step_f = if self.req_duration_per_1000px >= self.state.duration_per_1000_samples
+        {
+            (self.req_duration_per_1000px / self.state.duration_per_1000_samples).floor()
+        } else {
+            1f64 / (self.state.duration_per_1000_samples / self.req_duration_per_1000px).ceil()
+        };
         self.conditions_changed = true;
     }
 
@@ -495,9 +493,7 @@ impl WaveformBuffer {
             if req_sample_window != self.req_sample_window {
                 println!(
                     "\nWaveformBuffer{}::update_sample_window smpl.window prev. {}, new {}",
-                    self.image.id,
-                    self.req_sample_window,
-                    req_sample_window
+                    self.image.id, self.req_sample_window, req_sample_window
                 );
             }
         }
@@ -517,9 +513,7 @@ impl WaveformBuffer {
             if let Some(sought_sample) = self.sought_sample {
                 println!(
                     "WaveformBuffer{}::get_image seeking to {} - lock: {:?}",
-                    self.image.id,
-                    sought_sample,
-                    self.first_visible_sample_lock,
+                    self.image.id, sought_sample, self.first_visible_sample_lock,
                 );
             }
         }
@@ -527,19 +521,19 @@ impl WaveformBuffer {
         self.update_first_visible_sample();
         match self.first_visible_sample {
             Some(first_visible_sample) => {
-                let cursor_opt = if self.cursor_sample >= first_visible_sample &&
-                    self.cursor_sample <= first_visible_sample + self.req_sample_window
+                let cursor_opt = if self.cursor_sample >= first_visible_sample
+                    && self.cursor_sample <= first_visible_sample + self.req_sample_window
                 {
                     Some(
-                        (self.cursor_sample as f64 - first_visible_sample as f64) /
-                            self.image.sample_step_f
+                        (self.cursor_sample as f64 - first_visible_sample as f64)
+                            / self.image.sample_step_f,
                     )
                 } else {
                     None
                 };
 
-                let x_offset = ((first_visible_sample - self.image.lower) * self.image.x_step /
-                                    self.image.sample_step) as f64;
+                let x_offset = ((first_visible_sample - self.image.lower) * self.image.x_step
+                    / self.image.sample_step) as f64;
 
                 let last_opt = match self.image.last {
                     Some(ref last) => {
@@ -547,16 +541,17 @@ impl WaveformBuffer {
 
                         // rendering is confortable if the displayable window is larger than
                         // the confortable_width_f and cursor is in the first half of the window
-                        self.is_confortable = delta_x > self.confortable_width_f &&
-                            self.cursor_sample + self.half_req_sample_window <= self.image.upper;
+                        self.is_confortable = delta_x > self.confortable_width_f
+                            && self.cursor_sample + self.half_req_sample_window <= self.image.upper;
 
                         let last_x = delta_x.min(self.width_f);
                         if last_x.is_sign_positive() {
                             Some(SamplePosition {
                                 x: last_x,
-                                timestamp: (first_visible_sample +
-                                                (last_x * self.image.sample_step_f) as usize
-                                            ) as u64 * self.state.sample_duration,
+                                timestamp: (first_visible_sample
+                                    + (last_x * self.image.sample_step_f) as usize)
+                                    as u64
+                                    * self.state.sample_duration,
                             })
                         } else {
                             None
@@ -580,7 +575,7 @@ impl WaveformBuffer {
                             last: last_opt,
                             current: cursor_opt,
                         },
-                    ))
+                    )),
                 )
             }
             None => {
@@ -593,8 +588,8 @@ impl WaveformBuffer {
     #[cfg_attr(feature = "cargo-clippy", allow(collapsible_if))]
     fn get_sample_range(&mut self, audio_buffer: &AudioBuffer) -> (usize, usize) {
         // First step: see how current waveform and the audio_buffer can merge
-        let (lower, upper) = if audio_buffer.lower <= self.image.lower &&
-            audio_buffer.upper >= self.image.upper
+        let (lower, upper) = if audio_buffer.lower <= self.image.lower
+            && audio_buffer.upper >= self.image.upper
         {
             // waveform contained in buffer => regular case
             (audio_buffer.lower, audio_buffer.upper)
@@ -635,10 +630,9 @@ impl WaveformBuffer {
         let extraction_range = if upper - lower <= self.req_sample_window {
             // image can use the full window
             #[cfg(feature = "trace-waveform-buffer")]
-            println!("WaveformBuffer{}::get_sample_range using full window, range [{}, {}]",
-                self.image.id,
-                lower,
-                upper,
+            println!(
+                "WaveformBuffer{}::get_sample_range using full window, range [{}, {}]",
+                self.image.id, lower, upper,
             );
 
             self.first_visible_sample = None;
@@ -648,15 +642,15 @@ impl WaveformBuffer {
         } else {
             match self.first_visible_sample {
                 Some(first_visible_sample) => {
-                    if self.cursor_sample >= first_visible_sample &&
-                        self.cursor_sample < first_visible_sample + self.req_sample_window
+                    if self.cursor_sample >= first_visible_sample
+                        && self.cursor_sample < first_visible_sample + self.req_sample_window
                     {
                         // cursor is still in the window => keep it
                         Some((
                             first_visible_sample as usize,
                             upper.min(
-                                first_visible_sample + self.req_sample_window +
-                                    self.half_req_sample_window,
+                                first_visible_sample + self.req_sample_window
+                                    + self.half_req_sample_window,
                             ),
                         ))
                     } else {
@@ -697,18 +691,18 @@ impl WaveformBuffer {
                                     Some((
                                         first_visible_sample,
                                         upper.min(
-                                            first_visible_sample + self.req_sample_window +
-                                                self.half_req_sample_window,
+                                            first_visible_sample + self.req_sample_window
+                                                + self.half_req_sample_window,
                                         ),
                                     ))
                                 }
-                            }
+                            },
                         }
                     }
                 }
                 None => {
-                    if self.cursor_sample > lower + self.half_req_sample_window &&
-                        self.cursor_sample < upper
+                    if self.cursor_sample > lower + self.half_req_sample_window
+                        && self.cursor_sample < upper
                     {
                         // cursor can be centered or is in second half of the window
                         if self.cursor_sample + self.half_req_sample_window < upper {
@@ -716,8 +710,7 @@ impl WaveformBuffer {
                             #[cfg(feature = "trace-waveform-buffer")]
                             println!(
                                 "WaveformBuffer{}::get_sample_range centering cursor: {}",
-                                self.image.id,
-                                self.cursor_sample,
+                                self.image.id, self.cursor_sample,
                             );
 
                             Some((
@@ -729,17 +722,15 @@ impl WaveformBuffer {
                             #[cfg(feature = "trace-waveform-buffer")]
                             println!(
                                 "WaveformBuffer{}::get_sample_range cursor: {} in second half",
-                                self.image.id,
-                                self.cursor_sample,
+                                self.image.id, self.cursor_sample,
                             );
 
                             // attempt to get an optimal range
-                            if upper >
-                                lower + self.req_sample_window + self.quarter_req_sample_window
+                            if upper
+                                > lower + self.req_sample_window + self.quarter_req_sample_window
                             {
                                 Some((
-                                    upper - self.req_sample_window -
-                                        self.quarter_req_sample_window,
+                                    upper - self.req_sample_window - self.quarter_req_sample_window,
                                     upper,
                                 ))
                             } else if upper > lower + self.req_sample_window {
@@ -772,8 +763,7 @@ impl WaveformBuffer {
         extraction_range.unwrap_or((
             audio_buffer.segment_lower,
             audio_buffer.upper.min(
-                audio_buffer.segment_lower + self.req_sample_window +
-                    self.half_req_sample_window,
+                audio_buffer.segment_lower + self.req_sample_window + self.half_req_sample_window,
             ),
         ))
     }
@@ -851,8 +841,7 @@ impl SampleExtractor for WaveformBuffer {
         #[cfg(feature = "trace-waveform-buffer")]
         println!(
             "WaveformBuffer{}::set_sample_duration per_sample {}",
-            self.image.id,
-            per_sample
+            self.image.id, per_sample
         );
         self.state.sample_duration = per_sample;
         self.state.duration_per_1000_samples = per_1000_samples;
@@ -865,29 +854,30 @@ impl SampleExtractor for WaveformBuffer {
     }
 
     fn set_conditions(&mut self, conditions: Box<Any>) {
-        let cndt = conditions.downcast::<WaveformConditions>().expect(
-            "WaveformBuffer::set_conditions conditions is not a WaveformConditions",
-        );
+        let cndt = conditions
+            .downcast::<WaveformConditions>()
+            .expect("WaveformBuffer::set_conditions conditions is not a WaveformConditions");
         self.update_conditions(cndt.duration_per_1000px, cndt.width, cndt.height);
     }
 
     fn switch_to_paused(&mut self) {
         match self.first_visible_sample_lock.take() {
-            None =>  self.first_visible_sample = None,
+            None => self.first_visible_sample = None,
             Some((first_visible_sample, lock_state)) => match lock_state {
                 LockState::Playing => self.first_visible_sample = None,
                 LockState::PlayingRange | LockState::RestoringInitialPos =>
                     // don't drop first_visible_sample & first_visible_sample_lock
                     self.first_visible_sample_lock =
                         Some((first_visible_sample, lock_state)),
-            }
+            },
         }
     }
 
     fn update_concrete_state(&mut self, other: &mut SampleExtractor) {
-        let other = other.as_mut_any().downcast_mut::<WaveformBuffer>().expect(
-            "WaveformBuffer.update_concrete_state: unable to downcast other ",
-        );
+        let other = other
+            .as_mut_any()
+            .downcast_mut::<WaveformBuffer>()
+            .expect("WaveformBuffer.update_concrete_state: unable to downcast other ");
 
         self.previous_sample = other.previous_sample;
         self.current_sample = other.current_sample;
@@ -902,7 +892,8 @@ impl SampleExtractor for WaveformBuffer {
         #[cfg(feature = "trace-waveform-buffer")]
         {
             if self.playback_needs_refresh && !other.playback_needs_refresh {
-                println!("WaveformBuffer{}::update_concrete_state setting playback_needs_refresh",
+                println!(
+                    "WaveformBuffer{}::update_concrete_state setting playback_needs_refresh",
                     other.image.id,
                 );
             }
@@ -940,18 +931,15 @@ impl SampleExtractor for WaveformBuffer {
         // Get the available sample range considering both
         // the waveform image and the AudioBuffer
         let (lower, upper) = self.get_sample_range(audio_buffer);
-        self.image.render(
-            audio_buffer,
-            lower,
-            upper,
-            self.is_confortable,
-        );
+        self.image
+            .render(audio_buffer, lower, upper, self.is_confortable);
 
         self.playback_needs_refresh = if audio_buffer.eos && !self.image.contains_eos {
             // there won't be any refresh on behalf of audio_buffer
             // and image will still need more sample if playback continues
             #[cfg(feature = "trace-waveform-buffer")]
-            println!("WaveformBuffer{}::extract_samples setting playback_needs_refresh",
+            println!(
+                "WaveformBuffer{}::extract_samples setting playback_needs_refresh",
                 self.image.id,
             );
 
@@ -960,7 +948,8 @@ impl SampleExtractor for WaveformBuffer {
             #[cfg(feature = "trace-waveform-buffer")]
             {
                 if self.playback_needs_refresh {
-                    println!("WaveformBuffer{}::extract_samples resetting playback_needs_refresh",
+                    println!(
+                        "WaveformBuffer{}::extract_samples resetting playback_needs_refresh",
                         self.image.id,
                     );
                 }
@@ -980,7 +969,8 @@ impl SampleExtractor for WaveformBuffer {
                 #[cfg(feature = "trace-waveform-buffer")]
                 {
                     if self.playback_needs_refresh && self.image.contains_eos {
-                        println!("WaveformBuffer{}::refresh resetting playback_needs_refresh",
+                        println!(
+                            "WaveformBuffer{}::refresh resetting playback_needs_refresh",
                             self.image.id,
                         );
                     }

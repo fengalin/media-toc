@@ -19,24 +19,25 @@ impl VideoController {
         container.pack_start(&video_widget, true, true, 0);
         container.reorder_child(&video_widget, 0);
 
-        VideoController { container: container }
+        VideoController {
+            container: container,
+        }
     }
 
     pub fn register_callbacks(&self, main_ctrl: &Rc<RefCell<MainController>>) {
         let main_ctrl_clone = Rc::clone(main_ctrl);
-        self.container.connect_button_press_event(move |_, _event_button| {
-            main_ctrl_clone.borrow_mut().play_pause();
-            Inhibit(false)
-        });
+        self.container
+            .connect_button_press_event(move |_, _event_button| {
+                main_ctrl_clone.borrow_mut().play_pause();
+                Inhibit(false)
+            });
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
         let has_video = context
             .info
             .lock()
-            .expect(
-                "Failed to lock media info while initializing video controller",
-            )
+            .expect("Failed to lock media info while initializing video controller")
             .video_best
             .is_some();
 

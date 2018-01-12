@@ -93,8 +93,8 @@ impl Timestamp {
             panic!("Timestamp::from_string too many parts in {}", input);
         }
 
-        ts.nano_total = ((((ts.h * 60 + ts.m) * 60 + ts.s) * 1_000 + ts.ms) * 1_000 + ts.us) *
-            1_000;
+        ts.nano_total =
+            ((((ts.h * 60 + ts.m) * 60 + ts.s) * 1_000 + ts.ms) * 1_000 + ts.us) * 1_000;
 
         ts
     }

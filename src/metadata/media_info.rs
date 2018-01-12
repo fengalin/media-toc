@@ -40,39 +40,47 @@ impl MediaInfo {
     }
 
     pub fn get_artist(&self) -> Option<&str> {
-        self.tags.get_index::<gst::tags::Artist>(0)
+        self.tags
+            .get_index::<gst::tags::Artist>(0)
             .map(|value| value.get().unwrap())
-            .or_else(||
-                self.tags.get_index::<gst::tags::AlbumArtist>(0)
+            .or_else(|| {
+                self.tags
+                    .get_index::<gst::tags::AlbumArtist>(0)
                     .map(|value| value.get().unwrap())
-            )
-            .or_else(||
-                self.tags.get_index::<gst::tags::ArtistSortname>(0)
+            })
+            .or_else(|| {
+                self.tags
+                    .get_index::<gst::tags::ArtistSortname>(0)
                     .map(|value| value.get().unwrap())
-            )
-            .or_else(||
-                self.tags.get_index::<gst::tags::AlbumArtistSortname>(0)
+            })
+            .or_else(|| {
+                self.tags
+                    .get_index::<gst::tags::AlbumArtistSortname>(0)
                     .map(|value| value.get().unwrap())
-            )
+            })
     }
 
     pub fn get_title(&self) -> Option<&str> {
-        self.tags.get_index::<gst::tags::Title>(0)
+        self.tags
+            .get_index::<gst::tags::Title>(0)
             .map(|value| value.get().unwrap())
     }
 
     pub fn get_image(&self, index: u32) -> Option<gst::Sample> {
-        self.tags.get_index::<gst::tags::Image>(index)
+        self.tags
+            .get_index::<gst::tags::Image>(index)
             .map(|value| value.get().unwrap())
     }
 
     pub fn get_audio_codec(&self) -> Option<&str> {
-        self.tags.get_index::<gst::tags::AudioCodec>(0)
+        self.tags
+            .get_index::<gst::tags::AudioCodec>(0)
             .map(|value| value.get().unwrap())
     }
 
     pub fn get_video_codec(&self) -> Option<&str> {
-        self.tags.get_index::<gst::tags::VideoCodec>(0)
+        self.tags
+            .get_index::<gst::tags::VideoCodec>(0)
             .map(|value| value.get().unwrap())
     }
 
@@ -80,14 +88,14 @@ impl MediaInfo {
         // in case of an mp3 audio file, container comes as `ID3 label`
         // => bypass it
         if let Some(audio_codec) = self.get_audio_codec() {
-            if self.get_video_codec().is_none() &&
-                audio_codec.to_lowercase().find("mp3").is_some()
+            if self.get_video_codec().is_none() && audio_codec.to_lowercase().find("mp3").is_some()
             {
-                return None
+                return None;
             }
         }
 
-        self.tags.get_index::<gst::tags::ContainerFormat>(0)
+        self.tags
+            .get_index::<gst::tags::ContainerFormat>(0)
             .map(|value| value.get().unwrap())
     }
 }

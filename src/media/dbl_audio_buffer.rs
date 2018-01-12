@@ -67,9 +67,7 @@ impl DoubleAudioBuffer {
 
         self.working_buffer
             .as_mut()
-            .expect(
-                "DoubleAudioBuffer: couldn't get working_buffer while setting audio sink",
-            )
+            .expect("DoubleAudioBuffer: couldn't get working_buffer while setting audio sink")
             .cleanup();
         self.lower_to_keep = 0;
         self.can_handle_eos = true;
@@ -78,9 +76,8 @@ impl DoubleAudioBuffer {
     // Initialize buffer with audio stream capabilities
     // and GStreamer element for position reference
     pub fn set_audio_caps_and_ref(&mut self, caps: &gst::Caps, audio_ref: &gst::Element) {
-        let audio_info = gst_audio::AudioInfo::from_caps(caps).expect(
-            "DoubleAudioBuffer::set_audio_caps_and_ref unable to get AudioInfo",
-        );
+        let audio_info = gst_audio::AudioInfo::from_caps(caps)
+            .expect("DoubleAudioBuffer::set_audio_caps_and_ref unable to get AudioInfo");
 
         let rate = u64::from(audio_info.rate());
         let channels = audio_info.channels() as usize;
@@ -105,9 +102,9 @@ impl DoubleAudioBuffer {
             exposed_buffer.set_channels(&channels);
         }
 
-        let working_buffer = self.working_buffer.as_mut().expect(
-            "DoubleAudioBuffer: couldn't get working_buffer while setting audio sink",
-        );
+        let working_buffer = self.working_buffer
+            .as_mut()
+            .expect("DoubleAudioBuffer: couldn't get working_buffer while setting audio sink");
         working_buffer.set_audio_sink(audio_ref.clone());
         working_buffer.set_sample_duration(sample_duration, duration_for_1000_samples);
         working_buffer.set_channels(&channels);
@@ -120,16 +117,14 @@ impl DoubleAudioBuffer {
         {
             self.working_buffer
                 .as_mut()
-                .expect(
-                    "DoubleAudioBuffer::set_conditions failed to take working buffer",
-                )
+                .expect("DoubleAudioBuffer::set_conditions failed to take working buffer")
                 .set_conditions(conditions.clone());
         }
 
         {
-            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().expect(
-                "DoubleAudioBuffer:::set_conditions failed to lock the exposed buffer",
-            );
+            let exposed_buffer_box = &mut *self.exposed_buffer_mtx
+                .lock()
+                .expect("DoubleAudioBuffer:::set_conditions failed to lock the exposed buffer");
             exposed_buffer_box.set_conditions(conditions);
         }
     }
@@ -156,10 +151,8 @@ impl DoubleAudioBuffer {
 
     pub fn push_gst_sample(&mut self, sample: &gst::Sample) {
         // store incoming samples
-        self.samples_since_last_extract += self.audio_buffer.push_gst_sample(
-            sample,
-            self.lower_to_keep,
-        );
+        self.samples_since_last_extract += self.audio_buffer
+            .push_gst_sample(sample, self.lower_to_keep);
 
         if self.samples_since_last_extract >= EXTRACTION_THRESHOLD {
             // extract new samples and swap
@@ -170,16 +163,16 @@ impl DoubleAudioBuffer {
 
     // Update the working extractor with new samples and swap.
     pub fn extract_samples(&mut self) {
-        let mut working_buffer = self.working_buffer.take().expect(
-            "DoubleAudioBuffer::extract_samples: failed to take working buffer",
-        );
+        let mut working_buffer = self.working_buffer
+            .take()
+            .expect("DoubleAudioBuffer::extract_samples: failed to take working buffer");
         working_buffer.extract_samples(&self.audio_buffer);
 
         // swap buffers
         {
-            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().expect(
-                "DoubleAudioBuffer::extract_samples: failed to lock the exposed buffer",
-            );
+            let exposed_buffer_box = &mut *self.exposed_buffer_mtx
+                .lock()
+                .expect("DoubleAudioBuffer::extract_samples: failed to lock the exposed buffer");
             // get latest state from the previously exposed buffer
             // in order to smoothen rendering between frames
             working_buffer.update_concrete_state(exposed_buffer_box.as_mut());
@@ -195,14 +188,14 @@ impl DoubleAudioBuffer {
 
     pub fn refresh(&mut self, is_playing: bool) {
         // refresh with current conditions
-        let mut working_buffer = self.working_buffer.take().expect(
-            "DoubleAudioBuffer::refresh: failed to take working buffer",
-        );
+        let mut working_buffer = self.working_buffer
+            .take()
+            .expect("DoubleAudioBuffer::refresh: failed to take working buffer");
 
         {
-            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().expect(
-                "DoubleAudioBuffer:::refresh: failed to lock the exposed buffer",
-            );
+            let exposed_buffer_box = &mut *self.exposed_buffer_mtx
+                .lock()
+                .expect("DoubleAudioBuffer:::refresh: failed to lock the exposed buffer");
 
             if !is_playing {
                 exposed_buffer_box.switch_to_paused();
@@ -233,14 +226,14 @@ impl DoubleAudioBuffer {
         conditions: Box<T>,
         is_playing: bool,
     ) {
-        let mut working_buffer = self.working_buffer.take().expect(
-            "DoubleAudioBuffer::refresh: failed to take working buffer",
-        );
+        let mut working_buffer = self.working_buffer
+            .take()
+            .expect("DoubleAudioBuffer::refresh: failed to take working buffer");
 
         {
-            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().expect(
-                "DoubleAudioBuffer:::refresh: failed to lock the exposed buffer",
-            );
+            let exposed_buffer_box = &mut *self.exposed_buffer_mtx
+                .lock()
+                .expect("DoubleAudioBuffer:::refresh: failed to lock the exposed buffer");
 
             if !is_playing {
                 exposed_buffer_box.switch_to_paused();

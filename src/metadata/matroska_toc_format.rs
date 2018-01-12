@@ -6,7 +6,7 @@ use gstreamer::{TagSetterExt, Toc, TocEntry, TocEntryType, TocScope, TocSetterEx
 
 use std::i64;
 
-use super::{Chapter, MediaInfo, Exporter};
+use super::{Chapter, Exporter, MediaInfo};
 
 static EXTENSION: &'static str = "toc.mkv";
 static AUDIO_EXTENSION: &'static str = "toc.mka";
@@ -28,12 +28,7 @@ impl MatroskaTocFormat {
 }
 
 impl Exporter for MatroskaTocFormat {
-    fn export(
-        &self,
-        info: &MediaInfo,
-        chapters: &[Chapter],
-        destination: &gst::Element,
-    ) {
+    fn export(&self, info: &MediaInfo, chapters: &[Chapter], destination: &gst::Element) {
         {
             let tag_setter = destination
                 .clone()
@@ -67,7 +62,10 @@ impl Exporter for MatroskaTocFormat {
 
                     let start = chapter.start.nano_total as i64;
                     let end = chapter.end.nano_total as i64;
-                    toc_sub_entry.get_mut().unwrap().set_start_stop_times(start, end);
+                    toc_sub_entry
+                        .get_mut()
+                        .unwrap()
+                        .set_start_stop_times(start, end);
 
                     toc_entry.append_sub_entry(toc_sub_entry);
                 }

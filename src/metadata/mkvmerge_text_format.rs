@@ -37,9 +37,9 @@ impl Reader for MKVMergeTextFormat {
         chapters: &mut Vec<Chapter>,
     ) {
         let mut content = String::new();
-        source.read_to_string(&mut content).expect(
-            "MKVMergeTextFormat::read failed to read source content",
-        );
+        source
+            .read_to_string(&mut content)
+            .expect("MKVMergeTextFormat::read failed to read source content");
 
         chapters.clear();
 
@@ -49,24 +49,22 @@ impl Reader for MKVMergeTextFormat {
                 let tag = parts[0];
                 let value = parts[1];
                 if tag.starts_with(CHAPTER_TAG) && tag.len() >= *CHAPTER_TAG_LEN + CHAPTER_NB_LEN {
-                    let chapter_nb = match tag[*CHAPTER_TAG_LEN..
-                                                     *CHAPTER_TAG_LEN + CHAPTER_NB_LEN]
+                    let chapter_nb = match tag[*CHAPTER_TAG_LEN..*CHAPTER_TAG_LEN + CHAPTER_NB_LEN]
                         .parse::<usize>()
                     {
                         Ok(chapter_nb) => chapter_nb,
-                        Err(_) => {
-                            panic!(
-                                "MKVMergeTextFormat::read couldn't find chapter nb for: {}",
-                                line,
-                            )
-                        }
+                        Err(_) => panic!(
+                            "MKVMergeTextFormat::read couldn't find chapter nb for: {}",
+                            line,
+                        ),
                     };
 
                     if tag.ends_with(NAME_TAG) {
                         if chapter_nb <= chapters.len() {
                             chapters[chapter_nb - 1].set_title(value);
                         } else {
-                            panic!("MKVMergeTextFormat::read inconsistent chapter nb for: {}",
+                            panic!(
+                                "MKVMergeTextFormat::read inconsistent chapter nb for: {}",
                                 line,
                             );
                         }
@@ -85,7 +83,8 @@ impl Reader for MKVMergeTextFormat {
                         chapter.start = start;
                         chapters.push(chapter);
                     } else {
-                        panic!("MKVMergeTextFormat::read inconsistent chapter nb for: {}",
+                        panic!(
+                            "MKVMergeTextFormat::read inconsistent chapter nb for: {}",
                             line,
                         );
                     }
@@ -104,27 +103,24 @@ impl Reader for MKVMergeTextFormat {
 }
 
 impl Writer for MKVMergeTextFormat {
-    fn write(
-        &self,
-        _info: &MediaInfo,
-        chapters: &[Chapter],
-        destination: &mut Write,
-    ) {
+    fn write(&self, _info: &MediaInfo, chapters: &[Chapter], destination: &mut Write) {
         for (index, chapter) in chapters.iter().enumerate() {
             let prefix = format!("{}{:02}", CHAPTER_TAG, index + 1);
             destination
-                .write_fmt(format_args!("{}={}\n",
+                .write_fmt(format_args!(
+                    "{}={}\n",
                     prefix,
                     chapter.start.format_with_hours(),
                 ))
                 .expect("MKVMergeTextFormat::write clicked, failed to write to file");
 
             destination
-                .write_fmt(format_args!("{}{}={}\n",
-                prefix,
-                NAME_TAG,
-                chapter.get_title().unwrap_or(super::DEFAULT_TITLE),
-            ))
+                .write_fmt(format_args!(
+                    "{}{}={}\n",
+                    prefix,
+                    NAME_TAG,
+                    chapter.get_title().unwrap_or(super::DEFAULT_TITLE),
+                ))
                 .expect("MKVMergeTextFormat::write clicked, failed to write to file");
         }
     }

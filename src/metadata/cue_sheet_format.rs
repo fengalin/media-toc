@@ -17,12 +17,7 @@ impl CueSheetFormat {
 }
 
 impl Writer for CueSheetFormat {
-    fn write(
-        &self,
-        info: &MediaInfo,
-        chapters: &[Chapter],
-        destination: &mut Write,
-    ) {
+    fn write(&self, info: &MediaInfo, chapters: &[Chapter], destination: &mut Write) {
         let title = info.get_title();
         if let Some(title) = title {
             destination
@@ -50,7 +45,11 @@ impl Writer for CueSheetFormat {
             None => "WAVE",
         };
         destination
-            .write_fmt(format_args!("FILE \"{}\" {}\n", info.get_file_name(), audio_codec))
+            .write_fmt(format_args!(
+                "FILE \"{}\" {}\n",
+                info.get_file_name(),
+                audio_codec
+            ))
             .expect("CueSheetFormat::write clicked, failed to write to file");
 
         for (index, chapter) in chapters.iter().enumerate() {
@@ -78,8 +77,8 @@ impl Writer for CueSheetFormat {
                     "    INDEX 01 {:02}:{:02}:{:02}\n",
                     start_ts.h * 60 + start_ts.m,
                     start_ts.s,
-                    (((start_ts.ms * 1_000 + start_ts.us) * 1_000 + start_ts.nano) as f64 /
-                         1_000_000_000f64 * 75f64)
+                    (((start_ts.ms * 1_000 + start_ts.us) * 1_000 + start_ts.nano) as f64
+                        / 1_000_000_000f64 * 75f64)
                         .round() // frame nb (75 frames/s for Cue Sheets)
                 ))
                 .expect("CueSheetFormat::write clicked, failed to write to file");

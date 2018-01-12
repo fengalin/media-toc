@@ -52,11 +52,10 @@ impl TocSetterContext {
     }
 
     pub fn get_position(&mut self) -> u64 {
-        self.muxer.as_ref().unwrap().query(
-            self.position_query
-                .get_mut()
-                .unwrap(),
-        );
+        self.muxer
+            .as_ref()
+            .unwrap()
+            .query(self.position_query.get_mut().unwrap());
         match self.position_query.view() {
             QueryView::Position(ref position) => position.get_result().get_value() as u64,
             _ => unreachable!(),
@@ -117,7 +116,7 @@ impl TocSetterContext {
                 if let Some(ref data) = probe_info.data {
                     if let gst::PadProbeData::Event(ref event) = *data {
                         if let gst::EventView::Toc(ref _toc) = event.view() {
-                             return gst::PadProbeReturn::Drop;
+                            return gst::PadProbeReturn::Drop;
                         }
                     }
                 }
@@ -136,37 +135,35 @@ impl TocSetterContext {
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
-                    ctx_tx.send(ContextMessage::Eos).expect(
-                        "Eos: Failed to notify UI",
-                    );
+                    ctx_tx
+                        .send(ContextMessage::Eos)
+                        .expect("Eos: Failed to notify UI");
                     return glib::Continue(false);
                 }
                 gst::MessageView::Error(err) => {
                     eprintln!(
                         "Error from {}: {} ({:?})",
-                        msg.get_src().map(|s| s.get_path_string()).unwrap_or_else(
-                            || {
-                                String::from("None")
-                            },
-                        ),
+                        msg.get_src()
+                            .map(|s| s.get_path_string(),)
+                            .unwrap_or_else(|| String::from("None"),),
                         err.get_error(),
                         err.get_debug()
                     );
-                    ctx_tx.send(ContextMessage::FailedToExport).expect(
-                        "Error: Failed to notify UI",
-                    );
+                    ctx_tx
+                        .send(ContextMessage::FailedToExport)
+                        .expect("Error: Failed to notify UI");
                     return glib::Continue(false);
                 }
                 gst::MessageView::AsyncDone(_) => {
                     if !init_done {
                         init_done = true;
-                        ctx_tx.send(ContextMessage::InitDone).expect(
-                            "InitDone: Failed to notify UI",
-                        );
+                        ctx_tx
+                            .send(ContextMessage::InitDone)
+                            .expect("InitDone: Failed to notify UI");
                     } else {
-                        ctx_tx.send(ContextMessage::AsyncDone).expect(
-                            "AsyncDone: Failed to notify UI",
-                        );
+                        ctx_tx
+                            .send(ContextMessage::AsyncDone)
+                            .expect("AsyncDone: Failed to notify UI");
                     }
                 }
                 _ => (),

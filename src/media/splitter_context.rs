@@ -53,11 +53,10 @@ impl SplitterContext {
     }
 
     pub fn get_position(&mut self) -> u64 {
-        self.position_ref.as_ref().unwrap().query(
-            self.position_query
-                .get_mut()
-                .unwrap(),
-        );
+        self.position_ref
+            .as_ref()
+            .unwrap()
+            .query(self.position_query.get_mut().unwrap());
         match self.position_query.view() {
             QueryView::Position(ref position) => position.get_result().get_value() as u64,
             _ => unreachable!(),
@@ -94,9 +93,7 @@ impl SplitterContext {
             .unwrap();
         let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
 
-        self.pipeline
-            .add_many(&[&filesrc, &decodebin])
-            .unwrap();
+        self.pipeline.add_many(&[&filesrc, &decodebin]).unwrap();
 
         filesrc.link(&decodebin).unwrap();
         decodebin.sync_state_with_parent().unwrap();
@@ -110,7 +107,10 @@ impl SplitterContext {
             metadata::Format::Opus => gst::ElementFactory::make("opusenc", None).unwrap(),
             metadata::Format::Vorbis => gst::ElementFactory::make("vorbisenc", None).unwrap(),
             metadata::Format::MP3 => gst::ElementFactory::make("lamemp3enc", None).unwrap(),
-            _ => panic!("SplitterContext::build_pipeline unsupported format: {:?}", self.format),
+            _ => panic!(
+                "SplitterContext::build_pipeline unsupported format: {:?}",
+                self.format
+            ),
         };
 
         // Catch events and drop the upstream Tags & TOC
@@ -172,8 +172,9 @@ impl SplitterContext {
 
         // add a muxer when required
         let (tag_setter, audio_muxer) = match self.format {
-            metadata::Format::Flac | metadata::Format::Wave =>
-                (audio_enc.clone(), audio_enc.clone()),
+            metadata::Format::Flac | metadata::Format::Wave => {
+                (audio_enc.clone(), audio_enc.clone())
+            }
             metadata::Format::Opus | metadata::Format::Vorbis => {
                 let ogg_muxer = gst::ElementFactory::make("oggmux", None).unwrap();
                 self.pipeline.add(&ogg_muxer).unwrap();
@@ -186,7 +187,10 @@ impl SplitterContext {
                 audio_enc.link(&id3v2_muxer).unwrap();
                 (id3v2_muxer.clone(), id3v2_muxer)
             }
-            _ => panic!("SplitterContext::build_pipeline unsupported format: {:?}", self.format),
+            _ => panic!(
+                "SplitterContext::build_pipeline unsupported format: {:?}",
+                self.format
+            ),
         };
 
         //self.tag_setter = Some(tag_setter);
@@ -246,37 +250,35 @@ impl SplitterContext {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
                     if pipeline.set_state(gst::State::Null) == gst::StateChangeReturn::Failure {
-                        ctx_tx.send(ContextMessage::FailedToExport).expect(
-                            "Error: Failed to notify UI",
-                        );
+                        ctx_tx
+                            .send(ContextMessage::FailedToExport)
+                            .expect("Error: Failed to notify UI");
                     }
-                    ctx_tx.send(ContextMessage::Eos).expect(
-                        "Eos: Failed to notify UI",
-                    );
+                    ctx_tx
+                        .send(ContextMessage::Eos)
+                        .expect("Eos: Failed to notify UI");
                     return glib::Continue(false);
                 }
                 gst::MessageView::Error(err) => {
                     eprintln!(
                         "Error from {}: {} ({:?})",
-                        msg.get_src().map(|s| s.get_path_string()).unwrap_or_else(
-                            || {
-                                String::from("None")
-                            },
-                        ),
+                        msg.get_src()
+                            .map(|s| s.get_path_string(),)
+                            .unwrap_or_else(|| String::from("None"),),
                         err.get_error(),
                         err.get_debug()
                     );
-                    ctx_tx.send(ContextMessage::FailedToExport).expect(
-                        "Error: Failed to notify UI",
-                    );
+                    ctx_tx
+                        .send(ContextMessage::FailedToExport)
+                        .expect("Error: Failed to notify UI");
                     return glib::Continue(false);
                 }
                 gst::MessageView::AsyncDone(_) => {
                     // Start splitting
                     if pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
-                        ctx_tx.send(ContextMessage::FailedToExport).expect(
-                            "Error: Failed to notify UI",
-                        );
+                        ctx_tx
+                            .send(ContextMessage::FailedToExport)
+                            .expect("Error: Failed to notify UI");
                     }
                 }
                 _ => (),

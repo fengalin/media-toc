@@ -14,7 +14,7 @@ use std::cell::RefCell;
 
 use std::sync::{Arc, Mutex};
 
-use media::{PlaybackContext, DoubleAudioBuffer, SampleExtractor};
+use media::{DoubleAudioBuffer, PlaybackContext, SampleExtractor};
 
 use metadata::Timestamp;
 
@@ -85,12 +85,12 @@ impl AudioController {
         // draw
         let this_clone = Rc::clone(this_rc);
         let main_ctrl_clone = Rc::clone(main_ctrl);
-        this.drawingarea.connect_draw(
-            move |drawing_area, cairo_ctx| {
-                this_clone.borrow_mut()
+        this.drawingarea
+            .connect_draw(move |drawing_area, cairo_ctx| {
+                this_clone
+                    .borrow_mut()
                     .draw(&main_ctrl_clone, drawing_area, cairo_ctx)
-            },
-        );
+            });
 
         // widget size changed
         let main_ctrl_clone = Rc::clone(main_ctrl);
@@ -102,17 +102,20 @@ impl AudioController {
         // click in drawing_area
         let main_ctrl_clone = Rc::clone(main_ctrl);
         let this_clone = Rc::clone(this_rc);
-        this.drawingarea.connect_button_press_event(
-            move |_, event_button| {
+        this.drawingarea
+            .connect_button_press_event(move |_, event_button| {
                 match event_button.get_button() {
-                    1 => { // left click => seek
-                        let position_opt = this_clone.borrow()
+                    1 => {
+                        // left click => seek
+                        let position_opt = this_clone
+                            .borrow()
                             .get_position_at(event_button.get_position().0);
                         if let Some(position) = position_opt {
                             main_ctrl_clone.borrow_mut().seek(position, true); // accurate (slow)
                         }
                     }
-                    3 => { // right click => segment playback
+                    3 => {
+                        // right click => segment playback
                         let (position_opt, current_position, last_pos) = {
                             let this = this_clone.borrow();
                             (
@@ -125,15 +128,17 @@ impl AudioController {
                             // get a reasonable range so that we can still hear
                             // something even when there are few samples in current window
                             let end_pos = start_pos + MIN_RANGE_DURATION.max(last_pos - start_pos);
-                            main_ctrl_clone.borrow_mut()
-                                .play_range(start_pos, end_pos, current_position);
+                            main_ctrl_clone.borrow_mut().play_range(
+                                start_pos,
+                                end_pos,
+                                current_position,
+                            );
                         }
                     }
                     _ => (),
                 }
                 Inhibit(true)
-            },
-        );
+            });
 
         // click zoom in
         let main_ctrl_clone = Rc::clone(main_ctrl);
@@ -189,9 +194,7 @@ impl AudioController {
         let has_audio = context
             .info
             .lock()
-            .expect(
-                "Failed to lock media info while initializing audio controller",
-            )
+            .expect("Failed to lock media info while initializing audio controller")
             .audio_best
             .is_some();
 
@@ -202,9 +205,7 @@ impl AudioController {
                 let requested_duration = self.requested_duration;
                 self.dbl_buffer_mtx
                     .lock()
-                    .expect(
-                        "AudioController::size-allocate: couldn't lock dbl_buffer_mtx",
-                    )
+                    .expect("AudioController::size-allocate: couldn't lock dbl_buffer_mtx")
                     .set_conditions(Box::new(WaveformConditions::new(
                         requested_duration,
                         allocation.width,
@@ -226,9 +227,7 @@ impl AudioController {
                 .expect("AudioController::seek: Couldn't lock waveform_mtx")
                 .as_mut_any()
                 .downcast_mut::<WaveformBuffer>()
-                .expect(
-                    "AudioController::seek: SamplesExtratctor is not a WaveformBuffer",
-                )
+                .expect("AudioController::seek: SamplesExtratctor is not a WaveformBuffer")
                 .seek(position, *state == ControllerState::Playing);
         }
 
@@ -249,9 +248,7 @@ impl AudioController {
             .expect("AudioController::seek: Couldn't lock waveform_mtx")
             .as_mut_any()
             .downcast_mut::<WaveformBuffer>()
-            .expect(
-                "AudioController::seek: SamplesExtratctor is not a WaveformBuffer",
-            )
+            .expect("AudioController::seek: SamplesExtratctor is not a WaveformBuffer")
             .start_play_range();
     }
 
@@ -270,30 +267,31 @@ impl AudioController {
 
         let this_rc = Rc::clone(this_rc);
         this.tick_cb_id = Some(
-            this.drawingarea.add_tick_callback(move |_da, _frame_clock| {
-                let this = this_rc.borrow_mut();
-                if this.is_active {
-                    if this.playback_needs_refresh {
-                        #[cfg(feature = "trace-audio-controller")]
-                        println!("AudioController::tick forcing refresh");
+            this.drawingarea
+                .add_tick_callback(move |_da, _frame_clock| {
+                    let this = this_rc.borrow_mut();
+                    if this.is_active {
+                        if this.playback_needs_refresh {
+                            #[cfg(feature = "trace-audio-controller")]
+                            println!("AudioController::tick forcing refresh");
 
-                        this.dbl_buffer_mtx
-                            .lock()
-                            .expect("AudioController::tick: couldn't lock dbl_buffer_mtx")
-                            .refresh(true); // is playing
+                            this.dbl_buffer_mtx
+                                .lock()
+                                .expect("AudioController::tick: couldn't lock dbl_buffer_mtx")
+                                .refresh(true); // is playing
+                        }
+
+                        this.redraw();
                     }
-
-                    this.redraw();
-                }
-                glib::Continue(true)
-            })
+                    glib::Continue(true)
+                }),
         );
     }
 
     fn get_position_at(&self, x: f64) -> Option<u64> {
-        let waveform_buffer_grd = &mut *self.waveform_mtx.lock().expect(
-            "Couldn't lock waveform buffer in audio controller draw",
-        );
+        let waveform_buffer_grd = &mut *self.waveform_mtx
+            .lock()
+            .expect("Couldn't lock waveform buffer in audio controller draw");
         waveform_buffer_grd
             .as_any()
             .downcast_ref::<WaveformBuffer>()
@@ -313,7 +311,7 @@ impl AudioController {
         &mut self,
         main_ctrl: &Rc<RefCell<MainController>>,
         drawingarea: &gtk::DrawingArea,
-        cr: &cairo::Context
+        cr: &cairo::Context,
     ) -> Inhibit {
         #[cfg(feature = "profiling-audio-draw")]
         let before_init = Utc::now();
@@ -338,15 +336,13 @@ impl AudioController {
         let mut _before_image = Utc::now();
 
         let (current_position, image_positions) = {
-            let waveform_grd = &mut *self.waveform_mtx.lock().expect(
-                "AudioController::draw: couldn't lock waveform_mtx",
-            );
+            let waveform_grd = &mut *self.waveform_mtx
+                .lock()
+                .expect("AudioController::draw: couldn't lock waveform_mtx");
             let waveform_buffer = waveform_grd
                 .as_mut_any()
                 .downcast_mut::<WaveformBuffer>()
-                .expect(
-                    "AudioController::draw: SamplesExtratctor is not a WaveformBuffer",
-                );
+                .expect("AudioController::draw: SamplesExtratctor is not a WaveformBuffer");
 
             #[cfg(feature = "profiling-audio-draw")]
             let _before_cndt = Utc::now();
@@ -442,7 +438,7 @@ impl AudioController {
         let before_refresh_info = Utc::now();
 
         if let Ok(mut main_ctrl) = main_ctrl.try_borrow_mut() {
-             main_ctrl.refresh_info(self.current_position);
+            main_ctrl.refresh_info(self.current_position);
         }
 
         #[cfg(feature = "profiling-audio-draw")]
@@ -471,9 +467,7 @@ impl AudioController {
             let requested_duration = self.requested_duration;
             self.dbl_buffer_mtx
                 .lock()
-                .expect(
-                    "AudioController::size-allocate: couldn't lock dbl_buffer_mtx",
-                )
+                .expect("AudioController::size-allocate: couldn't lock dbl_buffer_mtx")
                 .refresh_with_conditions(
                     Box::new(WaveformConditions::new(
                         requested_duration,

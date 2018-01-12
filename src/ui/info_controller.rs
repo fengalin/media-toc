@@ -112,27 +112,25 @@ impl InfoController {
 
         // Draw thumnail image
         let this_clone = Rc::clone(this_rc);
-        this.drawingarea.connect_draw(
-            move |drawingarea, cairo_ctx| {
+        this.drawingarea
+            .connect_draw(move |drawingarea, cairo_ctx| {
                 let this = this_clone.borrow();
                 this.draw_thumbnail(drawingarea, cairo_ctx)
-            },
-        );
+            });
 
         // Scale seek
         let main_ctrl_clone = Rc::clone(main_ctrl);
-        this.timeline_scale.connect_change_value(
-            move |_, _, value| {
+        this.timeline_scale
+            .connect_change_value(move |_, _, value| {
                 main_ctrl_clone.borrow_mut().seek(value as u64, false); // approximate (fast)
                 Inhibit(true)
-            },
-        );
+            });
 
         // TreeView seek
         let this_clone = Rc::clone(this_rc);
         let main_ctrl_clone = Rc::clone(main_ctrl);
-        this.chapter_treeview.connect_row_activated(
-            move |_, tree_path, _| {
+        this.chapter_treeview
+            .connect_row_activated(move |_, tree_path, _| {
                 let position_opt = {
                     // get the position first in order to make sure
                     // this is no longer borrowed if main_ctrl::seek is to be called
@@ -151,8 +149,7 @@ impl InfoController {
                 if let Some(position) = position_opt {
                     main_ctrl_clone.borrow_mut().seek(position, true); // accurate (slow)
                 }
-            },
-        );
+            });
 
         // add chapter
         let this_clone = Rc::clone(this_rc);
@@ -188,10 +185,10 @@ impl InfoController {
             } else {
                 f64::from(allocation.width) / f64::from(surface.get_width())
             };
-            let x = (f64::from(allocation.width) / scale - f64::from(surface.get_width())).abs() /
-                2f64;
-            let y = (f64::from(allocation.height) / scale - f64::from(surface.get_height()))
-                .abs() / 2f64;
+            let x =
+                (f64::from(allocation.width) / scale - f64::from(surface.get_width())).abs() / 2f64;
+            let y = (f64::from(allocation.height) / scale - f64::from(surface.get_height())).abs()
+                / 2f64;
 
             cairo_ctx.scale(scale, scale);
             cairo_ctx.set_source_surface(surface, x, y);
@@ -205,39 +202,37 @@ impl InfoController {
         let duration = context.get_duration();
         self.duration = duration;
         self.timeline_scale.set_range(0f64, duration as f64);
-        self.duration_lbl.set_label(
-            &Timestamp::format(duration, false),
-        );
+        self.duration_lbl
+            .set_label(&Timestamp::format(duration, false));
 
         let media_path = context.path.clone();
         let file_stem = media_path
             .file_stem()
             .expect("InfoController::new_media clicked, failed to get file_stem")
             .to_str()
-            .expect(
-                "InfoController::new_media clicked, failed to get file_stem as str",
-            );
+            .expect("InfoController::new_media clicked, failed to get file_stem as str");
 
         // check the presence of toc files
         let toc_extensions = metadata::Factory::get_extensions();
         let test_path = media_path.clone();
-        let mut toc_candidates = toc_extensions.into_iter().filter_map(
-            |(extension, format)| {
-                let path = test_path.clone().with_file_name(
-                    &format!("{}.{}", file_stem, extension),
-                );
+        let mut toc_candidates = toc_extensions
+            .into_iter()
+            .filter_map(|(extension, format)| {
+                let path = test_path
+                    .clone()
+                    .with_file_name(&format!("{}.{}", file_stem, extension));
                 if path.is_file() {
                     Some((path, format))
                 } else {
                     None
                 }
-            },
-        );
+            });
 
         {
-            let info = context.info.lock().expect(
-                "InfoController::new_media failed to lock media info",
-            );
+            let info = context
+                .info
+                .lock()
+                .expect("InfoController::new_media failed to lock media info");
 
             if let Some(ref image_sample) = info.get_image(0) {
                 if let Some(ref image_buffer) = image_sample.get_buffer() {
@@ -248,33 +243,21 @@ impl InfoController {
                 }
             }
 
-            self.title_lbl.set_label(
-                info.get_title().unwrap_or(&EMPTY_REPLACEMENT),
-            );
-            self.artist_lbl.set_label(info.get_artist().unwrap_or(
-                &EMPTY_REPLACEMENT,
-            ));
-            self.container_lbl.set_label(
-                info.get_container().unwrap_or(
-                    &EMPTY_REPLACEMENT,
-                ),
-            );
-            self.audio_codec_lbl.set_label(
-                info.get_audio_codec().unwrap_or(
-                    &EMPTY_REPLACEMENT,
-                ),
-            );
-            self.video_codec_lbl.set_label(
-                info.get_video_codec().unwrap_or(
-                    &EMPTY_REPLACEMENT,
-                ),
-            );
+            self.title_lbl
+                .set_label(info.get_title().unwrap_or(&EMPTY_REPLACEMENT));
+            self.artist_lbl
+                .set_label(info.get_artist().unwrap_or(&EMPTY_REPLACEMENT));
+            self.container_lbl
+                .set_label(info.get_container().unwrap_or(&EMPTY_REPLACEMENT));
+            self.audio_codec_lbl
+                .set_label(info.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));
+            self.video_codec_lbl
+                .set_label(info.get_video_codec().unwrap_or(&EMPTY_REPLACEMENT));
 
             match toc_candidates.next() {
                 Some((toc_path, format)) => {
-                    let mut toc_file = File::open(toc_path).expect(
-                        "InfoController::new_media failed to open toc file",
-                    );
+                    let mut toc_file = File::open(toc_path)
+                        .expect("InfoController::new_media failed to open toc file");
                     let mut chapters = Vec::<Chapter>::new();
                     metadata::Factory::get_reader(&format).read(
                         &info,
@@ -337,9 +320,9 @@ impl InfoController {
     fn repeat_at(main_ctrl: &Option<Weak<RefCell<MainController>>>, position: u64) {
         let main_ctrl_weak = Weak::clone(main_ctrl.as_ref().unwrap());
         gtk::idle_add(move || {
-            let main_ctrl_rc = main_ctrl_weak.upgrade().expect(
-                "InfoController::tick can't upgrade main_ctrl while repeating chapter",
-            );
+            let main_ctrl_rc = main_ctrl_weak
+                .upgrade()
+                .expect("InfoController::tick can't upgrade main_ctrl while repeating chapter");
             main_ctrl_rc.borrow_mut().seek(position, true); // accurate (slow)
             glib::Continue(false)
         });
@@ -407,9 +390,11 @@ impl InfoController {
     }
 
     fn get_position(&self) -> u64 {
-        let main_ctrl_rc = self.main_ctrl.as_ref().unwrap().upgrade().expect(
-            "InfoController::get_position can't upgrade main_ctrl",
-        );
+        let main_ctrl_rc = self.main_ctrl
+            .as_ref()
+            .unwrap()
+            .upgrade()
+            .expect("InfoController::get_position can't upgrade main_ctrl");
         let mut main_ctrl = main_ctrl_rc.borrow_mut();
         main_ctrl.get_position()
     }
@@ -453,9 +438,10 @@ impl InfoController {
             true // keep going until the last chapter
         });
 
-        let mut info = context.info.lock().expect(
-            "InfoController::export_chapters failed to lock media info",
-        );
+        let mut info = context
+            .info
+            .lock()
+            .expect("InfoController::export_chapters failed to lock media info");
         info.chapters = chapters;
     }
 }

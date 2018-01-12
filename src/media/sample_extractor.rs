@@ -70,9 +70,7 @@ pub trait SampleExtractor: Send {
         state
             .audio_sink
             .as_ref()
-            .expect(
-                "DoubleSampleExtractor: no audio ref while querying position",
-            )
+            .expect("DoubleSampleExtractor: no audio ref while querying position")
             .query(state.position_query.get_mut().unwrap());
         let position = match state.position_query.view() {
             QueryView::Position(ref position) => position.get_result().get_value() as u64,

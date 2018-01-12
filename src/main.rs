@@ -15,8 +15,8 @@ extern crate gtk;
 extern crate lazy_static;
 
 #[cfg(any(feature = "dump-waveform", feature = "profiling-audio-draw",
-            feature = "profiling-audio-buffer", feature = "profiling-waveform-buffer",
-            feature = "profile-waveform-image"))]
+          feature = "profiling-audio-buffer", feature = "profiling-waveform-buffer",
+          feature = "profile-waveform-image"))]
 extern crate chrono;
 
 use gtk::{Builder, BuilderExt};

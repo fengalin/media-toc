@@ -12,7 +12,7 @@ use std::sync::mpsc::{channel, Receiver};
 
 use gtk::prelude::*;
 
-use media::{PlaybackContext, ContextMessage};
+use media::{ContextMessage, PlaybackContext};
 use media::ContextMessage::*;
 
 use super::{AudioController, ExportController, InfoController, VideoController};
@@ -192,12 +192,13 @@ impl MainController {
                 }
 
                 let (must_switch_to_play, must_keep_paused) = match self.state {
-                    ControllerState::EOS |
-                        ControllerState::Ready |
-                        ControllerState::Seeking(true, false) => (true, false),
+                    ControllerState::EOS
+                    | ControllerState::Ready
+                    | ControllerState::Seeking(true, false) => (true, false),
                     ControllerState::Seeking(true, true) => (true, true),
-                    ControllerState::Paused |
-                        ControllerState::Seeking(false, true) => (false, true),
+                    ControllerState::Paused | ControllerState::Seeking(false, true) => {
+                        (false, true)
+                    }
                     _ => (false, false),
                 };
                 self.state = ControllerState::Seeking(must_switch_to_play, must_keep_paused);
@@ -305,9 +306,9 @@ impl MainController {
                     }
                     InitDone => {
                         let mut this = this_rc.borrow_mut();
-                        let context = this.context.take().expect(
-                            "MainController: InitDone but no context available",
-                        );
+                        let context = this.context
+                            .take()
+                            .expect("MainController: InitDone but no context available");
 
                         this.requires_async_dialog = context
                             .info
@@ -316,9 +317,8 @@ impl MainController {
                             .video_best
                             .is_some();
 
-                        this.header_bar.set_subtitle(
-                            Some(context.file_name.as_str()),
-                        );
+                        this.header_bar
+                            .set_subtitle(Some(context.file_name.as_str()));
 
                         this.video_ctrl.new_media(&context);
                         this.info_ctrl.borrow_mut().new_media(&context);

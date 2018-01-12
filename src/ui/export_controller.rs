@@ -14,12 +14,11 @@ use media::{ContextMessage, PlaybackContext, SplitterContext, TocSetterContext};
 use media::ContextMessage::*;
 
 use metadata;
-use metadata::{Chapter, DEFAULT_TITLE, Exporter, MatroskaTocFormat};
+use metadata::{Chapter, Exporter, MatroskaTocFormat, DEFAULT_TITLE};
 
 use super::MainController;
 
 const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
-
 
 macro_rules! add_tag_from(
     ($tags:expr, $original_tags:expr, $TagType:ty) => {
@@ -126,13 +125,9 @@ impl ExportController {
         let this_clone = Rc::clone(this_rc);
         let main_ctrl_clone = Rc::clone(main_ctrl);
         this.export_dlg.connect_delete_event(move |dlg, _| {
-            main_ctrl_clone.borrow_mut().restore_context(
-                this_clone
-                    .borrow_mut()
-                    .playback_ctx
-                    .take()
-                    .unwrap(),
-            );
+            main_ctrl_clone
+                .borrow_mut()
+                .restore_context(this_clone.borrow_mut().playback_ctx.take().unwrap());
             dlg.hide_on_delete();
             Inhibit(true)
         });
@@ -140,8 +135,7 @@ impl ExportController {
         let this_clone = Rc::clone(this_rc);
         this.split_rdbtn.connect_property_active_notify(move |_| {
             // Enable / disable split sub radio button depending on whether split is selected
-            this_clone.borrow()
-                .set_split_sub_btn_sensitivity();
+            this_clone.borrow().set_split_sub_btn_sensitivity();
         });
 
         let this_clone = Rc::clone(this_rc);
@@ -162,16 +156,12 @@ impl ExportController {
                     .unwrap()
                     .info
                     .lock()
-                    .expect(
-                        "ExportController::export_btn clicked, failed to lock media info",
-                    )
+                    .expect("ExportController::export_btn clicked, failed to lock media info")
                     .video_best
                     .is_none()
             };
-            this.extension = metadata::Factory::get_extension(
-                &this.export_format,
-                is_audio_only,
-            ).to_owned();
+            this.extension =
+                metadata::Factory::get_extension(&this.export_format, is_audio_only).to_owned();
 
             this.media_path = this.playback_ctx.as_ref().unwrap().path.clone();
             this.target_path = this.media_path.with_extension(&this.extension);
@@ -186,9 +176,8 @@ impl ExportController {
                 ExportType::ExternalToc => {
                     // export toc as a standalone file
                     // TODO: handle file related errors
-                    let mut output_file = File::create(&this.target_path).expect(
-                        "ExportController::export_btn clicked couldn't create output file",
-                    );
+                    let mut output_file = File::create(&this.target_path)
+                        .expect("ExportController::export_btn clicked couldn't create output file");
 
                     {
                         let info = this.playback_ctx.as_ref().unwrap().info.lock().expect(
@@ -201,11 +190,9 @@ impl ExportController {
                         );
                     }
 
-                    main_ctrl_clone.borrow_mut().restore_context(
-                        this.playback_ctx
-                            .take()
-                            .unwrap(),
-                    );
+                    main_ctrl_clone
+                        .borrow_mut()
+                        .restore_context(this.playback_ctx.take().unwrap());
                     this.export_dlg.hide();
                 }
                 ExportType::Split => {
@@ -253,9 +240,9 @@ impl ExportController {
                 eprintln!("Error exporting media: {}", error);
                 self.remove_listener();
                 self.switch_to_available();
-                main_ctrl.borrow_mut().restore_context(
-                    self.playback_ctx.take().unwrap(),
-                );
+                main_ctrl
+                    .borrow_mut()
+                    .restore_context(self.playback_ctx.take().unwrap());
                 self.export_dlg.hide();
             }
         };
@@ -267,9 +254,9 @@ impl ExportController {
         self.register_splitter_listener(LISTENER_PERIOD, ui_rx, Rc::clone(main_ctrl));
 
         let (output_path, start, end, tags) = {
-            let chapter = self.current_chapter.as_ref().expect(
-                "ExportController::build_splitter_context no chapter",
-            );
+            let chapter = self.current_chapter
+                .as_ref()
+                .expect("ExportController::build_splitter_context no chapter");
             (
                 self.get_split_path(chapter),
                 chapter.start.nano_total,
@@ -296,9 +283,9 @@ impl ExportController {
                 eprintln!("Error exporting media: {}", error);
                 self.remove_listener();
                 self.switch_to_available();
-                main_ctrl.borrow_mut().restore_context(
-                    self.playback_ctx.take().unwrap(),
-                );
+                main_ctrl
+                    .borrow_mut()
+                    .restore_context(self.playback_ctx.take().unwrap());
                 self.export_dlg.hide();
             }
         };
@@ -306,13 +293,16 @@ impl ExportController {
 
     fn next_chapter(&mut self) -> Option<&Chapter> {
         let next_chapter = {
-            let info = self.playback_ctx.as_ref().unwrap().info.lock().expect(
-                "ExportController::next_chapter failed to lock media info",
-            );
+            let info = self.playback_ctx
+                .as_ref()
+                .unwrap()
+                .info
+                .lock()
+                .expect("ExportController::next_chapter failed to lock media info");
 
-            info.chapters.get(self.idx).map(|chapter| {
-                chapter.clone().to_owned()
-            })
+            info.chapters
+                .get(self.idx)
+                .map(|chapter| chapter.clone().to_owned())
         };
 
         self.current_chapter = next_chapter;
@@ -326,9 +316,12 @@ impl ExportController {
     fn get_split_path(&self, chapter: &Chapter) -> PathBuf {
         let mut split_name = String::new();
 
-        let info = self.playback_ctx.as_ref().unwrap().info.lock().expect(
-            "ExportController::get_split_name failed to lock media info",
-        );
+        let info = self.playback_ctx
+            .as_ref()
+            .unwrap()
+            .info
+            .lock()
+            .expect("ExportController::get_split_name failed to lock media info");
 
         // TODO: make format customisable
         if let Some(artist) = info.get_artist() {
@@ -339,11 +332,11 @@ impl ExportController {
         }
 
         split_name += &format!(
-                "{:02}. {}.{}",
-                self.idx,
-                chapter.get_title().unwrap_or(DEFAULT_TITLE),
-                self.extension,
-            );
+            "{:02}. {}.{}",
+            self.idx,
+            chapter.get_title().unwrap_or(DEFAULT_TITLE),
+            self.extension,
+        );
 
         self.target_path.with_file_name(split_name)
     }
@@ -354,9 +347,12 @@ impl ExportController {
         {
             let tags = tags.get_mut().unwrap();
             let (chapter_count, duration) = {
-                let info = self.playback_ctx.as_ref().unwrap().info.lock().expect(
-                    "ExportController::get_chapter_tags failed to lock media info",
-                );
+                let info = self.playback_ctx
+                    .as_ref()
+                    .unwrap()
+                    .info
+                    .lock()
+                    .expect("ExportController::get_chapter_tags failed to lock media info");
 
                 // Select tags suitable for a track
                 add_tag_from!(tags, info.tags, gst::tags::Artist);
@@ -417,11 +413,14 @@ impl ExportController {
                 for image_iter in info.tags.iter_tag::<gst::tags::Image>() {
                     tags.add::<gst::tags::Image>(
                         image_iter.get().as_ref().unwrap(),
-                        gst::TagMergeMode::Append
+                        gst::TagMergeMode::Append,
                     );
                 }
 
-                (info.chapters.len(), chapter.end.nano_total - chapter.start.nano_total)
+                (
+                    info.chapters.len(),
+                    chapter.end.nano_total - chapter.start.nano_total,
+                )
             };
 
             // Add track specific tags
@@ -518,9 +517,8 @@ impl ExportController {
                     Some(toc_setter_ctx) => toc_setter_ctx.get_position(),
                     None => 0,
                 };
-                this.progress_bar.set_fraction(
-                    position as f64 / this.duration as f64,
-                );
+                this.progress_bar
+                    .set_fraction(position as f64 / this.duration as f64);
             }
 
             for message in ui_rx.try_iter() {
@@ -535,15 +533,15 @@ impl ExportController {
 
                         let exporter = MatroskaTocFormat::new();
                         {
-                            let muxer = toc_setter_ctx.get_muxer().expect(
-                                "ExportContext::toc_setter(InitDone) couldn't get muxer",
-                            );
+                            let muxer = toc_setter_ctx
+                                .get_muxer()
+                                .expect("ExportContext::toc_setter(InitDone) couldn't get muxer");
 
                             let info = this.playback_ctx.as_ref().unwrap().info.lock().expect(
                                 concat!(
-                                            "ExportController::toc_setter(InitDone) ",
-                                            "failed to lock media info",
-                                        ),
+                                    "ExportController::toc_setter(InitDone) ",
+                                    "failed to lock media info",
+                                ),
                             );
                             exporter.export(&info, &info.chapters, muxer);
                         }
@@ -560,9 +558,9 @@ impl ExportController {
                     }
                     Eos => {
                         this.switch_to_available();
-                        main_ctrl.borrow_mut().restore_context(
-                            this.playback_ctx.take().unwrap(),
-                        );
+                        main_ctrl
+                            .borrow_mut()
+                            .restore_context(this.playback_ctx.take().unwrap());
                         this.export_dlg.hide();
                         keep_going = false;
                     }
@@ -605,9 +603,8 @@ impl ExportController {
                     Some(splitter_ctx) => splitter_ctx.get_position(),
                     None => 0,
                 };
-                this.progress_bar.set_fraction(
-                    position as f64 / this.duration as f64,
-                );
+                this.progress_bar
+                    .set_fraction(position as f64 / this.duration as f64);
             }
 
             for message in ui_rx.try_iter() {
@@ -619,9 +616,9 @@ impl ExportController {
                             this.build_splitter_context(&main_ctrl);
                         } else {
                             this.switch_to_available();
-                            main_ctrl.borrow_mut().restore_context(
-                                this.playback_ctx.take().unwrap(),
-                            );
+                            main_ctrl
+                                .borrow_mut()
+                                .restore_context(this.playback_ctx.take().unwrap());
                             this.export_dlg.hide();
                         }
 

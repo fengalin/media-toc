@@ -92,9 +92,9 @@ impl AudioBuffer {
         #[cfg(feature = "profiling-audio-buffer")]
         let start = Utc::now();
 
-        let buffer = sample.get_buffer().expect(
-            "Couldn't get buffer from audio sample",
-        );
+        let buffer = sample
+            .get_buffer()
+            .expect("Couldn't get buffer from audio sample");
 
         let buffer_map = buffer.map_readable();
         let incoming_samples = buffer_map
@@ -104,8 +104,8 @@ impl AudioBuffer {
             .as_slice_of::<i16>()
             .expect("Couldn't get audio samples as i16");
 
-        let segment_lower = (sample.get_segment().unwrap().get_start().get_value() as u64 /
-                                 self.sample_duration) as usize;
+        let segment_lower = (sample.get_segment().unwrap().get_start().get_value() as u64
+            / self.sample_duration) as usize;
         let buffer_sample_len = incoming_samples.len() / self.channels;
         let buffer_pts = buffer.get_pts().unwrap();
 
@@ -160,9 +160,9 @@ impl AudioBuffer {
                     self.last_buffer_upper = incoming_upper;
 
                     (
-                        false, // lower_changed
-                        incoming_lower, // incoming_lower
-                        0, // lower_to_add_rel
+                        false,             // lower_changed
+                        incoming_lower,    // incoming_lower
+                        0,                 // lower_to_add_rel
                         buffer_sample_len, // upper_to_add_rel
                     )
                 } else if incoming_lower >= self.lower && incoming_upper <= self.upper {
@@ -180,10 +180,10 @@ impl AudioBuffer {
                     );
                     self.last_buffer_upper = incoming_upper;
                     (
-                        false, // lower_changed
+                        false,          // lower_changed
                         incoming_lower, // incoming_lower
-                        0, // lower_to_add_rel
-                        0, // upper_to_add_rel
+                        0,              // lower_to_add_rel
+                        0,              // upper_to_add_rel
                     )
                 } else if incoming_lower > self.lower && incoming_lower < self.upper {
                     // 3. can append [self.upper, upper] to the end
@@ -205,29 +205,26 @@ impl AudioBuffer {
                     // self.first_pts unchanged
                     self.last_buffer_upper = incoming_upper;
                     (
-                        false, // lower_changed
-                        incoming_lower, // incoming_lower
+                        false,                           // lower_changed
+                        incoming_lower,                  // incoming_lower
                         previous_upper - incoming_lower, // lower_to_add_rel
-                        buffer_sample_len, // upper_to_add_rel
+                        buffer_sample_len,               // upper_to_add_rel
                     )
                 } else if incoming_upper < self.upper && incoming_upper >= self.lower {
                     // 4. can insert [lower, self.lower] at the begining
                     #[cfg(any(test, feature = "trace-audio-buffer"))]
                     println!(
                         "AudioBuffer case 4. insert at the begining [{}, {}], incoming [{}, {}]",
-                        incoming_lower,
-                        self.lower,
-                        incoming_lower,
-                        incoming_upper
+                        incoming_lower, self.lower, incoming_lower, incoming_upper
                     );
                     let upper_to_add = self.lower;
                     self.lower = incoming_lower;
                     // self.upper unchanged
                     self.last_buffer_upper = incoming_upper;
                     (
-                        true, // lower_changed
-                        incoming_lower, // incoming_lower
-                        0, // lower_to_add_rel
+                        true,                          // lower_changed
+                        incoming_lower,                // incoming_lower
+                        0,                             // lower_to_add_rel
                         upper_to_add - incoming_lower, // upper_to_add_rel
                     )
                 } else {
@@ -235,10 +232,7 @@ impl AudioBuffer {
                     #[cfg(any(test, feature = "trace-audio-buffer"))]
                     println!(
                         "AudioBuffer case 5. can't merge self [{}, {}], incoming [{}, {}]",
-                        self.lower,
-                        self.upper,
-                        incoming_lower,
-                        incoming_upper
+                        self.lower, self.upper, incoming_lower, incoming_upper
                     );
                     self.samples.clear();
                     self.lower = incoming_lower;
@@ -246,9 +240,9 @@ impl AudioBuffer {
                     self.eos = false;
                     self.last_buffer_upper = incoming_upper;
                     (
-                        true, // lower_changed
-                        incoming_lower, // incoming_lower
-                        0, // lower_to_add_rel
+                        true,              // lower_changed
+                        incoming_lower,    // incoming_lower
+                        0,                 // lower_to_add_rel
                         buffer_sample_len, // upper_to_add_rel
                     )
                 }
@@ -262,9 +256,9 @@ impl AudioBuffer {
                 self.eos = false;
                 self.last_buffer_upper = self.upper;
                 (
-                    true, // lower_changed
-                    segment_lower, // incoming_lower
-                    0, // lower_to_add_rel
+                    true,              // lower_changed
+                    segment_lower,     // incoming_lower
+                    0,                 // lower_to_add_rel
                     buffer_sample_len, // upper_to_add_rel
                 )
             };
@@ -281,10 +275,10 @@ impl AudioBuffer {
         // and iteration).
         // Don't drain samples if they might be used by the extractor
         // (limit known as argument lower_to_keep).
-        if !lower_changed &&
-            self.samples.len() + (upper_to_add_rel - lower_to_add_rel) * self.channels >
-                self.capacity &&
-            lower_to_keep.min(incoming_lower) > self.lower + self.drain_size / self.channels
+        if !lower_changed
+            && self.samples.len() + (upper_to_add_rel - lower_to_add_rel) * self.channels
+                > self.capacity
+            && lower_to_keep.min(incoming_lower) > self.lower + self.drain_size / self.channels
         {
             //println!("draining... len before: {}", self.samples.len());
             self.samples.drain(..self.drain_size);
@@ -445,10 +439,7 @@ impl<'a> Iter<'a> {
             #[cfg(test)]
             println!(
                 "AudioBuffer::Iter::new [{}, {}] out of bounds [{}, {}]",
-                lower,
-                upper,
-                buffer.lower,
-                buffer.upper
+                lower, upper, buffer.lower, buffer.upper
             );
             None
         }
@@ -593,9 +584,7 @@ mod tests {
     ) {
         println!(
             "\tchecking iter for [{}, {}], step {}...",
-            lower,
-            upper,
-            step
+            lower, upper, step
         );
         let mut iter = audio_buffer.iter(lower, upper, step).unwrap();
 

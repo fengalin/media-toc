@@ -79,17 +79,13 @@ impl WaveformImage {
         #[cfg(feature = "dump-waveform")]
         match create_dir(&WAVEFORM_DUMP_DIR) {
             Ok(_) => (),
-            Err(error) => {
-                match error.kind() {
-                    ErrorKind::AlreadyExists => (),
-                    _ => {
-                        panic!(
-                            "WaveformImage::new couldn't create directory {}",
-                            WAVEFORM_DUMP_DIR
-                        )
-                    }
-                }
-            }
+            Err(error) => match error.kind() {
+                ErrorKind::AlreadyExists => (),
+                _ => panic!(
+                    "WaveformImage::new couldn't create directory {}",
+                    WAVEFORM_DUMP_DIR
+                ),
+            },
         }
 
         WaveformImage {
@@ -100,18 +96,10 @@ impl WaveformImage {
             channel_colors: Vec::new(),
 
             exposed_image: Some(
-                cairo::ImageSurface::create(
-                    cairo::Format::Rgb24,
-                    INIT_WIDTH,
-                    INIT_HEIGHT,
-                ).unwrap(),
+                cairo::ImageSurface::create(cairo::Format::Rgb24, INIT_WIDTH, INIT_HEIGHT).unwrap(),
             ),
             working_image: Some(
-                cairo::ImageSurface::create(
-                    cairo::Format::Rgb24,
-                    INIT_WIDTH,
-                    INIT_HEIGHT,
-                ).unwrap(),
+                cairo::ImageSurface::create(cairo::Format::Rgb24, INIT_WIDTH, INIT_HEIGHT).unwrap(),
             ),
             image_width: 0,
             image_width_f: 0f64,
@@ -190,8 +178,8 @@ impl WaveformImage {
         // it might be necessary to force rendering when stream
         // is paused or eos
 
-        let force_redraw = (self.sample_step_f - sample_step_f).abs() > 0.01f64 ||
-            self.req_width != width || self.req_height != height;
+        let force_redraw = (self.sample_step_f - sample_step_f).abs() > 0.01f64
+            || self.req_width != width || self.req_height != height;
 
         if force_redraw {
             self.shareable_state_changed = true;
@@ -199,11 +187,7 @@ impl WaveformImage {
             #[cfg(feature = "trace-waveform-rendering")]
             println!(
                 "WaveformImage{}::upd.dim prev. f.redraw {}, w {}, h {}, sample_step_f. {}",
-                self.id,
-                self.force_redraw,
-                self.req_width,
-                self.req_height,
-                self.sample_step_f
+                self.id, self.force_redraw, self.req_width, self.req_height, self.sample_step_f
             );
 
             self.force_redraw = force_redraw;
@@ -222,10 +206,7 @@ impl WaveformImage {
             #[cfg(feature = "trace-waveform-rendering")]
             println!(
                 "\t\t\tnew   f.redraw {}, w {}, h {}, sample_step_f. {}",
-                self.force_redraw,
-                self.req_width,
-                self.req_height,
-                self.sample_step_f
+                self.force_redraw, self.req_width, self.req_height, self.sample_step_f
             );
         }
     }
@@ -280,9 +261,9 @@ impl WaveformImage {
         // between redraws.
         let mut lower = lower / self.sample_step * self.sample_step;
         let upper = upper / self.sample_step * self.sample_step;
-        if audio_buffer.eos && upper == audio_buffer.upper ||
-            self.contains_eos &&
-                (upper == self.upper || (!self.force_redraw && lower >= self.lower))
+        if audio_buffer.eos && upper == audio_buffer.upper
+            || self.contains_eos
+                && (upper == self.upper || (!self.force_redraw && lower >= self.lower))
         {
             // reached eos or image already contains eos and won't change
             if !self.contains_eos {
@@ -328,9 +309,7 @@ impl WaveformImage {
             #[cfg(any(test, feature = "trace-waveform-rendering"))]
             println!(
                 "WaveformImage{}::render lower {} is less than buffer.lower {}",
-                self.id,
-                lower,
-                audio_buffer.lower,
+                self.id, lower, audio_buffer.lower,
             );
             lower += self.sample_step;
         }
@@ -341,9 +320,7 @@ impl WaveformImage {
             #[cfg(any(test, feature = "trace-waveform-rendering"))]
             println!(
                 "WaveformImage{}::render lower {} greater or equal upper {}",
-                self.id,
-                lower,
-                upper,
+                self.id, lower, upper,
             );
 
             self.lower = 0;
@@ -359,10 +336,7 @@ impl WaveformImage {
             #[cfg(any(test, feature = "trace-waveform-rendering"))]
             println!(
                 "WaveformImage{}::render range [{}, {}] too small for sample_step: {}",
-                self.id,
-                lower,
-                upper,
-                self.sample_step,
+                self.id, lower, upper, self.sample_step,
             );
             return;
         }
@@ -380,9 +354,7 @@ impl WaveformImage {
             {
                 println!(
                     "WaveformImage{}::render no overlap self.lower {}, self.upper {}",
-                    self.id,
-                    self.lower,
-                    self.upper,
+                    self.id, self.lower, self.upper,
                 );
                 println!("\t\t\tlower {}, upper {}", lower, upper);
             }
@@ -392,16 +364,14 @@ impl WaveformImage {
             let working_image = self.working_image.take().unwrap();
 
             let target_width = if self.image_width > 0 {
-                self.image_width.max(
-                    ((upper - lower) * self.x_step / self.sample_step) as
-                        i32,
-                )
+                self.image_width
+                    .max(((upper - lower) * self.x_step / self.sample_step) as i32)
             } else {
                 INIT_WIDTH.max(((upper - lower) * self.x_step / self.sample_step) as i32)
             };
-            if (target_width == self.image_width && self.req_height == self.image_height) ||
-                (self.force_redraw && target_width <= self.image_width &&
-                     self.req_height == self.image_height)
+            if (target_width == self.image_width && self.req_height == self.image_height)
+                || (self.force_redraw && target_width <= self.image_width
+                    && self.req_height == self.image_height)
             {
                 // expected dimensions fit in current image => reuse it
                 (working_image, self.exposed_image.take().unwrap())
@@ -416,9 +386,7 @@ impl WaveformImage {
                 #[cfg(any(test, feature = "trace-waveform-rendering"))]
                 println!(
                     "WaveformImage{}::render new images w {}, h {}",
-                    self.id,
-                    target_width,
-                    self.req_height
+                    self.id, target_width, self.req_height
                 );
 
                 (
@@ -501,8 +469,7 @@ impl WaveformImage {
                         lower,
                         upper,
                         can_skip,
-                    )
-                    {
+                    ) {
                         // no pixel added => restore images in place
                         self.working_image = Some(working_image);
                         self.exposed_image = Some(previous_image);
@@ -528,16 +495,15 @@ impl WaveformImage {
 
         #[cfg(feature = "dump-waveform")]
         {
-            let mut output_file =
-                File::create(format!(
-                    "{}/waveform_{}_{}.png",
-                    WAVEFORM_DUMP_DIR,
-                    Utc::now().format("%H:%M:%S%.6f"),
-                    self.id,
-                )).expect("WaveformImage::render couldn't create output file");
-            working_image.write_to_png(&mut output_file).expect(
-                "WaveformImage::render couldn't write waveform image",
-            );
+            let mut output_file = File::create(format!(
+                "{}/waveform_{}_{}.png",
+                WAVEFORM_DUMP_DIR,
+                Utc::now().format("%H:%M:%S%.6f"),
+                self.id,
+            )).expect("WaveformImage::render couldn't create output file");
+            working_image
+                .write_to_png(&mut output_file)
+                .expect("WaveformImage::render couldn't write waveform image");
         }
 
         // swap images
@@ -586,9 +552,7 @@ impl WaveformImage {
                 self.force_redraw = true;
                 println!(
                     "/!\\ WaveformImage{}::redraw: iter out of range {}, {}",
-                    self.id,
-                    lower,
-                    upper
+                    self.id, lower, upper
                 );
             }
         };
@@ -597,10 +561,7 @@ impl WaveformImage {
         {
             println!(
                 "WaveformImage{}::redraw smpl_stp {}, lower {}, upper {}",
-                self.id,
-                self.sample_step,
-                self.lower,
-                self.upper
+                self.id, self.sample_step, self.lower, self.upper
             );
             self.trace_positions(&self.first, &self.last);
         }
@@ -619,10 +580,7 @@ impl WaveformImage {
         #[cfg(test)]
         println!(
             "append_left x_offset {}, lower {}, self.lower {}, buffer.lower {}",
-            x_offset,
-            lower,
-            self.lower,
-            audio_buffer.lower
+            x_offset, lower, self.lower, audio_buffer.lower
         );
 
         self.translate_previous(cr, previous_image, x_offset);
@@ -656,17 +614,16 @@ impl WaveformImage {
                         self.image_width_f - 1f64 - x_offset,
                         audio_buffer,
                     ).map(|(last_sample, values)| {
-                            self.upper = audio_buffer.upper.min(last_sample + self.sample_step);
-                            // align on the first pixel for the sample
-                            let new_last_pixel = ((self.image_width - 1) as usize / self.x_step *
-                                                      self.x_step) as
-                                f64;
-                            self.clear_area(cr, new_last_pixel, self.image_width_f);
-                            WaveformSample {
-                                x: new_last_pixel,
-                                values: values,
-                            }
-                        })
+                        self.upper = audio_buffer.upper.min(last_sample + self.sample_step);
+                        // align on the first pixel for the sample
+                        let new_last_pixel =
+                            ((self.image_width - 1) as usize / self.x_step * self.x_step) as f64;
+                        self.clear_area(cr, new_last_pixel, self.image_width_f);
+                        WaveformSample {
+                            x: new_last_pixel,
+                            values: values,
+                        }
+                    })
                 }
             }
             None => None,
@@ -681,9 +638,7 @@ impl WaveformImage {
             #[cfg(any(test, feature = "trace-waveform-rendering"))]
             println!(
                 "WaveformImage{}::appd_left iter ({}, {}) out of range or too small",
-                self.id,
-                lower,
-                self.lower
+                self.id, lower, self.lower
             );
         }
 
@@ -691,8 +646,7 @@ impl WaveformImage {
         {
             println!(
                 "exiting append_left self.lower {}, self.upper {}",
-                self.lower,
-                self.upper
+                self.lower, self.upper
             );
             self.trace_positions(&self.first, &self.last);
         }
@@ -727,9 +681,9 @@ impl WaveformImage {
         );
 
         if must_copy {
-            if can_skip &&
-                ((upper - self.upper) / self.sample_step / self.x_step) <
-                    self.skip_width_threshold
+            if can_skip
+                && ((upper - self.upper) / self.sample_step / self.x_step)
+                    < self.skip_width_threshold
             {
                 // append will add less the allowed threshold
                 // => skip this rendering request
@@ -752,11 +706,9 @@ impl WaveformImage {
 
             if x_offset > 0f64 {
                 self.lower = lower;
-                self.first = audio_buffer.get(self.lower).map(|values| {
-                    WaveformSample {
-                        x: 0f64,
-                        values: WaveformImage::convert_sample_values(values),
-                    }
+                self.first = audio_buffer.get(self.lower).map(|values| WaveformSample {
+                    x: 0f64,
+                    values: WaveformImage::convert_sample_values(values),
                 });
 
                 self.last = self.last.take().map(|last| {
@@ -771,27 +723,23 @@ impl WaveformImage {
         }
 
         let first_sample_to_draw = self.upper.max(lower);
-        let first_x_to_draw = ((first_sample_to_draw - self.lower) / self.sample_step *
-                                   self.x_step) as f64;
+        let first_x_to_draw =
+            ((first_sample_to_draw - self.lower) / self.sample_step * self.x_step) as f64;
 
-        if let Some((_first_added, last_added)) =
-            self.draw_samples(
-                cr,
-                audio_buffer,
-                first_sample_to_draw,
-                upper,
-                first_x_to_draw,
-            )
-        {
+        if let Some((_first_added, last_added)) = self.draw_samples(
+            cr,
+            audio_buffer,
+            first_sample_to_draw,
+            upper,
+            first_x_to_draw,
+        ) {
             self.last = Some(last_added);
             self.upper = upper;
         } else {
             #[cfg(any(test, feature = "trace-waveform-rendering"))]
             println!(
                 "WaveformImage{}::appd_right iter ({}, {}) out of range or too small",
-                self.id,
-                first_sample_to_draw,
-                upper
+                self.id, first_sample_to_draw, upper
             );
         }
 
@@ -799,8 +747,7 @@ impl WaveformImage {
         {
             println!(
                 "exiting append_right self.lower {}, self.upper {}",
-                self.lower,
-                self.upper
+                self.lower, self.upper
             );
             self.trace_positions(&self.first, &self.last);
         }
@@ -837,18 +784,16 @@ impl WaveformImage {
             );
         }
 
-        audio_buffer.get(sample).map(|values| {
-            (sample, WaveformImage::convert_sample_values(values))
-        })
+        audio_buffer
+            .get(sample)
+            .map(|values| (sample, WaveformImage::convert_sample_values(values)))
     }
 
     #[cfg(any(test, feature = "trace-waveform-rendering"))]
     fn trace_positions(&self, first: &Option<WaveformSample>, last: &Option<WaveformSample>) {
         println!(
             "\tx_step {}, first {:?}, last {:?}",
-            self.x_step,
-            first,
-            last
+            self.x_step, first, last
         );
     }
 
@@ -874,17 +819,18 @@ impl WaveformImage {
             #[cfg(any(test, feature = "trace-waveform-rendering"))]
             println!(
                 "/!\\ WaveformImage{}::set_channel_color no color for channel {}",
-                self.id,
-                channel
+                self.id, channel
             );
         }
     }
 
     fn link_samples(&self, cr: &cairo::Context, from: &WaveformSample, to: &WaveformSample) {
-        #[cfg(test)] cr.set_source_rgb(0f64, 0.8f64, 0f64);
+        #[cfg(test)]
+        cr.set_source_rgb(0f64, 0.8f64, 0f64);
 
         for channel in 0..from.values.len() {
-            #[cfg(not(test))] self.set_channel_color(cr, channel);
+            #[cfg(not(test))]
+            self.set_channel_color(cr, channel);
 
             cr.move_to(from.x, from.values[channel]);
             cr.line_to(to.x, to.values[channel]);
@@ -1087,12 +1033,10 @@ mod tests {
     fn prepare_tests() {
         match create_dir(&OUT_DIR) {
             Ok(_) => (),
-            Err(error) => {
-                match error.kind() {
-                    ErrorKind::AlreadyExists => (),
-                    _ => panic!("WaveformImage test: couldn't create directory {}", OUT_DIR),
-                }
-            }
+            Err(error) => match error.kind() {
+                ErrorKind::AlreadyExists => (),
+                _ => panic!("WaveformImage test: couldn't create directory {}", OUT_DIR),
+            },
         }
     }
 
@@ -1107,18 +1051,16 @@ mod tests {
 
         // WaveformImage
         let mut waveform = WaveformImage::new(0);
-        waveform.set_channels(
-            &[
-                AudioChannel {
-                    side: AudioChannelSide::Left,
-                    factor: 1f64,
-                },
-                AudioChannel {
-                    side: AudioChannelSide::Right,
-                    factor: 1f64,
-                },
-            ],
-        );
+        waveform.set_channels(&[
+            AudioChannel {
+                side: AudioChannelSide::Left,
+                factor: 1f64,
+            },
+            AudioChannel {
+                side: AudioChannelSide::Right,
+                factor: 1f64,
+            },
+        ]);
         waveform.update_dimensions(
             sample_step_f, // 1 sample / px
             width,
@@ -1202,13 +1144,9 @@ mod tests {
             )
         };
 
-
         println!(
             "Rendering: [{}, {}] incoming [{}, {}]",
-            lower_to_extract,
-            upper_to_extract,
-            incoming_lower,
-            incoming_upper
+            lower_to_extract, upper_to_extract, incoming_lower, incoming_upper
         );
         waveform.render(&audio_buffer, lower_to_extract, upper_to_extract, false);
 
@@ -1216,14 +1154,11 @@ mod tests {
 
         let mut output_file = File::create(format!(
             "{}/waveform_image_{}_{:03}_{:03}.png",
-            OUT_DIR,
-            prefix,
-            waveform.lower,
-            waveform.upper
+            OUT_DIR, prefix, waveform.lower, waveform.upper
         )).expect("WaveformImage test: couldn't create output file");
-        image.write_to_png(&mut output_file).expect(
-            "WaveformImage test: couldn't write waveform image",
-        );
+        image
+            .write_to_png(&mut output_file)
+            .expect("WaveformImage test: couldn't write waveform image");
     }
 
     #[test]
