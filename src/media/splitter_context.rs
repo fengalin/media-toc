@@ -8,7 +8,7 @@ use std::sync::mpsc::Sender;
 
 use std::path::Path;
 
-use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Mutex};
 
 use super::ContextMessage;
 use metadata;
@@ -64,6 +64,7 @@ impl SplitterContext {
     }
 
     // TODO: handle errors
+    #[cfg_attr(feature = "cargo-clippy", allow(mutex_atomic))]
     fn build_pipeline(&mut self, input_path: &Path, output_path: &Path, start: u64, end: u64) {
         /* There are multiple showstoppers to implementing something ideal
          * to export splitted chapters with audio and video (and subtitles):
@@ -134,14 +135,19 @@ impl SplitterContext {
         // As a workaround, we will drop buffers before the seek. The first buffer with the Discont
         // flag show that it is possible to seek. The next buffer with the Discont flag corresponds
         // to the first buffer from the target segment
-        let mut seek_done = AtomicBool::new(false);
+
+        // Note: can't use AtomicBool here as pad probes are multithreaded so the function is Fn
+        // not FnMut. See: https://github.com/sdroege/gstreamer-rs/pull/71
+        let seek_done = Arc::new(Mutex::new(false));
         let pipeline = self.pipeline.clone();
         audio_enc_sink_pad.add_probe(gst::PadProbeType::BUFFER, move |_pad, probe_info| {
             if let Some(ref data) = probe_info.data {
                 if let gst::PadProbeData::Buffer(ref buffer) = *data {
                     if buffer.get_flags() & gst::BufferFlags::DISCONT == gst::BufferFlags::DISCONT {
-                        let mut seek_done_lck = seek_done.get_mut();
-                        if !*seek_done_lck {
+                        let mut seek_done_grp = seek_done
+                            .lock()
+                            .expect("audio_enc_sink_pad(buffer):: couldn't lock seek_done");
+                        if !*seek_done_grp {
                             // First buffer before seek
                             // let's seek and drop buffers until seek start sending new segment
                             match pipeline.seek(
@@ -157,7 +163,7 @@ impl SplitterContext {
                                     eprintln!("Error: Failed to seek");
                                 }
                             };
-                            *seek_done_lck = true;
+                            *seek_done_grp = true;
                         } else {
                             // First Discont buffer after seek => stop dropping buffers
                             return gst::PadProbeReturn::Remove;
