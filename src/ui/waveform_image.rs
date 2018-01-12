@@ -302,26 +302,24 @@ impl WaveformImage {
 
                 self.contains_eos = true;
             }
-        } else {
-            if self.contains_eos {
-                self.contains_eos = false;
+        } else if self.contains_eos {
+            self.contains_eos = false;
 
-                #[cfg(any(test, feature = "trace-waveform-rendering"))]
-                println!(
-                    concat!(
-                        "WaveformImage{}::render clearing contains_eos. ",
-                        "Requested [{}, {}], current [{}, {}], force_redraw {} ",
-                        "audio_buffer.eos {}",
-                    ),
-                    self.id,
-                    lower,
-                    upper,
-                    self.lower,
-                    self.upper,
-                    self.force_redraw,
-                    audio_buffer.eos,
-                );
-            }
+            #[cfg(any(test, feature = "trace-waveform-rendering"))]
+            println!(
+                concat!(
+                    "WaveformImage{}::render clearing contains_eos. ",
+                    "Requested [{}, {}], current [{}, {}], force_redraw {} ",
+                    "audio_buffer.eos {}",
+                ),
+                self.id,
+                lower,
+                upper,
+                self.lower,
+                self.upper,
+                self.force_redraw,
+                audio_buffer.eos,
+            );
         }
 
         if lower < audio_buffer.lower {
@@ -700,6 +698,7 @@ impl WaveformImage {
         }
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(too_many_arguments))]
     fn append_right(
         &mut self,
         cr: &cairo::Context,

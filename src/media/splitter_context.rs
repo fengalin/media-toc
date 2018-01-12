@@ -8,7 +8,7 @@ use std::sync::mpsc::Sender;
 
 use std::path::Path;
 
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::AtomicBool;
 
 use super::ContextMessage;
 use metadata;
@@ -32,7 +32,7 @@ impl SplitterContext {
         tags: gst::TagList,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<SplitterContext, String> {
-        println!("\n\n* Exporting {:?} to {:?}...", input_path, output_path);
+        println!("  - exporting {:?} to {:?}...", input_path, output_path);
 
         let mut this = SplitterContext {
             pipeline: gst::Pipeline::new("pipeline"),
@@ -117,13 +117,12 @@ impl SplitterContext {
         let audio_enc_sink_pad = audio_enc.get_static_pad("sink").unwrap();
         audio_enc_sink_pad.add_probe(gst::PadProbeType::EVENT_DOWNSTREAM, |_pad, probe_info| {
             if let Some(ref data) = probe_info.data {
-                match data {
-                    &gst::PadProbeData::Event(ref event) => match event.view() {
+                if let gst::PadProbeData::Event(ref event) = *data {
+                    match event.view() {
                         gst::EventView::Tag(ref _tag) => return gst::PadProbeReturn::Drop,
                         gst::EventView::Toc(ref _toc) => return gst::PadProbeReturn::Drop,
                         _ => (),
-                    },
-                    _ => (),
+                    }
                 }
             }
             gst::PadProbeReturn::Ok
@@ -135,41 +134,35 @@ impl SplitterContext {
         // As a workaround, we will drop buffers before the seek. The first buffer with the Discont
         // flag show that it is possible to seek. The next buffer with the Discont flag corresponds
         // to the first buffer from the target segment
-        let seek_done = Arc::new(Mutex::new(false));
+        let mut seek_done = AtomicBool::new(false);
         let pipeline = self.pipeline.clone();
         audio_enc_sink_pad.add_probe(gst::PadProbeType::BUFFER, move |_pad, probe_info| {
             if let Some(ref data) = probe_info.data {
-                match data {
-                    &gst::PadProbeData::Buffer(ref buffer) => {
-                        if buffer.get_flags() & gst::BufferFlags::DISCONT ==
-                                gst::BufferFlags::DISCONT
-                        {
-                            let mut seek_done_grp = seek_done.lock()
-                                .expect("audio_enc_sink_pad(buffer):: couldn't lock seek_done");
-                            if *seek_done_grp == false {
-                                // First buffer before seek
-                                // let's seek and drop buffers until seek start sending new segment
-                                match pipeline.seek(
-                                    1f64,
-                                    gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
-                                    gst::SeekType::Set,
-                                    ClockTime::from(start),
-                                    gst::SeekType::Set,
-                                    ClockTime::from(end),
-                                ) {
-                                    Ok(_) => (),
-                                    Err(_) => {
-                                        eprintln!("Error: Failed to seek");
-                                    }
-                                };
-                                *seek_done_grp = true;
-                            } else {
-                                // First Discont buffer after seek => stop dropping buffers
-                                return gst::PadProbeReturn::Remove;
-                            }
+                if let gst::PadProbeData::Buffer(ref buffer) = *data {
+                    if buffer.get_flags() & gst::BufferFlags::DISCONT == gst::BufferFlags::DISCONT {
+                        let mut seek_done_lck = seek_done.get_mut();
+                        if !*seek_done_lck {
+                            // First buffer before seek
+                            // let's seek and drop buffers until seek start sending new segment
+                            match pipeline.seek(
+                                1f64,
+                                gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
+                                gst::SeekType::Set,
+                                ClockTime::from(start),
+                                gst::SeekType::Set,
+                                ClockTime::from(end),
+                            ) {
+                                Ok(_) => (),
+                                Err(_) => {
+                                    eprintln!("Error: Failed to seek");
+                                }
+                            };
+                            *seek_done_lck = true;
+                        } else {
+                            // First Discont buffer after seek => stop dropping buffers
+                            return gst::PadProbeReturn::Remove;
                         }
-                    },
-                    _ => (),
+                    }
                 }
             }
             gst::PadProbeReturn::Drop

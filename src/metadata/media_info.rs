@@ -42,15 +42,15 @@ impl MediaInfo {
     pub fn get_artist(&self) -> Option<&str> {
         self.tags.get_index::<gst::tags::Artist>(0)
             .map(|value| value.get().unwrap())
-            .or(
+            .or_else(||
                 self.tags.get_index::<gst::tags::AlbumArtist>(0)
                     .map(|value| value.get().unwrap())
             )
-            .or(
+            .or_else(||
                 self.tags.get_index::<gst::tags::ArtistSortname>(0)
                     .map(|value| value.get().unwrap())
             )
-            .or(
+            .or_else(||
                 self.tags.get_index::<gst::tags::AlbumArtistSortname>(0)
                     .map(|value| value.get().unwrap())
             )

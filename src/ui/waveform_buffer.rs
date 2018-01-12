@@ -531,8 +531,8 @@ impl WaveformBuffer {
                     self.cursor_sample <= first_visible_sample + self.req_sample_window
                 {
                     Some(
-                        ((self.cursor_sample as f64 - first_visible_sample as f64) /
-                            self.image.sample_step_f)
+                        (self.cursor_sample as f64 - first_visible_sample as f64) /
+                            self.image.sample_step_f
                     )
                 } else {
                     None

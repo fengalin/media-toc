@@ -27,13 +27,13 @@ impl MKVMergeTextFormat {
 }
 
 // FIXME: handle errors
-
+#[cfg_attr(feature = "cargo-clippy", allow(match_wild_err_arm))]
 impl Reader for MKVMergeTextFormat {
     fn read(
         &self,
+        _info: &MediaInfo,
         duration: u64,
         source: &mut Read,
-        _info: &MediaInfo,
         chapters: &mut Vec<Chapter>,
     ) {
         let mut content = String::new();
@@ -51,7 +51,8 @@ impl Reader for MKVMergeTextFormat {
                 if tag.starts_with(CHAPTER_TAG) && tag.len() >= *CHAPTER_TAG_LEN + CHAPTER_NB_LEN {
                     let chapter_nb = match tag[*CHAPTER_TAG_LEN..
                                                      *CHAPTER_TAG_LEN + CHAPTER_NB_LEN]
-                        .parse::<usize>() {
+                        .parse::<usize>()
+                    {
                         Ok(chapter_nb) => chapter_nb,
                         Err(_) => {
                             panic!(

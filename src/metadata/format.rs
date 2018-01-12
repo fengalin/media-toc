@@ -7,9 +7,9 @@ use super::{Chapter, MediaInfo};
 pub trait Reader {
     fn read(
         &self,
+        info: &MediaInfo,
         duration: u64,
         source: &mut Read,
-        info: &MediaInfo,
         chapters: &mut Vec<Chapter>,
     );
 }

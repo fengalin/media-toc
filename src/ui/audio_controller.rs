@@ -441,9 +441,8 @@ impl AudioController {
         #[cfg(feature = "profiling-audio-draw")]
         let before_refresh_info = Utc::now();
 
-        match main_ctrl.try_borrow_mut() {
-            Ok(mut main_ctrl) => main_ctrl.refresh_info(self.current_position),
-            Err(_) => (),
+        if let Ok(mut main_ctrl) = main_ctrl.try_borrow_mut() {
+             main_ctrl.refresh_info(self.current_position);
         }
 
         #[cfg(feature = "profiling-audio-draw")]

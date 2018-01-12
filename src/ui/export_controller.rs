@@ -348,6 +348,7 @@ impl ExportController {
         self.target_path.with_file_name(split_name)
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     fn get_chapter_tags(&self, chapter: &Chapter) -> gst::TagList {
         let mut tags = gst::TagList::new();
         {
@@ -413,7 +414,7 @@ impl ExportController {
                 add_tag_from!(tags, info.tags, gst::tags::InterpretedBy);
                 add_tag_from!(tags, info.tags, gst::tags::PrivateData);
 
-                for ref image_iter in info.tags.iter_tag::<gst::tags::Image>() {
+                for image_iter in info.tags.iter_tag::<gst::tags::Image>() {
                     tags.add::<gst::tags::Image>(
                         image_iter.get().as_ref().unwrap(),
                         gst::TagMergeMode::Append

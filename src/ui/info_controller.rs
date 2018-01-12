@@ -235,7 +235,7 @@ impl InfoController {
         );
 
         {
-            let mut info = context.info.lock().expect(
+            let info = context.info.lock().expect(
                 "InfoController::new_media failed to lock media info",
             );
 
@@ -277,9 +277,9 @@ impl InfoController {
                     );
                     let mut chapters = Vec::<Chapter>::new();
                     metadata::Factory::get_reader(&format).read(
+                        &info,
                         self.duration,
                         &mut toc_file,
-                        &mut info,
                         &mut chapters,
                     );
                     self.chapter_manager.replace_with(&chapters);

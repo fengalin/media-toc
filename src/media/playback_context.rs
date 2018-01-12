@@ -66,7 +66,7 @@ impl PlaybackContext {
         dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<PlaybackContext, String> {
-        println!("\n\n* Opening {:?}...", path);
+        println!("\n* Opening {:?}...", path);
 
         let file_name = String::from(path.file_name().unwrap().to_str().unwrap());
 
@@ -125,7 +125,7 @@ impl PlaybackContext {
     pub fn get_duration(&self) -> u64 {
         self.pipeline
             .query_duration::<gst::ClockTime>()
-            .unwrap_or(0.into())
+            .unwrap_or_else(|| 0.into())
             .nanoseconds()
             .unwrap()
     }
