@@ -32,7 +32,7 @@ impl SplitterContext {
         tags: gst::TagList,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<SplitterContext, String> {
-        println!("  - exporting {:?} to {:?}...", input_path, output_path);
+        println!("  - exporting {:?}...", output_path);
 
         let mut this = SplitterContext {
             pipeline: gst::Pipeline::new("pipeline"),
