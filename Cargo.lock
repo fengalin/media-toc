@@ -466,6 +466,7 @@ dependencies = [
  "byteorder 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cairo-rs 0.3.0 (git+https://github.com/gtk-rs/cairo.git)",
  "chrono 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gdk 0.7.0 (git+https://github.com/gtk-rs/gdk)",
  "glib 0.4.0 (git+https://github.com/gtk-rs/glib.git)",
  "gstreamer 0.11.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
  "gstreamer-app 0.11.0 (git+https://github.com/sdroege/gstreamer-rs.git)",

@@ -6,6 +6,7 @@ extern crate byte_slice_cast;
 #[cfg(test)]
 extern crate byteorder;
 
+extern crate gdk;
 extern crate glib;
 extern crate gstreamer;
 extern crate gstreamer_audio;

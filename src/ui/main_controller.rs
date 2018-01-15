@@ -1,3 +1,4 @@
+extern crate gdk;
 extern crate glib;
 extern crate gstreamer as gst;
 extern crate gtk;
@@ -9,6 +10,8 @@ use std::path::PathBuf;
 
 use std::sync::Arc;
 use std::sync::mpsc::{channel, Receiver};
+
+use gdk::{Cursor, CursorType, WindowExt};
 
 use gtk::prelude::*;
 
@@ -240,12 +243,13 @@ impl MainController {
 
     fn hold(&mut self) {
         AudioController::remove_tick_callback(&self.audio_ctrl);
+        self.switch_to_busy();
+
         if let Some(context) = self.context.as_mut() {
             context.pause().unwrap();
         };
 
         self.play_pause_btn.set_icon_name("media-playback-start");
-        self.window.set_sensitive(false);
     }
 
     fn export_toc(&mut self) {
@@ -256,10 +260,10 @@ impl MainController {
         }
     }
 
-    pub fn restore_context(&mut self, context: PlaybackContext) {
+    pub fn set_context(&mut self, context: PlaybackContext) {
         self.context = Some(context);
         self.state = ControllerState::Paused;
-        self.window.set_sensitive(true);
+        self.switch_to_default();
     }
 
     fn remove_listener(&mut self) {
@@ -324,7 +328,8 @@ impl MainController {
                         this.info_ctrl.borrow_mut().new_media(&context);
                         this.audio_ctrl.borrow_mut().new_media(&context);
 
-                        this.context = Some(context);
+                        this.set_context(context);
+                        this.export_toc_btn.set_sensitive(true);
 
                         this.state = ControllerState::Ready;
                     }
@@ -360,6 +365,8 @@ impl MainController {
                         let mut this = this_rc.borrow_mut();
                         this.context = None;
                         this.state = ControllerState::Stopped;
+                        this.switch_to_default();
+
                         this.keep_going = false;
                         keep_going = false;
                     }
@@ -381,7 +388,28 @@ impl MainController {
         }));
     }
 
+    fn switch_to_busy(&mut self) {
+        self.window.set_sensitive(false);
+
+        let gdk_window = self.window.get_window().unwrap();
+        gdk_window.set_cursor(
+            &Cursor::new_for_display(
+                &gdk_window.get_display(),
+                CursorType::Watch,
+            )
+        );
+    }
+
+    fn switch_to_default(&mut self) {
+        self.window.get_window()
+            .unwrap()
+            .set_cursor(None);
+        self.window.set_sensitive(true);
+    }
+
     fn select_media(&mut self) {
+        self.switch_to_busy();
+
         let file_dlg = gtk::FileChooserDialog::new(
             Some("Open a media file"),
             Some(&self.window),
@@ -396,8 +424,10 @@ impl MainController {
             }
             self.open_media(file_dlg.get_filename().unwrap());
         } else {
-            self.state = ControllerState::Paused;
-            self.window.set_sensitive(true);
+            if self.context.is_some() {
+                self.state = ControllerState::Paused;
+            }
+            self.switch_to_default();
         }
 
         file_dlg.close();
@@ -420,13 +450,11 @@ impl MainController {
         match PlaybackContext::new(filepath, dbl_buffer_mtx, ctx_tx) {
             Ok(context) => {
                 self.context = Some(context);
-                self.export_toc_btn.set_sensitive(true);
             }
             Err(error) => {
+                self.switch_to_default();
                 eprintln!("Error opening media: {}", error);
             }
         };
-
-        self.window.set_sensitive(true);
     }
 }

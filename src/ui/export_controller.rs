@@ -127,7 +127,7 @@ impl ExportController {
         this.export_dlg.connect_delete_event(move |dlg, _| {
             main_ctrl_clone
                 .borrow_mut()
-                .restore_context(this_clone.borrow_mut().playback_ctx.take().unwrap());
+                .set_context(this_clone.borrow_mut().playback_ctx.take().unwrap());
             dlg.hide_on_delete();
             Inhibit(true)
         });
@@ -192,7 +192,7 @@ impl ExportController {
 
                     main_ctrl_clone
                         .borrow_mut()
-                        .restore_context(this.playback_ctx.take().unwrap());
+                        .set_context(this.playback_ctx.take().unwrap());
                     this.export_dlg.hide();
                 }
                 ExportType::Split => {
@@ -242,7 +242,7 @@ impl ExportController {
                 self.switch_to_available();
                 main_ctrl
                     .borrow_mut()
-                    .restore_context(self.playback_ctx.take().unwrap());
+                    .set_context(self.playback_ctx.take().unwrap());
                 self.export_dlg.hide();
             }
         };
@@ -285,7 +285,7 @@ impl ExportController {
                 self.switch_to_available();
                 main_ctrl
                     .borrow_mut()
-                    .restore_context(self.playback_ctx.take().unwrap());
+                    .set_context(self.playback_ctx.take().unwrap());
                 self.export_dlg.hide();
             }
         };
@@ -560,7 +560,7 @@ impl ExportController {
                         this.switch_to_available();
                         main_ctrl
                             .borrow_mut()
-                            .restore_context(this.playback_ctx.take().unwrap());
+                            .set_context(this.playback_ctx.take().unwrap());
                         this.export_dlg.hide();
                         keep_going = false;
                     }
@@ -618,7 +618,7 @@ impl ExportController {
                             this.switch_to_available();
                             main_ctrl
                                 .borrow_mut()
-                                .restore_context(this.playback_ctx.take().unwrap());
+                                .set_context(this.playback_ctx.take().unwrap());
                             this.export_dlg.hide();
                         }
 
