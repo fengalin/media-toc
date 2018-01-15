@@ -29,11 +29,28 @@ const STEP_REQ_DURATION: f64 = 2f64;
 
 const MIN_RANGE_DURATION: u64 = 100_000_000; // 100 ms
 
+const HOUR_IN_NANO: u64 = 3_600_000_000_000;
+
+// Use this text to compute the largest text box for the waveform boundaries
+// This is requried in order to position the labels in such a way that it doesn't
+// moves constantly depending on the digits width
+const BOUNDARY_TEXT_MN: &'static str = "00:00.000";
+const CURSOR_TEXT_MN: &'static str = "00:00.000.000";
+const BOUNDARY_TEXT_H: &'static str = "00:00:00.000";
+const CURSOR_TEXT_H: &'static str = "00:00:00.000.000";
+
 pub struct AudioController {
     container: gtk::Box,
     drawingarea: gtk::DrawingArea,
     zoom_in_btn: gtk::ToolButton,
     zoom_out_btn: gtk::ToolButton,
+
+    scale_factor: i32,
+    font_size: f64,
+    boundary_text_mn_width: f64,
+    cursor_text_mn_width: f64,
+    boundary_text_h_width: f64,
+    cursor_text_h_width: f64,
 
     is_active: bool,
     playback_needs_refresh: bool,
@@ -61,6 +78,13 @@ impl AudioController {
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
             zoom_in_btn: builder.get_object("audio_zoom_in-toolbutton").unwrap(),
             zoom_out_btn: builder.get_object("audio_zoom_out-toolbutton").unwrap(),
+
+            scale_factor: 0,
+            font_size: 0f64,
+            boundary_text_mn_width: 0f64,
+            cursor_text_mn_width: 0f64,
+            boundary_text_h_width: 0f64,
+            cursor_text_h_width: 0f64,
 
             is_active: false,
             playback_needs_refresh: false,
@@ -172,6 +196,12 @@ impl AudioController {
     }
 
     pub fn cleanup(&mut self) {
+        self.scale_factor = 0;
+        self.font_size = 0f64;
+        self.boundary_text_mn_width = 0f64;
+        self.cursor_text_mn_width = 0f64;
+        self.boundary_text_h_width = 0f64;
+        self.cursor_text_h_width = 0f64;
         self.is_active = false;
         self.playback_needs_refresh = false;
         {
@@ -307,6 +337,31 @@ impl AudioController {
         cr.paint();
     }
 
+    fn adjust_dpi_dependent_values(
+        &mut self,
+        drawingarea: &gtk::DrawingArea,
+        cr: &cairo::Context
+    ) {
+        let current_scale_factor = drawingarea.get_scale_factor();
+        if self.scale_factor != current_scale_factor {
+            // TODO: adjust by testing on different HiDPI monitors
+            self.font_size = match current_scale_factor {
+                1 => 14f64,
+                _ => 16f64,
+            };
+
+            cr.set_font_size(self.font_size);
+            self.boundary_text_mn_width = cr.text_extents(BOUNDARY_TEXT_MN).width;
+            self.cursor_text_mn_width = cr.text_extents(CURSOR_TEXT_MN).width;
+            self.boundary_text_h_width = cr.text_extents(BOUNDARY_TEXT_H).width;
+            self.cursor_text_h_width = cr.text_extents(CURSOR_TEXT_H).width;
+
+            self.scale_factor = current_scale_factor;
+        } else {
+            cr.set_font_size(self.font_size);
+        }
+    }
+
     fn draw(
         &mut self,
         main_ctrl: &Rc<RefCell<MainController>>,
@@ -386,23 +441,29 @@ impl AudioController {
         let width = f64::from(allocation.width);
         cr.scale(1f64, 1f64);
         cr.set_source_rgb(1f64, 1f64, 0f64);
-        cr.set_font_size(14f64);
+        self.adjust_dpi_dependent_values(drawingarea, cr);
 
         // first position
         let first_text = Timestamp::format(image_positions.first.timestamp, false);
-        let first_text_width = 2f64 + cr.text_extents(&first_text).width;
-        cr.move_to(2f64, 30f64);
+        let first_text_end = if image_positions.first.timestamp < HOUR_IN_NANO {
+            2f64 + self.boundary_text_mn_width
+        } else {
+            2f64 + self.boundary_text_h_width
+        };
+        cr.move_to(2f64, 2f64 * self.font_size);
         cr.show_text(&first_text);
 
         // last position
         if let Some(last_pos) = image_positions.last {
             let last_text = Timestamp::format(last_pos.timestamp, false);
-            // align actual width to a 15px multiple box in order to avoid
-            // variations due to actual size of individual digits
-            let last_text_width = (cr.text_extents(&last_text).width / 15f64).ceil() * 15f64;
-            if last_pos.x - last_text_width > first_text_width + 5f64 {
+            let last_text_start = if last_pos.timestamp < HOUR_IN_NANO {
+                2f64 + self.boundary_text_mn_width
+            } else {
+                2f64 + self.boundary_text_h_width
+            };
+            if last_pos.x - last_text_start > first_text_end + 5f64 {
                 // last text won't overlap with first text
-                cr.move_to(last_pos.x - last_text_width, 30f64);
+                cr.move_to(last_pos.x - last_text_start, 2f64 * self.font_size);
                 cr.show_text(&last_text);
             }
 
@@ -419,13 +480,17 @@ impl AudioController {
             cr.set_source_rgb(1f64, 1f64, 0f64);
 
             let cursor_text = Timestamp::format(self.current_position, true);
-            let cursor_text_width = 5f64 + cr.text_extents(&cursor_text).width;
-            let cursor_text_x = if current_x + cursor_text_width < width {
+            let cursor_text_end = if self.current_position < HOUR_IN_NANO {
+                5f64 + self.cursor_text_mn_width
+            } else {
+                5f64 + self.cursor_text_h_width
+            };
+            let cursor_text_x = if current_x + cursor_text_end < width {
                 current_x + 5f64
             } else {
-                current_x - cursor_text_width
+                current_x - cursor_text_end
             };
-            cr.move_to(cursor_text_x, 15f64);
+            cr.move_to(cursor_text_x, self.font_size);
             cr.show_text(&cursor_text);
 
             cr.set_line_width(1f64);
