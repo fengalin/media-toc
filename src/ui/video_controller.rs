@@ -1,5 +1,9 @@
+extern crate glib;
 extern crate gtk;
-use gtk::{BoxExt, Inhibit, WidgetExt};
+
+use glib::ObjectExt;
+use glib::signal::SignalHandlerId;
+use gtk::{BoxExt, ContainerExt, Inhibit, WidgetExt};
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -10,6 +14,7 @@ use super::MainController;
 
 pub struct VideoController {
     container: gtk::Box,
+    cleaner_id: Option<SignalHandlerId>,
 }
 
 impl VideoController {
@@ -21,6 +26,7 @@ impl VideoController {
 
         VideoController {
             container: container,
+            cleaner_id: None,
         }
     }
 
@@ -33,7 +39,29 @@ impl VideoController {
             });
     }
 
+    pub fn cleanup(&mut self) {
+        if self.cleaner_id.is_none() {
+            let video_widget = &self.container.get_children()[0];
+            self.cleaner_id = Some(
+                video_widget.connect_draw(|widget, cr| {
+                    let allocation = widget.get_allocation();
+                    cr.set_source_rgb(0f64, 0f64, 0f64);
+                    cr.rectangle(0f64, 0f64, allocation.width as f64, allocation.height as f64);
+                    cr.fill();
+
+                    Inhibit(true)
+                })
+            );
+            video_widget.queue_draw();
+        }
+    }
+
     pub fn new_media(&mut self, context: &PlaybackContext) {
+        if let Some(cleaner_id) = self.cleaner_id.take() {
+            &self.container.get_children()[0]
+                .disconnect(cleaner_id);
+        }
+
         let has_video = context
             .info
             .lock()

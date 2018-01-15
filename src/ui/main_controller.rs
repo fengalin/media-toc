@@ -438,6 +438,7 @@ impl MainController {
 
         self.info_ctrl.borrow_mut().cleanup();
         self.audio_ctrl.borrow_mut().cleanup();
+        self.video_ctrl.cleanup();
         self.header_bar.set_subtitle("");
         self.export_toc_btn.set_sensitive(false);
 
