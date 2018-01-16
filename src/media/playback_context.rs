@@ -214,7 +214,7 @@ impl PlaybackContext {
             .set_property("location", &gst::Value::from(self.path.to_str().unwrap()))
             .unwrap();
 
-        let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
+        let decodebin = gst::ElementFactory::make("decodebin3", None).unwrap();
 
         self.pipeline.add_many(&[&file_src, &decodebin]).unwrap();
         file_src.link(&decodebin).unwrap();
@@ -223,50 +223,20 @@ impl PlaybackContext {
 
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
-        let info_arc_mtx = Arc::clone(&self.info);
         decodebin.connect_pad_added(move |_, src_pad| {
             let pipeline = &pipeline_clone;
-
-            let caps = src_pad.get_current_caps().unwrap();
-            let structure = caps.get_structure(0).unwrap();
-            let name = structure.get_name();
+            let name = src_pad.get_name();
 
             // TODO: build only one queue by stream type (audio / video)
-            if name.starts_with("audio/") {
-                let is_first = {
-                    let info = &mut info_arc_mtx
-                        .lock()
-                        .expect("Failed to lock media info while initializing audio stream");
-                    info.audio_streams.insert(name.to_owned(), caps.clone());
-                    let is_first = info.audio_selected.is_none();
-                    info.audio_selected.get_or_insert(name.to_owned());
-
-                    is_first
-                };
-
-                if is_first {
-                    PlaybackContext::build_audio_queue(
-                        pipeline,
-                        src_pad,
-                        &audio_sink,
-                        Arc::clone(&dbl_audio_buffer_mtx),
-                    );
-                }
-            } else if name.starts_with("video/") {
-                let is_first = {
-                    let info = &mut info_arc_mtx
-                        .lock()
-                        .expect("Failed to lock media info while initializing audio stream");
-                    info.video_streams.insert(name.to_owned(), caps.clone());
-                    let is_first = info.video_selected.is_none();
-                    info.video_selected.get_or_insert(name.to_owned());
-
-                    is_first
-                };
-
-                if is_first {
-                    PlaybackContext::build_video_queue(pipeline, src_pad, &video_sink);
-                }
+            if name.starts_with("audio_") {
+                PlaybackContext::build_audio_queue(
+                    pipeline,
+                    src_pad,
+                    &audio_sink,
+                    Arc::clone(&dbl_audio_buffer_mtx),
+                );
+            } else if name.starts_with("video_") {
+                PlaybackContext::build_video_queue(pipeline, src_pad, &video_sink);
             }
         });
     }
@@ -371,12 +341,16 @@ impl PlaybackContext {
             dbl_audio_buffer_mtx
                 .lock()
                 .expect("PlaybackContext::build_audio_pipeline: couldn't lock dbl_audio_buffer_mtx")
-                .set_audio_caps_and_ref(&src_pad.get_current_caps().unwrap(), audio_sink);
+                .set_ref(audio_sink);
         }
 
-        #[cfg(feature = "trace-audio-caps")]
-        visu_sink_pad.connect_property_caps_notify(|pad| {
-            println!("{:?}", pad.get_property_caps());
+        let dbl_audio_buffer_mtx_caps = Arc::clone(&dbl_audio_buffer_mtx);
+        visu_sink_pad.connect_property_caps_notify(move |pad| {
+            // FIXME: handle caps changes in dbl_audio_buffer
+            dbl_audio_buffer_mtx_caps
+                .lock()
+                .expect("PlaybackContext::build_audio_pipeline: couldn't lock dbl_audio_buffer_mtx")
+                .set_caps(&pad.get_current_caps().unwrap());
         });
 
         let dbl_audio_buffer_mtx_eos = Arc::clone(&dbl_audio_buffer_mtx);
@@ -474,6 +448,36 @@ impl PlaybackContext {
                             PlaybackContext::add_toc(&toc, &info_arc_mtx);
                         } else {
                             println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
+                        }
+                    }
+                }
+                gst::MessageView::StreamCollection(msg_stream_collection) => {
+                    let stream_collection = msg_stream_collection.get_stream_collection();
+                    {
+                        let info = &mut info_arc_mtx
+                            .lock()
+                            .expect("Failed to lock media info while initializing audio stream");
+                        for stream in stream_collection.iter() {
+                            let stream_id = stream.get_stream_id().unwrap();
+                            let caps = stream.get_caps().unwrap();
+                            // TODO: also get and store tags
+                            match stream.get_stream_type() {
+                                gst::StreamType::AUDIO => {
+                                    info.audio_streams.insert(stream_id.clone(), caps);
+                                    info.audio_selected.get_or_insert(stream_id);
+                                }
+                                gst::StreamType::VIDEO => {
+                                    info.video_streams.insert(stream_id.clone(), caps);
+                                    info.video_selected.get_or_insert(stream_id);
+                                }
+                                gst::StreamType::TEXT => {
+                                    info.text_streams.insert(stream_id.clone(), caps);
+                                    info.text_selected.get_or_insert(stream_id);
+                                }
+                                _ => panic!("PlaybackContext: can't handle {:?} stream",
+                                    stream.get_stream_type(),
+                                ),
+                            }
                         }
                     }
                 }

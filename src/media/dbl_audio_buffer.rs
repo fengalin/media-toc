@@ -73,11 +73,9 @@ impl DoubleAudioBuffer {
         self.can_handle_eos = true;
     }
 
-    // Initialize buffer with audio stream capabilities
-    // and GStreamer element for position reference
-    pub fn set_audio_caps_and_ref(&mut self, caps: &gst::Caps, audio_ref: &gst::Element) {
+    pub fn set_caps(&mut self, caps: &gst::Caps) {
         let audio_info = gst_audio::AudioInfo::from_caps(caps)
-            .expect("DoubleAudioBuffer::set_audio_caps_and_ref unable to get AudioInfo");
+            .expect("DoubleAudioBuffer::set_caps unable to get AudioInfo");
 
         let rate = u64::from(audio_info.rate());
         let channels = audio_info.channels() as usize;
@@ -97,7 +95,6 @@ impl DoubleAudioBuffer {
             let exposed_buffer = &mut self.exposed_buffer_mtx.lock().expect(
                 "DoubleAudioBuffer: couldn't lock exposed_buffer_mtx while setting audio sink",
             );
-            exposed_buffer.set_audio_sink(audio_ref.clone());
             exposed_buffer.set_sample_duration(sample_duration, duration_for_1000_samples);
             exposed_buffer.set_channels(&channels);
         }
@@ -105,9 +102,22 @@ impl DoubleAudioBuffer {
         let working_buffer = self.working_buffer
             .as_mut()
             .expect("DoubleAudioBuffer: couldn't get working_buffer while setting audio sink");
-        working_buffer.set_audio_sink(audio_ref.clone());
         working_buffer.set_sample_duration(sample_duration, duration_for_1000_samples);
         working_buffer.set_channels(&channels);
+    }
+
+    pub fn set_ref(&mut self, audio_ref: &gst::Element) {
+        {
+            let exposed_buffer = &mut self.exposed_buffer_mtx.lock().expect(
+                "DoubleAudioBuffer: couldn't lock exposed_buffer_mtx while setting audio sink",
+            );
+            exposed_buffer.set_audio_sink(audio_ref.clone());
+        }
+
+        let working_buffer = self.working_buffer
+            .as_mut()
+            .expect("DoubleAudioBuffer: couldn't get working_buffer while setting audio sink");
+        working_buffer.set_audio_sink(audio_ref.clone());
     }
 
     // Init the buffers with the provided conditions.
