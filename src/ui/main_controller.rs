@@ -318,7 +318,7 @@ impl MainController {
                             .info
                             .lock()
                             .expect("MainController::listener(InitDone) failed to lock media info")
-                            .video_best
+                            .video_selected
                             .is_some();
 
                         this.header_bar

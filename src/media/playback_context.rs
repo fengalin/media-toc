@@ -238,8 +238,8 @@ impl PlaybackContext {
                         .lock()
                         .expect("Failed to lock media info while initializing audio stream");
                     info.audio_streams.insert(name.to_owned(), caps.clone());
-                    let is_first = info.audio_best.is_none();
-                    info.audio_best.get_or_insert(name.to_owned());
+                    let is_first = info.audio_selected.is_none();
+                    info.audio_selected.get_or_insert(name.to_owned());
 
                     is_first
                 };
@@ -258,8 +258,8 @@ impl PlaybackContext {
                         .lock()
                         .expect("Failed to lock media info while initializing audio stream");
                     info.video_streams.insert(name.to_owned(), caps.clone());
-                    let is_first = info.video_best.is_none();
-                    info.video_best.get_or_insert(name.to_owned());
+                    let is_first = info.video_selected.is_none();
+                    info.video_selected.get_or_insert(name.to_owned());
 
                     is_first
                 };

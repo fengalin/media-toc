@@ -11,11 +11,14 @@ pub struct MediaInfo {
     pub duration: u64,
     pub chapters: Vec<Chapter>,
 
-    pub video_streams: HashMap<String, gst::Caps>,
-    pub video_best: Option<String>,
-
     pub audio_streams: HashMap<String, gst::Caps>,
-    pub audio_best: Option<String>,
+    pub audio_selected: Option<String>,
+
+    pub video_streams: HashMap<String, gst::Caps>,
+    pub video_selected: Option<String>,
+
+    pub text_streams: HashMap<String, gst::Caps>,
+    pub text_selected: Option<String>,
 }
 
 impl MediaInfo {
@@ -28,10 +31,13 @@ impl MediaInfo {
             chapters: Vec::new(),
 
             audio_streams: HashMap::new(),
-            audio_best: None,
+            audio_selected: None,
 
             video_streams: HashMap::new(),
-            video_best: None,
+            video_selected: None,
+
+            text_streams: HashMap::new(),
+            text_selected: None,
         }
     }
 

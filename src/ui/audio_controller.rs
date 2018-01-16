@@ -225,7 +225,7 @@ impl AudioController {
             .info
             .lock()
             .expect("Failed to lock media info while initializing audio controller")
-            .audio_best
+            .audio_selected
             .is_some();
 
         if has_audio {

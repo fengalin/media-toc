@@ -66,7 +66,7 @@ impl VideoController {
             .info
             .lock()
             .expect("Failed to lock media info while initializing video controller")
-            .video_best
+            .video_selected
             .is_some();
 
         if has_video {

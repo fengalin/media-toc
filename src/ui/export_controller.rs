@@ -157,7 +157,7 @@ impl ExportController {
                     .info
                     .lock()
                     .expect("ExportController::export_btn clicked, failed to lock media info")
-                    .video_best
+                    .video_selected
                     .is_none()
             };
             this.extension =
