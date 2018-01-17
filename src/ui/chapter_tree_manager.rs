@@ -129,6 +129,9 @@ impl ChapterTreeManager {
         if can_expand {
             col.set_min_width(70);
             col.set_expand(can_expand);
+        } else {
+            // align right
+            renderer.set_property_xalign(1f32);
         }
         treeview.append_column(&col);
     }
