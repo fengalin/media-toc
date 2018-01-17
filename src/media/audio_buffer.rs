@@ -59,6 +59,9 @@ impl AudioBuffer {
         // assert_eq!(format, S16);
         // assert_eq!(layout, Interleaved);
 
+        // changing caps => clean everything
+        self.cleanup();
+
         self.rate = rate;
         self.sample_duration = 1_000_000_000 / rate;
         self.channels = channels;

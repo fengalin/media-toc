@@ -55,8 +55,8 @@ impl DoubleAudioBuffer {
     }
 
     pub fn cleanup(&mut self) {
+        self.reset();
         self.audio_buffer.cleanup();
-        self.samples_since_last_extract = 0;
 
         {
             let exposed_buffer = &mut self.exposed_buffer_mtx.lock().expect(
@@ -69,6 +69,10 @@ impl DoubleAudioBuffer {
             .as_mut()
             .expect("DoubleAudioBuffer: couldn't get working_buffer while setting audio sink")
             .cleanup();
+    }
+
+    fn reset(&mut self) {
+        self.samples_since_last_extract = 0;
         self.lower_to_keep = 0;
         self.can_handle_eos = true;
     }
@@ -76,6 +80,8 @@ impl DoubleAudioBuffer {
     pub fn set_caps(&mut self, caps: &gst::Caps) {
         let audio_info = gst_audio::AudioInfo::from_caps(caps)
             .expect("DoubleAudioBuffer::set_caps unable to get AudioInfo");
+
+        self.reset();
 
         let rate = u64::from(audio_info.rate());
         let channels = audio_info.channels() as usize;
@@ -99,11 +105,13 @@ impl DoubleAudioBuffer {
             exposed_buffer.set_channels(&channels);
         }
 
-        let working_buffer = self.working_buffer
-            .as_mut()
-            .expect("DoubleAudioBuffer: couldn't get working_buffer while setting audio sink");
-        working_buffer.set_sample_duration(sample_duration, duration_for_1000_samples);
-        working_buffer.set_channels(&channels);
+        {
+            let working_buffer = self.working_buffer
+                .as_mut()
+                .expect("DoubleAudioBuffer: couldn't get working_buffer while setting audio sink");
+            working_buffer.set_sample_duration(sample_duration, duration_for_1000_samples);
+            working_buffer.set_channels(&channels);
+        }
     }
 
     pub fn set_ref(&mut self, audio_ref: &gst::Element) {

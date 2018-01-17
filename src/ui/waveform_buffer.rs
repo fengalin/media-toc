@@ -111,6 +111,32 @@ impl WaveformBuffer {
         }
     }
 
+    fn reset(&mut self) {
+        self.conditions_changed = false;
+
+        self.image.cleanup();
+
+        self.previous_sample = 0;
+        self.current_sample = 0;
+        self.cursor_sample = 0;
+        self.cursor_position = 0;
+        self.first_visible_sample = None;
+        self.first_visible_sample_lock = None;
+        self.sought_sample = None;
+        self.playback_needs_refresh = false;
+
+        self.req_duration_per_1000px = 0f64;
+        self.width = 0;
+        self.width_f = 0f64;
+        self.confortable_width_f = 0f64;
+        self.sample_step_f = 0f64;
+        self.req_sample_window = 0;
+        self.half_req_sample_window = 0;
+        self.quarter_req_sample_window = 0;
+
+        self.is_confortable = false;
+    }
+
     fn refresh_position(&mut self) {
         let (position, mut sample) = self.query_current_sample();
         if self.previous_sample != sample {
@@ -812,29 +838,7 @@ impl SampleExtractor for WaveformBuffer {
     fn cleanup(&mut self) {
         // clear for reuse
         self.state.cleanup();
-        self.conditions_changed = false;
-
-        self.image.cleanup();
-
-        self.previous_sample = 0;
-        self.current_sample = 0;
-        self.cursor_sample = 0;
-        self.cursor_position = 0;
-        self.first_visible_sample = None;
-        self.first_visible_sample_lock = None;
-        self.sought_sample = None;
-        self.playback_needs_refresh = false;
-
-        self.req_duration_per_1000px = 0f64;
-        self.width = 0;
-        self.width_f = 0f64;
-        self.confortable_width_f = 0f64;
-        self.sample_step_f = 0f64;
-        self.req_sample_window = 0;
-        self.half_req_sample_window = 0;
-        self.quarter_req_sample_window = 0;
-
-        self.is_confortable = false;
+        self.reset();
     }
 
     fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64) {
@@ -843,6 +847,8 @@ impl SampleExtractor for WaveformBuffer {
             "WaveformBuffer{}::set_sample_duration per_sample {}",
             self.image.id, per_sample
         );
+        self.reset();
+
         self.state.sample_duration = per_sample;
         self.state.duration_per_1000_samples = per_1000_samples;
         self.update_sample_step();
