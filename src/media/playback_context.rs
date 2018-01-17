@@ -24,6 +24,10 @@ use metadata::{Chapter, MediaInfo, Timestamp};
 
 use super::{ContextMessage, DoubleAudioBuffer};
 
+// Buffer size in ns for queues
+// This is the max duration that queues can hold
+const QUEUE_SIZE_NS: u64 = 5_000_000_000u64; // 5s
+
 // The video_sink must be created in the main UI thread
 // as it contains a gtk::Widget
 // GLGTKSink not used because it causes flickerings on Xorg systems.
@@ -210,6 +214,33 @@ impl PlaybackContext {
         }
     }
 
+    fn setup_queue(queue: &gst::Element) {
+        queue
+            .set_property("max-size-bytes", &0u32)
+            .unwrap();
+        queue
+            .set_property("max-size-buffers", &0u32)
+            .unwrap();
+        queue
+            .set_property("max-size-time", &QUEUE_SIZE_NS)
+            .unwrap();
+
+        #[cfg(feature = "trace-audio-queue")]
+        queue
+            .connect("overrun", false, |args| {
+                let queue = args[0].get::<gst::Element>().unwrap();
+                println!("\n/!\\ OVERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
+                    queue.get_name(),
+                    queue.get_property("max-size-bytes").unwrap().get::<u32>().unwrap(),
+                    queue.get_property("max-size-buffers").unwrap().get::<u32>().unwrap(),
+                    queue.get_property("max-size-time").unwrap().get::<u64>().unwrap(),
+                );
+                None
+            })
+            .ok()
+            .unwrap();
+    }
+
     // TODO: handle errors
     fn build_pipeline(
         &mut self,
@@ -223,6 +254,15 @@ impl PlaybackContext {
 
         let decodebin = gst::ElementFactory::make("decodebin3", None).unwrap();
 
+        // From decodebin3's documentation: "Children: multiqueue0"
+        let decodebin_as_bin = decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
+        let decodebin_multiqueue = &decodebin_as_bin.get_children()[0];
+        PlaybackContext::setup_queue(decodebin_multiqueue);
+        // Discard "interleave" as is modifies "max-size-time"
+        decodebin_multiqueue
+            .set_property("use-interleave", &false)
+            .unwrap();
+
         self.pipeline.add_many(&[&file_src, &decodebin]).unwrap();
         file_src.link(&decodebin).unwrap();
 
@@ -230,11 +270,10 @@ impl PlaybackContext {
 
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
-        decodebin.connect_pad_added(move |_, src_pad| {
+        decodebin.connect_pad_added(move |_decodebin, src_pad| {
             let pipeline = &pipeline_clone;
             let name = src_pad.get_name();
 
-            // TODO: build only one queue by stream type (audio / video)
             if name.starts_with("audio_") {
                 PlaybackContext::build_audio_queue(
                     pipeline,
@@ -255,6 +294,7 @@ impl PlaybackContext {
         dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
     ) {
         let playback_queue = gst::ElementFactory::make("queue", "playback_queue").unwrap();
+        PlaybackContext::setup_queue(&playback_queue);
 
         let playback_convert = gst::ElementFactory::make("audioconvert", None).unwrap();
         let playback_resample = gst::ElementFactory::make("audioresample", None).unwrap();
@@ -267,25 +307,7 @@ impl PlaybackContext {
         ];
 
         let visu_queue = gst::ElementFactory::make("queue", "visu_queue").unwrap();
-
-        // This is the buffer duration that will be queued in paused mode
-        // TODO: make this configurable
-        let queue_duration = 5_000_000_000u64; // 5s
-        playback_queue
-            .set_property("max-size-time", &gst::Value::from(&queue_duration))
-            .unwrap();
-        visu_queue
-            .set_property("max-size-time", &gst::Value::from(&queue_duration))
-            .unwrap();
-
-        #[cfg(feature = "trace-audio-queue")]
-        visu_queue
-            .connect("overrun", false, |_| {
-                println!("Audio visu queue OVERRUN");
-                None
-            })
-            .ok()
-            .unwrap();
+        PlaybackContext::setup_queue(&visu_queue);
 
         let visu_convert = gst::ElementFactory::make("audioconvert", None).unwrap();
         let visu_sink = gst::ElementFactory::make("appsink", "audio_visu_sink").unwrap();
