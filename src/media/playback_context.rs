@@ -37,6 +37,13 @@ lazy_static! {
             ));
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum PipelineState {
+    None,
+    StreamStarting,
+    Initialized,
+}
+
 pub struct PlaybackContext {
     pipeline: gst::Pipeline,
     position_element: Option<gst::Element>,
@@ -346,11 +353,12 @@ impl PlaybackContext {
 
         let dbl_audio_buffer_mtx_caps = Arc::clone(&dbl_audio_buffer_mtx);
         visu_sink_pad.connect_property_caps_notify(move |pad| {
-            // FIXME: handle caps changes in dbl_audio_buffer
-            dbl_audio_buffer_mtx_caps
-                .lock()
-                .expect("PlaybackContext::build_audio_pipeline: couldn't lock dbl_audio_buffer_mtx")
-                .set_caps(&pad.get_current_caps().unwrap());
+            if let Some(caps) = pad.get_current_caps() {
+                dbl_audio_buffer_mtx_caps
+                    .lock()
+                    .expect("PlaybackContext::build_audio_pipeline: couldn't lock dbl_audio_buffer_mtx")
+                    .set_caps(&caps);
+            }
         });
 
         let dbl_audio_buffer_mtx_eos = Arc::clone(&dbl_audio_buffer_mtx);
@@ -398,7 +406,7 @@ impl PlaybackContext {
     // Uses ctx_tx to notify the UI controllers about the inspection process
     fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
         let info_arc_mtx = Arc::clone(&self.info);
-        let mut init_done = false;
+        let mut pipeline_state = PipelineState::None;
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
@@ -421,19 +429,19 @@ impl PlaybackContext {
                     return glib::Continue(false);
                 }
                 gst::MessageView::AsyncDone(_) => {
-                    if !init_done {
-                        init_done = true;
+                    if pipeline_state == PipelineState::StreamStarting {
+                        pipeline_state = PipelineState::Initialized;
                         ctx_tx
                             .send(ContextMessage::InitDone)
                             .expect("Failed to notify UI");
-                    } else {
+                    } else if pipeline_state == PipelineState::Initialized {
                         ctx_tx
                             .send(ContextMessage::AsyncDone)
                             .expect("Failed to notify UI");
                     }
                 }
                 gst::MessageView::Tag(msg_tag) => {
-                    if !init_done {
+                    if pipeline_state == PipelineState::StreamStarting {
                         let info = &mut info_arc_mtx
                             .lock()
                             .expect("Failed to lock media info while reading toc data");
@@ -442,13 +450,19 @@ impl PlaybackContext {
                     }
                 }
                 gst::MessageView::Toc(msg_toc) => {
-                    if !init_done {
-                        let (toc, _) = msg_toc.get_toc();
+                    if pipeline_state == PipelineState::StreamStarting {
+                        // FIXME: use updated
+                        let (toc, _updated) = msg_toc.get_toc();
                         if toc.get_scope() == TocScope::Global {
                             PlaybackContext::add_toc(&toc, &info_arc_mtx);
                         } else {
                             println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
                         }
+                    }
+                }
+                gst::MessageView::StreamStart(_) => {
+                    if pipeline_state == PipelineState::None {
+                        pipeline_state = PipelineState::StreamStarting;
                     }
                 }
                 gst::MessageView::StreamCollection(msg_stream_collection) => {
@@ -516,17 +530,9 @@ impl PlaybackContext {
                                     Timestamp::from_signed_nano(stop),
                                 ));
                             }
-                        } /*else {
-                            println!("Warning: Skipping toc sub entry with entry type: {:?}",
-                                sub_entry.get_entry_type()
-                            );
-                        }*/
+                        }
                     }
-                } /*else {
-                    println!("Warning: Skipping toc entry with entry type: {:?}",
-                        entry.get_entry_type()
-                    );
-                }*/
+                }
             }
         }
     }
