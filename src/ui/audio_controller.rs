@@ -1,8 +1,11 @@
 extern crate cairo;
 extern crate glib;
-
 extern crate gtk;
-use gtk::{Inhibit, ToolButtonExt, WidgetExt, WidgetExtManual};
+extern crate pango;
+
+use gtk::{Inhibit, LabelExt, ToolButtonExt, WidgetExt, WidgetExtManual};
+
+use pango::{ContextExt, LayoutExt};
 
 #[cfg(feature = "profiling-audio-draw")]
 use chrono::Utc;
@@ -44,8 +47,9 @@ pub struct AudioController {
     drawingarea: gtk::DrawingArea,
     zoom_in_btn: gtk::ToolButton,
     zoom_out_btn: gtk::ToolButton,
+    ref_lbl: gtk::Label,
 
-    scale_factor: i32,
+    font_family: Option<(String)>,
     font_size: f64,
     boundary_text_mn_width: f64,
     cursor_text_mn_width: f64,
@@ -78,8 +82,9 @@ impl AudioController {
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
             zoom_in_btn: builder.get_object("audio_zoom_in-toolbutton").unwrap(),
             zoom_out_btn: builder.get_object("audio_zoom_out-toolbutton").unwrap(),
+            ref_lbl: builder.get_object("title-caption").unwrap(),
 
-            scale_factor: 0,
+            font_family: None,
             font_size: 0f64,
             boundary_text_mn_width: 0f64,
             cursor_text_mn_width: 0f64,
@@ -196,12 +201,6 @@ impl AudioController {
     }
 
     pub fn cleanup(&mut self) {
-        self.scale_factor = 0;
-        self.font_size = 0f64;
-        self.boundary_text_mn_width = 0f64;
-        self.cursor_text_mn_width = 0f64;
-        self.boundary_text_h_width = 0f64;
-        self.cursor_text_h_width = 0f64;
         self.is_active = false;
         self.playback_needs_refresh = false;
         {
@@ -337,28 +336,31 @@ impl AudioController {
         cr.paint();
     }
 
-    fn adjust_dpi_dependent_values(
-        &mut self,
-        drawingarea: &gtk::DrawingArea,
-        cr: &cairo::Context
-    ) {
-        let current_scale_factor = drawingarea.get_scale_factor();
-        if self.scale_factor != current_scale_factor {
-            // TODO: adjust by testing on different HiDPI monitors
-            self.font_size = match current_scale_factor {
-                1 => 14f64,
-                _ => 16f64,
-            };
+    fn adjust_waveform_text_width(&mut self, cr: &cairo::Context) {
+        match self.font_family {
+            Some(ref family) => {
+                cr.select_font_face(family, cairo::FontSlant::Normal, cairo::FontWeight::Normal);
+                cr.set_font_size(self.font_size);
+            }
+            None => {
+                // Get font specs from the reference label
+                let ref_layout = self.ref_lbl.get_layout().unwrap();
+                let ref_ctx = ref_layout.get_context().unwrap();
+                let font_desc = ref_ctx.get_font_description().unwrap();
 
-            cr.set_font_size(self.font_size);
-            self.boundary_text_mn_width = cr.text_extents(BOUNDARY_TEXT_MN).width;
-            self.cursor_text_mn_width = cr.text_extents(CURSOR_TEXT_MN).width;
-            self.boundary_text_h_width = cr.text_extents(BOUNDARY_TEXT_H).width;
-            self.cursor_text_h_width = cr.text_extents(CURSOR_TEXT_H).width;
+                let family = font_desc.get_family().unwrap();
+                cr.select_font_face(&family, cairo::FontSlant::Normal, cairo::FontWeight::Normal);
+                let size = (ref_layout.get_baseline() / pango::SCALE) as f64;
+                cr.set_font_size(size);
 
-            self.scale_factor = current_scale_factor;
-        } else {
-            cr.set_font_size(self.font_size);
+                self.font_family = Some(family);
+                self.font_size = size;
+
+                self.boundary_text_mn_width = cr.text_extents(BOUNDARY_TEXT_MN).width;
+                self.cursor_text_mn_width = cr.text_extents(CURSOR_TEXT_MN).width;
+                self.boundary_text_h_width = cr.text_extents(BOUNDARY_TEXT_H).width;
+                self.cursor_text_h_width = cr.text_extents(CURSOR_TEXT_H).width;
+            }
         }
     }
 
@@ -441,7 +443,7 @@ impl AudioController {
         let width = f64::from(allocation.width);
         cr.scale(1f64, 1f64);
         cr.set_source_rgb(1f64, 1f64, 0f64);
-        self.adjust_dpi_dependent_values(drawingarea, cr);
+        self.adjust_waveform_text_width(cr);
 
         // first position
         let first_text = Timestamp::format(image_positions.first.timestamp, false);

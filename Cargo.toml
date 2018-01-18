@@ -18,6 +18,8 @@ gstreamer = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["
 gstreamer-audio = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
 gstreamer-app = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
 
+pango = { git = "https://github.com/gtk-rs/pango.git" }
+
 [features]
 dump-waveform = ["cairo-rs/png"]
 profiling-audio-draw = []

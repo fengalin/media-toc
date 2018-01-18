@@ -11,6 +11,7 @@ extern crate glib;
 extern crate gstreamer;
 extern crate gstreamer_audio;
 extern crate gtk;
+extern crate pango;
 
 #[macro_use]
 extern crate lazy_static;
