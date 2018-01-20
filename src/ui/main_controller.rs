@@ -18,7 +18,7 @@ use gtk::prelude::*;
 use media::{ContextMessage, PlaybackContext};
 use media::ContextMessage::*;
 
-use super::{AudioController, ExportController, InfoController, VideoController};
+use super::{AudioController, ExportController, InfoController, StreamsController, VideoController};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ControllerState {
@@ -45,6 +45,7 @@ pub struct MainController {
     info_ctrl: Rc<RefCell<InfoController>>,
     audio_ctrl: Rc<RefCell<AudioController>>,
     export_ctrl: Rc<RefCell<ExportController>>,
+    streams_ctrl: Rc<RefCell<StreamsController>>,
 
     context: Option<PlaybackContext>,
     state: ControllerState,
@@ -70,6 +71,7 @@ impl MainController {
             info_ctrl: InfoController::new(builder),
             audio_ctrl: AudioController::new(builder),
             export_ctrl: ExportController::new(builder),
+            streams_ctrl: StreamsController::new(builder),
 
             context: None,
             state: ControllerState::Stopped,
@@ -118,6 +120,7 @@ impl MainController {
             InfoController::register_callbacks(&this_mut.info_ctrl, &this);
             AudioController::register_callbacks(&this_mut.audio_ctrl, &this);
             ExportController::register_callbacks(&this_mut.export_ctrl, &this);
+            StreamsController::register_callbacks(&this_mut.streams_ctrl, &this);
         }
 
         let open_btn: gtk::Button = builder.get_object("open-btn").unwrap();
@@ -325,6 +328,7 @@ impl MainController {
                         this.info_ctrl.borrow_mut().new_media(&context);
                         this.audio_ctrl.borrow_mut().new_media(&context);
                         this.export_ctrl.borrow_mut().new_media(&context);
+                        this.streams_ctrl.borrow_mut().new_media(&context);
 
                         this.set_context(context);
 
@@ -437,6 +441,7 @@ impl MainController {
         self.audio_ctrl.borrow_mut().cleanup();
         self.video_ctrl.cleanup();
         self.export_ctrl.borrow_mut().cleanup();
+        self.streams_ctrl.borrow_mut().cleanup();
         self.header_bar.set_subtitle("");
 
         let (ctx_tx, ui_rx) = channel();

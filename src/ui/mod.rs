@@ -16,6 +16,9 @@ use self::image_surface::ImageSurface;
 pub mod main_controller;
 pub use self::main_controller::{ControllerState, MainController};
 
+mod streams_controller;
+use self::streams_controller::StreamsController;
+
 mod video_controller;
 use self::video_controller::VideoController;
 

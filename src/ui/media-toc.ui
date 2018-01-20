@@ -29,9 +29,10 @@
     <property name="has_resize_grip">True</property>
     <signal name="destroy-event" handler="on_destroy" swapped="no"/>
     <child>
-      <object class="GtkStack" id="display_stream-stack">
+      <object class="GtkStack" id="display_streams-stack">
         <property name="visible">True</property>
         <property name="can_focus">False</property>
+        <property name="transition_type">slide-left-right</property>
         <child>
           <object class="GtkGrid" id="display-grid">
             <property name="visible">True</property>
@@ -54,9 +55,6 @@
                     <property name="can_focus">False</property>
                     <property name="hexpand">True</property>
                     <property name="vexpand">True</property>
-                    <child>
-                      <placeholder/>
-                    </child>
                     <child>
                       <object class="GtkToolbar" id="video-toolbar">
                         <property name="visible">True</property>
@@ -521,12 +519,13 @@
           </packing>
         </child>
         <child>
-          <object class="GtkBox">
+          <object class="GtkBox" id="streams-box">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
             <property name="hexpand">True</property>
             <property name="vexpand">True</property>
             <property name="orientation">vertical</property>
+            <property name="spacing">5</property>
             <child>
               <object class="GtkListBox" id="video-list">
                 <property name="visible">True</property>
@@ -557,14 +556,13 @@
               <packing>
                 <property name="expand">True</property>
                 <property name="fill">True</property>
-                <property name="padding">5</property>
                 <property name="position">2</property>
               </packing>
             </child>
           </object>
           <packing>
-            <property name="name">page0</property>
-            <property name="title" translatable="yes">page0</property>
+            <property name="name">streams</property>
+            <property name="title" translatable="yes">streams</property>
             <property name="position">1</property>
           </packing>
         </child>
