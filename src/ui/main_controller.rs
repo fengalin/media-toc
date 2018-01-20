@@ -39,7 +39,7 @@ pub struct MainController {
     window: gtk::ApplicationWindow,
     header_bar: gtk::HeaderBar,
     play_pause_btn: gtk::ToolButton,
-    export_toc_btn: gtk::Button,
+    open_export_btn: gtk::Button,
 
     video_ctrl: VideoController,
     info_ctrl: Rc<RefCell<InfoController>>,
@@ -60,14 +60,11 @@ pub struct MainController {
 
 impl MainController {
     pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
-        let export_toc_btn: gtk::Button = builder.get_object("export_toc-btn").unwrap();
-        export_toc_btn.set_sensitive(false);
-
         let this = Rc::new(RefCell::new(MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
-            export_toc_btn: export_toc_btn,
+            open_export_btn: builder.get_object("export_toc-btn").unwrap(),
 
             video_ctrl: VideoController::new(builder),
             info_ctrl: InfoController::new(builder),
@@ -105,7 +102,7 @@ impl MainController {
             // play/pause, etc.
 
             let this_rc = Rc::clone(&this);
-            this_mut.export_toc_btn.connect_clicked(move |_| {
+            this_mut.open_export_btn.connect_clicked(move |_| {
                 let mut this = this_rc.borrow_mut();
 
                 if this.requires_async_dialog && this.state == ControllerState::Playing {
@@ -327,9 +324,9 @@ impl MainController {
                         this.video_ctrl.new_media(&context);
                         this.info_ctrl.borrow_mut().new_media(&context);
                         this.audio_ctrl.borrow_mut().new_media(&context);
+                        this.export_ctrl.borrow_mut().new_media(&context);
 
                         this.set_context(context);
-                        this.export_toc_btn.set_sensitive(true);
 
                         this.state = ControllerState::Ready;
                     }
@@ -439,8 +436,8 @@ impl MainController {
         self.info_ctrl.borrow_mut().cleanup();
         self.audio_ctrl.borrow_mut().cleanup();
         self.video_ctrl.cleanup();
+        self.export_ctrl.borrow_mut().cleanup();
         self.header_bar.set_subtitle("");
-        self.export_toc_btn.set_sensitive(false);
 
         let (ctx_tx, ui_rx) = channel();
 

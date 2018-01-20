@@ -38,6 +38,7 @@ enum ExportType {
 
 pub struct ExportController {
     export_dlg: gtk::Dialog,
+    open_export_btn: gtk::Button,
     export_btn: gtk::Button,
     progress_bar: gtk::ProgressBar,
 
@@ -75,6 +76,7 @@ impl ExportController {
 
         let this = Rc::new(RefCell::new(ExportController {
             export_dlg: export_dlg,
+            open_export_btn: builder.get_object("export_toc-btn").unwrap(),
             export_btn: builder.get_object("export-btn").unwrap(),
             progress_bar: builder.get_object("export-progress").unwrap(),
 
@@ -108,6 +110,8 @@ impl ExportController {
             let mut this_mut = this.borrow_mut();
             let this_rc = Rc::clone(&this);
             this_mut.this_opt = Some(this_rc);
+
+            this_mut.cleanup();
 
             // Split radio button not active initially => disable sub radio buttons
             this_mut.set_split_sub_btn_sensitivity();
@@ -213,6 +217,14 @@ impl ExportController {
                 _ => (),
             }
         });
+    }
+
+    pub fn new_media(&mut self, _context: &PlaybackContext) {
+        self.open_export_btn.set_sensitive(true);
+    }
+
+    pub fn cleanup(&mut self) {
+        self.open_export_btn.set_sensitive(false);
     }
 
     pub fn open(&mut self, playback_ctx: PlaybackContext) {
