@@ -16,96 +16,6 @@
       <column type="gchararray"/>
     </columns>
   </object>
-  <object class="GtkHeaderBar" id="header-bar">
-    <property name="visible">True</property>
-    <property name="can_focus">False</property>
-    <property name="title">Media Table Of Contents</property>
-    <property name="show_close_button">True</property>
-    <child>
-      <object class="GtkButton" id="open-btn">
-        <property name="visible">True</property>
-        <property name="can_focus">True</property>
-        <property name="receives_default">True</property>
-        <child>
-          <object class="GtkImage">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="stock">gtk-open</property>
-          </object>
-        </child>
-      </object>
-    </child>
-    <child>
-      <object class="GtkButton" id="save_project-btn">
-        <property name="visible">True</property>
-        <property name="can_focus">True</property>
-        <property name="receives_default">True</property>
-        <child>
-          <object class="GtkImage">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="stock">gtk-save</property>
-          </object>
-        </child>
-      </object>
-      <packing>
-        <property name="position">2</property>
-      </packing>
-    </child>
-    <child>
-      <object class="GtkButton" id="save_project_as-btn">
-        <property name="visible">True</property>
-        <property name="can_focus">True</property>
-        <property name="receives_default">True</property>
-        <child>
-          <object class="GtkImage">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="stock">gtk-save-as</property>
-          </object>
-        </child>
-      </object>
-      <packing>
-        <property name="position">3</property>
-      </packing>
-    </child>
-    <child>
-      <object class="GtkButton" id="properties-btn">
-        <property name="visible">True</property>
-        <property name="can_focus">True</property>
-        <property name="receives_default">True</property>
-        <child>
-          <object class="GtkImage">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="stock">gtk-properties</property>
-          </object>
-        </child>
-      </object>
-      <packing>
-        <property name="pack_type">end</property>
-        <property name="position">2</property>
-      </packing>
-    </child>
-    <child>
-      <object class="GtkButton" id="export_toc-btn">
-        <property name="visible">True</property>
-        <property name="can_focus">True</property>
-        <property name="receives_default">True</property>
-        <child>
-          <object class="GtkImage">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="stock">gtk-dnd-multiple</property>
-          </object>
-        </child>
-      </object>
-      <packing>
-        <property name="pack_type">end</property>
-        <property name="position">3</property>
-      </packing>
-    </child>
-  </object>
   <object class="GtkImage" id="repeat-image">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
@@ -662,6 +572,96 @@
     </child>
     <child type="titlebar">
       <placeholder/>
+    </child>
+  </object>
+  <object class="GtkImage" id="streams-image">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="stock">gtk-justify-fill</property>
+  </object>
+  <object class="GtkHeaderBar" id="header-bar">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="title">Media Table Of Contents</property>
+    <property name="show_close_button">True</property>
+    <child>
+      <object class="GtkButton" id="open-btn">
+        <property name="visible">True</property>
+        <property name="can_focus">True</property>
+        <property name="receives_default">True</property>
+        <child>
+          <object class="GtkImage">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="stock">gtk-open</property>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkButton" id="save_project-btn">
+        <property name="visible">True</property>
+        <property name="can_focus">True</property>
+        <property name="receives_default">True</property>
+        <child>
+          <object class="GtkImage">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="stock">gtk-save</property>
+          </object>
+        </child>
+      </object>
+      <packing>
+        <property name="position">2</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkButton" id="save_project_as-btn">
+        <property name="visible">True</property>
+        <property name="can_focus">True</property>
+        <property name="receives_default">True</property>
+        <child>
+          <object class="GtkImage">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="stock">gtk-save-as</property>
+          </object>
+        </child>
+      </object>
+      <packing>
+        <property name="position">3</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkToggleButton" id="streams-toggle">
+        <property name="visible">True</property>
+        <property name="can_focus">True</property>
+        <property name="receives_default">True</property>
+        <property name="image">streams-image</property>
+        <property name="always_show_image">True</property>
+      </object>
+      <packing>
+        <property name="pack_type">end</property>
+        <property name="position">2</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkButton" id="export_toc-btn">
+        <property name="visible">True</property>
+        <property name="can_focus">True</property>
+        <property name="receives_default">True</property>
+        <child>
+          <object class="GtkImage">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="stock">gtk-execute</property>
+          </object>
+        </child>
+      </object>
+      <packing>
+        <property name="pack_type">end</property>
+        <property name="position">3</property>
+      </packing>
     </child>
   </object>
 </interface>
