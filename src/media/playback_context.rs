@@ -225,11 +225,25 @@ impl PlaybackContext {
             .set_property("max-size-time", &QUEUE_SIZE_NS)
             .unwrap();
 
-        #[cfg(feature = "trace-audio-queue")]
+        #[cfg(feature = "trace-playback-queues")]
         queue
             .connect("overrun", false, |args| {
                 let queue = args[0].get::<gst::Element>().unwrap();
                 println!("\n/!\\ OVERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
+                    queue.get_name(),
+                    queue.get_property("max-size-bytes").unwrap().get::<u32>().unwrap(),
+                    queue.get_property("max-size-buffers").unwrap().get::<u32>().unwrap(),
+                    queue.get_property("max-size-time").unwrap().get::<u64>().unwrap(),
+                );
+                None
+            })
+            .ok()
+            .unwrap();
+        #[cfg(feature = "trace-playback-queues")]
+        queue
+            .connect("underrun", false, |args| {
+                let queue = args[0].get::<gst::Element>().unwrap();
+                println!("\n/!\\ UNDERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
                     queue.get_name(),
                     queue.get_property("max-size-bytes").unwrap().get::<u32>().unwrap(),
                     queue.get_property("max-size-buffers").unwrap().get::<u32>().unwrap(),
@@ -275,30 +289,37 @@ impl PlaybackContext {
             let name = src_pad.get_name();
 
             if name.starts_with("audio_") {
-                PlaybackContext::build_audio_queue(
+                PlaybackContext::build_audio_pipeline(
                     pipeline,
                     src_pad,
                     &audio_sink,
                     Arc::clone(&dbl_audio_buffer_mtx),
                 );
             } else if name.starts_with("video_") {
-                PlaybackContext::build_video_queue(pipeline, src_pad, &video_sink);
+                PlaybackContext::build_video_pipeline(pipeline, src_pad, &video_sink);
+            } else {
+                // TODO: handle subtitles
+                /*let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
+                pipeline.add(&fakesink).unwrap();
+                let fakesink_sink_pad = fakesink.get_static_pad("sink").unwrap();
+                assert_eq!(src_pad.link(&fakesink_sink_pad), gst::PadLinkReturn::Ok);
+                fakesink.sync_state_with_parent().unwrap();*/
             }
         });
     }
 
-    fn build_audio_queue(
+    fn build_audio_pipeline(
         pipeline: &gst::Pipeline,
         src_pad: &gst::Pad,
         audio_sink: &gst::Element,
         dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
     ) {
-        let playback_queue = gst::ElementFactory::make("queue", "playback_queue").unwrap();
+        let playback_queue = gst::ElementFactory::make("queue", "audio_playback_queue").unwrap();
         PlaybackContext::setup_queue(&playback_queue);
 
         let playback_convert = gst::ElementFactory::make("audioconvert", None).unwrap();
         let playback_resample = gst::ElementFactory::make("audioresample", None).unwrap();
-        let playback_sink_pad = playback_queue.get_static_pad("sink").unwrap();
+        let playback_sink_sink_pad = playback_queue.get_static_pad("sink").unwrap();
         let playback_elements = &[
             &playback_queue,
             &playback_convert,
@@ -306,38 +327,36 @@ impl PlaybackContext {
             audio_sink,
         ];
 
-        let visu_queue = gst::ElementFactory::make("queue", "visu_queue").unwrap();
-        PlaybackContext::setup_queue(&visu_queue);
+        let waveform_queue = gst::ElementFactory::make("queue", "waveform_queue").unwrap();
+        PlaybackContext::setup_queue(&waveform_queue);
 
-        let visu_convert = gst::ElementFactory::make("audioconvert", None).unwrap();
-        let visu_sink = gst::ElementFactory::make("appsink", "audio_visu_sink").unwrap();
-        let visu_sink_pad = visu_queue.get_static_pad("sink").unwrap();
+        let waveform_convert = gst::ElementFactory::make("audioconvert", None).unwrap();
+        let waveform_sink = gst::ElementFactory::make("appsink", "waveform_sink").unwrap();
+        let waveform_sink_sink_pad = waveform_queue.get_static_pad("sink").unwrap();
 
         {
-            let visu_elements = &[&visu_queue, &visu_convert, &visu_sink];
+            let waveform_elements = &[&waveform_queue, &waveform_convert, &waveform_sink];
             let tee = gst::ElementFactory::make("tee", "audio_tee").unwrap();
             let mut elements = vec![&tee];
             elements.extend_from_slice(playback_elements);
-            elements.extend_from_slice(visu_elements);
+            elements.extend_from_slice(waveform_elements);
             pipeline.add_many(elements.as_slice()).unwrap();
 
             gst::Element::link_many(playback_elements).unwrap();
-            gst::Element::link_many(visu_elements).unwrap();
+            gst::Element::link_many(waveform_elements).unwrap();
 
             let tee_sink = tee.get_static_pad("sink").unwrap();
             assert_eq!(src_pad.link(&tee_sink), gst::PadLinkReturn::Ok);
 
-            // TODO: in C, requested pads must be released when done
-            // check if this also applies to the Rust binding
             let tee_playback_src_pad = tee.get_request_pad("src_%u").unwrap();
             assert_eq!(
-                tee_playback_src_pad.link(&playback_sink_pad),
+                tee_playback_src_pad.link(&playback_sink_sink_pad),
                 gst::PadLinkReturn::Ok
             );
 
-            let tee_visu_src_pad = tee.get_request_pad("src_%u").unwrap();
+            let tee_waveform_src_pad = tee.get_request_pad("src_%u").unwrap();
             assert_eq!(
-                tee_visu_src_pad.link(&visu_sink_pad),
+                tee_waveform_src_pad.link(&waveform_sink_sink_pad),
                 gst::PadLinkReturn::Ok
             );
 
@@ -346,7 +365,7 @@ impl PlaybackContext {
             }
         }
 
-        let appsink = visu_sink.dynamic_cast::<gst_app::AppSink>().unwrap();
+        let appsink = waveform_sink.dynamic_cast::<gst_app::AppSink>().unwrap();
         appsink.set_caps(&Caps::new_simple(
             "audio/x-raw",
             &[
@@ -374,11 +393,16 @@ impl PlaybackContext {
         }
 
         let dbl_audio_buffer_mtx_caps = Arc::clone(&dbl_audio_buffer_mtx);
-        visu_sink_pad.connect_property_caps_notify(move |pad| {
+        waveform_sink_sink_pad.connect_property_caps_notify(move |pad| {
             if let Some(caps) = pad.get_current_caps() {
+                #[cfg(feature = "trace-audio-caps")]
+                println!("\nGot new {:#?}", caps);
+
                 dbl_audio_buffer_mtx_caps
                     .lock()
-                    .expect("PlaybackContext::build_audio_pipeline: couldn't lock dbl_audio_buffer_mtx")
+                    .expect(
+                        "PlaybackContext::property_caps_notify couldn't lock dbl_audio_buffer_mtx"
+                    )
                     .set_caps(&caps);
             }
         });
@@ -408,8 +432,13 @@ impl PlaybackContext {
         );
     }
 
-    fn build_video_queue(pipeline: &gst::Pipeline, src_pad: &gst::Pad, video_sink: &gst::Element) {
-        let queue = gst::ElementFactory::make("queue", None).unwrap();
+    fn build_video_pipeline(
+        pipeline: &gst::Pipeline,
+        src_pad: &gst::Pad,
+        video_sink: &gst::Element,
+    ) {
+        let queue = gst::ElementFactory::make("queue", "video_queue").unwrap();
+        PlaybackContext::setup_queue(&queue);
         let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
         let scale = gst::ElementFactory::make("videoscale", None).unwrap();
 
