@@ -4,10 +4,20 @@
   <requires lib="gtk+" version="3.10"/>
   <object class="GtkListStore" id="audio_streams-liststore">
     <columns>
-      <!-- column-name stream_id -->
+      <!-- column-name stream_id_full -->
+      <column type="gchararray"/>
+      <!-- column-name stream_id_display -->
+      <column type="gchararray"/>
+      <!-- column-name language -->
       <column type="gchararray"/>
       <!-- column-name codec -->
       <column type="gchararray"/>
+      <!-- column-name comment -->
+      <column type="gchararray"/>
+      <!-- column-name rate -->
+      <column type="gint"/>
+      <!-- column-name channels -->
+      <column type="gint"/>
     </columns>
   </object>
   <object class="GtkTreeStore" id="chapters-tree-store">
@@ -121,18 +131,36 @@
   </object>
   <object class="GtkListStore" id="text_streams-liststore">
     <columns>
-      <!-- column-name stream_id -->
+      <!-- column-name stream_id_full -->
+      <column type="gchararray"/>
+      <!-- column-name stream_id_display -->
+      <column type="gchararray"/>
+      <!-- column-name language -->
       <column type="gchararray"/>
       <!-- column-name codec -->
+      <column type="gchararray"/>
+      <!-- column-name comment -->
+      <column type="gchararray"/>
+      <!-- column-name format -->
       <column type="gchararray"/>
     </columns>
   </object>
   <object class="GtkListStore" id="video_streams-liststore">
     <columns>
-      <!-- column-name stream_id -->
+      <!-- column-name stream_id_full -->
+      <column type="gchararray"/>
+      <!-- column-name stream_id_display -->
+      <column type="gchararray"/>
+      <!-- column-name language -->
       <column type="gchararray"/>
       <!-- column-name codec -->
       <column type="gchararray"/>
+      <!-- column-name comment -->
+      <column type="gchararray"/>
+      <!-- column-name wdth -->
+      <column type="gint"/>
+      <!-- column-name height -->
+      <column type="gint"/>
     </columns>
   </object>
   <object class="GtkApplicationWindow" id="application-window">

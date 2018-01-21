@@ -525,18 +525,18 @@ impl PlaybackContext {
                         for stream in stream_collection.iter() {
                             let stream_id = stream.get_stream_id().unwrap();
                             let caps = stream.get_caps().unwrap();
-                            // TODO: also get and store tags
+                            let tags = stream.get_tags();
                             match stream.get_stream_type() {
                                 gst::StreamType::AUDIO => {
-                                    info.audio_streams.insert(stream_id.clone(), caps);
+                                    info.audio_streams.insert(stream_id.clone(), (caps, tags));
                                     info.audio_selected.get_or_insert(stream_id);
                                 }
                                 gst::StreamType::VIDEO => {
-                                    info.video_streams.insert(stream_id.clone(), caps);
+                                    info.video_streams.insert(stream_id.clone(), (caps, tags));
                                     info.video_selected.get_or_insert(stream_id);
                                 }
                                 gst::StreamType::TEXT => {
-                                    info.text_streams.insert(stream_id.clone(), caps);
+                                    info.text_streams.insert(stream_id.clone(), (caps, tags));
                                     info.text_selected.get_or_insert(stream_id);
                                 }
                                 _ => panic!("PlaybackContext: can't handle {:?} stream",
