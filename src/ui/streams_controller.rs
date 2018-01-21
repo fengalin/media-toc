@@ -158,12 +158,10 @@ impl StreamsController {
             "unknown"
         };
 
-        let caps_structure = caps.get_structure(0).unwrap();
-
         let iter = store.insert_with_values(
             None,
-            &[STREAM_ID_COL, STREAM_ID_DISPLAY_COL, CODEC_COL],
-            &[&stream_id, &stream_id_display, &(caps_structure.get_name())],
+            &[STREAM_ID_COL, STREAM_ID_DISPLAY_COL],
+            &[&stream_id, &stream_id_display],
         );
 
         let codec = match tags.as_ref() {
@@ -201,8 +199,8 @@ impl StreamsController {
         let codec = match codec {
             Some(codec) => codec,
             None => {
-                // codec in the form "streamtype/x-codec"
-                let codec = caps_structure.get_name();
+                // codec in caps in the form "streamtype/x-codec"
+                let codec = caps.get_structure(0).unwrap().get_name();
                 let id_parts: Vec<&str> = codec.split('/').collect();
                 if id_parts.len() == 2 {
                     if id_parts[1].starts_with("x-") {
