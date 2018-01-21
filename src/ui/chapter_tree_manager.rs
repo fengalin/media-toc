@@ -5,11 +5,11 @@ extern crate lazy_static;
 
 use metadata::{Chapter, Timestamp};
 
-const START_COL: i32 = 0;
-const END_COL: i32 = 1;
-const TITLE_COL: i32 = 2;
-const START_STR_COL: i32 = 3;
-const END_STR_COL: i32 = 4;
+const START_COL: u32 = 0;
+const END_COL: u32 = 1;
+const TITLE_COL: u32 = 2;
+const START_STR_COL: u32 = 3;
+const END_STR_COL: u32 = 4;
 
 lazy_static! {
     static ref DEFAULT_TITLE: String = "untitled".to_owned();
@@ -57,26 +57,26 @@ impl<'a> ChapterEntry<'a> {
     }
 
     pub fn get_title(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> String {
-        store.get_value(iter, TITLE_COL).get::<String>().unwrap()
+        store.get_value(iter, TITLE_COL as i32).get::<String>().unwrap()
     }
 
     pub fn get_start(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> u64 {
-        store.get_value(iter, START_COL).get::<u64>().unwrap()
+        store.get_value(iter, START_COL as i32).get::<u64>().unwrap()
     }
 
     pub fn get_start_str(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> String {
         store
-            .get_value(iter, START_STR_COL)
+            .get_value(iter, START_STR_COL as i32)
             .get::<String>()
             .unwrap()
     }
 
     pub fn get_end(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> u64 {
-        store.get_value(iter, END_COL).get::<u64>().unwrap()
+        store.get_value(iter, END_COL as i32).get::<u64>().unwrap()
     }
 
     pub fn get_end_str(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> String {
-        store.get_value(iter, END_STR_COL).get::<String>().unwrap()
+        store.get_value(iter, END_STR_COL as i32).get::<String>().unwrap()
     }
 }
 
@@ -106,7 +106,7 @@ impl ChapterTreeManager {
         &self,
         treeview: &gtk::TreeView,
         title: &str,
-        col_id: i32,
+        col_id: u32,
         can_expand: bool,
         is_editable: bool,
     ) {
@@ -119,13 +119,13 @@ impl ChapterTreeManager {
             let store_clone = self.store.clone();
             renderer.connect_edited(move |_, tree_path, value| {
                 if let Some(iter) = store_clone.get_iter(&tree_path) {
-                    store_clone.set_value(&iter, TITLE_COL as u32, &gtk::Value::from(value));
+                    store_clone.set_value(&iter, TITLE_COL, &gtk::Value::from(value));
                 }
             });
         }
 
         col.pack_start(&renderer, true);
-        col.add_attribute(&renderer, "text", col_id);
+        col.add_attribute(&renderer, "text", col_id as i32);
         if can_expand {
             col.set_min_width(70);
             col.set_expand(can_expand);
@@ -168,11 +168,11 @@ impl ChapterTreeManager {
                 None,
                 None,
                 &[
-                    START_COL as u32,
-                    END_COL as u32,
-                    TITLE_COL as u32,
-                    START_STR_COL as u32,
-                    END_STR_COL as u32,
+                    START_COL,
+                    END_COL,
+                    TITLE_COL,
+                    START_STR_COL,
+                    END_STR_COL,
                 ],
                 &[
                     &chapter.start.nano_total,
@@ -302,7 +302,7 @@ impl ChapterTreeManager {
                     // to match the start of the newly added chapter
                     self.store.set(
                         &selected_iter,
-                        &[END_COL as u32, END_STR_COL as u32],
+                        &[END_COL, END_STR_COL],
                         &[&position, &Timestamp::format(position, false)],
                     );
 
@@ -367,11 +367,11 @@ impl ChapterTreeManager {
         self.store.set(
             &new_iter,
             &[
-                TITLE_COL as u32,
-                START_COL as u32,
-                START_STR_COL as u32,
-                END_COL as u32,
-                END_STR_COL as u32,
+                TITLE_COL,
+                START_COL,
+                START_STR_COL,
+                END_COL,
+                END_STR_COL,
             ],
             &[
                 &*DEFAULT_TITLE,
@@ -398,7 +398,7 @@ impl ChapterTreeManager {
                     let selected_chapter = ChapterEntry::new(&self.store, &selected_iter);
                     self.store.set(
                         &prev_iter,
-                        &[END_COL as u32, END_STR_COL as u32],
+                        &[END_COL, END_STR_COL],
                         &[&selected_chapter.end(), &selected_chapter.end_str()],
                     );
 
