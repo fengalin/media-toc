@@ -565,8 +565,10 @@
                         <property name="hexpand">True</property>
                         <property name="vexpand">True</property>
                         <property name="model">chapters-tree-store</property>
+                        <property name="headers_clickable">False</property>
                         <property name="search_column">0</property>
                         <property name="enable_grid_lines">horizontal</property>
+                        <property name="activate_on_single_click">True</property>
                         <child internal-child="selection">
                           <object class="GtkTreeSelection"/>
                         </child>
@@ -687,8 +689,10 @@
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="model">video_streams-liststore</property>
+                <property name="headers_clickable">False</property>
                 <property name="rules_hint">True</property>
                 <property name="enable_grid_lines">horizontal</property>
+                <property name="activate_on_single_click">True</property>
                 <child internal-child="selection">
                   <object class="GtkTreeSelection"/>
                 </child>
@@ -719,8 +723,10 @@
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="model">audio_streams-liststore</property>
+                <property name="headers_clickable">False</property>
                 <property name="rules_hint">True</property>
                 <property name="enable_grid_lines">horizontal</property>
+                <property name="activate_on_single_click">True</property>
                 <child internal-child="selection">
                   <object class="GtkTreeSelection"/>
                 </child>
@@ -751,8 +757,10 @@
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="model">text_streams-liststore</property>
+                <property name="headers_clickable">False</property>
                 <property name="rules_hint">True</property>
                 <property name="enable_grid_lines">horizontal</property>
+                <property name="activate_on_single_click">True</property>
                 <child internal-child="selection">
                   <object class="GtkTreeSelection"/>
                 </child>

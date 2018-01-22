@@ -241,6 +241,39 @@ impl MainController {
         self.info_ctrl.borrow_mut().tick(position, false);
     }
 
+    pub fn select_streams(&mut self) {
+        let (video, audio, text) = self.streams_ctrl.borrow().get_selected_streams();
+        println!("select_streams {:?}, {:?}, {:?}", video, audio, text);
+
+        {
+            let mut streams: Vec<&str> = Vec::new();
+            if let Some(video) = video.as_ref() {
+                streams.push(video.0.as_str());
+            }
+            if let Some(audio) = audio.as_ref() {
+                streams.push(audio.0.as_str());
+            }
+            if let Some(text) = text.as_ref() {
+                streams.push(text.0.as_str());
+            }
+        }
+
+        let context = self.context.take()
+            .expect("MainController::select_streams failed to get context");
+        {
+            let mut info = context
+                .info
+                .lock()
+                .expect("MainController::select_streams failed to lock info");
+            info.video_selected = video;
+            info.audio_selected = audio;
+            info.text_selected = text;
+
+            self.info_ctrl.borrow().use_streams(&info);
+        }
+        self.context = Some(context);
+    }
+
     fn hold(&mut self) {
         AudioController::remove_tick_callback(&self.audio_ctrl);
         self.switch_to_busy();
@@ -317,14 +350,27 @@ impl MainController {
                         this.requires_async_dialog = context
                             .info
                             .lock()
-                            .expect("MainController::listener(InitDone) failed to lock media info")
+                            .expect("MainController::listener(InitDone) failed to lock info")
                             .video_selected
                             .is_some();
 
                         this.header_bar
                             .set_subtitle(Some(context.file_name.as_str()));
 
-                        this.streams_ctrl.borrow_mut().new_media(&mut context);
+                        {
+                            let mut streams_ctrl = this.streams_ctrl.borrow_mut();
+                            streams_ctrl.new_media(&context);
+                            let (video, audio, text) = streams_ctrl.get_selected_streams();
+
+                            let mut info = context
+                                .info
+                                .lock()
+                                .expect("MainController::listener(InitDone) failed to lock info");
+                            info.video_selected = video;
+                            info.audio_selected = audio;
+                            info.text_selected = text;
+                        }
+
                         this.info_ctrl.borrow_mut().new_media(&context);
                         this.video_ctrl.new_media(&context);
                         this.audio_ctrl.borrow_mut().new_media(&context);

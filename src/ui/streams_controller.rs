@@ -1,3 +1,5 @@
+extern crate glib;
+
 extern crate gstreamer as gst;
 
 extern crate gtk;
@@ -28,16 +30,46 @@ const AUDIO_CHANNELS_COL: u32 = 6;
 
 const TEXT_FORMAT_COL: u32 = 5;
 
+macro_rules! on_stream_selected(
+    ($this:expr, $store:expr, $tree_path:expr, $selected:expr, $main_ctrl_weak:expr) => {
+        if let Some(iter) = $store.get_iter($tree_path) {
+            let stream = $this.get_stream_at(&$store, &iter);
+            if let Some(&mut (ref mut stream_id,  ref mut codec)) = $selected.as_mut() {
+                if stream_id != &stream.0 {
+                    // Stream has changed
+                    *stream_id = stream.0;
+                    *codec = stream.1;
+
+                    // Asynchronoulsy notify the main controller
+                    let main_ctrl_weak = Weak::clone(&$main_ctrl_weak);
+                    gtk::idle_add(move || {
+                        let main_ctrl_rc = main_ctrl_weak
+                            .upgrade()
+                            .expect("StreamsController::stream_changed can't upgrade main_ctrl");
+                        main_ctrl_rc.borrow_mut().select_streams();
+                        glib::Continue(false)
+                    });
+                }
+            }
+        }
+    };
+);
+
 pub struct StreamsController {
     streams_button: gtk::ToggleButton,
     display_streams_stack: gtk::Stack,
 
     video_treeview: gtk::TreeView,
     video_store: gtk::ListStore,
+    video_selected: Option<(String, String)>,
+
     audio_treeview: gtk::TreeView,
     audio_store: gtk::ListStore,
+    audio_selected: Option<(String, String)>,
+
     text_treeview: gtk::TreeView,
     text_store: gtk::ListStore,
+    text_selected: Option<(String, String)>,
 
     main_ctrl: Option<Weak<RefCell<MainController>>>,
 }
@@ -50,10 +82,15 @@ impl StreamsController {
 
             video_treeview: builder.get_object("video_streams-treeview").unwrap(),
             video_store: builder.get_object("video_streams-liststore").unwrap(),
+            video_selected: None,
+
             audio_treeview: builder.get_object("audio_streams-treeview").unwrap(),
             audio_store: builder.get_object("audio_streams-liststore").unwrap(),
+            audio_selected: None,
+
             text_treeview: builder.get_object("text_streams-treeview").unwrap(),
             text_store: builder.get_object("text_streams-liststore").unwrap(),
+            text_selected: None,
 
             main_ctrl: None,
         }));
@@ -85,19 +122,67 @@ impl StreamsController {
             };
             this_clone.borrow_mut().display_streams_stack.set_visible_child_name(page_name);
         });
+
+        // Video stream selection
+        let this_clone = Rc::clone(this_rc);
+        let main_ctrl_weak = Rc::downgrade(main_ctrl);
+        this.video_treeview
+            .connect_row_activated(move |_, tree_path, _| {
+                let mut this = this_clone.borrow_mut();
+                on_stream_selected!(
+                    this,
+                    this.video_store,
+                    tree_path,
+                    this.video_selected,
+                    main_ctrl_weak
+                );
+            });
+
+        // Audio stream selection
+        let this_clone = Rc::clone(this_rc);
+        let main_ctrl_weak = Rc::downgrade(main_ctrl);
+        this.audio_treeview
+            .connect_row_activated(move |_, tree_path, _| {
+                let mut this = this_clone.borrow_mut();
+                on_stream_selected!(
+                    this,
+                    this.audio_store,
+                    tree_path,
+                    this.audio_selected,
+                    main_ctrl_weak
+                );
+            });
+
+        // Text stream selection
+        let this_clone = Rc::clone(this_rc);
+        let main_ctrl_weak = Rc::downgrade(main_ctrl);
+        this.text_treeview
+            .connect_row_activated(move |_, tree_path, _| {
+                let mut this = this_clone.borrow_mut();
+                on_stream_selected!(
+                    this,
+                    this.text_store,
+                    tree_path,
+                    this.text_selected,
+                    main_ctrl_weak
+                );
+            });
     }
 
     pub fn cleanup(&mut self) {
         self.streams_button.set_sensitive(false);
         self.video_store.clear();
+        self.video_selected = None;
         self.audio_store.clear();
+        self.audio_selected = None;
         self.text_store.clear();
+        self.text_selected = None;
     }
 
-    pub fn new_media(&mut self, context: &mut PlaybackContext) {
+    pub fn new_media(&mut self, context: &PlaybackContext) {
         self.streams_button.set_sensitive(true);
 
-        let mut info = context
+        let info = context
             .info
             .lock()
             .expect("StreamsController::new_media: failed to lock media info");
@@ -114,10 +199,10 @@ impl StreamsController {
             }
         }
 
-        info.video_selected = match self.video_store.get_iter_first() {
+        self.video_selected = match self.video_store.get_iter_first() {
             Some(ref iter) => {
                 self.video_treeview.get_selection().select_iter(iter);
-                self.get_selected_stream(&self.video_store, iter)
+                Some(self.get_stream_at(&self.video_store, iter))
             }
             None => None,
         };
@@ -134,10 +219,10 @@ impl StreamsController {
             }
         }
 
-        info.audio_selected = match self.audio_store.get_iter_first() {
+        self.audio_selected = match self.audio_store.get_iter_first() {
             Some(ref iter) => {
                 self.audio_treeview.get_selection().select_iter(iter);
-                self.get_selected_stream(&self.audio_store, iter)
+                Some(self.get_stream_at(&self.audio_store, iter))
             }
             None => None,
         };
@@ -151,13 +236,19 @@ impl StreamsController {
             }
         }
 
-        info.text_selected = match self.text_store.get_iter_first() {
+        self.text_selected = match self.text_store.get_iter_first() {
             Some(ref iter) => {
                 self.text_treeview.get_selection().select_iter(iter);
-                self.get_selected_stream(&self.text_store, iter)
+                Some(self.get_stream_at(&self.text_store, iter))
             }
             None => None,
         };
+    }
+
+    pub fn get_selected_streams(
+        &self,
+    ) -> (Option<(String, String)>, Option<(String, String)>, Option<(String, String)>) {
+        (self.video_selected.clone(), self.audio_selected.clone(), self.text_selected.clone())
     }
 
     fn add_stream(
@@ -234,21 +325,17 @@ impl StreamsController {
         iter
     }
 
-    fn get_selected_stream(
-        &self,
-        store: &gtk::ListStore,
-        iter: &gtk::TreeIter,
-    ) -> Option<(String, String)> {
-        Some((
+    fn get_stream_at(&self, store: &gtk::ListStore, iter: &gtk::TreeIter) -> (String, String) {
+        (
             store
-                .get_value(iter, STREAM_ID_DISPLAY_COL as i32)
+                .get_value(iter, STREAM_ID_COL as i32)
                 .get::<String>()
                 .unwrap(),
             store
                 .get_value(iter, CODEC_COL as i32)
                 .get::<String>()
                 .unwrap(),
-        ))
+        )
     }
 
     fn init_treeviews(&self) {

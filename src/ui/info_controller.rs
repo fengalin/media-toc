@@ -15,7 +15,7 @@ use std::cell::RefCell;
 use media::PlaybackContext;
 
 use metadata;
-use metadata::{Chapter, Timestamp};
+use metadata::{Chapter, MediaInfo, Timestamp};
 
 use super::{ChapterTreeManager, ControllerState, ImageSurface, MainController};
 
@@ -96,7 +96,6 @@ impl InfoController {
         {
             let mut this = this_rc.borrow_mut();
             this.cleanup();
-            this.chapter_treeview.set_activate_on_single_click(true);
         }
 
         this_rc
@@ -249,10 +248,8 @@ impl InfoController {
                 .set_label(info.get_artist().unwrap_or(&EMPTY_REPLACEMENT));
             self.container_lbl
                 .set_label(info.get_container().unwrap_or(&EMPTY_REPLACEMENT));
-            self.audio_codec_lbl
-                .set_label(info.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));
-            self.video_codec_lbl
-                .set_label(info.get_video_codec().unwrap_or(&EMPTY_REPLACEMENT));
+
+            self.use_streams(&info);
 
             match toc_candidates.next() {
                 Some((toc_path, format)) => {
@@ -291,6 +288,13 @@ impl InfoController {
         } else {
             self.drawingarea.hide();
         }
+    }
+
+    pub fn use_streams(&self, info: &MediaInfo) {
+        self.audio_codec_lbl
+            .set_label(info.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));
+        self.video_codec_lbl
+            .set_label(info.get_video_codec().unwrap_or(&EMPTY_REPLACEMENT));
     }
 
     fn update_marks(&self) {
