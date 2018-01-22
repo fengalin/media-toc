@@ -275,14 +275,13 @@ impl MainController {
     }
 
     fn hold(&mut self) {
-        AudioController::remove_tick_callback(&self.audio_ctrl);
         self.switch_to_busy();
+        AudioController::remove_tick_callback(&self.audio_ctrl);
+        self.play_pause_btn.set_icon_name("media-playback-start");
 
         if let Some(context) = self.context.as_mut() {
             context.pause().unwrap();
         };
-
-        self.play_pause_btn.set_icon_name("media-playback-start");
     }
 
     fn export_toc(&mut self) {
@@ -347,16 +346,6 @@ impl MainController {
                             .take()
                             .expect("MainController: InitDone but no context available");
 
-                        this.requires_async_dialog = context
-                            .info
-                            .lock()
-                            .expect("MainController::listener(InitDone) failed to lock info")
-                            .video_selected
-                            .is_some();
-
-                        this.header_bar
-                            .set_subtitle(Some(context.file_name.as_str()));
-
                         {
                             let mut streams_ctrl = this.streams_ctrl.borrow_mut();
                             streams_ctrl.new_media(&context);
@@ -370,6 +359,16 @@ impl MainController {
                             info.audio_selected = audio;
                             info.text_selected = text;
                         }
+
+                        this.requires_async_dialog = context
+                            .info
+                            .lock()
+                            .expect("MainController::listener(InitDone) failed to lock info")
+                            .video_selected
+                            .is_some();
+
+                        this.header_bar
+                            .set_subtitle(Some(context.file_name.as_str()));
 
                         this.info_ctrl.borrow_mut().new_media(&context);
                         this.video_ctrl.new_media(&context);
