@@ -12,13 +12,13 @@ pub struct MediaInfo {
     pub chapters: Vec<Chapter>,
 
     pub audio_streams: HashMap<String, (gst::Caps, Option<gst::TagList>)>,
-    pub audio_selected: Option<String>,
+    pub audio_selected: Option<(String, String)>, // (stream_id, codec for display)
 
     pub video_streams: HashMap<String, (gst::Caps, Option<gst::TagList>)>,
-    pub video_selected: Option<String>,
+    pub video_selected: Option<(String, String)>, // (stream_id, codec for display)
 
     pub text_streams: HashMap<String, (gst::Caps, Option<gst::TagList>)>,
-    pub text_selected: Option<String>,
+    pub text_selected: Option<(String, String)>, // (stream_id, codec for display)
 }
 
 impl MediaInfo {
@@ -79,15 +79,15 @@ impl MediaInfo {
     }
 
     pub fn get_audio_codec(&self) -> Option<&str> {
-        self.tags
-            .get_index::<gst::tags::AudioCodec>(0)
-            .map(|value| value.get().unwrap())
+        self.audio_selected
+            .as_ref()
+            .map(|&(ref _stream_id, ref codec)| codec.as_str())
     }
 
     pub fn get_video_codec(&self) -> Option<&str> {
-        self.tags
-            .get_index::<gst::tags::VideoCodec>(0)
-            .map(|value| value.get().unwrap())
+        self.video_selected
+            .as_ref()
+            .map(|&(ref _stream_id, ref codec)| codec.as_str())
     }
 
     pub fn get_container(&self) -> Option<&str> {

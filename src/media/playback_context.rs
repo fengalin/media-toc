@@ -529,15 +529,12 @@ impl PlaybackContext {
                             match stream.get_stream_type() {
                                 gst::StreamType::AUDIO => {
                                     info.audio_streams.insert(stream_id.clone(), (caps, tags));
-                                    info.audio_selected.get_or_insert(stream_id);
                                 }
                                 gst::StreamType::VIDEO => {
                                     info.video_streams.insert(stream_id.clone(), (caps, tags));
-                                    info.video_selected.get_or_insert(stream_id);
                                 }
                                 gst::StreamType::TEXT => {
                                     info.text_streams.insert(stream_id.clone(), (caps, tags));
-                                    info.text_selected.get_or_insert(stream_id);
                                 }
                                 _ => panic!("PlaybackContext: can't handle {:?} stream",
                                     stream.get_stream_type(),

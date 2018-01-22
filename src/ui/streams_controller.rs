@@ -87,10 +87,10 @@ impl StreamsController {
         });
     }
 
-    pub fn new_media(&mut self, context: &PlaybackContext) {
+    pub fn new_media(&mut self, context: &mut PlaybackContext) {
         self.streams_button.set_sensitive(true);
 
-        let info = context
+        let mut info = context
             .info
             .lock()
             .expect("StreamsController::new_media: failed to lock media info");
@@ -107,10 +107,13 @@ impl StreamsController {
             }
         }
 
-        match self.video_store.get_iter_first() {
-            Some(ref iter) => self.video_treeview.get_selection().select_iter(iter),
-            None => (),
-        }
+        info.video_selected = match self.video_store.get_iter_first() {
+            Some(ref iter) => {
+                self.video_treeview.get_selection().select_iter(iter);
+                self.get_selected_stream(&self.video_store, iter)
+            }
+            None => None,
+        };
 
         // Audio streams
         for (stream_id, &(ref caps, ref tags)) in &info.audio_streams {
@@ -124,10 +127,13 @@ impl StreamsController {
             }
         }
 
-        match self.audio_store.get_iter_first() {
-            Some(ref iter) => self.audio_treeview.get_selection().select_iter(iter),
-            None => (),
-        }
+        info.audio_selected = match self.audio_store.get_iter_first() {
+            Some(ref iter) => {
+                self.audio_treeview.get_selection().select_iter(iter);
+                self.get_selected_stream(&self.audio_store, iter)
+            }
+            None => None,
+        };
 
         // Text streams
         for (stream_id, &(ref caps, ref tags)) in &info.text_streams {
@@ -138,10 +144,13 @@ impl StreamsController {
             }
         }
 
-        match self.text_store.get_iter_first() {
-            Some(ref iter) => self.text_treeview.get_selection().select_iter(iter),
-            None => (),
-        }
+        info.text_selected = match self.text_store.get_iter_first() {
+            Some(ref iter) => {
+                self.text_treeview.get_selection().select_iter(iter);
+                self.get_selected_stream(&self.text_store, iter)
+            }
+            None => None,
+        };
     }
 
     fn add_stream(
@@ -216,6 +225,23 @@ impl StreamsController {
         store.set_value(&iter, CODEC_COL, &gtk::Value::from(&codec));
 
         iter
+    }
+
+    fn get_selected_stream(
+        &self,
+        store: &gtk::ListStore,
+        iter: &gtk::TreeIter,
+    ) -> Option<(String, String)> {
+        Some((
+            store
+                .get_value(iter, STREAM_ID_DISPLAY_COL as i32)
+                .get::<String>()
+                .unwrap(),
+            store
+                .get_value(iter, CODEC_COL as i32)
+                .get::<String>()
+                .unwrap(),
+        ))
     }
 
     pub fn cleanup(&mut self) {

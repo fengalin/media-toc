@@ -310,7 +310,7 @@ impl MainController {
                     }
                     InitDone => {
                         let mut this = this_rc.borrow_mut();
-                        let context = this.context
+                        let mut context = this.context
                             .take()
                             .expect("MainController: InitDone but no context available");
 
@@ -324,11 +324,11 @@ impl MainController {
                         this.header_bar
                             .set_subtitle(Some(context.file_name.as_str()));
 
-                        this.video_ctrl.new_media(&context);
+                        this.streams_ctrl.borrow_mut().new_media(&mut context);
                         this.info_ctrl.borrow_mut().new_media(&context);
+                        this.video_ctrl.new_media(&context);
                         this.audio_ctrl.borrow_mut().new_media(&context);
                         this.export_ctrl.borrow_mut().new_media(&context);
-                        this.streams_ctrl.borrow_mut().new_media(&context);
 
                         this.set_context(context);
 
