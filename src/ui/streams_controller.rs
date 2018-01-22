@@ -87,6 +87,13 @@ impl StreamsController {
         });
     }
 
+    pub fn cleanup(&mut self) {
+        self.streams_button.set_sensitive(false);
+        self.video_store.clear();
+        self.audio_store.clear();
+        self.text_store.clear();
+    }
+
     pub fn new_media(&mut self, context: &mut PlaybackContext) {
         self.streams_button.set_sensitive(true);
 
@@ -242,13 +249,6 @@ impl StreamsController {
                 .get::<String>()
                 .unwrap(),
         ))
-    }
-
-    pub fn cleanup(&mut self) {
-        self.streams_button.set_sensitive(false);
-        self.video_store.clear();
-        self.audio_store.clear();
-        self.text_store.clear();
     }
 
     fn init_treeviews(&self) {
