@@ -32,7 +32,6 @@ impl SampleExtractionState {
         // clear for reuse
         self.sample_duration = 0;
         self.duration_per_1000_samples = 0f64;
-        self.audio_sink = None;
     }
 }
 

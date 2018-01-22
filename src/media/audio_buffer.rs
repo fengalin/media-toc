@@ -95,6 +95,10 @@ impl AudioBuffer {
         #[cfg(feature = "profiling-audio-buffer")]
         let start = Utc::now();
 
+        if self.sample_duration == 0 {
+            return 0;
+        }
+
         let buffer = sample
             .get_buffer()
             .expect("Couldn't get buffer from audio sample");

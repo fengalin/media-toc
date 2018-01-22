@@ -50,6 +50,7 @@ pub enum PipelineState {
 
 pub struct PlaybackContext {
     pipeline: gst::Pipeline,
+    decodebin: gst::Element,
     position_element: Option<gst::Element>,
     position_query: gst::Query,
 
@@ -83,6 +84,7 @@ impl PlaybackContext {
 
         let mut this = PlaybackContext {
             pipeline: gst::Pipeline::new("pipeline"),
+            decodebin: gst::ElementFactory::make("decodebin3", None).unwrap(),
             position_element: None,
             position_query: gst::Query::new_position(gst::Format::Time),
 
@@ -94,6 +96,8 @@ impl PlaybackContext {
 
             info: Arc::new(Mutex::new(MediaInfo::new())),
         };
+
+        this.pipeline.add(&this.decodebin).unwrap();
 
         this.info
             .lock()
@@ -214,6 +218,48 @@ impl PlaybackContext {
         }
     }
 
+    pub fn select_streams(
+        &self,
+        streams: (Option<(String, String)>, Option<(String, String)>, Option<(String, String)>),
+    ) {
+        let mut  was_handled = false;
+
+        let mut stream_ids: Vec<String> = Vec::new();
+        if let Some(video) = streams.0.as_ref() {
+            stream_ids.push(video.0.clone());
+        }
+        if let Some(audio) = streams.1.as_ref() {
+            stream_ids.push(audio.0.clone());
+        }
+        if let Some(text) = streams.2.as_ref() {
+            stream_ids.push(text.0.clone());
+        }
+
+        {
+            // TODO: do this by listening on the message bus and send new stream to main_ctrl
+            let mut info = self.info
+                .lock()
+                .expect("PlaybackContext::select_streams failed to lock info");
+
+            info.video_selected = streams.0;
+            info.audio_selected = streams.1;
+            info.text_selected = streams.2;
+        }
+
+        let streams_str: Vec<&str> = stream_ids.iter().map(|s| s.as_ref()).collect();
+        let select_streams_evt = gst::Event::new_select_streams(&streams_str).build();
+        let was_handled = self.decodebin.send_event(select_streams_evt);
+        if was_handled {
+            println!("cleaning up");
+            self.dbl_audio_buffer_mtx
+                .lock()
+                .expect(
+                    "PlaybackContext::select_streams couldn't lock dbl_audio_buffer_mtx"
+                )
+                .cleanup();
+        }
+    }
+
     fn setup_queue(queue: &gst::Element) {
         queue
             .set_property("max-size-bytes", &0u32)
@@ -261,15 +307,8 @@ impl PlaybackContext {
         dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
         video_sink: gst::Element,
     ) {
-        let file_src = gst::ElementFactory::make("filesrc", None).unwrap();
-        file_src
-            .set_property("location", &gst::Value::from(self.path.to_str().unwrap()))
-            .unwrap();
-
-        let decodebin = gst::ElementFactory::make("decodebin3", None).unwrap();
-
         // From decodebin3's documentation: "Children: multiqueue0"
-        let decodebin_as_bin = decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
+        let decodebin_as_bin = self.decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
         let decodebin_multiqueue = &decodebin_as_bin.get_children()[0];
         PlaybackContext::setup_queue(decodebin_multiqueue);
         // Discard "interleave" as is modifies "max-size-time"
@@ -277,14 +316,18 @@ impl PlaybackContext {
             .set_property("use-interleave", &false)
             .unwrap();
 
-        self.pipeline.add_many(&[&file_src, &decodebin]).unwrap();
-        file_src.link(&decodebin).unwrap();
+        let file_src = gst::ElementFactory::make("filesrc", None).unwrap();
+        file_src
+            .set_property("location", &gst::Value::from(self.path.to_str().unwrap()))
+            .unwrap();
+        self.pipeline.add(&file_src).unwrap();
+        file_src.link(&self.decodebin).unwrap();
 
         let audio_sink = gst::ElementFactory::make("autoaudiosink", "audio_playback_sink").unwrap();
 
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
-        decodebin.connect_pad_added(move |_decodebin, src_pad| {
+        self.decodebin.connect_pad_added(move |_decodebin, src_pad| {
             let pipeline = &pipeline_clone;
             let name = src_pad.get_name();
 

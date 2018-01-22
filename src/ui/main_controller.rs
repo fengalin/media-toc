@@ -242,35 +242,20 @@ impl MainController {
     }
 
     pub fn select_streams(&mut self) {
-        let (video, audio, text) = self.streams_ctrl.borrow().get_selected_streams();
-        println!("select_streams {:?}, {:?}, {:?}", video, audio, text);
-
-        {
-            let mut streams: Vec<&str> = Vec::new();
-            if let Some(video) = video.as_ref() {
-                streams.push(video.0.as_str());
-            }
-            if let Some(audio) = audio.as_ref() {
-                streams.push(audio.0.as_str());
-            }
-            if let Some(text) = text.as_ref() {
-                streams.push(text.0.as_str());
-            }
-        }
+        let streams = self.streams_ctrl.borrow().get_selected_streams();
 
         let context = self.context.take()
             .expect("MainController::select_streams failed to get context");
-        {
-            let mut info = context
+        context.select_streams(streams);
+        {   // TODO use messages to detect stream changes
+            let info = context
                 .info
                 .lock()
                 .expect("MainController::select_streams failed to lock info");
-            info.video_selected = video;
-            info.audio_selected = audio;
-            info.text_selected = text;
-
             self.info_ctrl.borrow().use_streams(&info);
         }
+        // FIXME: else we should return to previous selection in the streams
+
         self.context = Some(context);
     }
 
@@ -349,15 +334,8 @@ impl MainController {
                         {
                             let mut streams_ctrl = this.streams_ctrl.borrow_mut();
                             streams_ctrl.new_media(&context);
-                            let (video, audio, text) = streams_ctrl.get_selected_streams();
-
-                            let mut info = context
-                                .info
-                                .lock()
-                                .expect("MainController::listener(InitDone) failed to lock info");
-                            info.video_selected = video;
-                            info.audio_selected = audio;
-                            info.text_selected = text;
+                            let streams = streams_ctrl.get_selected_streams();
+                            context.select_streams(streams);
                         }
 
                         this.requires_async_dialog = context
