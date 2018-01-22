@@ -331,13 +331,6 @@ impl MainController {
                             .take()
                             .expect("MainController: InitDone but no context available");
 
-                        {
-                            let mut streams_ctrl = this.streams_ctrl.borrow_mut();
-                            streams_ctrl.new_media(&context);
-                            let streams = streams_ctrl.get_selected_streams();
-                            context.select_streams(streams);
-                        }
-
                         this.requires_async_dialog = context
                             .info
                             .lock()
@@ -347,7 +340,7 @@ impl MainController {
 
                         this.header_bar
                             .set_subtitle(Some(context.file_name.as_str()));
-
+                        this.streams_ctrl.borrow_mut().new_media(&context);
                         this.info_ctrl.borrow_mut().new_media(&context);
                         this.video_ctrl.new_media(&context);
                         this.audio_ctrl.borrow_mut().new_media(&context);

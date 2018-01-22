@@ -10,6 +10,8 @@ use std::cell::RefCell;
 
 use media::PlaybackContext;
 
+use metadata::MediaInfo;
+
 use super::MainController;
 
 const ALIGN_LEFT: f32 = 0f32;
@@ -271,55 +273,22 @@ impl StreamsController {
             &[&stream_id, &stream_id_display],
         );
 
-        let codec = match tags.as_ref() {
-            Some(tags) => {
-                let language = match tags.get_index::<gst::tags::LanguageName>(0).as_ref() {
+        if let Some(tags) = tags.as_ref() {
+            let language = match tags.get_index::<gst::tags::LanguageName>(0).as_ref() {
+                Some(language) => language.get().unwrap(),
+                None => match tags.get_index::<gst::tags::LanguageCode>(0).as_ref() {
                     Some(language) => language.get().unwrap(),
-                    None => match tags.get_index::<gst::tags::LanguageCode>(0).as_ref() {
-                        Some(language) => language.get().unwrap(),
-                        None => "-",
-                    }
-                };
-                store.set_value(&iter, LANGUAGE_COL, &gtk::Value::from(language));
-
-                if let Some(comment) = tags.get_index::<gst::tags::Comment>(0).as_ref() {
-                    store.set_value(&iter, COMMENT_COL, &gtk::Value::from(comment.get().unwrap()));
+                    None => "-",
                 }
+            };
+            store.set_value(&iter, LANGUAGE_COL, &gtk::Value::from(language));
 
-                match tags.get_index::<gst::tags::VideoCodec>(0).as_ref() {
-                    Some(codec) => codec.get(),
-                    None => match tags.get_index::<gst::tags::AudioCodec>(0).as_ref() {
-                        Some(codec) => codec.get(),
-                        None => match tags.get_index::<gst::tags::SubtitleCodec>(0).as_ref() {
-                            Some(codec) => codec.get(),
-                            None => match tags.get_index::<gst::tags::Codec>(0).as_ref() {
-                                Some(codec) => codec.get(),
-                                None => None,
-                            }
-                        }
-                    }
-                }
+            if let Some(comment) = tags.get_index::<gst::tags::Comment>(0).as_ref() {
+                store.set_value(&iter, COMMENT_COL, &gtk::Value::from(comment.get().unwrap()));
             }
-            None => None,
-        };
+        }
 
-        let codec = match codec {
-            Some(codec) => codec,
-            None => {
-                // codec in caps in the form "streamtype/x-codec"
-                let codec = caps.get_structure(0).unwrap().get_name();
-                let id_parts: Vec<&str> = codec.split('/').collect();
-                if id_parts.len() == 2 {
-                    if id_parts[1].starts_with("x-") {
-                        &id_parts[1][2..]
-                    } else {
-                        id_parts[1]
-                    }
-                } else {
-                    codec
-                }
-            },
-        };
+        let codec = MediaInfo::get_display_codec(caps, tags);
         store.set_value(&iter, CODEC_COL, &gtk::Value::from(&codec));
 
         iter

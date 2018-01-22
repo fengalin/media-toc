@@ -246,16 +246,7 @@ impl PlaybackContext {
 
         let streams_str: Vec<&str> = stream_ids.iter().map(|s| s.as_ref()).collect();
         let select_streams_evt = gst::Event::new_select_streams(&streams_str).build();
-        let was_handled = self.decodebin.send_event(select_streams_evt);
-        if was_handled {
-            println!("cleaning up");
-            self.dbl_audio_buffer_mtx
-                .lock()
-                .expect(
-                    "PlaybackContext::select_streams couldn't lock dbl_audio_buffer_mtx"
-                )
-                .cleanup();
-        }
+        self.decodebin.send_event(select_streams_evt);
     }
 
     fn setup_queue(queue: &gst::Element) {
@@ -569,13 +560,25 @@ impl PlaybackContext {
                             let tags = stream.get_tags();
                             match stream.get_stream_type() {
                                 gst::StreamType::AUDIO => {
-                                    info.audio_streams.push((stream_id.clone(), caps, tags));
+                                    info.audio_selected.get_or_insert((
+                                        stream_id.clone(),
+                                        MediaInfo::get_display_codec(&caps, &tags).to_string(),
+                                    ));
+                                    info.audio_streams.push((stream_id, caps, tags));
                                 }
                                 gst::StreamType::VIDEO => {
-                                    info.video_streams.push((stream_id.clone(), caps, tags));
+                                    info.video_selected.get_or_insert((
+                                        stream_id.clone(),
+                                        MediaInfo::get_display_codec(&caps, &tags).to_string(),
+                                    ));
+                                    info.video_streams.push((stream_id, caps, tags));
                                 }
                                 gst::StreamType::TEXT => {
-                                    info.text_streams.push((stream_id.clone(), caps, tags));
+                                    info.text_selected.get_or_insert((
+                                        stream_id.clone(),
+                                        MediaInfo::get_display_codec(&caps, &tags).to_string(),
+                                    ));
+                                    info.text_streams.push((stream_id, caps, tags));
                                 }
                                 _ => panic!("PlaybackContext: can't handle {:?} stream",
                                     stream.get_stream_type(),

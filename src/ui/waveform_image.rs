@@ -127,6 +127,9 @@ impl WaveformImage {
     }
 
     pub fn cleanup(&mut self) {
+        #[cfg(any(test, feature = "trace-waveform-rendering"))]
+        println!("WaveformImage{}::cleanup", self.id);
+
         // clear for reuse
         self.is_ready = false;
         self.shareable_state_changed = false;

@@ -71,6 +71,9 @@ impl AudioBuffer {
     }
 
     pub fn cleanup(&mut self) {
+        #[cfg(any(test, feature = "trace-audio-buffer"))]
+        println!("AudioBuffer: cleaning up");
+
         self.capacity = 0;
         self.rate = 0;
         self.sample_duration = 0;
@@ -96,6 +99,8 @@ impl AudioBuffer {
         let start = Utc::now();
 
         if self.sample_duration == 0 {
+            #[cfg(any(test, feature = "trace-audio-buffer"))]
+            println!("AudioBuffer::push_gst_sample sample_duration is null");
             return 0;
         }
 
