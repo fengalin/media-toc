@@ -222,8 +222,6 @@ impl PlaybackContext {
         &self,
         streams: (Option<(String, String)>, Option<(String, String)>, Option<(String, String)>),
     ) {
-        let mut  was_handled = false;
-
         let mut stream_ids: Vec<String> = Vec::new();
         if let Some(video) = streams.0.as_ref() {
             stream_ids.push(video.0.clone());
@@ -571,13 +569,13 @@ impl PlaybackContext {
                             let tags = stream.get_tags();
                             match stream.get_stream_type() {
                                 gst::StreamType::AUDIO => {
-                                    info.audio_streams.insert(stream_id.clone(), (caps, tags));
+                                    info.audio_streams.push((stream_id.clone(), caps, tags));
                                 }
                                 gst::StreamType::VIDEO => {
-                                    info.video_streams.insert(stream_id.clone(), (caps, tags));
+                                    info.video_streams.push((stream_id.clone(), caps, tags));
                                 }
                                 gst::StreamType::TEXT => {
-                                    info.text_streams.insert(stream_id.clone(), (caps, tags));
+                                    info.text_streams.push((stream_id.clone(), caps, tags));
                                 }
                                 _ => panic!("PlaybackContext: can't handle {:?} stream",
                                     stream.get_stream_type(),

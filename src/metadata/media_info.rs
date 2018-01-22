@@ -1,7 +1,5 @@
 extern crate gstreamer as gst;
 
-use std::collections::HashMap;
-
 use metadata::Chapter;
 
 pub struct MediaInfo {
@@ -11,13 +9,13 @@ pub struct MediaInfo {
     pub duration: u64,
     pub chapters: Vec<Chapter>,
 
-    pub audio_streams: HashMap<String, (gst::Caps, Option<gst::TagList>)>,
+    pub audio_streams: Vec<(String, gst::Caps, Option<gst::TagList>)>,
     pub audio_selected: Option<(String, String)>, // (stream_id, codec for display)
 
-    pub video_streams: HashMap<String, (gst::Caps, Option<gst::TagList>)>,
+    pub video_streams: Vec<(String, gst::Caps, Option<gst::TagList>)>,
     pub video_selected: Option<(String, String)>, // (stream_id, codec for display)
 
-    pub text_streams: HashMap<String, (gst::Caps, Option<gst::TagList>)>,
+    pub text_streams: Vec<(String, gst::Caps, Option<gst::TagList>)>,
     pub text_selected: Option<(String, String)>, // (stream_id, codec for display)
 }
 
@@ -30,13 +28,13 @@ impl MediaInfo {
             duration: 0,
             chapters: Vec::new(),
 
-            audio_streams: HashMap::new(),
+            audio_streams: Vec::new(),
             audio_selected: None,
 
-            video_streams: HashMap::new(),
+            video_streams: Vec::new(),
             video_selected: None,
 
-            text_streams: HashMap::new(),
+            text_streams: Vec::new(),
             text_selected: None,
         }
     }

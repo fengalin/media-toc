@@ -188,7 +188,7 @@ impl StreamsController {
             .expect("StreamsController::new_media: failed to lock media info");
 
         // Video streams
-        for (stream_id, &(ref caps, ref tags)) in &info.video_streams {
+        for &(ref stream_id, ref caps, ref tags) in &info.video_streams {
             let iter = self.add_stream(&self.video_store, &stream_id, caps, tags);
             let caps_structure = caps.get_structure(0).unwrap();
             if let Some(width) = caps_structure.get::<i32>("width") {
@@ -208,7 +208,7 @@ impl StreamsController {
         };
 
         // Audio streams
-        for (stream_id, &(ref caps, ref tags)) in &info.audio_streams {
+        for &(ref stream_id, ref caps, ref tags) in &info.audio_streams {
             let iter = self.add_stream(&self.audio_store, &stream_id, caps, tags);
             let caps_structure = caps.get_structure(0).unwrap();
             if let Some(rate) = caps_structure.get::<i32>("rate") {
@@ -228,7 +228,7 @@ impl StreamsController {
         };
 
         // Text streams
-        for (stream_id, &(ref caps, ref tags)) in &info.text_streams {
+        for &(ref stream_id, ref caps, ref tags) in &info.text_streams {
             let iter = self.add_stream(&self.text_store, &stream_id, caps, tags);
             let caps_structure = caps.get_structure(0).unwrap();
             if let Some(format) = caps_structure.get::<&str>("format") {
