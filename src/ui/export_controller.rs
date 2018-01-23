@@ -161,6 +161,7 @@ impl ExportController {
                     .info
                     .lock()
                     .expect("ExportController::export_btn clicked, failed to lock media info")
+                    .streams
                     .video_selected
                     .is_none()
             };

@@ -224,6 +224,7 @@ impl AudioController {
             .info
             .lock()
             .expect("Failed to lock media info while initializing audio controller")
+            .streams
             .audio_selected
             .is_some();
 

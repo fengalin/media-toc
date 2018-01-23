@@ -23,14 +23,14 @@ use super::{AudioController, ExportController, InfoController, StreamsController
 #[derive(Clone, Debug, PartialEq)]
 pub enum ControllerState {
     EOS,
-    Ready,
     Paused,
     PendingExportToc,
     PendingSelectMedia,
     Playing,
     PlayingRange(u64),
-    Stopped,
+    Ready,
     Seeking(bool, bool), // (must_switch_to_play, must_keep_paused)
+    Stopped,
 }
 
 const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
@@ -241,22 +241,10 @@ impl MainController {
         self.info_ctrl.borrow_mut().tick(position, false);
     }
 
-    pub fn select_streams(&mut self) {
-        let streams = self.streams_ctrl.borrow().get_selected_streams();
-
-        let context = self.context.take()
-            .expect("MainController::select_streams failed to get context");
-        context.select_streams(streams);
-        {   // TODO use messages to detect stream changes
-            let info = context
-                .info
-                .lock()
-                .expect("MainController::select_streams failed to lock info");
-            self.info_ctrl.borrow().use_streams(&info);
-        }
-        // FIXME: else we should return to previous selection in the streams
-
-        self.context = Some(context);
+    pub fn select_streams(&self, stream_ids: &Vec<String>) {
+        self.context.as_ref()
+            .expect("MainController::select_streams no context")
+            .select_streams(stream_ids);
     }
 
     fn hold(&mut self) {
@@ -329,12 +317,13 @@ impl MainController {
                         let mut this = this_rc.borrow_mut();
                         let mut context = this.context
                             .take()
-                            .expect("MainController: InitDone but no context available");
+                            .expect("MainController(InitDone) no context available");
 
                         this.requires_async_dialog = context
                             .info
                             .lock()
-                            .expect("MainController::listener(InitDone) failed to lock info")
+                            .expect("MainController(InitDone) failed to lock info")
+                            .streams
                             .video_selected
                             .is_some();
 
@@ -349,6 +338,21 @@ impl MainController {
                         this.set_context(context);
 
                         this.state = ControllerState::Ready;
+                    }
+                    StreamsSelected => {
+                        let mut this = this_rc.borrow_mut();
+                        let mut context = this.context
+                            .take()
+                            .expect("MainController(StreamsSelected) no context available");
+                        {
+                            let info = context
+                                .info
+                                .lock()
+                                .expect("MainController(StreamsSelected) failed to lock info");
+
+                            this.info_ctrl.borrow().streams_changed(&info);
+                        }
+                        this.set_context(context);
                     }
                     Eos => {
                         let mut this = this_rc.borrow_mut();
@@ -462,6 +466,7 @@ impl MainController {
 
         let (ctx_tx, ui_rx) = channel();
 
+        self.state = ControllerState::Stopped;
         self.keep_going = true;
         self.register_listener(LISTENER_PERIOD, ui_rx);
 

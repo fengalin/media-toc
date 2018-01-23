@@ -25,4 +25,5 @@ pub enum ContextMessage {
     FailedToOpenMedia,
     FailedToExport,
     InitDone,
+    StreamsSelected,
 }

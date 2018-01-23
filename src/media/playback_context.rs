@@ -44,8 +44,8 @@ lazy_static! {
 #[derive(Clone, Debug, PartialEq)]
 pub enum PipelineState {
     None,
-    StreamStarting,
     Initialized,
+    StreamsStarted,
 }
 
 pub struct PlaybackContext {
@@ -218,35 +218,17 @@ impl PlaybackContext {
         }
     }
 
-    pub fn select_streams(
-        &self,
-        streams: (Option<(String, String)>, Option<(String, String)>, Option<(String, String)>),
-    ) {
-        let mut stream_ids: Vec<String> = Vec::new();
-        if let Some(video) = streams.0.as_ref() {
-            stream_ids.push(video.0.clone());
-        }
-        if let Some(audio) = streams.1.as_ref() {
-            stream_ids.push(audio.0.clone());
-        }
-        if let Some(text) = streams.2.as_ref() {
-            stream_ids.push(text.0.clone());
-        }
+    pub fn select_streams(&self, stream_ids: &Vec<String>) {
+        let stream_ids: Vec<&str> = stream_ids.iter().map(|id| id.as_str()).collect();
+        let select_streams_evt = gst::Event::new_select_streams(&stream_ids).build();
+        self.decodebin.send_event(select_streams_evt);
 
         {
-            // TODO: do this by listening on the message bus and send new stream to main_ctrl
             let mut info = self.info
                 .lock()
-                .expect("PlaybackContext::select_streams failed to lock info");
-
-            info.video_selected = streams.0;
-            info.audio_selected = streams.1;
-            info.text_selected = streams.2;
+                .expect("MainController::select_streams failed to lock info");
+            info.streams.select_streams(&stream_ids);
         }
-
-        let streams_str: Vec<&str> = stream_ids.iter().map(|s| s.as_ref()).collect();
-        let select_streams_evt = gst::Event::new_select_streams(&streams_str).build();
-        self.decodebin.send_event(select_streams_evt);
     }
 
     fn setup_queue(queue: &gst::Element) {
@@ -512,7 +494,7 @@ impl PlaybackContext {
                     return glib::Continue(false);
                 }
                 gst::MessageView::AsyncDone(_) => {
-                    if pipeline_state == PipelineState::StreamStarting {
+                    if pipeline_state == PipelineState::StreamsStarted {
                         pipeline_state = PipelineState::Initialized;
                         ctx_tx
                             .send(ContextMessage::InitDone)
@@ -524,7 +506,7 @@ impl PlaybackContext {
                     }
                 }
                 gst::MessageView::Tag(msg_tag) => {
-                    if pipeline_state == PipelineState::StreamStarting {
+                    if pipeline_state == PipelineState::StreamsStarted {
                         let info = &mut info_arc_mtx
                             .lock()
                             .expect("Failed to lock media info while reading toc data");
@@ -533,7 +515,7 @@ impl PlaybackContext {
                     }
                 }
                 gst::MessageView::Toc(msg_toc) => {
-                    if pipeline_state == PipelineState::StreamStarting {
+                    if pipeline_state == PipelineState::StreamsStarted {
                         // FIXME: use updated
                         let (toc, _updated) = msg_toc.get_toc();
                         if toc.get_scope() == TocScope::Global {
@@ -545,47 +527,22 @@ impl PlaybackContext {
                 }
                 gst::MessageView::StreamStart(_) => {
                     if pipeline_state == PipelineState::None {
-                        pipeline_state = PipelineState::StreamStarting;
+                        pipeline_state = PipelineState::StreamsStarted;
+                    }
+                }
+                gst::MessageView::StreamsSelected(_) => {
+                    if pipeline_state == PipelineState::Initialized {
+                        ctx_tx
+                            .send(ContextMessage::StreamsSelected)
+                            .expect("Failed to notify UI");
                     }
                 }
                 gst::MessageView::StreamCollection(msg_stream_collection) => {
                     let stream_collection = msg_stream_collection.get_stream_collection();
-                    {
-                        let info = &mut info_arc_mtx
-                            .lock()
-                            .expect("Failed to lock media info while initializing audio stream");
-                        for stream in stream_collection.iter() {
-                            let stream_id = stream.get_stream_id().unwrap();
-                            let caps = stream.get_caps().unwrap();
-                            let tags = stream.get_tags();
-                            match stream.get_stream_type() {
-                                gst::StreamType::AUDIO => {
-                                    info.audio_selected.get_or_insert((
-                                        stream_id.clone(),
-                                        MediaInfo::get_display_codec(&caps, &tags).to_string(),
-                                    ));
-                                    info.audio_streams.push((stream_id, caps, tags));
-                                }
-                                gst::StreamType::VIDEO => {
-                                    info.video_selected.get_or_insert((
-                                        stream_id.clone(),
-                                        MediaInfo::get_display_codec(&caps, &tags).to_string(),
-                                    ));
-                                    info.video_streams.push((stream_id, caps, tags));
-                                }
-                                gst::StreamType::TEXT => {
-                                    info.text_selected.get_or_insert((
-                                        stream_id.clone(),
-                                        MediaInfo::get_display_codec(&caps, &tags).to_string(),
-                                    ));
-                                    info.text_streams.push((stream_id, caps, tags));
-                                }
-                                _ => panic!("PlaybackContext: can't handle {:?} stream",
-                                    stream.get_stream_type(),
-                                ),
-                            }
-                        }
-                    }
+                    let info = &mut info_arc_mtx
+                        .lock()
+                        .expect("Failed to lock media info while initializing audio stream");
+                    stream_collection.iter().for_each(|stream| info.streams.add_stream(&stream));
                 }
                 _ => (),
             }

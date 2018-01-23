@@ -249,7 +249,7 @@ impl InfoController {
             self.container_lbl
                 .set_label(info.get_container().unwrap_or(&EMPTY_REPLACEMENT));
 
-            self.use_streams(&info);
+            self.streams_changed(&info);
 
             match toc_candidates.next() {
                 Some((toc_path, format)) => {
@@ -290,7 +290,7 @@ impl InfoController {
         }
     }
 
-    pub fn use_streams(&self, info: &MediaInfo) {
+    pub fn streams_changed(&self, info: &MediaInfo) {
         self.audio_codec_lbl
             .set_label(info.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));
         self.video_codec_lbl
