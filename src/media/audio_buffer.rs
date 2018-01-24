@@ -72,7 +72,7 @@ impl AudioBuffer {
 
     pub fn cleanup(&mut self) {
         #[cfg(any(test, feature = "trace-audio-buffer"))]
-        println!("AudioBuffer: cleaning up");
+        println!("\nAudioBuffer cleaning up");
 
         self.capacity = 0;
         self.rate = 0;
@@ -91,7 +91,6 @@ impl AudioBuffer {
     // Add samples from the GStreamer pipeline to the AudioBuffer
     // This buffer stores the complete set of samples in a time frame
     // in order to be able to represent the audio at any given precision.
-    // Samples are stores as f64 suitable for on screen rendering.
     // Incoming samples are merged to the existing buffer when possible
     // Returns: number of samples received
     pub fn push_gst_sample(&mut self, sample: &gst::Sample, lower_to_keep: usize) -> usize {
@@ -121,10 +120,6 @@ impl AudioBuffer {
         let buffer_sample_len = incoming_samples.len() / self.channels;
         let buffer_pts = buffer.get_pts().unwrap();
 
-        // TODO: it seems that caps might change during playback.
-        // Segment gives access to caps, so it might be a way
-        // to monitor a caps modification
-
         // Identify conditions for this incoming buffer:
         // 1. Incoming buffer fits at the end of current container.
         // 2. Incoming buffer is already contained within stored samples.
@@ -141,6 +136,10 @@ impl AudioBuffer {
         let (lower_changed, incoming_lower, lower_to_add_rel, upper_to_add_rel) =
             if !self.samples.is_empty() {
                 // not initializing
+                // Unfortunately, we can't rely on buffer_pts to figure out
+                // the exact position in the segment. Some streams use a pts
+                // value which is a rounded value and correct the shift every
+                // n samples. That's the reason for the following heuristic:
                 let incoming_lower = if segment_lower == self.segment_lower {
                     // receiving next buffer in the same segment
                     if buffer_pts > self.last_buffer_pts {
@@ -260,8 +259,9 @@ impl AudioBuffer {
                 }
             } else {
                 // 6. initializing
-                #[cfg(test)]
-                println!("AudioBuffer init");
+                #[cfg(any(test, feature = "trace-audio-buffer"))]
+                println!("AudioBuffer init [{}, {}]",
+                    segment_lower, segment_lower + buffer_sample_len);
                 self.segment_lower = segment_lower;
                 self.lower = segment_lower;
                 self.upper = segment_lower + buffer_sample_len;
