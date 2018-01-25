@@ -233,6 +233,29 @@ impl WaveformBuffer {
         }
     }
 
+    fn refresh_position(&mut self) {
+        let (position, mut sample) = self.query_current_sample();
+        if self.previous_sample != sample {
+            if self.image.contains_eos && sample >= self.image.upper {
+                sample = self.image.upper - 1;
+            }
+            match self.sought_sample.take() {
+                None => {
+                    self.previous_sample = self.current_sample;
+                }
+                Some(_) => {
+                    // stream has sync after a seek
+                    // reset previous_sample because of the discontinuity
+                    self.previous_sample = sample;
+                }
+            }
+
+            self.current_sample = sample;
+            self.cursor_sample = sample;
+            self.cursor_position = position;
+        }
+    }
+
     // Update to current position and compute the first sample to display.
     fn update_first_visible_sample(&mut self) {
         self.first_visible_sample = if self.image.is_ready() {
@@ -904,29 +927,6 @@ impl SampleExtractor for WaveformBuffer {
         } // else: other has nothing new
 
         self.image.update_from_other(&mut other.image);
-    }
-
-    fn refresh_position(&mut self) {
-        let (position, mut sample) = self.query_current_sample();
-        if self.previous_sample != sample {
-            if self.image.contains_eos && sample >= self.image.upper {
-                sample = self.image.upper - 1;
-            }
-            match self.sought_sample.take() {
-                None => {
-                    self.previous_sample = self.current_sample;
-                }
-                Some(_) => {
-                    // stream has sync after a seek
-                    // reset previous_sample because of the discontinuity
-                    self.previous_sample = sample;
-                }
-            }
-
-            self.current_sample = sample;
-            self.cursor_sample = sample;
-            self.cursor_position = position;
-        }
     }
 
     // This is the entry point for the update of the waveform.

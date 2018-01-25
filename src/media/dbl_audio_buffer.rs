@@ -103,7 +103,6 @@ impl DoubleAudioBuffer {
             );
             exposed_buffer.set_sample_duration(sample_duration, duration_for_1000_samples);
             exposed_buffer.set_channels(&channels);
-            exposed_buffer.refresh_position();
         }
 
         {
@@ -112,7 +111,6 @@ impl DoubleAudioBuffer {
                 .expect("DoubleAudioBuffer: couldn't get working_buffer while setting audio sink");
             working_buffer.set_sample_duration(sample_duration, duration_for_1000_samples);
             working_buffer.set_channels(&channels);
-            working_buffer.refresh_position();
         }
     }
 

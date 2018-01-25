@@ -78,9 +78,6 @@ pub trait SampleExtractor: Send {
         (position, (position / state.sample_duration) as usize)
     }
 
-    // Refresh position in stream
-    fn refresh_position(&mut self);
-
     // Update the extractions taking account new
     // samples added to the buffer and possibly a
     // different position
