@@ -112,6 +112,9 @@ impl WaveformBuffer {
     }
 
     fn reset(&mut self) {
+        #[cfg(feature = "trace-waveform-buffer")]
+        println!("WaveformBuffer{}::reset", self.image.id);
+
         self.conditions_changed = false;
 
         self.image.cleanup();
@@ -135,29 +138,6 @@ impl WaveformBuffer {
         self.quarter_req_sample_window = 0;
 
         self.is_confortable = false;
-    }
-
-    fn refresh_position(&mut self) {
-        let (position, mut sample) = self.query_current_sample();
-        if self.previous_sample != sample {
-            if self.image.contains_eos && sample >= self.image.upper {
-                sample = self.image.upper - 1;
-            }
-            match self.sought_sample.take() {
-                None => {
-                    self.previous_sample = self.current_sample;
-                }
-                Some(_) => {
-                    // stream has sync after a seek
-                    // reset previous_sample because of the discontinuity
-                    self.previous_sample = sample;
-                }
-            }
-
-            self.current_sample = sample;
-            self.cursor_sample = sample;
-            self.cursor_position = position;
-        }
     }
 
     pub fn seek(&mut self, position: u64, is_playing: bool) {
@@ -771,7 +751,7 @@ impl WaveformBuffer {
                         println!(
                             concat!(
                                 "WaveformBuffer{}::get_sample_range cursor ",
-                                "{} in first half, range [{}, {}]",
+                                "{} in first half or before range [{}, {}]",
                             ),
                             self.image.id,
                             self.cursor_sample,
@@ -779,6 +759,7 @@ impl WaveformBuffer {
                             upper,
                         );
 
+                        // use defaults
                         None
                     }
                 }
@@ -837,6 +818,9 @@ impl SampleExtractor for WaveformBuffer {
 
     fn cleanup(&mut self) {
         // clear for reuse
+        #[cfg(feature = "trace-waveform-buffer")]
+        println!("WaveformBuffer{}::cleanup", self.image.id);
+
         self.state.cleanup();
         self.reset();
     }
@@ -920,6 +904,29 @@ impl SampleExtractor for WaveformBuffer {
         } // else: other has nothing new
 
         self.image.update_from_other(&mut other.image);
+    }
+
+    fn refresh_position(&mut self) {
+        let (position, mut sample) = self.query_current_sample();
+        if self.previous_sample != sample {
+            if self.image.contains_eos && sample >= self.image.upper {
+                sample = self.image.upper - 1;
+            }
+            match self.sought_sample.take() {
+                None => {
+                    self.previous_sample = self.current_sample;
+                }
+                Some(_) => {
+                    // stream has sync after a seek
+                    // reset previous_sample because of the discontinuity
+                    self.previous_sample = sample;
+                }
+            }
+
+            self.current_sample = sample;
+            self.cursor_sample = sample;
+            self.cursor_position = position;
+        }
     }
 
     // This is the entry point for the update of the waveform.

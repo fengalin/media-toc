@@ -241,7 +241,7 @@ impl MainController {
         self.info_ctrl.borrow_mut().tick(position, false);
     }
 
-    pub fn select_streams(&self, stream_ids: &Vec<String>) {
+    pub fn select_streams(&mut self, stream_ids: &Vec<String>) {
         self.context.as_ref()
             .expect("MainController::select_streams no context")
             .select_streams(stream_ids);

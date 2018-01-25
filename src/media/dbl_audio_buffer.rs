@@ -103,6 +103,7 @@ impl DoubleAudioBuffer {
             );
             exposed_buffer.set_sample_duration(sample_duration, duration_for_1000_samples);
             exposed_buffer.set_channels(&channels);
+            exposed_buffer.refresh_position();
         }
 
         {
@@ -111,6 +112,7 @@ impl DoubleAudioBuffer {
                 .expect("DoubleAudioBuffer: couldn't get working_buffer while setting audio sink");
             working_buffer.set_sample_duration(sample_duration, duration_for_1000_samples);
             working_buffer.set_channels(&channels);
+            working_buffer.refresh_position();
         }
     }
 
@@ -165,6 +167,10 @@ impl DoubleAudioBuffer {
             // in the extractors' range
             self.extract_samples();
         }
+    }
+
+    pub fn set_new_segment(&mut self) {
+        self.audio_buffer.set_new_segment();
     }
 
     pub fn push_gst_sample(&mut self, sample: &gst::Sample) {

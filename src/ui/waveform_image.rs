@@ -1093,7 +1093,7 @@ mod tests {
         audio_buffer: &mut AudioBuffer,
         incoming_samples: &[i16],
         lower: usize,
-        segement_lower: usize,
+        is_new_segement: bool,
         sample_window: usize,
         can_scroll: bool,
     ) {
@@ -1102,7 +1102,7 @@ mod tests {
         let incoming_lower = lower;
         let incoming_upper = lower + incoming_samples.len() / audio_buffer.channels;
 
-        audio_buffer.push_samples(incoming_samples, lower, segement_lower);
+        audio_buffer.push_samples(incoming_samples, lower, is_new_segement);
 
         let (lower_to_extract, upper_to_extract) = if can_scroll {
             // scrolling is allowed
@@ -1175,7 +1175,7 @@ mod tests {
             &mut audio_buffer,
             &build_buffer(100, 200),
             100,
-            100,
+            true,
             samples_window,
             true,
         );
@@ -1185,7 +1185,7 @@ mod tests {
             &mut audio_buffer,
             &build_buffer(50, 250),
             50,
-            50,
+            true,
             samples_window,
             true,
         );
@@ -1195,7 +1195,7 @@ mod tests {
             &mut audio_buffer,
             &build_buffer(0, 100),
             0,
-            0,
+            true,
             samples_window,
             true,
         );
@@ -1205,7 +1205,7 @@ mod tests {
             &mut audio_buffer,
             &build_buffer(150, 340),
             150,
-            150,
+            true,
             samples_window,
             true,
         );
@@ -1215,7 +1215,7 @@ mod tests {
             &mut audio_buffer,
             &build_buffer(0, 200),
             250,
-            250,
+            true,
             samples_window,
             true,
         );
@@ -1232,7 +1232,7 @@ mod tests {
             &mut audio_buffer,
             &build_buffer(100, 200),
             100,
-            100,
+            true,
             samples_window,
             true,
         );
@@ -1243,7 +1243,7 @@ mod tests {
             &mut audio_buffer,
             &build_buffer(25, 125),
             0,
-            0,
+            true,
             samples_window,
             true,
         );
@@ -1254,7 +1254,7 @@ mod tests {
             &mut audio_buffer,
             &build_buffer(175, 275),
             200,
-            200,
+            true,
             samples_window,
             true,
         );
@@ -1271,7 +1271,7 @@ mod tests {
             &mut audio_buffer,
             &build_buffer(0, 100),
             100,
-            100,
+            true,
             samples_window,
             true,
         );
@@ -1282,7 +1282,7 @@ mod tests {
             &mut audio_buffer,
             &build_buffer(0, 100),
             500,
-            500,
+            true,
             samples_window,
             true,
         );
@@ -1293,7 +1293,7 @@ mod tests {
             &mut audio_buffer,
             &build_buffer(100, 200),
             600,
-            600,
+            true,
             samples_window,
             true,
         );
@@ -1304,7 +1304,7 @@ mod tests {
             &mut audio_buffer,
             &build_buffer(200, 300),
             700,
-            700,
+            true,
             samples_window,
             true,
         );
@@ -1321,7 +1321,7 @@ mod tests {
             &mut audio_buffer,
             &build_buffer(0, 200),
             250,
-            250,
+            true,
             samples_window,
             true,
         );
@@ -1332,7 +1332,7 @@ mod tests {
             &mut audio_buffer,
             &build_buffer(0, 300),
             0,
-            0,
+            true,
             samples_window,
             true,
         );
@@ -1343,7 +1343,7 @@ mod tests {
             &mut audio_buffer,
             &build_buffer(0, 100),
             400,
-            400,
+            true,
             samples_window,
             true,
         );

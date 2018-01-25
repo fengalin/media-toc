@@ -46,6 +46,7 @@ pub enum PipelineState {
     None,
     Initialized,
     StreamsStarted,
+    StreamsSelected,
 }
 
 pub struct PlaybackContext {
@@ -282,7 +283,7 @@ impl PlaybackContext {
         let decodebin_as_bin = self.decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
         let decodebin_multiqueue = &decodebin_as_bin.get_children()[0];
         PlaybackContext::setup_queue(decodebin_multiqueue);
-        // Discard "interleave" as is modifies "max-size-time"
+        // Discard "interleave" as it modifies "max-size-time"
         decodebin_multiqueue
             .set_property("use-interleave", &false)
             .unwrap();
@@ -422,6 +423,7 @@ impl PlaybackContext {
         });
 
         let dbl_audio_buffer_mtx_eos = Arc::clone(&dbl_audio_buffer_mtx);
+        let dbl_audio_buffer_mtx_pre = Arc::clone(&dbl_audio_buffer_mtx);
         appsink.set_callbacks(
             gst_app::AppSinkCallbacks::new()
                 .eos(move |_| {
@@ -429,6 +431,13 @@ impl PlaybackContext {
                         .lock()
                         .expect("appsink: eos: couldn't lock dbl_audio_buffer")
                         .handle_eos();
+                })
+                .new_preroll(move |_appsink| {
+                    dbl_audio_buffer_mtx_pre
+                        .lock()
+                        .expect("appsink: new_preroll: couldn't lock dbl_audio_buffer")
+                        .set_new_segment();
+                    gst::FlowReturn::Ok
                 })
                 .new_sample(move |appsink| match appsink.pull_sample() {
                     Some(sample) => {
@@ -470,8 +479,8 @@ impl PlaybackContext {
 
     // Uses ctx_tx to notify the UI controllers about the inspection process
     fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
-        let info_arc_mtx = Arc::clone(&self.info);
         let mut pipeline_state = PipelineState::None;
+        let info_arc_mtx = Arc::clone(&self.info);
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
@@ -494,7 +503,7 @@ impl PlaybackContext {
                     return glib::Continue(false);
                 }
                 gst::MessageView::AsyncDone(_) => {
-                    if pipeline_state == PipelineState::StreamsStarted {
+                    if pipeline_state == PipelineState::StreamsSelected {
                         pipeline_state = PipelineState::Initialized;
                         ctx_tx
                             .send(ContextMessage::InitDone)
@@ -506,7 +515,7 @@ impl PlaybackContext {
                     }
                 }
                 gst::MessageView::Tag(msg_tag) => {
-                    if pipeline_state == PipelineState::StreamsStarted {
+                    if pipeline_state != PipelineState::Initialized {
                         let info = &mut info_arc_mtx
                             .lock()
                             .expect("Failed to lock media info while reading toc data");
@@ -515,7 +524,7 @@ impl PlaybackContext {
                     }
                 }
                 gst::MessageView::Toc(msg_toc) => {
-                    if pipeline_state == PipelineState::StreamsStarted {
+                    if pipeline_state != PipelineState::Initialized {
                         // FIXME: use updated
                         let (toc, _updated) = msg_toc.get_toc();
                         if toc.get_scope() == TocScope::Global {
@@ -535,6 +544,8 @@ impl PlaybackContext {
                         ctx_tx
                             .send(ContextMessage::StreamsSelected)
                             .expect("Failed to notify UI");
+                    } else {
+                        pipeline_state = PipelineState::StreamsSelected;
                     }
                 }
                 gst::MessageView::StreamCollection(msg_stream_collection) => {

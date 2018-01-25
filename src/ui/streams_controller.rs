@@ -259,7 +259,7 @@ impl StreamsController {
             let main_ctrl_rc = main_ctrl_weak
                 .upgrade()
                 .expect("StreamsController::stream_changed can't upgrade main_ctrl");
-            main_ctrl_rc.borrow().select_streams(&streams);
+            main_ctrl_rc.borrow_mut().select_streams(&streams);
             glib::Continue(false)
         });
     }

@@ -26,8 +26,8 @@ pub struct AudioBuffer {
 
     pub eos: bool,
 
+    is_new_segment: bool,
     pub segment_lower: usize,
-    last_buffer_pts: u64,
     last_buffer_upper: usize,
     pub lower: usize,
     pub upper: usize,
@@ -46,8 +46,8 @@ impl AudioBuffer {
 
             eos: false,
 
+            is_new_segment: true,
             segment_lower: 0,
-            last_buffer_pts: 0,
             last_buffer_upper: 0,
             lower: 0,
             upper: 0,
@@ -59,7 +59,7 @@ impl AudioBuffer {
         // assert_eq!(format, S16);
         // assert_eq!(layout, Interleaved);
 
-        // changing caps => clean everything
+        // changing caps
         self.cleanup();
 
         self.rate = rate;
@@ -80,12 +80,16 @@ impl AudioBuffer {
         self.channels = 0;
         self.drain_size = 0;
         self.eos = false;
-        self.segment_lower = 0;
-        self.last_buffer_pts = 0;
+        self.is_new_segment = true;
         self.last_buffer_upper = 0;
+        self.segment_lower = 0;
         self.lower = 0;
         self.upper = 0;
         self.samples.clear();
+    }
+
+    pub fn set_new_segment(&mut self) {
+        self.is_new_segment = true;
     }
 
     // Add samples from the GStreamer pipeline to the AudioBuffer
@@ -105,7 +109,7 @@ impl AudioBuffer {
 
         let buffer = sample
             .get_buffer()
-            .expect("Couldn't get buffer from audio sample");
+            .expect("AudioBuffer::preroll_gst_sample couldn't get buffer");
 
         let buffer_map = buffer.map_readable();
         let incoming_samples = buffer_map
@@ -113,12 +117,28 @@ impl AudioBuffer {
             .unwrap()
             .as_slice()
             .as_slice_of::<i16>()
-            .expect("Couldn't get audio samples as i16");
-
-        let segment_lower = (sample.get_segment().unwrap().get_start().get_value() as u64
-            / self.sample_duration) as usize;
+            .expect("AudioBuffer::preroll_gst_sample couldn't get audio samples as i16");
         let buffer_sample_len = incoming_samples.len() / self.channels;
-        let buffer_pts = buffer.get_pts().unwrap();
+
+        // Unfortunately, we can't rely on buffer_pts to figure out
+        // the exact position in the segment. Some streams use a pts
+        // value which is a rounded value to e.g ms and correct
+        // the shift every n samples.
+        // After an accurate seek, the buffer pts seems reliable,
+        // however after a inaccurate seek, we get a rounded value.
+        // The strategy here is to consider that each incoming buffer
+        // in the same segment comes after last buffer (we might need
+        // to check buffer drops for this) and in case of a new segment
+        // we'll rely on the inaccurate pts value...
+
+        if self.is_new_segment {
+            self.segment_lower = (buffer.get_pts().unwrap() / self.sample_duration) as usize;
+            self.last_buffer_upper = self.segment_lower;
+            self.is_new_segment = false;
+        }
+
+        let incoming_lower = self.last_buffer_upper;
+        let incoming_upper = incoming_lower + buffer_sample_len;
 
         // Identify conditions for this incoming buffer:
         // 1. Incoming buffer fits at the end of current container.
@@ -136,31 +156,6 @@ impl AudioBuffer {
         let (lower_changed, incoming_lower, lower_to_add_rel, upper_to_add_rel) =
             if !self.samples.is_empty() {
                 // not initializing
-                // Unfortunately, we can't rely on buffer_pts to figure out
-                // the exact position in the segment. Some streams use a pts
-                // value which is a rounded value and correct the shift every
-                // n samples. That's the reason for the following heuristic:
-                let incoming_lower = if segment_lower == self.segment_lower {
-                    // receiving next buffer in the same segment
-                    if buffer_pts > self.last_buffer_pts {
-                        // ... and getting a more recent buffer than previous
-                        // => assuming incoming buffer comes just after previous
-                        self.last_buffer_upper
-                    } else {
-                        // ... but incoming buffer is ealier in the stream
-                        // => probably a seek back to the begining
-                        // of current segment
-                        // (e.g. seeking at the begining of current chapter)
-                        segment_lower
-                    }
-                } else {
-                    // different segment (done seeking)
-                    self.segment_lower = segment_lower;
-                    self.last_buffer_upper = segment_lower;
-                    segment_lower
-                };
-                let incoming_upper = incoming_lower + buffer_sample_len;
-
                 if incoming_lower == self.upper {
                     // 1. append incoming buffer to the end of internal storage
                     #[cfg(test)]
@@ -260,22 +255,18 @@ impl AudioBuffer {
             } else {
                 // 6. initializing
                 #[cfg(any(test, feature = "trace-audio-buffer"))]
-                println!("AudioBuffer init [{}, {}]",
-                    segment_lower, segment_lower + buffer_sample_len);
-                self.segment_lower = segment_lower;
-                self.lower = segment_lower;
-                self.upper = segment_lower + buffer_sample_len;
+                println!("AudioBuffer init [{}, {}]", incoming_lower, incoming_upper);
+                self.lower = incoming_lower;
+                self.upper = incoming_upper;
                 self.eos = false;
                 self.last_buffer_upper = self.upper;
                 (
                     true,              // lower_changed
-                    segment_lower,     // incoming_lower
+                    incoming_lower,    // incoming_lower
                     0,                 // lower_to_add_rel
                     buffer_sample_len, // upper_to_add_rel
                 )
             };
-
-        self.last_buffer_pts = buffer_pts;
 
         #[cfg(feature = "profiling-audio-buffer")]
         let before_drain = Utc::now();
@@ -368,7 +359,7 @@ impl AudioBuffer {
     }
 
     #[cfg(test)]
-    pub fn push_samples(&mut self, samples: &[i16], lower: usize, segment_lower: usize) {
+    pub fn push_samples(&mut self, samples: &[i16], lower: usize, is_new_segment: bool) {
         let mut samples_u8 = Vec::with_capacity(samples.len() * 2 * self.channels);
         let mut buf_u8 = [0; 2];
 
@@ -395,8 +386,12 @@ impl AudioBuffer {
         let mut segment = gst::Segment::new();
         segment.set_format(gst::Format::Time);
         segment.set_start(ClockTime::from_nseconds(
-            self.sample_duration * (segment_lower as u64) + 1,
+            self.sample_duration * (lower as u64) + 1,
         ));
+
+        if is_new_segment {
+            self.set_new_segment();
+        }
 
         let self_lower = self.lower;
 
@@ -517,7 +512,7 @@ mod tests {
         audio_buffer.init(SAMPLE_RATE, 2); //2 channels
 
         println!("\n* samples [100:200] init");
-        audio_buffer.push_samples(&build_buffer(100, 200), 100, 100);
+        audio_buffer.push_samples(&build_buffer(100, 200), 100, true);
         assert_eq!(audio_buffer.lower, 100);
         assert_eq!(audio_buffer.upper, 200);
         assert_eq!(audio_buffer.get(audio_buffer.lower), Some(&[100, -100][..]));
@@ -527,7 +522,7 @@ mod tests {
         );
 
         println!("* samples [50:100]: appending to the begining");
-        audio_buffer.push_samples(&build_buffer(50, 100), 50, 50);
+        audio_buffer.push_samples(&build_buffer(50, 100), 50, true);
         assert_eq!(audio_buffer.lower, 50);
         assert_eq!(audio_buffer.upper, 200);
         assert_eq!(audio_buffer.get(audio_buffer.lower), Some(&[50, -50][..]));
@@ -537,7 +532,7 @@ mod tests {
         );
 
         println!("* samples [0:75]: overlaping on the begining");
-        audio_buffer.push_samples(&build_buffer(0, 75), 0, 0);
+        audio_buffer.push_samples(&build_buffer(0, 75), 0, true);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 200);
         assert_eq!(audio_buffer.get(audio_buffer.lower), Some(&[0, 0][..]));
@@ -547,7 +542,7 @@ mod tests {
         );
 
         println!("* samples [200:300]: appending to the end - different segment");
-        audio_buffer.push_samples(&build_buffer(200, 300), 200, 200);
+        audio_buffer.push_samples(&build_buffer(200, 300), 200, true);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 300);
         assert_eq!(audio_buffer.get(audio_buffer.lower), Some(&[0, 0][..]));
@@ -557,7 +552,7 @@ mod tests {
         );
 
         println!("* samples [250:275]: contained in current - different segment");
-        audio_buffer.push_samples(&build_buffer(250, 275), 250, 250);
+        audio_buffer.push_samples(&build_buffer(250, 275), 250, true);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 300);
         assert_eq!(audio_buffer.get(audio_buffer.lower), Some(&[0, 0][..]));
@@ -567,7 +562,7 @@ mod tests {
         );
 
         println!("* samples [275:400]: overlaping on the end");
-        audio_buffer.push_samples(&build_buffer(275, 400), 275, 250);
+        audio_buffer.push_samples(&build_buffer(275, 400), 275, false);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 400);
         assert_eq!(audio_buffer.get(audio_buffer.lower), Some(&[0, 0][..]));
@@ -577,7 +572,7 @@ mod tests {
         );
 
         println!("* samples [400:450]: appending to the end");
-        audio_buffer.push_samples(&build_buffer(400, 450), 400, 250);
+        audio_buffer.push_samples(&build_buffer(400, 450), 400, false);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 450);
         assert_eq!(audio_buffer.get(audio_buffer.lower), Some(&[0, 0][..]));
@@ -623,7 +618,7 @@ mod tests {
 
         println!("\n* samples [100:200] init");
         // 1. init
-        audio_buffer.push_samples(&build_buffer(100, 200), 100, 100);
+        audio_buffer.push_samples(&build_buffer(100, 200), 100, true);
 
         // buffer ranges: front: [, ], back: [100, 200]
         // check bounds
@@ -631,7 +626,7 @@ mod tests {
         check_iter(&audio_buffer, 196, 200, 3, &vec![196, 199]);
 
         // 2. appending to the beginning
-        audio_buffer.push_samples(&build_buffer(50, 100), 50, 50);
+        audio_buffer.push_samples(&build_buffer(50, 100), 50, true);
 
         // buffer ranges: front: [50, 100], back: [100, 200]
         // check beginning
@@ -641,7 +636,7 @@ mod tests {
         check_iter(&audio_buffer, 90, 110, 5, &vec![90, 95, 100, 105]);
 
         // 3. appending to the beginning
-        audio_buffer.push_samples(&build_buffer(0, 75), 0, 0);
+        audio_buffer.push_samples(&build_buffer(0, 75), 0, true);
 
         // buffer ranges: front: [0, 100], back: [100, 200]
 
@@ -650,7 +645,7 @@ mod tests {
 
         // appending to the end
         // 4
-        audio_buffer.push_samples(&build_buffer(200, 300), 200, 200);
+        audio_buffer.push_samples(&build_buffer(200, 300), 200, true);
 
         // buffer ranges: front: [0, 100], back: [100, 300]
 
@@ -658,7 +653,7 @@ mod tests {
         check_iter(&audio_buffer, 190, 210, 5, &vec![190, 195, 200, 205]);
 
         // 5 append in same segment
-        audio_buffer.push_samples(&build_buffer(300, 400), 300, 200);
+        audio_buffer.push_samples(&build_buffer(300, 400), 300, false);
 
         // buffer ranges: front: [0, 100], back: [100, 400]
         // check end
