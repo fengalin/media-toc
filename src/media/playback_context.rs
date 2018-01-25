@@ -432,12 +432,15 @@ impl PlaybackContext {
                         .expect("appsink: eos: couldn't lock dbl_audio_buffer")
                         .handle_eos();
                 })
-                .new_preroll(move |_appsink| {
-                    dbl_audio_buffer_mtx_pre
-                        .lock()
-                        .expect("appsink: new_preroll: couldn't lock dbl_audio_buffer")
-                        .set_new_segment();
-                    gst::FlowReturn::Ok
+                .new_preroll(move |appsink| match appsink.pull_preroll() {
+                    Some(sample) => {
+                        dbl_audio_buffer_mtx_pre
+                            .lock()
+                            .expect("appsink: new_preroll: couldn't lock dbl_audio_buffer")
+                            .preroll_gst_sample(&sample);
+                        gst::FlowReturn::Ok
+                    }
+                    None => gst::FlowReturn::Eos,
                 })
                 .new_sample(move |appsink| match appsink.pull_sample() {
                     Some(sample) => {

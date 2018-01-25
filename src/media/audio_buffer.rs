@@ -27,6 +27,7 @@ pub struct AudioBuffer {
     pub eos: bool,
 
     is_new_segment: bool,
+    segment_start: Option<i64>,
     pub segment_lower: usize,
     last_buffer_upper: usize,
     pub lower: usize,
@@ -47,6 +48,7 @@ impl AudioBuffer {
             eos: false,
 
             is_new_segment: true,
+            segment_start: None,
             segment_lower: 0,
             last_buffer_upper: 0,
             lower: 0,
@@ -70,9 +72,26 @@ impl AudioBuffer {
         self.drain_size = rate as usize * self.channels; // 1s worth of samples
     }
 
+    // Clean everytihng so that the AudioBuffer
+    // can be reused for a different media
     pub fn cleanup(&mut self) {
         #[cfg(any(test, feature = "trace-audio-buffer"))]
         println!("\nAudioBuffer cleaning up");
+
+        self.reset();
+        self.segment_start = None;
+    }
+
+    // Reset the AudioBuffer keeping continuity
+    // This is required in case of a caps change or stream change
+    // as samples may come in the same segment despite the change.
+    // If the media is paused and then set back to playback, preroll
+    // will be performed in the same segment as before the change.
+    // So we need to keep track of the segment start in order not
+    // to reset current sequence (self.last_buffer_upper).
+    pub fn reset(&mut self) {
+        #[cfg(any(test, feature = "trace-audio-buffer"))]
+        println!("\nAudioBuffer resetting");
 
         self.capacity = 0;
         self.rate = 0;
@@ -81,6 +100,7 @@ impl AudioBuffer {
         self.drain_size = 0;
         self.eos = false;
         self.is_new_segment = true;
+        // don't cleanup self.segment_start in order to maintain continuity
         self.last_buffer_upper = 0;
         self.segment_lower = 0;
         self.lower = 0;
@@ -88,8 +108,20 @@ impl AudioBuffer {
         self.samples.clear();
     }
 
-    pub fn set_new_segment(&mut self) {
-        self.is_new_segment = true;
+    pub fn preroll_gst_sample(&mut self, sample: &gst::Sample) {
+        let segment_start = sample.get_segment().unwrap().get_start().get_value();
+        match self.segment_start {
+            Some(current_segment_start) => {
+                if current_segment_start != segment_start {
+                    self.is_new_segment = true;
+                }
+                // else: same segment => might be an async_done after a pause
+                //       or a seek back to the segment's start
+            }
+            None => self.is_new_segment = true,
+        }
+
+        self.segment_start = Some(segment_start);
     }
 
     // Add samples from the GStreamer pipeline to the AudioBuffer
@@ -332,6 +364,7 @@ impl AudioBuffer {
         if !self.samples.is_empty() {
             self.eos = true;
         }
+        self.segment_start = None;
     }
 
     pub fn iter(&self, lower: usize, upper: usize, sample_step: usize) -> Option<Iter> {
@@ -389,12 +422,6 @@ impl AudioBuffer {
             self.sample_duration * (lower as u64) + 1,
         ));
 
-        if is_new_segment {
-            self.set_new_segment();
-        }
-
-        let self_lower = self.lower;
-
         let caps = gst::Caps::new_simple(
             "audio/x-raw",
             &[
@@ -405,10 +432,12 @@ impl AudioBuffer {
             ],
         );
 
-        self.push_gst_sample(
-            &gst::Sample::new(Some(&buffer), Some(&caps), Some(&segment), None),
-            self_lower, // never drain buffer in this test
-        );
+        let sample = gst::Sample::new(Some(&buffer), Some(&caps), Some(&segment), None);
+        if is_new_segment {
+            self.preroll_gst_sample(&sample);
+        }
+        let self_lower = self.lower;
+        self.push_gst_sample(&sample, self_lower); // never drain buffer in this test
     }
 }
 

@@ -167,8 +167,8 @@ impl DoubleAudioBuffer {
         }
     }
 
-    pub fn set_new_segment(&mut self) {
-        self.audio_buffer.set_new_segment();
+    pub fn preroll_gst_sample(&mut self, sample: &gst::Sample) {
+        self.audio_buffer.preroll_gst_sample(sample);
     }
 
     pub fn push_gst_sample(&mut self, sample: &gst::Sample) {
