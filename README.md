@@ -3,6 +3,9 @@
 file into chapters. It is primarily developed in Rust on Linux, it runs on Windows and should also
 work on macOS.
 
+You might also be interested in [media-toc-player](https://github.com/fengalin/media-toc-player):
+a media player with a table of contents.
+
 **media-toc** is not complete yet, see the [Status section](#status) below.
 Of course, you can contribute to the project if you find it interesting.
 
@@ -26,6 +29,7 @@ while playing.
 - Seek in the media by left clicking on the waveform, on the timeline or in the chapters list.
 - Play from a position until the end of current time frame by right clicking on the waveform
 at the starting position in paused mode.
+- Select the stream to play.
 - Zoom in/out the waveform on the time axis.
 - Add/remove a chapter.
 - Export the table of contents to:
@@ -36,7 +40,7 @@ at the starting position in paused mode.
 	* [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
 	* [Cue Sheet](http://wiki.hydrogenaud.io/index.php?title=Cue_sheet).
 - Split the media file's first audio stream into `flac`, `wave`, `opus`, `vorbis` or `mp3` files:
-one file per chapter. I'll add an UI to allow selecting the stream to split later.
+one file per chapter. I'll add an option to select the streams to split later.
 - Import the table of contents from:
 	* A Matroska container.
 	* [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
