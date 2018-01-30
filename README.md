@@ -144,24 +144,21 @@ need the following packages installed on your OS:
 ### Fedora
 ```
 sudo dnf install gtk3-devel glib2-devel gstreamer1-devel \
-	gstreamer1-plugins-base-devel gstreamer1-plugins-good \
-	gstreamer1-plugins-bad-free gstreamer1-plugins-ugly-free \
+	gstreamer1-plugins-base-devel gstreamer1-plugins-{good,bad-free,ugly-free} \
 	gstreamer1-libav
 ```
 
 ### Debian & Unbuntu
 ```
 sudo apt-get install libgtk-3-dev libgstreamer1.0-dev \
-	libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good \
-	gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
+	libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-{good,bad,ugly} \
 	gstreamer1.0-libav
 ```
 
 ### macOS
 *Needs confirmation*
 ```
-brew install gtk+3 gstreamer gst-plugins-base gst-plugins-good \
-	gst-plugins-bad gst-plugins-ugly gst-libav
+brew install gtk+3 gstreamer gst-plugins-{base,good,bad,ugly} gst-libav
 ```
 
 ### Windows
