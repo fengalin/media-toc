@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Generated with glade 3.20.2 -->
 <interface>
-  <requires lib="gtk+" version="3.10"/>
+  <requires lib="gtk+" version="3.18"/>
   <object class="GtkListStore" id="audio_streams-liststore">
     <columns>
       <!-- column-name stream_id_full -->
@@ -188,7 +188,7 @@
                 <property name="can_focus">False</property>
                 <property name="label" translatable="yes">Remove Chapter</property>
                 <property name="use_underline">True</property>
-                <property name="stock_id">gtk-remove</property>
+                <property name="icon_name">list-remove</property>
               </object>
               <packing>
                 <property name="expand">False</property>
@@ -201,7 +201,7 @@
                 <property name="can_focus">False</property>
                 <property name="label" translatable="yes">Add Chapter</property>
                 <property name="use_underline">True</property>
-                <property name="stock_id">gtk-add</property>
+                <property name="icon_name">list-add</property>
               </object>
               <packing>
                 <property name="expand">False</property>

@@ -1,7 +1,12 @@
 [package]
 name = "media-toc"
 version = "0.2.1"
-authors = ["fengalin <fengalin@free.fr>"]
+authors = ["François Laignel <fengalin@free.fr>"]
+keywords = ["multimedia", "chapter", "table-of-contents", "gtk3", "gstreamer"]
+repository = "https://github.com/fengalin/media-toc"
+readme = "README.md"
+description = "Build a table of contents from a media file or split a media file into chapters"
+license = "MIT"
 
 [dependencies]
 byte-slice-cast = "^0"
@@ -12,7 +17,7 @@ lazy_static = "^0"
 cairo-rs = { git = "https://github.com/gtk-rs/cairo.git" }
 gdk = { git = "https://github.com/gtk-rs/gdk.git" }
 glib = { git = "https://github.com/gtk-rs/glib.git" }
-gtk = { git = "https://github.com/gtk-rs/gtk.git", features = ["v3_10"] }
+gtk = { git = "https://github.com/gtk-rs/gtk.git", features = ["v3_18"] }
 
 gstreamer = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
 gstreamer-audio = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
