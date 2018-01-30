@@ -18,6 +18,7 @@ install:
   - pacman --noconfirm -S mingw-w64-%ARCH%-gtk3 mingw-w64-%ARCH%-gstreamer mingw-w64-%ARCH%-gst-plugins-base
 
 build_script:
+  - cargo build
   - cargo test
   - cargo build --all-features
 
