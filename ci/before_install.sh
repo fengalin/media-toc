@@ -1,3 +1,5 @@
+set -x
+
 if [ $TRAVIS_OS_NAME = linux ]; then
     # Trusty uses pretty old versions => use newer
 
@@ -5,9 +7,6 @@ if [ $TRAVIS_OS_NAME = linux ]; then
     curl -L https://people.freedesktop.org/~slomo/gstreamer.tar.gz | tar xz
     sed -i "s;prefix=/root/gstreamer;prefix=$PWD/gstreamer;g" $PWD/gstreamer/lib/pkgconfig/*.pc
     export PKG_CONFIG_PATH=$PWD/gstreamer/lib/pkgconfig
-    export GST_PLUGIN_SYSTEM_PATH=$PWD/gstreamer/lib/gstreamer-1.0
-    export GST_PLUGIN_SCANNER=$PWD/gstreamer/libexec/gstreamer-1.0/gst-plugin-scanner
-    export PATH=$PATH:$PWD/gstreamer/bin
     export LD_LIBRARY_PATH=$PWD/gstreamer/lib:$LD_LIBRARY_PATH
 
     # GTK3
@@ -17,7 +16,11 @@ if [ $TRAVIS_OS_NAME = linux ]; then
     cd "$WD"
     export PKG_CONFIG_PATH="$HOME/local/lib/pkgconfig":$PKG_CONFIG_PATH
     export LD_LIBRARY_PATH="$HOME/local/lib/":$LD_LIBRARY_PATH
-else
+elif [ $TRAVIS_OS_NAME = osx ]; then
     brew update
-    brew install gtk+3 gstreamer gst-plugins-base
+    brew install gtk+3 gstreamer
+else:
+    echo Unknown OS $TRAVIS_OS_NAME
 fi
+
+set +x
