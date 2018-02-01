@@ -1,7 +1,6 @@
 # media-toc [![Build Status](https://travis-ci.org/fengalin/media-toc.svg?branch=master)](https://travis-ci.org/fengalin/media-toc) [![Build status](https://ci.appveyor.com/api/projects/status/eu9p6ggcflj89h3v?svg=true)](https://ci.appveyor.com/project/fengalin/media-toc)
 **media-toc** is an application to build a table of contents from a media file or to split a media
-file into chapters. It is primarily developed in Rust on Linux, it runs on Windows and should also
-work on macOS.
+file into chapters. It runs on Linux and Windows and should also work on macOS.
 
 You might also be interested in [media-toc-player](https://github.com/fengalin/media-toc-player):
 a media player with a table of contents.
@@ -130,11 +129,10 @@ The file `output_file.mkv` will now contain the media with the chapters you defi
 
 # <a name='generation'></a>Generation
 ## Toolchain
-Rust nightly version is required at the moment.
 ```
 $ curl https://sh.rustup.rs -sSf | sh
 ```
-Select the nightly toolchain. See the full documentation
+Select the `stable` toolchain. See the full documentation
 [here](https://github.com/rust-lang-nursery/rustup.rs#installation).
 
 ## Dependencies
@@ -174,7 +172,7 @@ pacman --noconfirm -S mingw-w64-x86_64-gtk3 \
 
 - Launch the [rustup installer](https://www.rustup.rs/).
 When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
-`i686-pc-windows-gnu` for a 32bits system), then select `nightly`.
+`i686-pc-windows-gnu` for a 32bits system), then select `stable`.
 - From a MSYS2 mingw shell
   - add cargo to the `PATH`:
   ```

@@ -1,15 +1,15 @@
 language: rust
-
-env:
-  - GTK=3.18
+rust:
+  - stable
 
 matrix:
   include:
     - os: linux
-      rust: nightly
       dist: trusty
     - os: osx
-      rust: nightly
+
+env:
+  - GTK=3.18
 
 addons:
   apt:

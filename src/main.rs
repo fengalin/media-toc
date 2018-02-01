@@ -1,7 +1,3 @@
-#![feature(collection_placement)]
-#![feature(ord_max_min)]
-#![feature(placement_in_syntax)]
-
 extern crate byte_slice_cast;
 #[cfg(test)]
 extern crate byteorder;

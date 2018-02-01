@@ -331,12 +331,12 @@ impl AudioBuffer {
             if !lower_changed || self.samples.is_empty() {
                 // samples can be pushed back to the containr
                 for sample_byte in sample_slice.iter() {
-                    self.samples.place_back() <- *sample_byte;
+                    self.samples.push_back(*sample_byte);
                 }
             } else {
                 let rev_sample_iter = sample_slice.iter().rev();
                 for sample_byte in rev_sample_iter {
-                    self.samples.place_front() <- *sample_byte;
+                    self.samples.push_front(*sample_byte);
                 }
             }
         }

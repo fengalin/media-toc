@@ -18,7 +18,7 @@ if [ $TRAVIS_OS_NAME = linux ]; then
     export LD_LIBRARY_PATH="$HOME/local/lib/":$LD_LIBRARY_PATH
 elif [ $TRAVIS_OS_NAME = osx ]; then
     brew update
-    brew install gtk+3 gstreamer
+    brew install gtk+3 gstreamer gst-plugins-base
 else:
     echo Unknown OS $TRAVIS_OS_NAME
 fi
