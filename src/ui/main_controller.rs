@@ -29,7 +29,7 @@ pub enum ControllerState {
     Playing,
     PlayingRange(u64),
     Ready,
-    Seeking(bool, bool), // (must_switch_to_play, must_keep_paused)
+    Seeking { switch_to_play: bool, keep_paused: bool },
     Stopped,
 }
 
@@ -194,17 +194,23 @@ impl MainController {
                     self.audio_ctrl.borrow_mut().seek(position, &self.state);
                 }
 
-                let (must_switch_to_play, must_keep_paused) = match self.state {
-                    ControllerState::EOS
-                    | ControllerState::Ready
-                    | ControllerState::Seeking(true, false) => (true, false),
-                    ControllerState::Seeking(true, true) => (true, true),
-                    ControllerState::Paused | ControllerState::Seeking(false, true) => {
-                        (false, true)
+                self.state = match self.state {
+                    ControllerState::Seeking { switch_to_play, keep_paused } => {
+                        ControllerState::Seeking {
+                            switch_to_play: switch_to_play,
+                            keep_paused: keep_paused,
+                        }
                     }
-                    _ => (false, false),
+                    ControllerState::EOS | ControllerState::Ready => {
+                        ControllerState::Seeking { switch_to_play: true, keep_paused: false }
+                    }
+                    ControllerState::Paused => {
+                        ControllerState::Seeking { switch_to_play: false, keep_paused: true }
+                    },
+                    _ => {
+                        ControllerState::Seeking { switch_to_play: false, keep_paused: false }
+                    },
                 };
-                self.state = ControllerState::Seeking(must_switch_to_play, must_keep_paused);
 
                 self.context
                     .as_ref()
@@ -294,8 +300,8 @@ impl MainController {
                         match this.state {
                             ControllerState::PendingSelectMedia => this.select_media(),
                             ControllerState::PendingExportToc => this.export_toc(),
-                            ControllerState::Seeking(must_switch_to_play, must_keep_paused) => {
-                                if must_switch_to_play {
+                            ControllerState::Seeking { switch_to_play, keep_paused } => {
+                                if switch_to_play {
                                     this.context
                                         .as_mut()
                                         .expect("MainController::listener(AsyncDone) no context")
@@ -304,7 +310,7 @@ impl MainController {
                                     AudioController::register_tick_callback(&this.audio_ctrl);
                                     this.play_pause_btn.set_icon_name("media-playback-pause");
                                     this.state = ControllerState::Playing;
-                                } else if must_keep_paused {
+                                } else if keep_paused {
                                     this.state = ControllerState::Paused;
                                 } else {
                                     this.state = ControllerState::Playing;
