@@ -251,7 +251,10 @@ impl MainController {
     }
 
     pub fn refresh_info(&mut self, position: u64) {
-        self.info_ctrl.borrow_mut().tick(position, false);
+        match self.state {
+            ControllerState::Seeking { .. } => (),
+            _ => self.info_ctrl.borrow_mut().tick(position, false),
+        }
     }
 
     pub fn select_streams(&mut self, stream_ids: &[String]) {
