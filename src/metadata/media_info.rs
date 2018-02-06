@@ -47,7 +47,7 @@ impl Stream {
                         None => match tags.get_index::<gst::tags::Codec>(0).as_ref() {
                             Some(codec) => codec.get(),
                             None => None,
-                        }
+                        },
                     }
                 }
                 None => None,
@@ -68,7 +68,7 @@ impl Stream {
                     } else {
                         codec.to_string()
                     }
-                },
+                }
             }
         };
 
@@ -100,32 +100,32 @@ impl Streams {
             gst::StreamType::AUDIO => {
                 self.audio_selected.get_or_insert(stream.clone());
                 self.audio.push(stream);
-            },
+            }
             gst::StreamType::VIDEO => {
                 self.video_selected.get_or_insert(stream.clone());
                 self.video.push(stream);
-            },
+            }
             gst::StreamType::TEXT => {
                 self.text_selected.get_or_insert(stream.clone());
                 self.text.push(stream);
-            },
+            }
             _ => panic!("MediaInfo::add_stream can't handle {:?}", stream.type_),
         }
     }
 
-    pub fn select_streams(&mut self, ids: &Vec<&str>) {
+    pub fn select_streams(&mut self, ids: &[&str]) {
         self.reset_selected();
 
         for id in ids {
-            match self.video.iter().find(|ref s| &s.id == *id) {
+            match self.video.iter().find(|s| &s.id == id) {
                 Some(stream) => self.video_selected = Some(stream.clone()),
-                None => match self.audio.iter().find(|ref s| &s.id == *id) {
+                None => match self.audio.iter().find(|s| &s.id == id) {
                     Some(stream) => self.audio_selected = Some(stream.clone()),
-                    None => match self.text.iter().find(|ref s| &s.id == *id) {
+                    None => match self.text.iter().find(|s| &s.id == id) {
                         Some(stream) => self.text_selected = Some(stream.clone()),
                         None => panic!("MediaInfo::select_streams unknown stream id {}", id),
-                    }
-                }
+                    },
+                },
             }
         }
     }
@@ -191,13 +191,15 @@ impl MediaInfo {
     }
 
     pub fn get_audio_codec(&self) -> Option<&str> {
-        self.streams.audio_selected
+        self.streams
+            .audio_selected
             .as_ref()
             .map(|stream| stream.codec_printable.as_str())
     }
 
     pub fn get_video_codec(&self) -> Option<&str> {
-        self.streams.video_selected
+        self.streams
+            .video_selected
             .as_ref()
             .map(|stream| stream.codec_printable.as_str())
     }

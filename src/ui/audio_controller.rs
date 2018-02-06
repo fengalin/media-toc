@@ -37,10 +37,10 @@ const HOUR_IN_NANO: u64 = 3_600_000_000_000;
 // Use this text to compute the largest text box for the waveform boundaries
 // This is requried in order to position the labels in such a way that it doesn't
 // moves constantly depending on the digits width
-const BOUNDARY_TEXT_MN: &'static str = "00:00.000";
-const CURSOR_TEXT_MN: &'static str = "00:00.000.000";
-const BOUNDARY_TEXT_H: &'static str = "00:00:00.000";
-const CURSOR_TEXT_H: &'static str = "00:00:00.000.000";
+const BOUNDARY_TEXT_MN: &str = "00:00.000";
+const CURSOR_TEXT_MN: &str = "00:00.000.000";
+const BOUNDARY_TEXT_H: &str = "00:00:00.000";
+const CURSOR_TEXT_H: &str = "00:00:00.000.000";
 
 pub struct AudioController {
     container: gtk::Box,
@@ -351,7 +351,7 @@ impl AudioController {
 
                 let family = font_desc.get_family().unwrap();
                 cr.select_font_face(&family, cairo::FontSlant::Normal, cairo::FontWeight::Normal);
-                let size = (ref_layout.get_baseline() / pango::SCALE) as f64;
+                let size = f64::from(ref_layout.get_baseline() / pango::SCALE);
                 cr.set_font_size(size);
 
                 self.font_family = Some(family);

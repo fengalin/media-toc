@@ -42,24 +42,26 @@ impl VideoController {
     pub fn cleanup(&mut self) {
         if self.cleaner_id.is_none() {
             let video_widget = &self.container.get_children()[0];
-            self.cleaner_id = Some(
-                video_widget.connect_draw(|widget, cr| {
-                    let allocation = widget.get_allocation();
-                    cr.set_source_rgb(0f64, 0f64, 0f64);
-                    cr.rectangle(0f64, 0f64, allocation.width as f64, allocation.height as f64);
-                    cr.fill();
+            self.cleaner_id = Some(video_widget.connect_draw(|widget, cr| {
+                let allocation = widget.get_allocation();
+                cr.set_source_rgb(0f64, 0f64, 0f64);
+                cr.rectangle(
+                    0f64,
+                    0f64,
+                    f64::from(allocation.width),
+                    f64::from(allocation.height),
+                );
+                cr.fill();
 
-                    Inhibit(true)
-                })
-            );
+                Inhibit(true)
+            }));
             video_widget.queue_draw();
         }
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
         if let Some(cleaner_id) = self.cleaner_id.take() {
-            &self.container.get_children()[0]
-                .disconnect(cleaner_id);
+            self.container.get_children()[0].disconnect(cleaner_id);
         }
 
         let has_video = context

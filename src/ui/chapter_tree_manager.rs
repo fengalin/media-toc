@@ -57,11 +57,17 @@ impl<'a> ChapterEntry<'a> {
     }
 
     pub fn get_title(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> String {
-        store.get_value(iter, TITLE_COL as i32).get::<String>().unwrap()
+        store
+            .get_value(iter, TITLE_COL as i32)
+            .get::<String>()
+            .unwrap()
     }
 
     pub fn get_start(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> u64 {
-        store.get_value(iter, START_COL as i32).get::<u64>().unwrap()
+        store
+            .get_value(iter, START_COL as i32)
+            .get::<u64>()
+            .unwrap()
     }
 
     pub fn get_start_str(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> String {
@@ -76,7 +82,10 @@ impl<'a> ChapterEntry<'a> {
     }
 
     pub fn get_end_str(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> String {
-        store.get_value(iter, END_STR_COL as i32).get::<String>().unwrap()
+        store
+            .get_value(iter, END_STR_COL as i32)
+            .get::<String>()
+            .unwrap()
     }
 }
 
@@ -167,13 +176,7 @@ impl ChapterTreeManager {
             self.store.insert_with_values(
                 None,
                 None,
-                &[
-                    START_COL,
-                    END_COL,
-                    TITLE_COL,
-                    START_STR_COL,
-                    END_STR_COL,
-                ],
+                &[START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
                 &[
                     &chapter.start.nano_total,
                     &chapter.end.nano_total,
@@ -366,13 +369,7 @@ impl ChapterTreeManager {
 
         self.store.set(
             &new_iter,
-            &[
-                TITLE_COL,
-                START_COL,
-                START_STR_COL,
-                END_COL,
-                END_STR_COL,
-            ],
+            &[TITLE_COL, START_COL, START_STR_COL, END_COL, END_STR_COL],
             &[
                 &*DEFAULT_TITLE,
                 &position,

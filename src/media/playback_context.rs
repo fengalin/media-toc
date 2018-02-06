@@ -219,7 +219,7 @@ impl PlaybackContext {
         }
     }
 
-    pub fn select_streams(&self, stream_ids: &Vec<String>) {
+    pub fn select_streams(&self, stream_ids: &[String]) {
         let stream_ids: Vec<&str> = stream_ids.iter().map(|id| id.as_str()).collect();
         let select_streams_evt = gst::Event::new_select_streams(&stream_ids).build();
         self.decodebin.send_event(select_streams_evt);
@@ -233,25 +233,32 @@ impl PlaybackContext {
     }
 
     fn setup_queue(queue: &gst::Element) {
-        queue
-            .set_property("max-size-bytes", &0u32)
-            .unwrap();
-        queue
-            .set_property("max-size-buffers", &0u32)
-            .unwrap();
-        queue
-            .set_property("max-size-time", &QUEUE_SIZE_NS)
-            .unwrap();
+        queue.set_property("max-size-bytes", &0u32).unwrap();
+        queue.set_property("max-size-buffers", &0u32).unwrap();
+        queue.set_property("max-size-time", &QUEUE_SIZE_NS).unwrap();
 
         #[cfg(feature = "trace-playback-queues")]
         queue
             .connect("overrun", false, |args| {
                 let queue = args[0].get::<gst::Element>().unwrap();
-                println!("\n/!\\ OVERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
+                println!(
+                    "\n/!\\ OVERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
                     queue.get_name(),
-                    queue.get_property("max-size-bytes").unwrap().get::<u32>().unwrap(),
-                    queue.get_property("max-size-buffers").unwrap().get::<u32>().unwrap(),
-                    queue.get_property("max-size-time").unwrap().get::<u64>().unwrap(),
+                    queue
+                        .get_property("max-size-bytes")
+                        .unwrap()
+                        .get::<u32>()
+                        .unwrap(),
+                    queue
+                        .get_property("max-size-buffers")
+                        .unwrap()
+                        .get::<u32>()
+                        .unwrap(),
+                    queue
+                        .get_property("max-size-time")
+                        .unwrap()
+                        .get::<u64>()
+                        .unwrap(),
                 );
                 None
             })
@@ -261,11 +268,24 @@ impl PlaybackContext {
         queue
             .connect("underrun", false, |args| {
                 let queue = args[0].get::<gst::Element>().unwrap();
-                println!("\n/!\\ UNDERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
+                println!(
+                    "\n/!\\ UNDERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
                     queue.get_name(),
-                    queue.get_property("max-size-bytes").unwrap().get::<u32>().unwrap(),
-                    queue.get_property("max-size-buffers").unwrap().get::<u32>().unwrap(),
-                    queue.get_property("max-size-time").unwrap().get::<u64>().unwrap(),
+                    queue
+                        .get_property("max-size-bytes")
+                        .unwrap()
+                        .get::<u32>()
+                        .unwrap(),
+                    queue
+                        .get_property("max-size-buffers")
+                        .unwrap()
+                        .get::<u32>()
+                        .unwrap(),
+                    queue
+                        .get_property("max-size-time")
+                        .unwrap()
+                        .get::<u64>()
+                        .unwrap(),
                 );
                 None
             })
@@ -299,28 +319,29 @@ impl PlaybackContext {
 
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
-        self.decodebin.connect_pad_added(move |_decodebin, src_pad| {
-            let pipeline = &pipeline_clone;
-            let name = src_pad.get_name();
+        self.decodebin
+            .connect_pad_added(move |_decodebin, src_pad| {
+                let pipeline = &pipeline_clone;
+                let name = src_pad.get_name();
 
-            if name.starts_with("audio_") {
-                PlaybackContext::build_audio_pipeline(
-                    pipeline,
-                    src_pad,
-                    &audio_sink,
-                    Arc::clone(&dbl_audio_buffer_mtx),
-                );
-            } else if name.starts_with("video_") {
-                PlaybackContext::build_video_pipeline(pipeline, src_pad, &video_sink);
-            } else {
-                // TODO: handle subtitles
+                if name.starts_with("audio_") {
+                    PlaybackContext::build_audio_pipeline(
+                        pipeline,
+                        src_pad,
+                        &audio_sink,
+                        Arc::clone(&dbl_audio_buffer_mtx),
+                    );
+                } else if name.starts_with("video_") {
+                    PlaybackContext::build_video_pipeline(pipeline, src_pad, &video_sink);
+                } else {
+                    // TODO: handle subtitles
                 /*let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
                 pipeline.add(&fakesink).unwrap();
                 let fakesink_sink_pad = fakesink.get_static_pad("sink").unwrap();
                 assert_eq!(src_pad.link(&fakesink_sink_pad), gst::PadLinkReturn::Ok);
                 fakesink.sync_state_with_parent().unwrap();*/
-            }
-        });
+                }
+            });
     }
 
     fn build_audio_pipeline(
@@ -416,7 +437,7 @@ impl PlaybackContext {
                 dbl_audio_buffer_mtx_caps
                     .lock()
                     .expect(
-                        "PlaybackContext::property_caps_notify couldn't lock dbl_audio_buffer_mtx"
+                        "PlaybackContext::property_caps_notify couldn't lock dbl_audio_buffer_mtx",
                     )
                     .set_caps(&caps);
             }
@@ -556,7 +577,9 @@ impl PlaybackContext {
                     let info = &mut info_arc_mtx
                         .lock()
                         .expect("Failed to lock media info while initializing audio stream");
-                    stream_collection.iter().for_each(|stream| info.streams.add_stream(&stream));
+                    stream_collection
+                        .iter()
+                        .for_each(|stream| info.streams.add_stream(&stream));
                 }
                 _ => (),
             }

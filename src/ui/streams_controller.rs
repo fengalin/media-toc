@@ -116,11 +116,14 @@ impl StreamsController {
         let this_clone = Rc::clone(this_rc);
         this.streams_button.connect_clicked(move |button| {
             let page_name = if button.get_active() {
-                "streams".into()
+                "streams"
             } else {
-                "display".into()
+                "display"
             };
-            this_clone.borrow_mut().display_streams_stack.set_visible_child_name(page_name);
+            this_clone
+                .borrow_mut()
+                .display_streams_stack
+                .set_visible_child_name(page_name);
         });
 
         // Video stream selection
@@ -128,12 +131,7 @@ impl StreamsController {
         this.video_treeview
             .connect_row_activated(move |_, tree_path, _| {
                 let mut this = this_clone.borrow_mut();
-                on_stream_selected!(
-                    this,
-                    this.video_store,
-                    tree_path,
-                    this.video_selected
-                );
+                on_stream_selected!(this, this.video_store, tree_path, this.video_selected);
             });
 
         // Audio stream selection
@@ -141,12 +139,7 @@ impl StreamsController {
         this.audio_treeview
             .connect_row_activated(move |_, tree_path, _| {
                 let mut this = this_clone.borrow_mut();
-                on_stream_selected!(
-                    this,
-                    this.audio_store,
-                    tree_path,
-                    this.audio_selected
-                );
+                on_stream_selected!(this, this.audio_store, tree_path, this.audio_selected);
             });
 
         // Text stream selection
@@ -154,12 +147,7 @@ impl StreamsController {
         this.text_treeview
             .connect_row_activated(move |_, tree_path, _| {
                 let mut this = this_clone.borrow_mut();
-                on_stream_selected!(
-                    this,
-                    this.text_store,
-                    tree_path,
-                    this.text_selected
-                );
+                on_stream_selected!(this, this.text_store, tree_path, this.text_selected);
             });
     }
 
@@ -183,13 +171,15 @@ impl StreamsController {
 
         // Video streams
         for stream in &info.streams.video {
-            let iter = self.add_stream(&self.video_store, &stream);
+            let iter = self.add_stream(&self.video_store, stream);
             let caps_structure = stream.caps.get_structure(0).unwrap();
             if let Some(width) = caps_structure.get::<i32>("width") {
-                self.video_store.set_value(&iter, VIDEO_WIDTH_COL, &gtk::Value::from(&width));
+                self.video_store
+                    .set_value(&iter, VIDEO_WIDTH_COL, &gtk::Value::from(&width));
             }
             if let Some(height) = caps_structure.get::<i32>("height") {
-                self.video_store.set_value(&iter, VIDEO_HEIGHT_COL, &gtk::Value::from(&height));
+                self.video_store
+                    .set_value(&iter, VIDEO_HEIGHT_COL, &gtk::Value::from(&height));
             }
         }
 
@@ -206,10 +196,12 @@ impl StreamsController {
             let iter = self.add_stream(&self.audio_store, stream);
             let caps_structure = stream.caps.get_structure(0).unwrap();
             if let Some(rate) = caps_structure.get::<i32>("rate") {
-                self.audio_store.set_value(&iter, AUDIO_RATE_COL, &gtk::Value::from(&rate));
+                self.audio_store
+                    .set_value(&iter, AUDIO_RATE_COL, &gtk::Value::from(&rate));
             }
             if let Some(channels) = caps_structure.get::<i32>("channels") {
-                self.audio_store.set_value(&iter, AUDIO_CHANNELS_COL, &gtk::Value::from(&channels));
+                self.audio_store
+                    .set_value(&iter, AUDIO_CHANNELS_COL, &gtk::Value::from(&channels));
             }
         }
 
@@ -223,10 +215,11 @@ impl StreamsController {
 
         // Text streams
         for stream in &info.streams.text {
-            let iter = self.add_stream(&self.text_store, &stream);
+            let iter = self.add_stream(&self.text_store, stream);
             let caps_structure = stream.caps.get_structure(0).unwrap();
             if let Some(format) = caps_structure.get::<&str>("format") {
-                self.text_store.set_value(&iter, TEXT_FORMAT_COL, &gtk::Value::from(&format));
+                self.text_store
+                    .set_value(&iter, TEXT_FORMAT_COL, &gtk::Value::from(&format));
             }
         }
 
@@ -242,8 +235,9 @@ impl StreamsController {
     pub fn trigger_stream_selection(&self) {
         // Asynchronoulsy notify the main controller
         let main_ctrl_weak = Weak::clone(
-            self.main_ctrl.as_ref()
-                .expect("StreamsController::trigger_stream_selection no main_ctrl")
+            self.main_ctrl
+                .as_ref()
+                .expect("StreamsController::trigger_stream_selection no main_ctrl"),
         );
         let mut streams: Vec<String> = Vec::new();
         if let Some(stream) = self.video_selected.as_ref() {
@@ -284,12 +278,16 @@ impl StreamsController {
                 None => match tags.get_index::<gst::tags::LanguageCode>(0).as_ref() {
                     Some(language) => language.get().unwrap(),
                     None => "-",
-                }
+                },
             };
             store.set_value(&iter, LANGUAGE_COL, &gtk::Value::from(language));
 
             if let Some(comment) = tags.get_index::<gst::tags::Comment>(0).as_ref() {
-                store.set_value(&iter, COMMENT_COL, &gtk::Value::from(comment.get().unwrap()));
+                store.set_value(
+                    &iter,
+                    COMMENT_COL,
+                    &gtk::Value::from(comment.get().unwrap()),
+                );
             }
         }
 
@@ -314,11 +312,35 @@ impl StreamsController {
             STREAM_ID_DISPLAY_COL,
             Some(200),
         );
-        self.add_column(&self.video_treeview, "Lang.", ALIGN_CENTER, LANGUAGE_COL, None);
+        self.add_column(
+            &self.video_treeview,
+            "Lang.",
+            ALIGN_CENTER,
+            LANGUAGE_COL,
+            None,
+        );
         self.add_column(&self.video_treeview, "Codec", ALIGN_LEFT, CODEC_COL, None);
-        self.add_column(&self.video_treeview, "Width", ALIGN_RIGHT, VIDEO_WIDTH_COL, None);
-        self.add_column(&self.video_treeview, "Height", ALIGN_RIGHT, VIDEO_HEIGHT_COL, None);
-        self.add_column(&self.video_treeview, "Comment", ALIGN_LEFT, COMMENT_COL, None);
+        self.add_column(
+            &self.video_treeview,
+            "Width",
+            ALIGN_RIGHT,
+            VIDEO_WIDTH_COL,
+            None,
+        );
+        self.add_column(
+            &self.video_treeview,
+            "Height",
+            ALIGN_RIGHT,
+            VIDEO_HEIGHT_COL,
+            None,
+        );
+        self.add_column(
+            &self.video_treeview,
+            "Comment",
+            ALIGN_LEFT,
+            COMMENT_COL,
+            None,
+        );
 
         self.audio_treeview.set_model(Some(&self.audio_store));
         self.add_column(
@@ -328,11 +350,35 @@ impl StreamsController {
             STREAM_ID_DISPLAY_COL,
             Some(200),
         );
-        self.add_column(&self.audio_treeview, "Lang.", ALIGN_CENTER, LANGUAGE_COL, None);
+        self.add_column(
+            &self.audio_treeview,
+            "Lang.",
+            ALIGN_CENTER,
+            LANGUAGE_COL,
+            None,
+        );
         self.add_column(&self.audio_treeview, "Codec", ALIGN_LEFT, CODEC_COL, None);
-        self.add_column(&self.audio_treeview, "Rate", ALIGN_RIGHT, AUDIO_RATE_COL, None);
-        self.add_column(&self.audio_treeview, "Channels", ALIGN_RIGHT, AUDIO_CHANNELS_COL, None);
-        self.add_column(&self.audio_treeview, "Comment", ALIGN_LEFT, COMMENT_COL, None);
+        self.add_column(
+            &self.audio_treeview,
+            "Rate",
+            ALIGN_RIGHT,
+            AUDIO_RATE_COL,
+            None,
+        );
+        self.add_column(
+            &self.audio_treeview,
+            "Channels",
+            ALIGN_RIGHT,
+            AUDIO_CHANNELS_COL,
+            None,
+        );
+        self.add_column(
+            &self.audio_treeview,
+            "Comment",
+            ALIGN_LEFT,
+            COMMENT_COL,
+            None,
+        );
 
         self.text_treeview.set_model(Some(&self.text_store));
         self.add_column(
@@ -342,10 +388,28 @@ impl StreamsController {
             STREAM_ID_DISPLAY_COL,
             Some(200),
         );
-        self.add_column(&self.text_treeview, "Lang.", ALIGN_CENTER, LANGUAGE_COL, None);
+        self.add_column(
+            &self.text_treeview,
+            "Lang.",
+            ALIGN_CENTER,
+            LANGUAGE_COL,
+            None,
+        );
         self.add_column(&self.text_treeview, "Codec", ALIGN_LEFT, CODEC_COL, None);
-        self.add_column(&self.text_treeview, "Format", ALIGN_LEFT, TEXT_FORMAT_COL, None);
-        self.add_column(&self.text_treeview, "Comment", ALIGN_LEFT, COMMENT_COL, None);
+        self.add_column(
+            &self.text_treeview,
+            "Format",
+            ALIGN_LEFT,
+            TEXT_FORMAT_COL,
+            None,
+        );
+        self.add_column(
+            &self.text_treeview,
+            "Comment",
+            ALIGN_LEFT,
+            COMMENT_COL,
+            None,
+        );
     }
 
     fn add_column(

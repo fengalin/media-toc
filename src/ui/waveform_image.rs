@@ -238,12 +238,7 @@ impl WaveformImage {
     // images since none of them is exposed at this very moment.
     // The rendering process reuses the previously rendered image
     // whenever possible.
-    pub fn render(
-        &mut self,
-        audio_buffer: &AudioBuffer,
-        lower: usize,
-        upper: usize,
-    ) {
+    pub fn render(&mut self, audio_buffer: &AudioBuffer, lower: usize, upper: usize) {
         #[cfg(feature = "profile-waveform-image")]
         let start = Utc::now();
 
@@ -364,7 +359,10 @@ impl WaveformImage {
                     && self.req_height == self.image_height)
             {
                 // expected dimensions fit in current image => reuse it
-                (self.exposed_image.take().unwrap(), self.secondary_image.take().unwrap())
+                (
+                    self.exposed_image.take().unwrap(),
+                    self.secondary_image.take().unwrap(),
+                )
             } else {
                 // can't reuse => create new images and force redraw
                 self.force_redraw = true;
@@ -404,64 +402,56 @@ impl WaveformImage {
             // redraw the whole range from the audio buffer
 
             self.redraw(exposed_image, secondary_image, audio_buffer, lower, upper);
-        } else {
-            // can reuse previous context
-            // Note: condition lower >= self.self.lower
-            //              && upper <= self.self.upper
-            // (target extraction fits in previous extraction)
-            // already checked
+        } else if lower < self.lower {
+            // can append samples before previous first sample
+            if self.first.is_some() {
+                // first sample position is known
+                // shift previous image to the right
+                // and append samples to the left
+                self.append_left(exposed_image, secondary_image, audio_buffer, lower);
+            } else {
+                // first sample position is unknown
+                // => force redraw
+                println!(
+                    "/!\\ WaveformImage::append left({}): first sample unknown => redrawing",
+                    self.id
+                );
+                let sample_step = self.sample_step;
+                self.redraw(
+                    exposed_image,
+                    secondary_image,
+                    audio_buffer,
+                    lower,
+                    upper.min(audio_buffer.upper / sample_step * sample_step),
+                );
+            }
+        } else if upper > self.upper {
+            // can append samples after previous last sample
+            if self.last.is_some() {
+                // last sample position is known
+                // shift previous image to the left (if necessary)
+                // and append missing samples to the right
 
-            if lower < self.lower {
-                // can append samples before previous first sample
-                if self.first.is_some() {
-                    // first sample position is known
-                    // shift previous image to the right
-                    // and append samples to the left
-                    self.append_left(exposed_image, secondary_image, audio_buffer, lower);
-                } else {
-                    // first sample position is unknown
-                    // => force redraw
-                    println!(
-                        "/!\\ WaveformImage::append left({}): first sample unknown => redrawing",
-                        self.id
-                    );
-                    let sample_step = self.sample_step;
-                    self.redraw(
-                        exposed_image,
-                        secondary_image,
-                        audio_buffer,
-                        lower,
-                        upper.min(audio_buffer.upper / sample_step * sample_step),
-                    );
-                }
-            } else if upper > self.upper {
-                // can append samples after previous last sample
-                if self.last.is_some() {
-                    // last sample position is known
-                    // shift previous image to the left (if necessary)
-                    // and append missing samples to the right
+                // update lower in case a call to append_left
+                // ends up adding nothing
+                let lower = lower.max(self.lower);
 
-                    // update lower in case a call to append_left
-                    // ends up adding nothing
-                    let lower = lower.max(self.lower);
-
-                    self.append_right(exposed_image, secondary_image, audio_buffer, lower, upper);
-                } else {
-                    // last sample position is unknown
-                    // => force redraw
-                    println!(
-                        "/!\\ WaveformImage::append right({}): last sample unknown => redrawing",
-                        self.id
-                    );
-                    let sample_step = self.sample_step;
-                    self.redraw(
-                        exposed_image,
-                        secondary_image,
-                        audio_buffer,
-                        lower,
-                        upper.min(audio_buffer.upper / sample_step * sample_step),
-                    );
-                }
+                self.append_right(exposed_image, secondary_image, audio_buffer, lower, upper);
+            } else {
+                // last sample position is unknown
+                // => force redraw
+                println!(
+                    "/!\\ WaveformImage::append right({}): last sample unknown => redrawing",
+                    self.id
+                );
+                let sample_step = self.sample_step;
+                self.redraw(
+                    exposed_image,
+                    secondary_image,
+                    audio_buffer,
+                    lower,
+                    upper.min(audio_buffer.upper / sample_step * sample_step),
+                );
             }
         }
 
@@ -634,7 +624,6 @@ impl WaveformImage {
         }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(too_many_arguments))]
     fn append_right(
         &mut self,
         exposed_image: cairo::ImageSurface,
@@ -664,11 +653,7 @@ impl WaveformImage {
             Some(last) => {
                 let range_to_draw =
                     ((upper - self.upper.max(lower)) / self.sample_step * self.x_step) as f64;
-                if last.x + range_to_draw < self.image_width_f {
-                    false
-                } else {
-                    true
-                }
+                !(last.x + range_to_draw < self.image_width_f)
             }
             None => true,
         };
@@ -842,6 +827,7 @@ impl WaveformImage {
 
     // Draw samples from sample_iter starting at first_x.
     // Returns the lower bound and last drawn coordinates.
+    #[cfg_attr(feature = "cargo-clippy", allow(question_mark))]
     fn draw_samples(
         &self,
         cr: &cairo::Context,

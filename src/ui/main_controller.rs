@@ -29,7 +29,10 @@ pub enum ControllerState {
     Playing,
     PlayingRange(u64),
     Ready,
-    Seeking { switch_to_play: bool, keep_paused: bool },
+    Seeking {
+        switch_to_play: bool,
+        keep_paused: bool,
+    },
     Stopped,
 }
 
@@ -195,20 +198,24 @@ impl MainController {
                 }
 
                 self.state = match self.state {
-                    ControllerState::Seeking { switch_to_play, keep_paused } => {
-                        ControllerState::Seeking {
-                            switch_to_play: switch_to_play,
-                            keep_paused: keep_paused,
-                        }
-                    }
-                    ControllerState::EOS | ControllerState::Ready => {
-                        ControllerState::Seeking { switch_to_play: true, keep_paused: false }
-                    }
-                    ControllerState::Paused => {
-                        ControllerState::Seeking { switch_to_play: false, keep_paused: true }
+                    ControllerState::Seeking {
+                        switch_to_play,
+                        keep_paused,
+                    } => ControllerState::Seeking {
+                        switch_to_play: switch_to_play,
+                        keep_paused: keep_paused,
                     },
-                    _ => {
-                        ControllerState::Seeking { switch_to_play: false, keep_paused: false }
+                    ControllerState::EOS | ControllerState::Ready => ControllerState::Seeking {
+                        switch_to_play: true,
+                        keep_paused: false,
+                    },
+                    ControllerState::Paused => ControllerState::Seeking {
+                        switch_to_play: false,
+                        keep_paused: true,
+                    },
+                    _ => ControllerState::Seeking {
+                        switch_to_play: false,
+                        keep_paused: false,
                     },
                 };
 
@@ -247,8 +254,9 @@ impl MainController {
         self.info_ctrl.borrow_mut().tick(position, false);
     }
 
-    pub fn select_streams(&mut self, stream_ids: &Vec<String>) {
-        self.context.as_ref()
+    pub fn select_streams(&mut self, stream_ids: &[String]) {
+        self.context
+            .as_ref()
             .expect("MainController::select_streams no context")
             .select_streams(stream_ids);
     }
@@ -300,7 +308,10 @@ impl MainController {
                         match this.state {
                             ControllerState::PendingSelectMedia => this.select_media(),
                             ControllerState::PendingExportToc => this.export_toc(),
-                            ControllerState::Seeking { switch_to_play, keep_paused } => {
+                            ControllerState::Seeking {
+                                switch_to_play,
+                                keep_paused,
+                            } => {
                                 if switch_to_play {
                                     this.context
                                         .as_mut()
@@ -419,18 +430,14 @@ impl MainController {
         self.window.set_sensitive(false);
 
         let gdk_window = self.window.get_window().unwrap();
-        gdk_window.set_cursor(
-            &Cursor::new_for_display(
-                &gdk_window.get_display(),
-                CursorType::Watch,
-            )
-        );
+        gdk_window.set_cursor(&Cursor::new_for_display(
+            &gdk_window.get_display(),
+            CursorType::Watch,
+        ));
     }
 
     fn switch_to_default(&mut self) {
-        self.window.get_window()
-            .unwrap()
-            .set_cursor(None);
+        self.window.get_window().unwrap().set_cursor(None);
         self.window.set_sensitive(true);
     }
 
