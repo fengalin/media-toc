@@ -9,6 +9,7 @@ description = "Build a table of contents from a media file or split a media file
 license = "MIT"
 
 [dependencies]
+clap = "^2"
 byte-slice-cast = "^0"
 chrono = "^0"
 image = "^0"

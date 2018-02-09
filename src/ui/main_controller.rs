@@ -470,7 +470,7 @@ impl MainController {
         file_dlg.close();
     }
 
-    fn open_media(&mut self, filepath: PathBuf) {
+    pub fn open_media(&mut self, filepath: PathBuf) {
         self.remove_listener();
 
         self.info_ctrl.borrow_mut().cleanup();
