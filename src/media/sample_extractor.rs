@@ -11,7 +11,7 @@ pub struct SampleExtractionState {
     pub sample_duration: u64,
     pub duration_per_1000_samples: f64,
     audio_sink: Option<gst::Element>,
-    position_query: gst::Query,
+    position_query: gst::query::Position<gst::Query>,
 }
 
 impl SampleExtractionState {
@@ -70,7 +70,7 @@ pub trait SampleExtractor: Send {
             .audio_sink
             .as_ref()
             .expect("DoubleSampleExtractor: no audio ref while querying position")
-            .query(state.position_query.get_mut().unwrap());
+            .query(&mut state.position_query);
         let position = match state.position_query.view() {
             QueryView::Position(ref position) => position.get_result().get_value() as u64,
             _ => unreachable!(),

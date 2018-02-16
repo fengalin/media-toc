@@ -53,7 +53,7 @@ pub struct PlaybackContext {
     pipeline: gst::Pipeline,
     decodebin: gst::Element,
     position_element: Option<gst::Element>,
-    position_query: gst::Query,
+    position_query: gst::query::Position<gst::Query>,
 
     dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
 
@@ -133,7 +133,7 @@ impl PlaybackContext {
                     panic!("No sink in pipeline");
                 }
             })
-            .query(self.position_query.get_mut().unwrap());
+            .query(&mut self.position_query);
         match self.position_query.view() {
             QueryView::Position(ref position) => position.get_result().get_value() as u64,
             _ => unreachable!(),

@@ -14,7 +14,7 @@ use super::ContextMessage;
 pub struct TocSetterContext {
     pipeline: gst::Pipeline,
     muxer: Option<gst::Element>,
-    position_query: gst::Query,
+    position_query: gst::query::Position<gst::Query>,
 }
 
 impl TocSetterContext {
@@ -55,7 +55,7 @@ impl TocSetterContext {
         self.muxer
             .as_ref()
             .unwrap()
-            .query(self.position_query.get_mut().unwrap());
+            .query(&mut self.position_query);
         match self.position_query.view() {
             QueryView::Position(ref position) => position.get_result().get_value() as u64,
             _ => unreachable!(),
