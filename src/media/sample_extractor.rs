@@ -1,5 +1,5 @@
 extern crate gstreamer as gst;
-use gstreamer::{ElementExtManual, QueryView};
+use gstreamer::ElementExtManual;
 
 use std::any::Any;
 
@@ -71,10 +71,7 @@ pub trait SampleExtractor: Send {
             .as_ref()
             .expect("DoubleSampleExtractor: no audio ref while querying position")
             .query(&mut state.position_query);
-        let position = match state.position_query.view() {
-            QueryView::Position(ref position) => position.get_result().get_value() as u64,
-            _ => unreachable!(),
-        };
+        let position = state.position_query.get_result().get_value() as u64;
         (position, (position / state.sample_duration) as usize)
     }
 

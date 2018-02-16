@@ -1,7 +1,7 @@
 extern crate gstreamer as gst;
 use gstreamer::prelude::*;
-use gstreamer::{BinExt, Caps, ClockTime, ElementFactory, GstObjectExt, PadExt, QueryView,
-                TocEntryType, TocScope};
+use gstreamer::{BinExt, Caps, ClockTime, ElementFactory, GstObjectExt, PadExt, TocEntryType,
+                TocScope};
 
 extern crate gstreamer_app as gst_app;
 extern crate gstreamer_audio as gst_audio;
@@ -134,10 +134,7 @@ impl PlaybackContext {
                 }
             })
             .query(&mut self.position_query);
-        match self.position_query.view() {
-            QueryView::Position(ref position) => position.get_result().get_value() as u64,
-            _ => unreachable!(),
-        }
+        self.position_query.get_result().get_value() as u64
     }
 
     pub fn get_duration(&self) -> u64 {

@@ -1,6 +1,6 @@
 extern crate gstreamer as gst;
 use gstreamer::prelude::*;
-use gstreamer::{PadExt, QueryView};
+use gstreamer::PadExt;
 
 extern crate glib;
 use glib::ObjectExt;
@@ -56,10 +56,7 @@ impl TocSetterContext {
             .as_ref()
             .unwrap()
             .query(&mut self.position_query);
-        match self.position_query.view() {
-            QueryView::Position(ref position) => position.get_result().get_value() as u64,
-            _ => unreachable!(),
-        }
+        self.position_query.get_result().get_value() as u64
     }
 
     // TODO: handle errors
