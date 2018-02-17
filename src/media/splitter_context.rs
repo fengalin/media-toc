@@ -10,23 +10,40 @@ use std::path::Path;
 
 use std::sync::{Arc, Mutex};
 
+use metadata::Format;
+
 use super::ContextMessage;
-use metadata;
 
 pub struct SplitterContext {
     pipeline: gst::Pipeline,
     position_ref: Option<gst::Element>,
     position_query: gst::query::Position<gst::Query>,
 
-    format: metadata::Format,
+    format: Format,
     tags: gst::TagList,
 }
 
 impl SplitterContext {
+    pub fn check_requirements(format: Format) -> bool {
+        match format {
+            Format::Flac => gst::ElementFactory::make("flacenc", None).is_some(),
+            Format::Wave => gst::ElementFactory::make("wavenc", None).is_some(),
+            Format::Opus => gst::ElementFactory::make("opusenc", None).is_some()
+                && gst::ElementFactory::make("oggmux", None).is_some(),
+            Format::Vorbis => gst::ElementFactory::make("vorbisenc", None).is_some()
+                && gst::ElementFactory::make("oggmux", None).is_some(),
+            Format::MP3 => gst::ElementFactory::make("lamemp3enc", None).is_some()
+                && gst::ElementFactory::make("id3v2mux", None).is_some(),
+            _ => panic!(
+                "SplitterContext::check_requirements unsupported format: {:?}", format
+            ),
+        }
+    }
+
     pub fn new(
         input_path: &Path,
         output_path: &Path,
-        format: &metadata::Format,
+        format: &Format,
         start: u64,
         end: u64,
         tags: gst::TagList,
@@ -100,11 +117,11 @@ impl SplitterContext {
 
         // Audio encoder
         let audio_enc = match self.format {
-            metadata::Format::Flac => gst::ElementFactory::make("flacenc", None).unwrap(),
-            metadata::Format::Wave => gst::ElementFactory::make("wavenc", None).unwrap(),
-            metadata::Format::Opus => gst::ElementFactory::make("opusenc", None).unwrap(),
-            metadata::Format::Vorbis => gst::ElementFactory::make("vorbisenc", None).unwrap(),
-            metadata::Format::MP3 => gst::ElementFactory::make("lamemp3enc", None).unwrap(),
+            Format::Flac => gst::ElementFactory::make("flacenc", None).unwrap(),
+            Format::Wave => gst::ElementFactory::make("wavenc", None).unwrap(),
+            Format::Opus => gst::ElementFactory::make("opusenc", None).unwrap(),
+            Format::Vorbis => gst::ElementFactory::make("vorbisenc", None).unwrap(),
+            Format::MP3 => gst::ElementFactory::make("lamemp3enc", None).unwrap(),
             _ => panic!(
                 "SplitterContext::build_pipeline unsupported format: {:?}",
                 self.format
@@ -175,16 +192,16 @@ impl SplitterContext {
 
         // add a muxer when required
         let (tag_setter, audio_muxer) = match self.format {
-            metadata::Format::Flac | metadata::Format::Wave => {
+            Format::Flac | Format::Wave => {
                 (audio_enc.clone(), audio_enc.clone())
             }
-            metadata::Format::Opus | metadata::Format::Vorbis => {
+            Format::Opus | Format::Vorbis => {
                 let ogg_muxer = gst::ElementFactory::make("oggmux", None).unwrap();
                 self.pipeline.add(&ogg_muxer).unwrap();
                 audio_enc.link(&ogg_muxer).unwrap();
                 (audio_enc.clone(), ogg_muxer)
             }
-            metadata::Format::MP3 => {
+            Format::MP3 => {
                 let id3v2_muxer = gst::ElementFactory::make("id3v2mux", None).unwrap();
                 self.pipeline.add(&id3v2_muxer).unwrap();
                 audio_enc.link(&id3v2_muxer).unwrap();

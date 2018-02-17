@@ -55,56 +55,6 @@
             <property name="vexpand">True</property>
             <property name="row_spacing">4</property>
             <child>
-              <object class="GtkRadioButton" id="mkvmerge_txt-rdbtn">
-                <property name="label" translatable="yes">mkvmerge text format</property>
-                <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="receives_default">False</property>
-                <property name="halign">start</property>
-                <property name="active">True</property>
-                <property name="draw_indicator">True</property>
-                <property name="group">cue-rdbtn</property>
-              </object>
-              <packing>
-                <property name="left_attach">0</property>
-                <property name="top_attach">0</property>
-                <property name="width">2</property>
-              </packing>
-            </child>
-            <child>
-              <object class="GtkRadioButton" id="cue-rdbtn">
-                <property name="label" translatable="yes">Cue Sheet format</property>
-                <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="receives_default">False</property>
-                <property name="halign">start</property>
-                <property name="active">True</property>
-                <property name="draw_indicator">True</property>
-                <property name="group">mkvmerge_txt-rdbtn</property>
-              </object>
-              <packing>
-                <property name="left_attach">0</property>
-                <property name="top_attach">1</property>
-                <property name="width">2</property>
-              </packing>
-            </child>
-            <child>
-              <object class="GtkRadioButton" id="mkv-rdbtn">
-                <property name="label" translatable="yes">Matroska Container</property>
-                <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="receives_default">False</property>
-                <property name="halign">start</property>
-                <property name="draw_indicator">True</property>
-                <property name="group">mkvmerge_txt-rdbtn</property>
-              </object>
-              <packing>
-                <property name="left_attach">0</property>
-                <property name="top_attach">2</property>
-                <property name="width">2</property>
-              </packing>
-            </child>
-            <child>
               <object class="GtkProgressBar" id="export-progress">
                 <property name="name">export-progress</property>
                 <property name="visible">True</property>
@@ -238,6 +188,54 @@
               <packing>
                 <property name="left_attach">0</property>
                 <property name="top_attach">4</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton" id="mkvmerge_txt-rdbtn">
+                <property name="label" translatable="yes">mkvmerge text format</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">False</property>
+                <property name="halign">start</property>
+                <property name="active">True</property>
+                <property name="draw_indicator">True</property>
+              </object>
+              <packing>
+                <property name="left_attach">0</property>
+                <property name="top_attach">0</property>
+                <property name="width">2</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton" id="cue-rdbtn">
+                <property name="label" translatable="yes">Cue Sheet format</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">False</property>
+                <property name="halign">start</property>
+                <property name="draw_indicator">True</property>
+                <property name="group">mkvmerge_txt-rdbtn</property>
+              </object>
+              <packing>
+                <property name="left_attach">0</property>
+                <property name="top_attach">1</property>
+                <property name="width">2</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton" id="mkv-rdbtn">
+                <property name="label" translatable="yes">Matroska Container</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">False</property>
+                <property name="halign">start</property>
+                <property name="draw_indicator">True</property>
+                <property name="group">mkvmerge_txt-rdbtn</property>
+              </object>
+              <packing>
+                <property name="left_attach">0</property>
+                <property name="top_attach">2</property>
+                <property name="width">2</property>
               </packing>
             </child>
             <child>

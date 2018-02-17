@@ -14,7 +14,7 @@ use media::{ContextMessage, PlaybackContext, SplitterContext, TocSetterContext};
 use media::ContextMessage::*;
 
 use metadata;
-use metadata::{Chapter, Exporter, MatroskaTocFormat, DEFAULT_TITLE};
+use metadata::{Chapter, Exporter, Format, MatroskaTocFormat, DEFAULT_TITLE};
 
 use super::MainController;
 
@@ -93,7 +93,7 @@ impl ExportController {
             playback_ctx: None,
             toc_setter_ctx: None,
             splitter_ctx: None,
-            export_format: metadata::Format::MKVMergeText,
+            export_format: Format::MKVMergeText,
             export_type: ExportType::None,
             media_path: PathBuf::new(),
             target_path: PathBuf::new(),
@@ -113,8 +113,8 @@ impl ExportController {
 
             this_mut.cleanup();
 
-            // Split radio button not active initially => disable sub radio buttons
-            this_mut.set_split_sub_btn_sensitivity();
+            // Set radio buttons initial availability
+            this_mut.switch_to_available();
         }
 
         this
@@ -455,22 +455,22 @@ impl ExportController {
 
     fn get_selected_format(&self) -> (metadata::Format, ExportType) {
         if self.mkvmerge_txt_rdbtn.get_active() {
-            (metadata::Format::MKVMergeText, ExportType::ExternalToc)
+            (Format::MKVMergeText, ExportType::ExternalToc)
         } else if self.cue_rdbtn.get_active() {
-            (metadata::Format::CueSheet, ExportType::ExternalToc)
+            (Format::CueSheet, ExportType::ExternalToc)
         } else if self.mkv_rdbtn.get_active() {
-            (metadata::Format::Matroska, ExportType::SingleFileWithToc)
+            (Format::Matroska, ExportType::SingleFileWithToc)
         } else if self.split_rdbtn.get_active() {
             if self.split_to_flac_rdbtn.get_active() {
-                (metadata::Format::Flac, ExportType::Split)
+                (Format::Flac, ExportType::Split)
             } else if self.split_to_wave_rdbtn.get_active() {
-                (metadata::Format::Wave, ExportType::Split)
+                (Format::Wave, ExportType::Split)
             } else if self.split_to_opus_rdbtn.get_active() {
-                (metadata::Format::Opus, ExportType::Split)
+                (Format::Opus, ExportType::Split)
             } else if self.split_to_vorbis_rdbtn.get_active() {
-                (metadata::Format::Vorbis, ExportType::Split)
+                (Format::Vorbis, ExportType::Split)
             } else if self.split_to_mp3_rdbtn.get_active() {
-                (metadata::Format::MP3, ExportType::Split)
+                (Format::MP3, ExportType::Split)
             } else {
                 unreachable!("ExportController::get_selected_format no selected radio button");
             }
@@ -480,30 +480,47 @@ impl ExportController {
     }
 
     fn switch_to_busy(&self) {
-        self.export_btn.set_sensitive(false);
         self.mkvmerge_txt_rdbtn.set_sensitive(false);
         self.cue_rdbtn.set_sensitive(false);
         self.mkv_rdbtn.set_sensitive(false);
         self.split_rdbtn.set_sensitive(false);
+        self.export_btn.set_sensitive(false);
         self.set_split_sub_btn_sensitivity();
     }
 
     fn switch_to_available(&self) {
-        self.export_btn.set_sensitive(true);
+        if TocSetterContext::check_requirements() {
+            self.mkv_rdbtn.set_sensitive(true);
+        } else {
+            self.mkv_rdbtn.set_label("Matroska Container (requires gst-plugins-good >= 1.14)");
+            self.mkv_rdbtn.set_sensitive(false);
+        }
+
         self.mkvmerge_txt_rdbtn.set_sensitive(true);
         self.cue_rdbtn.set_sensitive(true);
-        self.mkv_rdbtn.set_sensitive(true);
         self.split_rdbtn.set_sensitive(true);
         self.set_split_sub_btn_sensitivity();
+
+        self.export_btn.set_sensitive(true);
     }
 
     pub fn set_split_sub_btn_sensitivity(&self) {
         let state = self.split_rdbtn.get_active();
-        self.split_to_flac_rdbtn.set_sensitive(state);
-        self.split_to_wave_rdbtn.set_sensitive(state);
-        self.split_to_opus_rdbtn.set_sensitive(state);
-        self.split_to_vorbis_rdbtn.set_sensitive(state);
-        self.split_to_mp3_rdbtn.set_sensitive(state);
+        self.split_to_flac_rdbtn.set_sensitive(
+            state && SplitterContext::check_requirements(Format::Flac),
+        );
+        self.split_to_wave_rdbtn.set_sensitive(
+            state && SplitterContext::check_requirements(Format::Wave),
+        );
+        self.split_to_opus_rdbtn.set_sensitive(
+            state && SplitterContext::check_requirements(Format::Opus),
+        );
+        self.split_to_vorbis_rdbtn.set_sensitive(
+            state && SplitterContext::check_requirements(Format::Vorbis),
+        );
+        self.split_to_mp3_rdbtn.set_sensitive(
+            state && SplitterContext::check_requirements(Format::MP3),
+        );
     }
 
     fn remove_listener(&mut self) {

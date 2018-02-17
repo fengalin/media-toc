@@ -18,6 +18,16 @@ pub struct TocSetterContext {
 }
 
 impl TocSetterContext {
+    pub fn check_requirements() -> bool {
+        // Exporting to Mastroska containers is only
+        // available from gst-plugins-good 1.13.1
+        let (major, minor, micro, _nano) = gst::version();
+        (
+            major >=1 && minor >=13 && micro >= 1
+            && gst::ElementFactory::make("matroskamux", None).is_some()
+        )
+    }
+
     pub fn new(
         input_path: &Path,
         output_path: &Path,
