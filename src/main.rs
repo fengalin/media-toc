@@ -30,7 +30,7 @@ use ui::MainController;
 
 fn main() {
     let matches = App::new("media-toc")
-        .version("0.3.0")
+        .version("0.3.0.1")
         .author("François Laignel <fengalin@free.fr>")
         .about(concat!(
             "Build a table of contents from a media file ",
