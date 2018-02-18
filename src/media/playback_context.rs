@@ -30,15 +30,49 @@ const QUEUE_SIZE_NS: u64 = 5_000_000_000u64; // 5s
 
 // The video_sink must be created in the main UI thread
 // as it contains a gtk::Widget
-// GLGTKSink not used because it causes flickerings on Xorg systems.
+struct VideoOutput {
+    sink: gst::Element,
+    widget: gtk::Widget,
+}
+
+unsafe impl Sync for VideoOutput {}
+
 lazy_static! {
-    static ref VIDEO_SINK: gst::Element =
-        ElementFactory::make("gtksink", "video_sink")
-            .expect(concat!(
-                "Couldn't find GStreamer GTK video sink. Please install ",
-                "gstreamer1-plugins-bad-free-gtk or gstreamer1.0-plugins-bad, ",
-                "depenging on your distribution."
-            ));
+    static ref VIDEO_OUTPUT: VideoOutput = {
+        let (video_sink, widget_val) =
+            if let Some(gtkglsink) = ElementFactory::make("gtkglsink", None) {
+                println!("Using gtkglsink");
+                let glsinkbin = ElementFactory::make("glsinkbin", "video_sink").unwrap();
+                glsinkbin.set_property("sink", &gtkglsink.to_value()).unwrap();
+                let widget_val = gtkglsink.get_property("widget");
+                (Some(glsinkbin), widget_val.ok())
+            } else if let Some(sink) = ElementFactory::make("gtksink", "video_sink") {
+                println!("Using gtksink");
+                let widget_val = sink.get_property("widget");
+                (Some(sink), widget_val.ok())
+            } else {
+                (None, None)
+            };
+        match (video_sink, widget_val) {
+            (Some(video_sink), Some(widget_val)) => VideoOutput {
+                sink: video_sink,
+                widget: widget_val.get::<gtk::Widget>()
+                    .expect("Failed to get GstGtkWidget glib::Value as gtk::Widget"),
+            },
+            (Some(_video_sink), None) => panic!("Couldn't get video widget"),
+            (None, _) => {
+                let mut msg = "Couldn't find GStreamer GTK video sink. Please install ".to_string();
+                let (major, minor, micro, _nano) = gst::version();
+                msg += if major >= 1 && minor >= 13 && micro >= 1 {
+                    "`gstreamer1-plugins-base` or `gstreamer1.0-plugins-base`"
+                } else {
+                    "`gstreamer1-plugins-bad-free-gtk` or `gstreamer1.0-plugins-bad`"
+                };
+                msg += ", depenging on your distribution.";
+                panic!(msg);
+            }
+        }
+    };
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -105,7 +139,7 @@ impl PlaybackContext {
             .expect("PlaybackContext::new failed to lock media info")
             .file_name = file_name;
 
-        this.build_pipeline(dbl_audio_buffer_mtx, (*VIDEO_SINK).clone());
+        this.build_pipeline(dbl_audio_buffer_mtx, (*VIDEO_OUTPUT).sink.clone());
         this.register_bus_inspector(ctx_tx);
 
         match this.pause() {
@@ -115,10 +149,7 @@ impl PlaybackContext {
     }
 
     pub fn get_video_widget() -> gtk::Widget {
-        let widget_val = (*VIDEO_SINK).get_property("widget").unwrap();
-        widget_val
-            .get::<gtk::Widget>()
-            .expect("Failed to get GstGtkWidget glib::Value as gtk::Widget")
+        (*VIDEO_OUTPUT).widget.clone()
     }
 
     pub fn get_position(&mut self) -> u64 {
