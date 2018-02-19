@@ -54,8 +54,29 @@ impl<'a> ChapterEntry<'a> {
         ChapterEntry::get_end_str(self.store, self.iter)
     }
 
+    #[allow(dead_code)]
     pub fn end_ts(&self) -> Timestamp {
         Timestamp::from_nano(ChapterEntry::get_end(self.store, self.iter))
+    }
+
+    pub fn as_toc_entry(&self) -> gst::TocEntry {
+        let mut toc_entry = gst::TocEntry::new(
+            gst::TocEntryType::Chapter,
+            &format!("{}", self.start_ts().nano_total),
+        );
+        toc_entry
+            .get_mut()
+            .unwrap()
+            .set_start_stop_times(self.start() as i64, self.end() as i64);
+
+        let mut tag_list = gst::TagList::new();
+        tag_list.get_mut().unwrap().add::<gst::tags::Title>(
+            &self.title().as_str(),
+            gst::TagMergeMode::Replace,
+        );
+        toc_entry.get_mut().unwrap().set_tags(tag_list);
+
+        toc_entry
     }
 
     pub fn get_title(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> String {
@@ -174,7 +195,7 @@ impl ChapterTreeManager {
     pub fn replace_with(&mut self, toc: &Option<gst::Toc>) {
         self.clear();
 
-        if let Some(ref toc) = toc.as_ref() {
+        if let &Some(ref toc) = toc {
             for entry in toc.get_entries() {
                 if entry.get_entry_type() == gst::TocEntryType::Edition {
                     for sub_entry in entry.get_sub_entries() {
@@ -430,6 +451,27 @@ impl ChapterTreeManager {
                     Some(ref next_selected_iter) => self.iter = Some(next_selected_iter.clone()),
                 }
                 next_selected_iter
+            }
+            None => None,
+        }
+    }
+
+    pub fn get_toc(&self) -> Option<gst::Toc> {
+        match self.store.get_iter_first() {
+            Some(iter) => {
+                let mut toc_edition = gst::TocEntry::new(gst::TocEntryType::Edition, "");
+                loop {
+                    toc_edition
+                        .get_mut()
+                        .unwrap()
+                        .append_sub_entry(ChapterEntry::new(&self.store, &iter).as_toc_entry());
+
+                    if !self.store.iter_next(&iter) {
+                        let mut toc = gst::Toc::new(gst::TocScope::Global);
+                        toc.get_mut().unwrap().append_entry(toc_edition);
+                        return Some(toc)
+                    }
+                }
             }
             None => None,
         }

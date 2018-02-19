@@ -179,9 +179,7 @@ impl ExportController {
                 .as_ref()
                 .unwrap()
                 .info.lock()
-                .expect(
-                    "ExportController::export_btn clicked, failed to lock media info",
-                )
+                .expect("ExportController::export_btn clicked, failed to lock media info")
                 .duration;
             this.duration = duration;
 
@@ -198,7 +196,6 @@ impl ExportController {
                         );
                         metadata::Factory::get_writer(&this.export_format).write(
                             &info,
-                            &info.get_chapters(),
                             &mut output_file,
                         );
                     }

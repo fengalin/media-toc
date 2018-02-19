@@ -9,7 +9,7 @@ pub trait Reader {
 }
 
 pub trait Writer {
-    fn write(&self, info: &MediaInfo, chapters: &[Chapter], destination: &mut Write);
+    fn write(&self, info: &MediaInfo, destination: &mut Write);
 }
 
 pub trait Exporter {

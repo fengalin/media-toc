@@ -25,20 +25,6 @@ impl Chapter {
         this
     }
 
-    pub fn empty() -> Self {
-        Chapter {
-            id: String::new(),
-            start: Timestamp::new(),
-            end: Timestamp::new(),
-            metadata: HashMap::new(),
-        }
-    }
-
-    pub fn set_title(&mut self, title: &str) {
-        self.metadata
-            .insert(super::METADATA_TITLE.to_owned(), title.to_owned());
-    }
-
     pub fn get_title(&self) -> Option<&str> {
         self.metadata
             .get(super::METADATA_TITLE)

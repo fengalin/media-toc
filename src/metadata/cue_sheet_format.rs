@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use super::{Chapter, MediaInfo, Writer};
+use super::{MediaInfo, Writer};
 
 static EXTENSION: &'static str = "cue";
 
@@ -17,7 +17,7 @@ impl CueSheetFormat {
 }
 
 impl Writer for CueSheetFormat {
-    fn write(&self, info: &MediaInfo, chapters: &[Chapter], destination: &mut Write) {
+    fn write(&self, info: &MediaInfo, destination: &mut Write) {
         let title = info.get_title();
         if let Some(title) = title {
             destination
@@ -51,7 +51,7 @@ impl Writer for CueSheetFormat {
                 audio_codec
             ))
             .expect("CueSheetFormat::write clicked, failed to write to file");
-
+        /*
         for (index, chapter) in chapters.iter().enumerate() {
             // FIXME: are there other TRACK types than AUDIO?
             destination
@@ -83,5 +83,6 @@ impl Writer for CueSheetFormat {
                 ))
                 .expect("CueSheetFormat::write clicked, failed to write to file");
         }
+        */
     }
 }

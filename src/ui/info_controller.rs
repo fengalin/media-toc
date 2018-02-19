@@ -425,25 +425,10 @@ impl InfoController {
     }
 
     pub fn export_chapters(&self, context: &mut PlaybackContext) {
-        panic!("Adapt to new chapter processing");
-        /*
-        let mut chapters = Vec::<Chapter>::new();
-        self.chapter_manager.for_each(None, |chapter| {
-            chapters.push(Chapter::new(
-                // use start as chapter id
-                &format!("{}", chapter.start_ts().nano_total),
-                &chapter.title(),
-                chapter.start_ts(),
-                chapter.end_ts(),
-            ));
-            true // keep going until the last chapter
-        });
-
         let mut info = context
             .info
             .lock()
             .expect("InfoController::export_chapters failed to lock media info");
-        info.chapters = chapters;
-        */
+        info.toc = self.chapter_manager.get_toc();
     }
 }
