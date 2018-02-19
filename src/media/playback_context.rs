@@ -40,13 +40,16 @@ unsafe impl Sync for VideoOutput {}
 lazy_static! {
     static ref VIDEO_OUTPUT: VideoOutput = {
         let (video_sink, widget_val) =
-            if let Some(gtkglsink) = ElementFactory::make("gtkglsink", None) {
+            // For some reasons, `gtkglsink` seems to interfer with waveform renderding
+            // by inducing more jerks than with `gtksink`.
+            // For some media, the CPU usage is lower, but at the cost of memory usage
+            /*if let Some(gtkglsink) = ElementFactory::make("gtkglsink", "video_sink") {
                 println!("Using gtkglsink");
-                let glsinkbin = ElementFactory::make("glsinkbin", "video_sink").unwrap();
+                let glsinkbin = ElementFactory::make("glsinkbin", "video_sink_bin").unwrap();
                 glsinkbin.set_property("sink", &gtkglsink.to_value()).unwrap();
                 let widget_val = gtkglsink.get_property("widget");
                 (Some(glsinkbin), widget_val.ok())
-            } else if let Some(sink) = ElementFactory::make("gtksink", "video_sink") {
+            } else*/ if let Some(sink) = ElementFactory::make("gtksink", "video_sink") {
                 println!("Using gtksink");
                 let widget_val = sink.get_property("widget");
                 (Some(sink), widget_val.ok())
@@ -119,7 +122,7 @@ impl PlaybackContext {
 
         let mut this = PlaybackContext {
             pipeline: gst::Pipeline::new("pipeline"),
-            decodebin: gst::ElementFactory::make("decodebin3", None).unwrap(),
+            decodebin: gst::ElementFactory::make("decodebin3", "decodebin").unwrap(),
             position_element: None,
             position_query: gst::Query::new_position(gst::Format::Time),
 
@@ -127,7 +130,7 @@ impl PlaybackContext {
 
             file_name: file_name.clone(),
             name: String::from(path.file_stem().unwrap().to_str().unwrap()),
-            path: path,
+            path,
 
             info: Arc::new(Mutex::new(MediaInfo::new())),
         };
@@ -336,7 +339,7 @@ impl PlaybackContext {
             .set_property("use-interleave", &false)
             .unwrap();
 
-        let file_src = gst::ElementFactory::make("filesrc", None).unwrap();
+        let file_src = gst::ElementFactory::make("filesrc", "filesrc").unwrap();
         file_src
             .set_property("location", &gst::Value::from(self.path.to_str().unwrap()))
             .unwrap();
@@ -363,11 +366,11 @@ impl PlaybackContext {
                     PlaybackContext::build_video_pipeline(pipeline, src_pad, &video_sink);
                 } else {
                     // TODO: handle subtitles
-                /*let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
-                pipeline.add(&fakesink).unwrap();
-                let fakesink_sink_pad = fakesink.get_static_pad("sink").unwrap();
-                assert_eq!(src_pad.link(&fakesink_sink_pad), gst::PadLinkReturn::Ok);
-                fakesink.sync_state_with_parent().unwrap();*/
+                    /*let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
+                    pipeline.add(&fakesink).unwrap();
+                    let fakesink_sink_pad = fakesink.get_static_pad("sink").unwrap();
+                    assert_eq!(src_pad.link(&fakesink_sink_pad), gst::PadLinkReturn::Ok);
+                    fakesink.sync_state_with_parent().unwrap();*/
                 }
             });
     }
@@ -381,8 +384,14 @@ impl PlaybackContext {
         let playback_queue = gst::ElementFactory::make("queue", "audio_playback_queue").unwrap();
         PlaybackContext::setup_queue(&playback_queue);
 
-        let playback_convert = gst::ElementFactory::make("audioconvert", None).unwrap();
-        let playback_resample = gst::ElementFactory::make("audioresample", None).unwrap();
+        let playback_convert = gst::ElementFactory::make(
+            "audioconvert",
+            "playback_audioconvert",
+        ).unwrap();
+        let playback_resample = gst::ElementFactory::make(
+            "audioresample",
+            "playback_audioresample",
+        ).unwrap();
         let playback_sink_sink_pad = playback_queue.get_static_pad("sink").unwrap();
         let playback_elements = &[
             &playback_queue,
@@ -394,7 +403,10 @@ impl PlaybackContext {
         let waveform_queue = gst::ElementFactory::make("queue", "waveform_queue").unwrap();
         PlaybackContext::setup_queue(&waveform_queue);
 
-        let waveform_convert = gst::ElementFactory::make("audioconvert", None).unwrap();
+        let waveform_convert = gst::ElementFactory::make(
+            "audioconvert",
+            "waveform_audioconvert",
+        ).unwrap();
         let waveform_sink = gst::ElementFactory::make("appsink", "waveform_sink").unwrap();
         let waveform_sink_sink_pad = waveform_queue.get_static_pad("sink").unwrap();
 
