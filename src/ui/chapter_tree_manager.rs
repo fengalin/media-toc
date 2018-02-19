@@ -1,9 +1,11 @@
+extern crate gstreamer as gst;
+
 extern crate gtk;
 use gtk::prelude::*;
 
 extern crate lazy_static;
 
-use metadata::{Chapter, Timestamp};
+use metadata::Timestamp;
 
 const START_COL: u32 = 0;
 const END_COL: u32 = 1;
@@ -169,22 +171,36 @@ impl ChapterTreeManager {
         self.store.clear();
     }
 
-    pub fn replace_with(&mut self, chapter_list: &[Chapter]) {
+    pub fn replace_with(&mut self, toc: &Option<gst::Toc>) {
         self.clear();
 
-        for chapter in chapter_list.iter() {
-            self.store.insert_with_values(
-                None,
-                None,
-                &[START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
-                &[
-                    &chapter.start.nano_total,
-                    &chapter.end.nano_total,
-                    &chapter.get_title().unwrap_or(&DEFAULT_TITLE),
-                    &format!("{}", &chapter.start),
-                    &format!("{}", chapter.end),
-                ],
-            );
+        if let Some(ref toc) = toc.as_ref() {
+            for entry in toc.get_entries() {
+                if entry.get_entry_type() == gst::TocEntryType::Edition {
+                    for sub_entry in entry.get_sub_entries() {
+                        if sub_entry.get_entry_type() == gst::TocEntryType::Chapter {
+                            if let Some((start, end)) = sub_entry.get_start_stop_times() {
+                                self.store.insert_with_values(
+                                    None,
+                                    None,
+                                    &[START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
+                                    &[
+                                        &(start as u64),
+                                        &(end as u64),
+                                        &sub_entry.get_tags().map(|tags| {
+                                            tags.get::<gst::tags::Title>().map(|tag| {
+                                                tag.get().unwrap().to_owned()
+                                            })
+                                        }).unwrap_or(Some(DEFAULT_TITLE.to_owned())),
+                                        &format!("{}", &Timestamp::format(start as u64, false)),
+                                        &format!("{}", &Timestamp::format(end as u64, false)),
+                                    ],
+                                );
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         self.iter = self.store.get_iter_first();

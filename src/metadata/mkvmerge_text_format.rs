@@ -1,3 +1,4 @@
+extern crate gstreamer as gst;
 extern crate lazy_static;
 
 use std::io::{Read, Write};
@@ -31,17 +32,48 @@ impl MKVMergeTextFormat {
 impl Reader for MKVMergeTextFormat {
     fn read(
         &self,
-        _info: &MediaInfo,
-        duration: u64,
+        info: &MediaInfo,
         source: &mut Read,
-        chapters: &mut Vec<Chapter>,
-    ) {
+    ) -> Option<gst::Toc> {
+        fn add_chapter(
+            parent: &mut gst::TocEntry,
+            mut nb: Option<usize>,
+            start: u64,
+            end: u64,
+            mut title: Option<&str>,
+        ) {
+            let nb = nb
+                .take()
+                .expect("MKVMergeTextFormat::add_chapter no number for chapter");
+            let title = title
+                .take()
+                .expect("MKVMergeTextFormat::add_chapter no title for chapter");
+
+            let mut chapter = gst::TocEntry::new(gst::TocEntryType::Chapter, &format!("{:02}", nb));
+            chapter
+                .get_mut()
+                .unwrap()
+                .set_start_stop_times(start as i64, end as i64);
+
+            let mut tag_list = gst::TagList::new();
+            tag_list.get_mut().unwrap().add::<gst::tags::Title>(&title, gst::TagMergeMode::Replace);
+            chapter.get_mut().unwrap().set_tags(tag_list);
+
+            parent
+                .get_mut()
+                .unwrap()
+                .append_sub_entry(chapter);
+        }
+
         let mut content = String::new();
         source
             .read_to_string(&mut content)
-            .expect("MKVMergeTextFormat::read failed to read source content");
+            .expect("MKVMergeTextFormat::read failed reading source content");
 
-        chapters.clear();
+        let mut toc_edition = gst::TocEntry::new(gst::TocEntryType::Edition, "");
+        let mut last_nb = None;
+        let mut last_start = None;
+        let mut last_title = None;
 
         for line in content.lines() {
             let mut parts: Vec<&str> = line.trim().splitn(2, '=').collect();
@@ -49,7 +81,7 @@ impl Reader for MKVMergeTextFormat {
                 let tag = parts[0];
                 let value = parts[1];
                 if tag.starts_with(CHAPTER_TAG) && tag.len() >= *CHAPTER_TAG_LEN + CHAPTER_NB_LEN {
-                    let chapter_nb = match tag[*CHAPTER_TAG_LEN..*CHAPTER_TAG_LEN + CHAPTER_NB_LEN]
+                    let cur_nb = match tag[*CHAPTER_TAG_LEN..*CHAPTER_TAG_LEN+CHAPTER_NB_LEN]
                         .parse::<usize>()
                     {
                         Ok(chapter_nb) => chapter_nb,
@@ -60,33 +92,25 @@ impl Reader for MKVMergeTextFormat {
                     };
 
                     if tag.ends_with(NAME_TAG) {
-                        if chapter_nb <= chapters.len() {
-                            chapters[chapter_nb - 1].set_title(value);
-                        } else {
-                            panic!(
-                                "MKVMergeTextFormat::read inconsistent chapter nb for: {}",
-                                line,
+                        last_title = Some(value);
+                    } else {
+                        // New chapter start
+                        // First add previous if any, now that we know its end
+                        let cur_start = Timestamp::from_string(value).nano_total;
+
+                        if let Some(last_start) = last_start.take() {
+                            // update previous chapter's end
+                            add_chapter(
+                                &mut toc_edition,
+                                last_nb,
+                                last_start,
+                                cur_start,
+                                last_title,
                             );
                         }
-                    } else if chapter_nb == chapters.len() + 1 {
-                        let mut chapter = Chapter::empty();
-                        let start = Timestamp::from_string(value);
 
-                        if chapter_nb > 1 {
-                            // update previous chapter's end
-                            chapters
-                                .get_mut(chapter_nb - 2)
-                                .expect("MKVMergeTextFormat::read inconsistent numbering")
-                                .end = start;
-                        }
-
-                        chapter.start = start;
-                        chapters.push(chapter);
-                    } else {
-                        panic!(
-                            "MKVMergeTextFormat::read inconsistent chapter nb for: {}",
-                            line,
-                        );
+                        last_start = Some(cur_start);
+                        last_nb = Some(cur_nb);
                     }
                 } else {
                     panic!("MKVMergeTextFormat::read unexpected format for: {}", line);
@@ -96,9 +120,18 @@ impl Reader for MKVMergeTextFormat {
             }
         }
 
-        if let Some(last_chapter) = chapters.last_mut() {
-            last_chapter.end = Timestamp::from_nano(duration);
-        }
+        last_start.take().map(|last_start| {
+            add_chapter(
+                &mut toc_edition,
+                last_nb,
+                last_start,
+                info.duration,
+                last_title,
+            );
+            let mut toc = gst::Toc::new(gst::TocScope::Global);
+            toc.get_mut().unwrap().append_entry(toc_edition);
+            toc
+        })
     }
 }
 

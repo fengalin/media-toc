@@ -1,3 +1,4 @@
+extern crate gstreamer as gst;
 extern crate cairo;
 
 extern crate gtk;
@@ -15,7 +16,7 @@ use std::cell::RefCell;
 use media::PlaybackContext;
 
 use metadata;
-use metadata::{Chapter, MediaInfo, Timestamp};
+use metadata::{MediaInfo, Timestamp};
 
 use super::{ChapterTreeManager, ControllerState, ImageSurface, MainController};
 
@@ -198,12 +199,6 @@ impl InfoController {
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
-        let duration = context.get_duration();
-        self.duration = duration;
-        self.timeline_scale.set_range(0f64, duration as f64);
-        self.duration_lbl
-            .set_label(&Timestamp::format(duration, false));
-
         let media_path = context.path.clone();
         let file_stem = media_path
             .file_stem()
@@ -233,6 +228,11 @@ impl InfoController {
                 .lock()
                 .expect("InfoController::new_media failed to lock media info");
 
+            self.duration = info.duration;
+            self.timeline_scale.set_range(0f64, info.duration as f64);
+            self.duration_lbl
+                .set_label(&Timestamp::format(info.duration, false));
+
             if let Some(ref image_sample) = info.get_image(0) {
                 if let Some(ref image_buffer) = image_sample.get_buffer() {
                     if let Some(ref image_map) = image_buffer.map_readable() {
@@ -255,16 +255,11 @@ impl InfoController {
                 Some((toc_path, format)) => {
                     let mut toc_file = File::open(toc_path)
                         .expect("InfoController::new_media failed to open toc file");
-                    let mut chapters = Vec::<Chapter>::new();
-                    metadata::Factory::get_reader(&format).read(
-                        &info,
-                        self.duration,
-                        &mut toc_file,
-                        &mut chapters,
+                    self.chapter_manager.replace_with(&metadata::Factory::get_reader(&format)
+                        .read(&info, &mut toc_file)
                     );
-                    self.chapter_manager.replace_with(&chapters);
                 }
-                None => self.chapter_manager.replace_with(&info.chapters),
+                None => self.chapter_manager.replace_with(&info.toc),
             }
         }
 
@@ -430,6 +425,8 @@ impl InfoController {
     }
 
     pub fn export_chapters(&self, context: &mut PlaybackContext) {
+        panic!("Adapt to new chapter processing");
+        /*
         let mut chapters = Vec::<Chapter>::new();
         self.chapter_manager.for_each(None, |chapter| {
             chapters.push(Chapter::new(
@@ -447,5 +444,6 @@ impl InfoController {
             .lock()
             .expect("InfoController::export_chapters failed to lock media info");
         info.chapters = chapters;
+        */
     }
 }

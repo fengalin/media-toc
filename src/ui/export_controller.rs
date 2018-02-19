@@ -175,7 +175,15 @@ impl ExportController {
                 this.remove_listener();
             }
 
-            this.duration = this.playback_ctx.as_ref().unwrap().get_duration();
+            let duration = this.playback_ctx
+                .as_ref()
+                .unwrap()
+                .info.lock()
+                .expect(
+                    "ExportController::export_btn clicked, failed to lock media info",
+                )
+                .duration;
+            this.duration = duration;
 
             match export_type {
                 ExportType::ExternalToc => {
@@ -190,7 +198,7 @@ impl ExportController {
                         );
                         metadata::Factory::get_writer(&this.export_format).write(
                             &info,
-                            &info.chapters,
+                            &info.get_chapters(),
                             &mut output_file,
                         );
                     }
@@ -313,7 +321,7 @@ impl ExportController {
                 .lock()
                 .expect("ExportController::next_chapter failed to lock media info");
 
-            info.chapters
+            info.get_chapters()
                 .get(self.idx)
                 .map(|chapter| chapter.clone().to_owned())
         };
@@ -431,7 +439,7 @@ impl ExportController {
                 }
 
                 (
-                    info.chapters.len(),
+                    info.get_chapters().len(),
                     chapter.end.nano_total - chapter.start.nano_total,
                 )
             };
@@ -573,7 +581,7 @@ impl ExportController {
                                     "failed to lock media info",
                                 ),
                             );
-                            exporter.export(&info, &info.chapters, muxer);
+                            exporter.export(&info, &info.get_chapters(), muxer);
                         }
 
                         match toc_setter_ctx.export() {

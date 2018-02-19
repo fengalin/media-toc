@@ -1,7 +1,6 @@
 extern crate gstreamer as gst;
 use gstreamer::prelude::*;
-use gstreamer::{BinExt, Caps, ClockTime, ElementFactory, GstObjectExt, PadExt, TocEntryType,
-                TocScope};
+use gstreamer::{BinExt, Caps, ClockTime, ElementFactory, GstObjectExt, PadExt, TocScope};
 
 extern crate gstreamer_app as gst_app;
 extern crate gstreamer_audio as gst_audio;
@@ -20,7 +19,7 @@ use std::sync::{Arc, Mutex};
 
 use std::i32;
 
-use metadata::{Chapter, MediaInfo, Timestamp};
+use metadata::MediaInfo;
 
 use super::{ContextMessage, DoubleAudioBuffer};
 
@@ -169,14 +168,6 @@ impl PlaybackContext {
             })
             .query(&mut self.position_query);
         self.position_query.get_result().get_value() as u64
-    }
-
-    pub fn get_duration(&self) -> u64 {
-        self.pipeline
-            .query_duration::<gst::ClockTime>()
-            .unwrap_or_else(|| 0.into())
-            .nanoseconds()
-            .unwrap()
     }
 
     pub fn get_state(&self) -> gst::State {
@@ -545,6 +536,7 @@ impl PlaybackContext {
     fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
         let mut pipeline_state = PipelineState::None;
         let info_arc_mtx = Arc::clone(&self.info);
+        let pipeline = self.pipeline.clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
@@ -569,6 +561,16 @@ impl PlaybackContext {
                 gst::MessageView::AsyncDone(_) => {
                     if pipeline_state == PipelineState::StreamsSelected {
                         pipeline_state = PipelineState::Initialized;
+                        {
+                            let info = &mut info_arc_mtx
+                                .lock()
+                                .expect("Failed to lock media info while setting duration");
+                            info.duration = pipeline
+                                .query_duration::<gst::ClockTime>()
+                                .unwrap_or_else(|| 0.into())
+                                .nanoseconds()
+                                .unwrap();
+                        }
                         ctx_tx
                             .send(ContextMessage::InitDone)
                             .expect("Failed to notify UI");
@@ -592,7 +594,10 @@ impl PlaybackContext {
                         // FIXME: use updated
                         let (toc, _updated) = msg_toc.get_toc();
                         if toc.get_scope() == TocScope::Global {
-                            PlaybackContext::add_toc(&toc, &info_arc_mtx);
+                            let info = &mut info_arc_mtx
+                                .lock()
+                                .expect("Failed to lock media info while receiving toc");
+                            info.toc = Some(toc);
                         } else {
                             println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
                         }
@@ -626,40 +631,5 @@ impl PlaybackContext {
 
             glib::Continue(true)
         });
-    }
-
-    fn add_toc(toc: &gst::Toc, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
-        let info = &mut info_arc_mtx
-            .lock()
-            .expect("Failed to lock media info while reading toc data");
-        if info.chapters.is_empty() {
-            // chapters not retrieved yet
-            // TODO: check if there are medias with some sort of
-            // incremental tocs (not likely for files)
-            // or maybe the updated flag (_ above) should be used
-
-            for entry in toc.get_entries() {
-                if entry.get_entry_type() == TocEntryType::Edition {
-                    for sub_entry in entry.get_sub_entries() {
-                        if sub_entry.get_entry_type() == TocEntryType::Chapter {
-                            if let Some((start, stop)) = sub_entry.get_start_stop_times() {
-                                let mut title = String::new();
-                                if let Some(tags) = sub_entry.get_tags() {
-                                    if let Some(tag) = tags.get::<gst::tags::Title>() {
-                                        title = tag.get().unwrap().to_owned();
-                                    };
-                                };
-                                info.chapters.push(Chapter::new(
-                                    sub_entry.get_uid(),
-                                    &title,
-                                    Timestamp::from_signed_nano(start),
-                                    Timestamp::from_signed_nano(stop),
-                                ));
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 }
