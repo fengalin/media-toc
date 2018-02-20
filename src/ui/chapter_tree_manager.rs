@@ -5,7 +5,7 @@ use gtk::prelude::*;
 
 extern crate lazy_static;
 
-use metadata::Timestamp;
+use metadata::{Timestamp, TocVisit, TocVisitor};
 
 const START_COL: u32 = 0;
 const END_COL: u32 = 1;
@@ -196,30 +196,35 @@ impl ChapterTreeManager {
         self.clear();
 
         if let &Some(ref toc) = toc {
-            for entry in toc.get_entries() {
-                if entry.get_entry_type() == gst::TocEntryType::Edition {
-                    for sub_entry in entry.get_sub_entries() {
-                        if sub_entry.get_entry_type() == gst::TocEntryType::Chapter {
-                            if let Some((start, end)) = sub_entry.get_start_stop_times() {
-                                self.store.insert_with_values(
-                                    None,
-                                    None,
-                                    &[START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
-                                    &[
-                                        &(start as u64),
-                                        &(end as u64),
-                                        &sub_entry.get_tags().map(|tags| {
-                                            tags.get::<gst::tags::Title>().map(|tag| {
-                                                tag.get().unwrap().to_owned()
-                                            })
-                                        }).unwrap_or(Some(DEFAULT_TITLE.to_owned())),
-                                        &format!("{}", &Timestamp::format(start as u64, false)),
-                                        &format!("{}", &Timestamp::format(end as u64, false)),
-                                    ],
-                                );
-                            }
+            let mut toc_visitor = TocVisitor::new(toc);
+            toc_visitor.enter_chapters();
+
+            // FIXME: handle hierarchical Tocs
+            while let Some(toc_visit) = toc_visitor.next() {
+                match toc_visit {
+                    TocVisit::Node(chapter) => {
+                        assert_eq!(gst::TocEntryType::Chapter, chapter.get_entry_type());
+
+                        if let Some((start, end)) = chapter.get_start_stop_times() {
+                            self.store.insert_with_values(
+                                None,
+                                None,
+                                &[START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
+                                &[
+                                    &(start as u64),
+                                    &(end as u64),
+                                    &chapter.get_tags().map_or(None, |tags| {
+                                        tags.get::<gst::tags::Title>().map(|tag| {
+                                            tag.get().unwrap().to_owned()
+                                        })
+                                    }).unwrap_or(DEFAULT_TITLE.to_owned()),
+                                    &format!("{}", &Timestamp::format(start as u64, false)),
+                                    &format!("{}", &Timestamp::format(end as u64, false)),
+                                ],
+                            );
                         }
                     }
+                    _ => (),
                 }
             }
         }
@@ -456,6 +461,7 @@ impl ChapterTreeManager {
         }
     }
 
+    // FIXME: handle hierarchical Tocs
     pub fn get_toc(&self) -> Option<gst::Toc> {
         match self.store.get_iter_first() {
             Some(iter) => {
