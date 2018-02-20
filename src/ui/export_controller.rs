@@ -578,7 +578,7 @@ impl ExportController {
                                     "failed to lock media info",
                                 ),
                             );
-                            exporter.export(&info, &info.get_chapters(), muxer);
+                            exporter.export(&info, muxer);
                         }
 
                         match toc_setter_ctx.export() {

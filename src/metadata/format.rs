@@ -2,7 +2,7 @@ extern crate gstreamer as gst;
 
 use std::io::{Read, Write};
 
-use super::{Chapter, MediaInfo};
+use super::MediaInfo;
 
 pub trait Reader {
     fn read(&self, info: &MediaInfo, source: &mut Read) -> Option<gst::Toc>;
@@ -13,5 +13,5 @@ pub trait Writer {
 }
 
 pub trait Exporter {
-    fn export(&self, info: &MediaInfo, chapters: &[Chapter], destination: &gst::Element);
+    fn export(&self, info: &MediaInfo, destination: &gst::Element);
 }
