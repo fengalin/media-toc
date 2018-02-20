@@ -154,10 +154,10 @@ impl Writer for MKVMergeTextFormat {
                         ))
                         .expect("MKVMergeTextFormat::write clicked, failed to write to file");
 
-                    let title = chapter.get_tags().map(|tags| {
+                    let title = chapter.get_tags().map_or(None, |tags| {
                         tags.get::<gst::tags::Title>().map(|tag| {
                             tag.get().unwrap().to_owned()
-                        }).unwrap_or(super::DEFAULT_TITLE.to_owned())
+                        })
                     }).unwrap_or(super::DEFAULT_TITLE.to_owned());
                     destination
                         .write_fmt(format_args!("{}{}={}\n", prefix, NAME_TAG, &title))
