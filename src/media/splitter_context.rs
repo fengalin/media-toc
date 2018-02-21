@@ -20,7 +20,7 @@ pub struct SplitterContext {
     position_query: gst::query::Position<gst::Query>,
 
     format: Format,
-    tags: gst::TagList,
+    chapter: gst::TocEntry,
 }
 
 impl SplitterContext {
@@ -44,9 +44,7 @@ impl SplitterContext {
         input_path: &Path,
         output_path: &Path,
         format: &Format,
-        start: u64,
-        end: u64,
-        tags: gst::TagList,
+        chapter: gst::TocEntry,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<SplitterContext, String> {
         println!("  - exporting {:?}...", output_path);
@@ -57,10 +55,10 @@ impl SplitterContext {
             position_query: gst::Query::new_position(gst::Format::Time),
 
             format: format.clone(),
-            tags: tags,
+            chapter,
         };
 
-        this.build_pipeline(input_path, output_path, start, end);
+        this.build_pipeline(input_path, output_path);
         this.register_bus_inspector(ctx_tx);
 
         match this.pipeline.set_state(gst::State::Paused) {
@@ -79,7 +77,7 @@ impl SplitterContext {
 
     // TODO: handle errors
     #[cfg_attr(feature = "cargo-clippy", allow(mutex_atomic))]
-    fn build_pipeline(&mut self, input_path: &Path, output_path: &Path, start: u64, end: u64) {
+    fn build_pipeline(&mut self, input_path: &Path, output_path: &Path) {
         /* There are multiple showstoppers to implementing something ideal
          * to export splitted chapters with audio and video (and subtitles):
          * 1. matroska-mux drops seek events explicitely (a message states: "discard for now").
@@ -152,6 +150,9 @@ impl SplitterContext {
 
         // Note: can't use AtomicBool here as pad probes are multithreaded so the function is Fn
         // not FnMut. See: https://github.com/sdroege/gstreamer-rs/pull/71
+        let (start, end) = self.chapter
+            .get_start_stop_times()
+            .expect("SplitterContext::build_pipeline failed to get chapter's start/end");
         let seek_done = Arc::new(Mutex::new(false));
         let pipeline = self.pipeline.clone();
         audio_enc_sink_pad.add_probe(gst::PadProbeType::BUFFER, move |_pad, probe_info| {
@@ -168,9 +169,9 @@ impl SplitterContext {
                                 1f64,
                                 gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
                                 gst::SeekType::Set,
-                                ClockTime::from(start),
+                                ClockTime::from(start as u64),
                                 gst::SeekType::Set,
-                                ClockTime::from(end),
+                                ClockTime::from(end as u64),
                             ) {
                                 Ok(_) => (),
                                 Err(_) => {
@@ -213,13 +214,14 @@ impl SplitterContext {
             ),
         };
 
-        //self.tag_setter = Some(tag_setter);
-        let tag_setter = tag_setter
-            .clone()
-            .dynamic_cast::<gst::TagSetter>()
-            .expect("SplitterContext::build_pipeline tag_setter is not a TagSetter");
+        if let Some(tags) = self.chapter.get_tags() {
+            let tag_setter = tag_setter
+                .clone()
+                .dynamic_cast::<gst::TagSetter>()
+                .expect("SplitterContext::build_pipeline tag_setter is not a TagSetter");
 
-        tag_setter.merge_tags(&self.tags, gst::TagMergeMode::ReplaceAll);
+            tag_setter.merge_tags(&tags, gst::TagMergeMode::ReplaceAll);
+        }
 
         // Output sink
         let outsink = gst::ElementFactory::make("filesink", "filesink").unwrap();

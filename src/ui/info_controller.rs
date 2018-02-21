@@ -425,10 +425,13 @@ impl InfoController {
     }
 
     pub fn export_chapters(&self, context: &mut PlaybackContext) {
-        let mut info = context
-            .info
-            .lock()
-            .expect("InfoController::export_chapters failed to lock media info");
-        info.toc = self.chapter_manager.get_toc();
+        if let Some((toc, count)) = self.chapter_manager.get_toc() {
+            let mut info = context
+                .info
+                .lock()
+                .expect("InfoController::export_chapters failed to lock media info");
+            info.toc = Some(toc);
+            info.chapter_count = Some(count);
+        }
     }
 }

@@ -1,6 +1,3 @@
-pub mod chapter;
-pub use self::chapter::Chapter;
-
 pub mod cue_sheet_format;
 pub use self::cue_sheet_format::CueSheetFormat;
 
@@ -24,8 +21,6 @@ pub use self::timestamp::Timestamp;
 
 pub mod toc_visitor;
 pub use self::toc_visitor::{TocVisit, TocVisitor};
-
-pub static METADATA_TITLE: &'static str = "title";
 
 pub static DEFAULT_TITLE: &'static str = "untitled";
 

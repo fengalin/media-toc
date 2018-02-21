@@ -14,7 +14,7 @@ use media::{ContextMessage, PlaybackContext, SplitterContext, TocSetterContext};
 use media::ContextMessage::*;
 
 use metadata;
-use metadata::{Chapter, Exporter, Format, MatroskaTocFormat, DEFAULT_TITLE};
+use metadata::{Exporter, Format, MatroskaTocFormat, TocVisitor, DEFAULT_TITLE};
 
 use super::MainController;
 
@@ -61,7 +61,8 @@ pub struct ExportController {
     target_path: PathBuf,
     extension: String,
     idx: usize,
-    current_chapter: Option<Chapter>,
+    toc: Option<gst::Toc>,
+    toc_visitor: Option<TocVisitor>,
     duration: u64,
 
     this_opt: Option<Rc<RefCell<ExportController>>>,
@@ -75,7 +76,7 @@ impl ExportController {
         export_dlg.set_transient_for(&main_window);
 
         let this = Rc::new(RefCell::new(ExportController {
-            export_dlg: export_dlg,
+            export_dlg,
             open_export_btn: builder.get_object("export_toc-btn").unwrap(),
             export_btn: builder.get_object("export-btn").unwrap(),
             progress_bar: builder.get_object("export-progress").unwrap(),
@@ -99,7 +100,8 @@ impl ExportController {
             target_path: PathBuf::new(),
             extension: String::new(),
             idx: 0,
-            current_chapter: None,
+            toc: None,
+            toc_visitor: None,
             duration: 0,
 
             this_opt: None,
@@ -206,9 +208,7 @@ impl ExportController {
                     this.export_dlg.hide();
                 }
                 ExportType::Split => {
-                    let has_chapters = this.next_chapter().is_some();
-
-                    if has_chapters {
+                    if this.toc_visitor.is_some() {
                         this.build_splitter_context(&main_ctrl_clone);
                     } else {
                         // No chapter => export the whole file
@@ -234,6 +234,17 @@ impl ExportController {
     }
 
     pub fn open(&mut self, playback_ctx: PlaybackContext) {
+        self.toc = playback_ctx
+            .info
+            .lock()
+            .expect("ExportController::open failed to lock media info")
+            .toc
+                .take();
+
+        self.toc_visitor = self.toc.as_ref().map(|toc| {
+            TocVisitor::new(toc)
+        });
+
         self.playback_ctx = Some(playback_ctx);
         self.progress_bar.set_fraction(0f64);
         self.export_dlg.present();
@@ -266,72 +277,64 @@ impl ExportController {
         };
     }
 
-    fn build_splitter_context(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
+    fn build_splitter_context(&mut self, main_ctrl: &Rc<RefCell<MainController>>) -> bool {
         let (ctx_tx, ui_rx) = channel();
 
         self.register_splitter_listener(LISTENER_PERIOD, ui_rx, Rc::clone(main_ctrl));
 
-        let (output_path, start, end, tags) = {
-            let chapter = self.current_chapter
-                .as_ref()
-                .expect("ExportController::build_splitter_context no chapter");
-            (
-                self.get_split_path(chapter),
-                chapter.start.nano_total,
-                chapter.end.nano_total,
-                self.get_chapter_tags(chapter),
-            )
+        if self.toc_visitor.is_none() {
+            // FIXME: display message: no chapter
+            return false;
+        }
+
+        let mut chapter = match self.next_chapter() {
+            Some(chapter) => chapter,
+            None => return false,
         };
+        // Unfortunately, we need to make a copy here
+        // because the chapter is also owned by the self.toc
+        // and the TocVisitor so the chapters entries ref_count is > 1
+        // Alternatively, the TocVisitor could consume the Toc
+        // and a rewind method could be used before another export
+        // FIXME: implement the above strategy and avoid the copy below
+        let chapter = self.update_tags(&mut chapter);
+
+        let output_path = self.get_split_path(&chapter);
 
         let media_path = self.media_path.clone();
         match SplitterContext::new(
             &media_path,
             &output_path,
             &self.export_format,
-            start,
-            end,
-            tags,
+            chapter,
             ctx_tx,
         ) {
             Ok(splitter_ctx) => {
                 self.switch_to_busy();
                 self.splitter_ctx = Some(splitter_ctx);
+                true
             }
             Err(error) => {
                 eprintln!("Error exporting media: {}", error);
-                self.remove_listener();
-                self.switch_to_available();
-                main_ctrl
-                    .borrow_mut()
-                    .set_context(self.playback_ctx.take().unwrap());
-                self.export_dlg.hide();
+                false
             }
-        };
+        }
     }
 
-    fn next_chapter(&mut self) -> Option<&Chapter> {
-        let next_chapter = {
-            let info = self.playback_ctx
-                .as_ref()
-                .unwrap()
-                .info
-                .lock()
-                .expect("ExportController::next_chapter failed to lock media info");
+    fn next_chapter(&mut self) -> Option<gst::TocEntry> {
+        let chapter = self.toc_visitor
+            .as_mut()
+            .unwrap()
+            .next_chapter();
 
-            info.get_chapters()
-                .get(self.idx)
-                .map(|chapter| chapter.clone().to_owned())
-        };
-
-        self.current_chapter = next_chapter;
-        if self.current_chapter.is_some() {
+        if chapter.is_some() {
             self.idx += 1;
         }
 
-        self.current_chapter.as_ref()
+        chapter
     }
 
-    fn get_split_path(&self, chapter: &Chapter) -> PathBuf {
+    fn get_split_path(&self, chapter: &gst::TocEntry) -> PathBuf {
         let mut split_name = String::new();
 
         let info = self.playback_ctx
@@ -345,14 +348,20 @@ impl ExportController {
         if let Some(artist) = info.get_artist() {
             split_name += &format!("{} - ", artist);
         }
-        if let Some(title) = info.get_title() {
-            split_name += &format!("{} - ", title);
+        if let Some(album_title) = info.get_title() {
+            split_name += &format!("{} - ", album_title);
         }
+
+        let track_title = chapter.get_tags().map_or(None, |tags| {
+            tags.get::<gst::tags::Title>().map(|tag| {
+                tag.get().unwrap().to_owned()
+            })
+        }).unwrap_or(DEFAULT_TITLE.to_owned());
 
         split_name += &format!(
             "{:02}. {}.{}",
             self.idx,
-            chapter.get_title().unwrap_or(DEFAULT_TITLE),
+            &track_title,
             self.extension,
         );
 
@@ -360,17 +369,17 @@ impl ExportController {
     }
 
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
-    fn get_chapter_tags(&self, chapter: &Chapter) -> gst::TagList {
+    fn update_tags(&self, chapter: &mut gst::TocEntry) -> gst::TocEntry {
         let mut tags = gst::TagList::new();
         {
             let tags = tags.get_mut().unwrap();
-            let (chapter_count, duration) = {
+            let chapter_count = {
                 let info = self.playback_ctx
                     .as_ref()
                     .unwrap()
                     .info
                     .lock()
-                    .expect("ExportController::get_chapter_tags failed to lock media info");
+                    .expect("ExportController::update_tags failed to lock media info");
 
                 // Select tags suitable for a track
                 add_tag_from!(tags, info.tags, gst::tags::Artist);
@@ -435,27 +444,35 @@ impl ExportController {
                     );
                 }
 
-                (
-                    info.get_chapters().len(),
-                    chapter.end.nano_total - chapter.start.nano_total,
-                )
+                info.chapter_count
+                    .expect("ExportController::update_tags chapter_count is none")
             };
 
             // Add track specific tags
-            if let Some(title) = chapter.get_title() {
-                tags.add::<gst::tags::Title>(&title, gst::TagMergeMode::Replace);
-            }
+            let title = chapter.get_tags().map_or(None, |tags| {
+                tags.get::<gst::tags::Title>().map(|tag| {
+                    tag.get().unwrap().to_owned()
+                })
+            }).unwrap_or(DEFAULT_TITLE.to_owned());
+            tags.add::<gst::tags::Title>(&title.as_str(), gst::TagMergeMode::Replace);
+
+            let (start, end) = chapter
+                .get_start_stop_times()
+                .expect("SplitterContext::build_pipeline failed to get chapter's start/end");
 
             tags.add::<gst::tags::TrackNumber>(&(self.idx as u32), gst::TagMergeMode::Replace);
             tags.add::<gst::tags::TrackCount>(&(chapter_count as u32), gst::TagMergeMode::Replace);
             tags.add::<gst::tags::Duration>(
-                &gst::ClockTime::from_nseconds(duration),
+                &gst::ClockTime::from_nseconds((end - start) as u64),
                 gst::TagMergeMode::Replace,
             );
             tags.add::<gst::tags::ApplicationName>(&"media-toc", gst::TagMergeMode::Replace);
         }
 
-        tags
+        // FIXME: avoid the copy (see comments in caller)
+        let chapter = chapter.make_mut();
+        chapter.set_tags(tags);
+        chapter.to_owned()
     }
 
     fn get_selected_format(&self) -> (metadata::Format, ExportType) {
@@ -645,11 +662,8 @@ impl ExportController {
             for message in ui_rx.try_iter() {
                 match message {
                     Eos => {
-                        let has_more = this.next_chapter().is_some();
-                        if has_more {
-                            // build a new context for next chapter
-                            this.build_splitter_context(&main_ctrl);
-                        } else {
+                        if !this.build_splitter_context(&main_ctrl) {
+                            // No more chapters or an error occured
                             this.switch_to_available();
                             main_ctrl
                                 .borrow_mut()

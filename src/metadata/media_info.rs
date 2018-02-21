@@ -1,7 +1,5 @@
 extern crate gstreamer as gst;
 
-use metadata::{Chapter, Timestamp};
-
 #[derive(Clone)]
 pub struct Stream {
     pub id: String,
@@ -142,6 +140,7 @@ pub struct MediaInfo {
     pub file_name: String,
     pub tags: gst::TagList,
     pub toc: Option<gst::Toc>,
+    pub chapter_count: Option<usize>,
 
     pub description: String,
     pub duration: u64,
@@ -156,36 +155,6 @@ impl MediaInfo {
 
     pub fn get_file_name(&self) -> &str {
         &self.file_name
-    }
-
-    pub fn get_chapters(&self) -> Vec<Chapter> {
-        let mut chapters = Vec::<Chapter>::new();
-        if let Some(ref toc) = self.toc {
-            for entry in toc.get_entries() {
-                if entry.get_entry_type() == gst::TocEntryType::Edition {
-                    for sub_entry in entry.get_sub_entries() {
-                        if sub_entry.get_entry_type() == gst::TocEntryType::Chapter {
-                            if let Some((start, stop)) = sub_entry.get_start_stop_times() {
-                                let mut title = String::new();
-                                if let Some(tags) = sub_entry.get_tags() {
-                                    if let Some(tag) = tags.get::<gst::tags::Title>() {
-                                        title = tag.get().unwrap().to_owned();
-                                    };
-                                };
-                                chapters.push(Chapter::new(
-                                    sub_entry.get_uid(),
-                                    &title,
-                                    Timestamp::from_signed_nano(start),
-                                    Timestamp::from_signed_nano(stop),
-                                ));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        chapters
     }
 
     pub fn get_artist(&self) -> Option<&str> {

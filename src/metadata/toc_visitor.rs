@@ -114,6 +114,22 @@ impl TocVisitor {
             }
         }
     }
+
+    // Flattens the tree structure and get chapters in order
+    pub fn next_chapter(&mut self) -> Option<gst::TocEntry> {
+        loop {
+            match self.next() {
+                Some(toc_visit) => match toc_visit {
+                    TocVisit::Node(entry) => match entry.get_entry_type() {
+                        gst::TocEntryType::Chapter => return Some(entry),
+                        _ => (),
+                    },
+                    _ => (),
+                }
+                None => return None,
+            }
+        }
+    }
 }
 
 #[cfg(test)]

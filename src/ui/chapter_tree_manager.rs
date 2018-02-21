@@ -462,11 +462,13 @@ impl ChapterTreeManager {
     }
 
     // FIXME: handle hierarchical Tocs
-    pub fn get_toc(&self) -> Option<gst::Toc> {
+    pub fn get_toc(&self) -> Option<(gst::Toc, usize)> {
+        let mut count = 0;
         match self.store.get_iter_first() {
             Some(iter) => {
                 let mut toc_edition = gst::TocEntry::new(gst::TocEntryType::Edition, "");
                 loop {
+                    count += 1;
                     toc_edition
                         .get_mut()
                         .unwrap()
@@ -475,7 +477,7 @@ impl ChapterTreeManager {
                     if !self.store.iter_next(&iter) {
                         let mut toc = gst::Toc::new(gst::TocScope::Global);
                         toc.get_mut().unwrap().append_entry(toc_edition);
-                        return Some(toc)
+                        return Some((toc, count))
                     }
                 }
             }

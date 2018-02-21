@@ -33,14 +33,6 @@ impl Timestamp {
         }
     }
 
-    pub fn from_signed_nano(nano: i64) -> Self {
-        if nano.is_negative() {
-            Timestamp::default()
-        } else {
-            Timestamp::from_nano(nano as u64)
-        }
-    }
-
     // FIXME: handle errors nicely
     pub fn from_string(input: &str) -> Self {
         let mut ts = Timestamp::new();
