@@ -49,7 +49,7 @@ lazy_static! {
                 let widget_val = gtkglsink.get_property("widget");
                 (Some(glsinkbin), widget_val.ok())
             } else*/ if let Some(sink) = ElementFactory::make("gtksink", "video_sink") {
-                println!("Using gtksink");
+                //println!("Using gtksink");
                 let widget_val = sink.get_property("widget");
                 (Some(sink), widget_val.ok())
             } else {
