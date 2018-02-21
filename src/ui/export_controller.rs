@@ -61,7 +61,6 @@ pub struct ExportController {
     target_path: PathBuf,
     extension: String,
     idx: usize,
-    toc: Option<gst::Toc>,
     toc_visitor: Option<TocVisitor>,
     duration: u64,
 
@@ -100,7 +99,6 @@ impl ExportController {
             target_path: PathBuf::new(),
             extension: String::new(),
             idx: 0,
-            toc: None,
             toc_visitor: None,
             duration: 0,
 
@@ -234,16 +232,15 @@ impl ExportController {
     }
 
     pub fn open(&mut self, playback_ctx: PlaybackContext) {
-        self.toc = playback_ctx
+        self.toc_visitor = playback_ctx
             .info
             .lock()
             .expect("ExportController::open failed to lock media info")
             .toc
-                .take();
-
-        self.toc_visitor = self.toc.as_ref().map(|toc| {
-            TocVisitor::new(toc)
-        });
+                .as_ref()
+                .map(|toc| {
+                    TocVisitor::new(toc)
+                });
 
         self.playback_ctx = Some(playback_ctx);
         self.progress_bar.set_fraction(0f64);
@@ -294,9 +291,6 @@ impl ExportController {
         // Unfortunately, we need to make a copy here
         // because the chapter is also owned by the self.toc
         // and the TocVisitor so the chapters entries ref_count is > 1
-        // Alternatively, the TocVisitor could consume the Toc
-        // and a rewind method could be used before another export
-        // FIXME: implement the above strategy and avoid the copy below
         let chapter = self.update_tags(&mut chapter);
 
         let output_path = self.get_split_path(&chapter);
@@ -469,7 +463,6 @@ impl ExportController {
             tags.add::<gst::tags::ApplicationName>(&"media-toc", gst::TagMergeMode::Replace);
         }
 
-        // FIXME: avoid the copy (see comments in caller)
         let chapter = chapter.make_mut();
         chapter.set_tags(tags);
         chapter.to_owned()

@@ -3,7 +3,7 @@ extern crate lazy_static;
 
 use std::io::{Read, Write};
 
-use super::{MediaInfo, Reader, Timestamp, TocVisit, TocVisitor, Writer};
+use super::{MediaInfo, Reader, Timestamp, TocVisitor, Writer};
 
 static EXTENSION: &'static str = "txt";
 
@@ -141,37 +141,28 @@ impl Writer for MKVMergeTextFormat {
             return;
         }
 
-        let mut toc_visitor = TocVisitor::new(info.toc.as_ref().unwrap());
-        toc_visitor.enter_chapters();
-
-        // Flatten the Toc
         let mut index = 0;
-        while let Some(toc_visit) = toc_visitor.next() {
-            match toc_visit {
-                TocVisit::Node(chapter) => {
-                    assert_eq!(gst::TocEntryType::Chapter, chapter.get_entry_type());
-                     if let Some((start, _end)) = chapter.get_start_stop_times() {
-                        index += 1;
-                        let prefix = format!("{}{:02}", CHAPTER_TAG, index);
-                        destination
-                            .write_fmt(format_args!(
-                                "{}={}\n",
-                                prefix,
-                                Timestamp::from_nano(start as u64).format_with_hours(),
-                            ))
-                            .expect("MKVMergeTextFormat::write clicked, failed to write to file");
+        let mut toc_visitor = TocVisitor::new(info.toc.as_ref().unwrap());
+        while let Some(chapter) = toc_visitor.next_chapter() {
+            if let Some((start, _end)) = chapter.get_start_stop_times() {
+                index += 1;
+                let prefix = format!("{}{:02}", CHAPTER_TAG, index);
+                destination
+                    .write_fmt(format_args!(
+                        "{}={}\n",
+                        prefix,
+                        Timestamp::from_nano(start as u64).format_with_hours(),
+                    ))
+                    .expect("MKVMergeTextFormat::write clicked, failed to write to file");
 
-                        let title = chapter.get_tags().map_or(None, |tags| {
-                            tags.get::<gst::tags::Title>().map(|tag| {
-                                tag.get().unwrap().to_owned()
-                            })
-                        }).unwrap_or(super::DEFAULT_TITLE.to_owned());
-                        destination
-                            .write_fmt(format_args!("{}{}={}\n", prefix, NAME_TAG, &title))
-                            .expect("MKVMergeTextFormat::write clicked, failed to write to file");
-                    }
-                }
-                _ => (),
+                let title = chapter.get_tags().map_or(None, |tags| {
+                    tags.get::<gst::tags::Title>().map(|tag| {
+                        tag.get().unwrap().to_owned()
+                    })
+                }).unwrap_or(super::DEFAULT_TITLE.to_owned());
+                destination
+                    .write_fmt(format_args!("{}{}={}\n", prefix, NAME_TAG, &title))
+                    .expect("MKVMergeTextFormat::write clicked, failed to write to file");
             }
         }
     }
