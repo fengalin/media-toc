@@ -500,7 +500,11 @@ impl ExportController {
         self.mkv_rdbtn.set_sensitive(false);
         self.split_rdbtn.set_sensitive(false);
         self.export_btn.set_sensitive(false);
-        self.set_split_sub_btn_sensitivity();
+        self.split_to_flac_rdbtn.set_sensitive(false);
+        self.split_to_wave_rdbtn.set_sensitive(false);
+        self.split_to_opus_rdbtn.set_sensitive(false);
+        self.split_to_vorbis_rdbtn.set_sensitive(false);
+        self.split_to_mp3_rdbtn.set_sensitive(false);
     }
 
     fn switch_to_available(&self) {
