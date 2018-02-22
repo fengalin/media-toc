@@ -5,8 +5,7 @@ file into chapters. It runs on Linux and Windows and should also work on macOS.
 You might also be interested in [media-toc-player](https://github.com/fengalin/media-toc-player):
 a media player with a table of contents.
 
-**media-toc** is not complete yet, see the [Status section](#status) below.
-Of course, you can contribute to the project if you find it interesting.
+**media-toc** is not complete yet, see the [features list](#features) below.
 
 ## <a name='ui'></a>Screenshots
 ### UI with a video file
@@ -18,19 +17,17 @@ Of course, you can contribute to the project if you find it interesting.
 ### Waveform showing 5.1 audio channels
 ![media-toc Waveform 5.1 audio channels](assets/waveform_5.1_audio_channels.png)
 
-## <a name='status'></a>Status
-At the moment, **media-toc** can:
+## <a name='features'></a>Features
 
-- Open a media file: display metadata from the media, the cover image, the first video frame,
-the chapters list and marks at the beginning of each chapter on the timeline.
-- Play/Pause the audio and video, draw the audio waveform and select current chapter in the list
-while playing.
+- Play/Pause an audio/video media
+- Select the streams to play.
+- Draw the audio waveform and chapters boundaries.
 - Seek in the media by left clicking on the waveform, on the timeline or in the chapters list.
 - Play from a position until the end of current time frame by right clicking on the waveform
 at the starting position in paused mode.
-- Select the stream to play.
 - Zoom in/out the waveform on the time axis.
 - Add/remove a chapter.
+- Play current chapter in a loop.
 - Export the table of contents to:
 	* A Matroska container. Currently, this is possible only if the input streams are compatible
 	with Matroska containers. I'll add an UI to allow converting streams later. This also requires
@@ -164,10 +161,8 @@ brew install gtk+3 gstreamer gst-plugins-{base,good,bad,ugly} gst-libav
 - Install the development toolchain, GTK and GStreamer<br>
 Note: for a 32bits system, use `mingw-w64-i686-...`
 ```
-pacman --noconfirm -S mingw-w64-x86_64-gtk3 \
-	mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-plugins-base \
-	mingw-w64-x86_64-gst-plugins-good mingw-w64-x86_64-gst-plugins-bad \
-	mingw-w64-x86_64-gst-plugins-ugly mingw-w64-x86_64-gst-libav
+pacman --noconfirm -S mingw-w64-x86_64-gtk3 mingw-w64-x86_64-gstreamer \
+	mingw-w64-x86_64-gst-plugins-{base,good,bad,ugly} mingw-w64-x86_64-gst-libav
 ```
 
 - Launch the [rustup installer](https://www.rustup.rs/).
