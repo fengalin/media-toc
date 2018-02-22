@@ -18,7 +18,7 @@ use media::PlaybackContext;
 use metadata;
 use metadata::{MediaInfo, Timestamp};
 
-use super::{ChapterTreeManager, ControllerState, ImageSurface, MainController};
+use super::{ChapterPositions, ChapterTreeManager, ControllerState, ImageSurface, MainController};
 
 lazy_static! {
     static ref EMPTY_REPLACEMENT: String = "-".to_owned();
@@ -139,7 +139,7 @@ impl InfoController {
                         Some(iter) => {
                             let position = this.chapter_manager.get_chapter_at_iter(&iter).start();
                             // update position
-                            this.tick(position, 0, 0, false, None);
+                            this.tick(position, false);
                             Some(position)
                         }
                         None => None,
@@ -327,23 +327,23 @@ impl InfoController {
         });
     }
 
+    pub fn refresh_chapter_positions(
+        &self,
+        first: u64,
+        last: u64,
+        chapter_positions: &mut ChapterPositions,
+    ) {
+        self.chapter_manager.refresh_chapter_positions(first, last, chapter_positions);
+    }
+
     pub fn tick(
         &mut self,
         position: u64,
-        first: u64,
-        last: u64,
         is_eos: bool,
-        chapter_positions: Option<&mut Vec<(u64, bool, bool)>>,
     ) {
         self.timeline_scale.set_value(position as f64);
 
-        let (mut has_changed, prev_selected_iter) = self.chapter_manager
-            .update_position(
-                position,
-                first,
-                last,
-                chapter_positions,
-            );
+        let (mut has_changed, prev_selected_iter) = self.chapter_manager.update_position(position);
 
         if self.repeat_chapter {
             // repeat is activated
@@ -393,7 +393,7 @@ impl InfoController {
 
         if *state == ControllerState::Paused {
             // force sync
-            self.tick(position, 0, 0, false, None);
+            self.tick(position, false);
         }
     }
 

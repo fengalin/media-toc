@@ -18,7 +18,8 @@ use gtk::prelude::*;
 use media::{ContextMessage, PlaybackContext};
 use media::ContextMessage::*;
 
-use super::{AudioController, ExportController, InfoController, StreamsController, VideoController};
+use super::{AudioController, ChapterPositions, ExportController, InfoController, StreamsController,
+            VideoController};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ControllerState {
@@ -255,17 +256,14 @@ impl MainController {
         position: u64,
         first: u64,
         last: u64,
-        chapter_positions: &mut Vec<(u64, bool, bool)>,
+        chapter_positions: &mut ChapterPositions,
     ) {
+        let mut info_ctrl = self.info_ctrl.borrow_mut();
+        info_ctrl.refresh_chapter_positions(first, last, chapter_positions);
+
         match self.state {
             ControllerState::Seeking { .. } => (),
-            _ => self.info_ctrl.borrow_mut().tick(
-                position,
-                first,
-                last,
-                false,
-                Some(chapter_positions),
-            ),
+            _ => info_ctrl.tick(position, false),
         }
     }
 

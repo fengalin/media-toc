@@ -21,7 +21,7 @@ use media::{DoubleAudioBuffer, PlaybackContext, SampleExtractor};
 
 use metadata::Timestamp;
 
-use super::{ControllerState, DoubleWaveformBuffer, MainController, WaveformBuffer,
+use super::{ChapterPositions, ControllerState, DoubleWaveformBuffer, MainController, WaveformBuffer,
             WaveformConditions, BACKGROUND_COLOR};
 
 const BUFFER_DURATION: u64 = 60_000_000_000; // 60 s
@@ -51,6 +51,8 @@ pub struct AudioController {
 
     font_family: Option<(String)>,
     font_size: f64,
+    twice_font_size: f64,
+    half_font_size: f64,
     boundary_text_mn_width: f64,
     cursor_text_mn_width: f64,
     boundary_text_h_width: f64,
@@ -62,7 +64,7 @@ pub struct AudioController {
     requested_duration: f64,
     current_position: u64,
     last_visible_pos: u64,
-    chapter_positions: Vec<(u64, bool, bool)>,
+    chapter_positions: ChapterPositions,
 
     waveform_mtx: Arc<Mutex<Box<SampleExtractor>>>,
     dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
@@ -87,6 +89,8 @@ impl AudioController {
 
             font_family: None,
             font_size: 0f64,
+            twice_font_size: 0f64,
+            half_font_size: 0f64,
             boundary_text_mn_width: 0f64,
             cursor_text_mn_width: 0f64,
             boundary_text_h_width: 0f64,
@@ -98,7 +102,7 @@ impl AudioController {
             requested_duration: INIT_REQ_DURATION,
             current_position: 0,
             last_visible_pos: 0,
-            chapter_positions: Vec::new(),
+            chapter_positions: ChapterPositions::new(),
 
             waveform_mtx: waveform_mtx,
             dbl_buffer_mtx: dbl_buffer_mtx,
@@ -358,6 +362,8 @@ impl AudioController {
 
                 self.font_family = Some(family);
                 self.font_size = size;
+                self.twice_font_size = 2f64 * size;
+                self.half_font_size = 0.5f64 * size;
 
                 self.boundary_text_mn_width = cr.text_extents(BOUNDARY_TEXT_MN).width;
                 self.cursor_text_mn_width = cr.text_extents(CURSOR_TEXT_MN).width;
@@ -455,7 +461,7 @@ impl AudioController {
         } else {
             2f64 + self.boundary_text_h_width
         };
-        cr.move_to(2f64, 2f64 * self.font_size);
+        cr.move_to(2f64, self.twice_font_size);
         cr.show_text(&first_text);
 
         // last position
@@ -468,7 +474,7 @@ impl AudioController {
             };
             if last_pos.x - last_text_start > first_text_end + 5f64 {
                 // last text won't overlap with first text
-                cr.move_to(last_pos.x - last_text_start, 2f64 * self.font_size);
+                cr.move_to(last_pos.x - last_text_start, self.twice_font_size);
                 cr.show_text(&last_text);
             }
 
@@ -490,21 +496,35 @@ impl AudioController {
             }
         }
 
-        // Draw in range chapters boundaries
-        cr.set_source_rgb(0.5f64, 0.75f64, 1f64);
-        cr.set_line_width(1f64);
-        for chapter_position in &self.chapter_positions {
-            // TODO: change line depending on chapter boundary status (end, end + start, start)
-            // or display chapter titles
+        if !self.chapter_positions.is_empty() {
+            // Draw in range chapters boundaries
+            cr.set_source_rgb(0.5f64, 0.6f64, 1f64);
+            cr.set_line_width(1f64);
+            let chapter_boundary_y0 = self.twice_font_size + 5f64;
+            let chapter_text_base = height - self.half_font_size;
+            for chapter_position in &self.chapter_positions {
+                if chapter_position.0 >= image_positions.first.timestamp {
+                    let x = (
+                        (chapter_position.0 - image_positions.first.timestamp)
+                        / image_positions.sample_duration
+                    ) as f64 / image_positions.sample_step;
+                    cr.move_to(x, chapter_boundary_y0);
+                    cr.line_to(x, height);
+                    cr.stroke();
 
-            if chapter_position.0 > image_positions.first.timestamp {
-                let x = (
-                    (chapter_position.0 - image_positions.first.timestamp)
-                    / image_positions.sample_duration
-                ) as f64 / image_positions.sample_step;
-                cr.move_to(x, 0f64);
-                cr.line_to(x, height);
-                cr.stroke();
+                    if let Some(ref end_text) = chapter_position.1 {
+                        cr.move_to(
+                            x - 5f64 - cr.text_extents(end_text).width,
+                            chapter_text_base,
+                        );
+                        cr.show_text(end_text);
+                    }
+
+                    if let Some(ref start_text) = chapter_position.2 {
+                        cr.move_to(x + 5f64, chapter_text_base);
+                        cr.show_text(start_text);
+                    }
+                }
             }
         }
 
@@ -528,7 +548,7 @@ impl AudioController {
 
             cr.set_line_width(1f64);
             cr.move_to(current_x, 0f64);
-            cr.line_to(current_x, height);
+            cr.line_to(current_x, height - self.twice_font_size);
             cr.stroke();
         }
 

@@ -10,6 +10,8 @@ use std::collections::Bound::Included;
 
 use metadata::{Timestamp, TocVisit, TocVisitor};
 
+pub type ChapterPositions = Vec<(u64, Option<String>, Option<String>)>;
+
 const START_COL: u32 = 0;
 const END_COL: u32 = 1;
 const TITLE_COL: u32 = 2;
@@ -288,28 +290,31 @@ impl ChapterTreeManager {
         while func(ChapterEntry::new(&self.store, &iter)) && self.store.iter_next(&iter) {}
     }
 
-    // Update chapter according to the given position
-    // Returns (has_changed, prev_selected_iter)
-    pub fn update_position(
-        &mut self,
-        position: u64,
+    pub fn refresh_chapter_positions(
+        &self,
         first: u64,
         last: u64,
-        chapter_positions: Option<&mut Vec<(u64, bool, bool)>>,
-    ) -> (bool, Option<gtk::TreeIter>) {
-        if let Some(chapter_positions) = chapter_positions {
-            chapter_positions.clear();
-            for (position, end_start_iters) in self.position_map.range(
-                (Included(&first), Included(&last))
-            ) {
-                chapter_positions.push((
-                    *position,
-                    end_start_iters.0.is_some(),
-                    end_start_iters.1.is_some(),
-                ));
-            }
+        chapter_positions: &mut ChapterPositions,
+    ) {
+        chapter_positions.clear();
+        for (position, end_start_iters) in self.position_map.range(
+            (Included(&first), Included(&last))
+        ) {
+            chapter_positions.push((
+                *position,
+                end_start_iters.0.as_ref().map(|end_iter|
+                    ChapterEntry::get_title(&self.store, end_iter).to_owned()
+                ),
+                end_start_iters.1.as_ref().map(|start_iter|
+                    ChapterEntry::get_title(&self.store, start_iter).to_owned()
+                ),
+            ));
         }
+    }
 
+    // Update chapter according to the given position
+    // Returns (has_changed, prev_selected_iter)
+    pub fn update_position(&mut self, position: u64) -> (bool, Option<gtk::TreeIter>) {
         let has_changed = match self.selected_iter {
             Some(ref selected_iter) => {
                 if position >= ChapterEntry::get_start(&self.store, selected_iter)
