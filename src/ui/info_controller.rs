@@ -139,7 +139,7 @@ impl InfoController {
                         Some(iter) => {
                             let position = this.chapter_manager.get_chapter_at_iter(&iter).start();
                             // update position
-                            this.tick(position, false);
+                            this.tick(position, 0, 0, false, None);
                             Some(position)
                         }
                         None => None,
@@ -327,10 +327,23 @@ impl InfoController {
         });
     }
 
-    pub fn tick(&mut self, position: u64, is_eos: bool) {
+    pub fn tick(
+        &mut self,
+        position: u64,
+        first: u64,
+        last: u64,
+        is_eos: bool,
+        chapter_positions: Option<&mut Vec<(u64, bool, bool)>>,
+    ) {
         self.timeline_scale.set_value(position as f64);
 
-        let (mut has_changed, prev_selected_iter) = self.chapter_manager.update_position(position);
+        let (mut has_changed, prev_selected_iter) = self.chapter_manager
+            .update_position(
+                position,
+                first,
+                last,
+                chapter_positions,
+            );
 
         if self.repeat_chapter {
             // repeat is activated
@@ -380,7 +393,7 @@ impl InfoController {
 
         if *state == ControllerState::Paused {
             // force sync
-            self.tick(position, false);
+            self.tick(position, 0, 0, false, None);
         }
     }
 

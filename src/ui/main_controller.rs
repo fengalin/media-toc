@@ -250,10 +250,22 @@ impl MainController {
             .get_position()
     }
 
-    pub fn refresh_info(&mut self, position: u64) {
+    pub fn refresh_info(
+        &mut self,
+        position: u64,
+        first: u64,
+        last: u64,
+        chapter_positions: &mut Vec<(u64, bool, bool)>,
+    ) {
         match self.state {
             ControllerState::Seeking { .. } => (),
-            _ => self.info_ctrl.borrow_mut().tick(position, false),
+            _ => self.info_ctrl.borrow_mut().tick(
+                position,
+                first,
+                last,
+                false,
+                Some(chapter_positions),
+            ),
         }
     }
 

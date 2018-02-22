@@ -33,6 +33,8 @@ pub struct ImagePositions {
     pub first: SamplePosition,
     pub last: Option<SamplePosition>,
     pub current: Option<f64>,
+    pub sample_duration: u64,
+    pub sample_step: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -583,6 +585,8 @@ impl WaveformBuffer {
                             },
                             last: last_opt,
                             current: cursor_opt,
+                            sample_duration: self.state.sample_duration,
+                            sample_step: self.image.sample_step_f,
                         },
                     )),
                 )

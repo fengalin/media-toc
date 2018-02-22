@@ -62,6 +62,7 @@ pub struct AudioController {
     requested_duration: f64,
     current_position: u64,
     last_visible_pos: u64,
+    chapter_positions: Vec<(u64, bool, bool)>,
 
     waveform_mtx: Arc<Mutex<Box<SampleExtractor>>>,
     dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
@@ -97,6 +98,7 @@ impl AudioController {
             requested_duration: INIT_REQ_DURATION,
             current_position: 0,
             last_visible_pos: 0,
+            chapter_positions: Vec::new(),
 
             waveform_mtx: waveform_mtx,
             dbl_buffer_mtx: dbl_buffer_mtx,
@@ -476,6 +478,34 @@ impl AudioController {
             cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
             cr.rectangle(last_pos.x, 0f64, width - last_pos.x, height);
             cr.fill();
+
+            // update UI position and retrieve chapters boundaries in range
+            if let Ok(mut main_ctrl) = main_ctrl.try_borrow_mut() {
+                main_ctrl.refresh_info(
+                    self.current_position,
+                    image_positions.first.timestamp,
+                    last_pos.timestamp,
+                    &mut self.chapter_positions,
+                );
+            }
+        }
+
+        // Draw in range chapters boundaries
+        cr.set_source_rgb(0.5f64, 0.75f64, 1f64);
+        cr.set_line_width(1f64);
+        for chapter_position in &self.chapter_positions {
+            // TODO: change line depending on chapter boundary status (end, end + start, start)
+            // or display chapter titles
+
+            if chapter_position.0 > image_positions.first.timestamp {
+                let x = (
+                    (chapter_position.0 - image_positions.first.timestamp)
+                    / image_positions.sample_duration
+                ) as f64 / image_positions.sample_step;
+                cr.move_to(x, 0f64);
+                cr.line_to(x, height);
+                cr.stroke();
+            }
         }
 
         if let Some(current_x) = image_positions.current {
@@ -504,10 +534,6 @@ impl AudioController {
 
         #[cfg(feature = "profiling-audio-draw")]
         let before_refresh_info = Utc::now();
-
-        if let Ok(mut main_ctrl) = main_ctrl.try_borrow_mut() {
-            main_ctrl.refresh_info(self.current_position);
-        }
 
         #[cfg(feature = "profiling-audio-draw")]
         let end = Utc::now();
