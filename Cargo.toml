@@ -38,6 +38,7 @@ trace-main-controller = []
 trace-playback-queues = []
 trace-waveform-buffer = []
 trace-waveform-rendering = []
+trace-position-map = []
 default-features = []
 
 [dev-dependencies]

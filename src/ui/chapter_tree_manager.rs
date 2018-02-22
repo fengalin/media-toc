@@ -5,6 +5,8 @@ use gtk::prelude::*;
 
 extern crate lazy_static;
 
+use std::collections::BTreeMap;
+
 use metadata::{Timestamp, TocVisit, TocVisitor};
 
 const START_COL: u32 = 0;
@@ -116,6 +118,7 @@ pub struct ChapterTreeManager {
     store: gtk::TreeStore,
     iter: Option<gtk::TreeIter>,
     selected_iter: Option<gtk::TreeIter>,
+    position_map: BTreeMap<u64, (Option<gtk::TreeIter>, Option<gtk::TreeIter>)>,
 }
 
 impl ChapterTreeManager {
@@ -124,6 +127,7 @@ impl ChapterTreeManager {
             store: store,
             iter: None,
             selected_iter: None,
+            position_map: BTreeMap::new(),
         }
     }
 
@@ -190,6 +194,7 @@ impl ChapterTreeManager {
 
     pub fn clear(&mut self) {
         self.store.clear();
+        self.position_map.clear();
     }
 
     pub fn replace_with(&mut self, toc: &Option<gst::Toc>) {
@@ -206,27 +211,47 @@ impl ChapterTreeManager {
                         assert_eq!(gst::TocEntryType::Chapter, chapter.get_entry_type());
 
                         if let Some((start, end)) = chapter.get_start_stop_times() {
-                            self.store.insert_with_values(
+                            let start = start as u64;
+                            let end = end as u64;
+
+                            let iter = self.store.insert_with_values(
                                 None,
                                 None,
                                 &[START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
                                 &[
-                                    &(start as u64),
-                                    &(end as u64),
+                                    &start,
+                                    &end,
                                     &chapter.get_tags().map_or(None, |tags| {
                                         tags.get::<gst::tags::Title>().map(|tag| {
                                             tag.get().unwrap().to_owned()
                                         })
                                     }).unwrap_or(DEFAULT_TITLE.to_owned()),
-                                    &format!("{}", &Timestamp::format(start as u64, false)),
-                                    &format!("{}", &Timestamp::format(end as u64, false)),
+                                    &format!("{}", &Timestamp::format(start, false)),
+                                    &format!("{}", &Timestamp::format(end, false)),
                                 ],
                             );
+
+                            let iter_ending_at_start = self.position_map
+                                .get_mut(&start)
+                                .map_or(None, |entry_at_start| {
+                                    entry_at_start.0.take()
+                                });
+                            self.position_map.insert(start, (iter_ending_at_start, Some(iter.clone())));
+
+                            let iter_starting_at_end = self.position_map
+                                .get_mut(&end)
+                                .map_or(None, |entry_at_end| {
+                                    entry_at_end.1.take()
+                                });
+                            self.position_map.insert(end, (Some(iter), iter_starting_at_end));
                         }
                     }
                     _ => (),
                 }
             }
+
+            #[cfg(feature = "trace-position-map")]
+            self.trace_position_map();
         }
 
         self.iter = self.store.get_iter_first();
@@ -350,9 +375,19 @@ impl ChapterTreeManager {
                         &[END_COL, END_STR_COL],
                         &[&position, &Timestamp::format(position, false)],
                     );
-
-                    // insert new chapter after current
                     let new_iter = self.store.insert_after(None, &selected_iter);
+
+                    // Add a new position which didn't exist before in position_map
+                    self.position_map.insert(
+                        position,
+                        (Some(selected_iter), Some(new_iter.clone())),
+                    );
+                    // and update current_end position to reflect new_iter ending there
+                    self.position_map
+                        .get_mut(&current_end)
+                        .expect("ChapterTreeManager::add_chapter failed to get position_map entry")
+                        .0 = Some(new_iter.clone());
+
                     (new_iter, current_end, current_end_str)
                 } else {
                     // attempting to add the new chapter at current position
@@ -368,8 +403,8 @@ impl ChapterTreeManager {
                         // either position is before the first chapter
                         // or in a gap between two chapters
                         let iter_chapter = ChapterEntry::new(&self.store, &iter);
-                        let start = iter_chapter.start();
-                        if position > start {
+                        let new_chapter_end = iter_chapter.start();
+                        if position > new_chapter_end {
                             panic!(
                                 concat!(
                                     "ChapterTreeManager::add_chapter inconsistent position",
@@ -381,11 +416,18 @@ impl ChapterTreeManager {
                             );
                         }
 
-                        // iter is next chapter
+                        let new_iter = self.store.insert_before(None, &iter);
+                        // Add a new position which didn't exist before in position_map
+                        self.position_map.insert(position, (None, Some(new_iter.clone())));
+                        // and update new_chapter_end position to reflect new_iter ending there
+                        self.position_map
+                            .get_mut(&new_chapter_end)
+                            .expect("ChapterTreeManager::add_chapter failed to get position_map entry")
+                            .0 = Some(new_iter.clone());
 
                         (
-                            self.store.insert_before(None, &iter),
-                            start,
+                            new_iter,
+                            new_chapter_end,
                             iter_chapter.start_str(),
                         )
                     }
@@ -399,8 +441,13 @@ impl ChapterTreeManager {
                                     Some(_) => // store contains chapters => insert at the end
                                         -1i32,
                                 };
+
+                        let new_iter = self.store.insert(None, insert_position);
+                        self.position_map.insert(position, (None, Some(new_iter.clone())));
+                        self.position_map.insert(duration, (Some(new_iter.clone()), None));
+
                         (
-                            self.store.insert(None, insert_position),
+                            new_iter,
                             duration,
                             Timestamp::format(duration, false),
                         )
@@ -423,6 +470,10 @@ impl ChapterTreeManager {
 
         self.selected_iter = Some(new_iter.clone());
         self.iter = Some(new_iter.clone());
+
+        #[cfg(feature = "trace-position-map")]
+        self.trace_position_map();
+
         Some(new_iter)
     }
 
@@ -431,23 +482,58 @@ impl ChapterTreeManager {
         match self.selected_iter.take() {
             Some(selected_iter) => {
                 let prev_iter = selected_iter.clone();
-                let next_selected_iter = if self.store.iter_previous(&prev_iter) {
-                    // a previous chapter is available => update its end
-                    // with the end of currently selected chapter
+                let next_selected_iter = {
                     let selected_chapter = ChapterEntry::new(&self.store, &selected_iter);
-                    self.store.set(
-                        &prev_iter,
-                        &[END_COL, END_STR_COL],
-                        &[&selected_chapter.end(), &selected_chapter.end_str()],
-                    );
+                    if self.store.iter_previous(&prev_iter) {
+                        // a chapter starting before currently selected chapter is available
+                        // => update its end with the end of currently selected chapter
+                        self.store.set(
+                            &prev_iter,
+                            &[END_COL, END_STR_COL],
+                            &[&selected_chapter.end(), &selected_chapter.end_str()],
+                        );
 
-                    Some(prev_iter)
-                } else {
-                    // no chapter before => nothing to select
-                    None
+                        self.position_map
+                            .get_mut(&selected_chapter.end())
+                            .expect("ChapterTreeManager::add_chapter failed to get position_map entry")
+                            .0 = Some(prev_iter.clone());
+
+                        Some(prev_iter)
+                    } else {
+                        // no chapter before => nothing to select
+                        let must_remove_end = {
+                            let mut end_start_iters = self.position_map
+                            .get_mut(&selected_chapter.end())
+                            .expect(concat!(
+                                "ChapterTreeManager::add_chapter ",
+                                "failed to get position_map entry",
+                            ));
+
+                            if end_start_iters.1.is_some() {
+                                // position still in use
+                                end_start_iters.0 = None;
+                                false
+                            } else {
+                                true
+                            }
+                        };
+
+                        if must_remove_end {
+                            self.position_map.remove(&selected_chapter.end());
+                        }
+
+                        None
+                    }
                 };
 
+                // next_selected_iter's end replaces current selected_iter end
+                self.position_map.remove(&ChapterEntry::get_start(&self.store, &selected_iter));
+
                 self.store.remove(&selected_iter);
+
+                #[cfg(feature = "trace-position-map")]
+                self.trace_position_map();
+
                 self.selected_iter = next_selected_iter.clone();
                 match next_selected_iter {
                     None =>
@@ -482,6 +568,26 @@ impl ChapterTreeManager {
                 }
             }
             None => None,
+        }
+    }
+
+    #[cfg(feature = "trace-position-map")]
+    fn trace_position_map(&self) {
+        if self.position_map.len() > 0 {
+            println!("\nposition_map:");
+            for (position, end_start) in &self.position_map {
+                println!("\t {}: [{:?}, {:?}]",
+                    position,
+                    end_start.0
+                        .as_ref()
+                        .map(|end_iter| ChapterEntry::get_title(&self.store, &end_iter)),
+                    end_start.1
+                        .as_ref()
+                        .map(|start_iter| ChapterEntry::get_title(&self.store, &start_iter)),
+                );
+            }
+        } else {
+            println!("\nposition_map: empty");
         }
     }
 }
