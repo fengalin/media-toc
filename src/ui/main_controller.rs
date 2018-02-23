@@ -18,7 +18,7 @@ use gtk::prelude::*;
 use media::{ContextMessage, PlaybackContext};
 use media::ContextMessage::*;
 
-use super::{AudioController, ChapterBoundaries, ExportController, InfoController, StreamsController,
+use super::{AudioController, ChaptersBoundaries, ExportController, InfoController, StreamsController,
             VideoController};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -65,7 +65,7 @@ pub struct MainController {
 
 impl MainController {
     pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
-        let chapter_boundaries = Rc::new(RefCell::new(ChapterBoundaries::new()));
+        let chapters_boundaries = Rc::new(RefCell::new(ChaptersBoundaries::new()));
 
         let this = Rc::new(RefCell::new(MainController {
             window: builder.get_object("application-window").unwrap(),
@@ -74,8 +74,8 @@ impl MainController {
             open_export_btn: builder.get_object("export_toc-btn").unwrap(),
 
             video_ctrl: VideoController::new(builder),
-            info_ctrl: InfoController::new(builder, Rc::clone(&chapter_boundaries)),
-            audio_ctrl: AudioController::new(builder, chapter_boundaries),
+            info_ctrl: InfoController::new(builder, Rc::clone(&chapters_boundaries)),
+            audio_ctrl: AudioController::new(builder, chapters_boundaries),
             export_ctrl: ExportController::new(builder),
             streams_ctrl: StreamsController::new(builder),
 

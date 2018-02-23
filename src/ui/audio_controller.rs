@@ -22,7 +22,7 @@ use media::{DoubleAudioBuffer, PlaybackContext, SampleExtractor};
 
 use metadata::Timestamp;
 
-use super::{ChapterBoundaries, ControllerState, DoubleWaveformBuffer, MainController, WaveformBuffer,
+use super::{ChaptersBoundaries, ControllerState, DoubleWaveformBuffer, MainController, WaveformBuffer,
             WaveformConditions, BACKGROUND_COLOR};
 
 const BUFFER_DURATION: u64 = 60_000_000_000; // 60 s
@@ -65,7 +65,7 @@ pub struct AudioController {
     requested_duration: f64,
     current_position: u64,
     last_visible_pos: u64,
-    boundaries: Rc<RefCell<ChapterBoundaries>>,
+    boundaries: Rc<RefCell<ChaptersBoundaries>>,
 
     waveform_mtx: Arc<Mutex<Box<SampleExtractor>>>,
     dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
@@ -76,7 +76,7 @@ pub struct AudioController {
 impl AudioController {
     pub fn new(
         builder: &gtk::Builder,
-        boundaries: Rc<RefCell<ChapterBoundaries>>,
+        boundaries: Rc<RefCell<ChaptersBoundaries>>,
     ) -> Rc<RefCell<Self>> {
         let dbl_buffer_mtx = DoubleWaveformBuffer::new_mutex(BUFFER_DURATION);
         let waveform_mtx = dbl_buffer_mtx

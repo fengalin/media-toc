@@ -18,7 +18,7 @@ use media::PlaybackContext;
 use metadata;
 use metadata::{MediaInfo, Timestamp};
 
-use super::{ChapterBoundaries, ChapterTreeManager, ControllerState, ImageSurface, MainController};
+use super::{ChaptersBoundaries, ChapterTreeManager, ControllerState, ImageSurface, MainController};
 
 lazy_static! {
     static ref EMPTY_REPLACEMENT: String = "-".to_owned();
@@ -54,7 +54,7 @@ pub struct InfoController {
 impl InfoController {
     pub fn new(
         builder: &gtk::Builder,
-        boundaries: Rc<RefCell<ChapterBoundaries>>,
+        boundaries: Rc<RefCell<ChaptersBoundaries>>,
     ) -> Rc<RefCell<Self>> {
         let add_chapter_btn: gtk::ToolButton =
             builder.get_object("add_chapter-toolbutton").unwrap();
