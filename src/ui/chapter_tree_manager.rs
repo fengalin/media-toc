@@ -654,3 +654,93 @@ impl ChapterTreeManager {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chapters_boundaries() {
+        let mut boundaries = ChaptersBoundaries::new();
+
+        assert!(boundaries.is_empty());
+
+        // Add incrementally
+        boundaries.add_chapter(0, 1, "1");
+        assert_eq!(2, boundaries.len());
+        assert_eq!(Some(&(None, Some("1".to_owned()))), boundaries.get(&0));
+        assert_eq!(Some(&(Some("1".to_owned()), None)), boundaries.get(&1));
+
+        boundaries.add_chapter(1, 2, "2");
+        assert_eq!(3, boundaries.len());
+        assert_eq!(Some(&(None, Some("1".to_owned()))), boundaries.get(&0));
+        assert_eq!(Some(&(Some("1".to_owned()), Some("2".to_owned()))), boundaries.get(&1));
+        assert_eq!(Some(&(Some("2".to_owned()), None)), boundaries.get(&2));
+
+        boundaries.add_chapter(2, 4, "3");
+        assert_eq!(4, boundaries.len());
+        assert_eq!(Some(&(None, Some("1".to_owned()))), boundaries.get(&0));
+        assert_eq!(Some(&(Some("1".to_owned()), Some("2".to_owned()))), boundaries.get(&1));
+        assert_eq!(Some(&(Some("2".to_owned()), Some("3".to_owned()))), boundaries.get(&2));
+        assert_eq!(Some(&(Some("3".to_owned()), None)), boundaries.get(&4));
+
+        // Rename
+        boundaries.rename_chapter(1, 2, "r2");
+        assert_eq!(4, boundaries.len());
+        assert_eq!(Some(&(None, Some("1".to_owned()))), boundaries.get(&0));
+        assert_eq!(Some(&(Some("1".to_owned()), Some("r2".to_owned()))), boundaries.get(&1));
+        assert_eq!(Some(&(Some("r2".to_owned()), Some("3".to_owned()))), boundaries.get(&2));
+        assert_eq!(Some(&(Some("3".to_owned()), None)), boundaries.get(&4));
+
+        boundaries.rename_chapter(0, 1, "r1");
+        assert_eq!(4, boundaries.len());
+        assert_eq!(Some(&(None, Some("r1".to_owned()))), boundaries.get(&0));
+        assert_eq!(Some(&(Some("r1".to_owned()), Some("r2".to_owned()))), boundaries.get(&1));
+        assert_eq!(Some(&(Some("r2".to_owned()), Some("3".to_owned()))), boundaries.get(&2));
+        assert_eq!(Some(&(Some("3".to_owned()), None)), boundaries.get(&4));
+
+        boundaries.rename_chapter(2, 4, "r3");
+        assert_eq!(4, boundaries.len());
+        assert_eq!(Some(&(None, Some("r1".to_owned()))), boundaries.get(&0));
+        assert_eq!(Some(&(Some("r1".to_owned()), Some("r2".to_owned()))), boundaries.get(&1));
+        assert_eq!(Some(&(Some("r2".to_owned()), Some("r3".to_owned()))), boundaries.get(&2));
+        assert_eq!(Some(&(Some("r3".to_owned()), None)), boundaries.get(&4));
+
+        // Remove in the middle
+        boundaries.remove_chapter(1, 2);
+        assert_eq!(3, boundaries.len());
+        assert_eq!(Some(&(None, Some("r1".to_owned()))), boundaries.get(&0));
+        assert_eq!(Some(&(Some("r1".to_owned()), Some("r3".to_owned()))), boundaries.get(&2));
+        assert_eq!(Some(&(Some("r3".to_owned()), None)), boundaries.get(&4));
+
+        // Add in the middle
+        boundaries.add_chapter(1, 2, "n2");
+        assert_eq!(4, boundaries.len());
+        assert_eq!(Some(&(None, Some("r1".to_owned()))), boundaries.get(&0));
+        assert_eq!(Some(&(Some("r1".to_owned()), Some("n2".to_owned()))), boundaries.get(&1));
+        assert_eq!(Some(&(Some("n2".to_owned()), Some("r3".to_owned()))), boundaries.get(&2));
+        assert_eq!(Some(&(Some("r3".to_owned()), None)), boundaries.get(&4));
+
+        // Remove first
+        boundaries.remove_chapter(0, 1);
+        assert_eq!(3, boundaries.len());
+        assert_eq!(Some(&(None, Some("n2".to_owned()))), boundaries.get(&1));
+        assert_eq!(Some(&(Some("n2".to_owned()), Some("r3".to_owned()))), boundaries.get(&2));
+        assert_eq!(Some(&(Some("r3".to_owned()), None)), boundaries.get(&4));
+
+        // Add first
+        boundaries.add_chapter(0, 1, "n1");
+        assert_eq!(4, boundaries.len());
+        assert_eq!(Some(&(None, Some("n1".to_owned()))), boundaries.get(&0));
+        assert_eq!(Some(&(Some("n1".to_owned()), Some("n2".to_owned()))), boundaries.get(&1));
+        assert_eq!(Some(&(Some("n2".to_owned()), Some("r3".to_owned()))), boundaries.get(&2));
+        assert_eq!(Some(&(Some("r3".to_owned()), None)), boundaries.get(&4));
+
+        // Remove last
+        boundaries.remove_chapter(2, 4);
+        assert_eq!(3, boundaries.len());
+        assert_eq!(Some(&(None, Some("n1".to_owned()))), boundaries.get(&0));
+        assert_eq!(Some(&(Some("n1".to_owned()), Some("n2".to_owned()))), boundaries.get(&1));
+        assert_eq!(Some(&(Some("n2".to_owned()), None)), boundaries.get(&4));
+    }
+}
