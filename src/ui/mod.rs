@@ -2,7 +2,7 @@ mod audio_controller;
 use self::audio_controller::AudioController;
 
 mod chapter_tree_manager;
-use self::chapter_tree_manager::{ChapterPositions, ChapterTreeManager};
+use self::chapter_tree_manager::{ChapterBoundaries, ChapterTreeManager};
 
 mod export_controller;
 use self::export_controller::ExportController;

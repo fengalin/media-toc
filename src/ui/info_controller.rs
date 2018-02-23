@@ -18,7 +18,7 @@ use media::PlaybackContext;
 use metadata;
 use metadata::{MediaInfo, Timestamp};
 
-use super::{ChapterPositions, ChapterTreeManager, ControllerState, ImageSurface, MainController};
+use super::{ChapterBoundaries, ChapterTreeManager, ControllerState, ImageSurface, MainController};
 
 lazy_static! {
     static ref EMPTY_REPLACEMENT: String = "-".to_owned();
@@ -52,7 +52,10 @@ pub struct InfoController {
 }
 
 impl InfoController {
-    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
+    pub fn new(
+        builder: &gtk::Builder,
+        boundaries: Rc<RefCell<ChapterBoundaries>>,
+    ) -> Rc<RefCell<Self>> {
         let add_chapter_btn: gtk::ToolButton =
             builder.get_object("add_chapter-toolbutton").unwrap();
         add_chapter_btn.set_sensitive(false);
@@ -60,8 +63,8 @@ impl InfoController {
             builder.get_object("remove_chapter-toolbutton").unwrap();
         del_chapter_btn.set_sensitive(false);
 
-        let chapter_manager =
-            ChapterTreeManager::new_from(builder.get_object("chapters-tree-store").unwrap());
+        let mut chapter_manager =
+            ChapterTreeManager::new(builder.get_object("chapters-tree-store").unwrap(), boundaries);
         let chapter_treeview: gtk::TreeView = builder.get_object("chapter-treeview").unwrap();
         chapter_manager.init_treeview(&chapter_treeview);
 
@@ -150,6 +153,18 @@ impl InfoController {
                     main_ctrl_clone.borrow_mut().seek(position, true); // accurate (slow)
                 }
             });
+
+        // TreeView title modified
+        if let Some(ref title_renderer) = this.chapter_manager.title_renderer {
+            let this_clone = Rc::clone(this_rc);
+            let main_ctrl_clone = Rc::clone(main_ctrl);
+            title_renderer
+                .connect_edited(move |_, _tree_path, new_title| {
+                    this_clone.borrow_mut().chapter_manager.rename_selected_chapter(new_title);
+                    // reflect title modification in the UI (audio waveform)
+                    main_ctrl_clone.borrow_mut().refresh();
+                });
+        }
 
         // add chapter
         let this_clone = Rc::clone(this_rc);
@@ -327,20 +342,7 @@ impl InfoController {
         });
     }
 
-    pub fn refresh_chapter_positions(
-        &self,
-        first: u64,
-        last: u64,
-        chapter_positions: &mut ChapterPositions,
-    ) {
-        self.chapter_manager.refresh_chapter_positions(first, last, chapter_positions);
-    }
-
-    pub fn tick(
-        &mut self,
-        position: u64,
-        is_eos: bool,
-    ) {
+    pub fn tick(&mut self, position: u64, is_eos: bool) {
         self.timeline_scale.set_value(position as f64);
 
         let (mut has_changed, prev_selected_iter) = self.chapter_manager.update_position(position);

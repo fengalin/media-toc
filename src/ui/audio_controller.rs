@@ -11,6 +11,7 @@ use pango::{ContextExt, LayoutExt};
 use chrono::Utc;
 
 use std::boxed::Box;
+use std::collections::Bound::Included;
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -21,7 +22,7 @@ use media::{DoubleAudioBuffer, PlaybackContext, SampleExtractor};
 
 use metadata::Timestamp;
 
-use super::{ChapterPositions, ControllerState, DoubleWaveformBuffer, MainController, WaveformBuffer,
+use super::{ChapterBoundaries, ControllerState, DoubleWaveformBuffer, MainController, WaveformBuffer,
             WaveformConditions, BACKGROUND_COLOR};
 
 const BUFFER_DURATION: u64 = 60_000_000_000; // 60 s
@@ -64,7 +65,7 @@ pub struct AudioController {
     requested_duration: f64,
     current_position: u64,
     last_visible_pos: u64,
-    chapter_positions: ChapterPositions,
+    boundaries: Rc<RefCell<ChapterBoundaries>>,
 
     waveform_mtx: Arc<Mutex<Box<SampleExtractor>>>,
     dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
@@ -73,7 +74,10 @@ pub struct AudioController {
 }
 
 impl AudioController {
-    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
+    pub fn new(
+        builder: &gtk::Builder,
+        boundaries: Rc<RefCell<ChapterBoundaries>>,
+    ) -> Rc<RefCell<Self>> {
         let dbl_buffer_mtx = DoubleWaveformBuffer::new_mutex(BUFFER_DURATION);
         let waveform_mtx = dbl_buffer_mtx
             .lock()
@@ -102,7 +106,7 @@ impl AudioController {
             requested_duration: INIT_REQ_DURATION,
             current_position: 0,
             last_visible_pos: 0,
-            chapter_positions: ChapterPositions::new(),
+            boundaries,
 
             waveform_mtx: waveform_mtx,
             dbl_buffer_mtx: dbl_buffer_mtx,
@@ -218,6 +222,8 @@ impl AudioController {
         self.requested_duration = INIT_REQ_DURATION;
         self.current_position = 0;
         self.last_visible_pos = 0;
+        // AudioController accesses self.boundaries as readonly
+        // clearing it is under the responsiblity of ChapterTreeManager
         self.redraw();
     }
 
@@ -485,46 +491,48 @@ impl AudioController {
             cr.rectangle(last_pos.x, 0f64, width - last_pos.x, height);
             cr.fill();
 
-            // update UI position and retrieve chapters boundaries in range
-            if let Ok(mut main_ctrl) = main_ctrl.try_borrow_mut() {
-                main_ctrl.refresh_info(
-                    self.current_position,
-                    image_positions.first.timestamp,
-                    last_pos.timestamp,
-                    &mut self.chapter_positions,
-                );
-            }
-        }
+            // Draw in-range chapters boundaries
+            let boundaries = self.boundaries
+                .borrow();
 
-        if !self.chapter_positions.is_empty() {
-            // Draw in range chapters boundaries
+            let chapter_range = boundaries.range((
+                Included(&image_positions.first.timestamp),
+                Included(&last_pos.timestamp),
+            ));
+
             cr.set_source_rgb(0.5f64, 0.6f64, 1f64);
             cr.set_line_width(1f64);
-            let chapter_boundary_y0 = self.twice_font_size + 5f64;
-            let chapter_text_base = height - self.half_font_size;
-            for chapter_position in &self.chapter_positions {
-                if chapter_position.0 >= image_positions.first.timestamp {
+            let boundary_y0 = self.twice_font_size + 5f64;
+            let text_base = height - self.half_font_size;
+
+            for (boundary, &(ref prev_title, ref next_title)) in chapter_range {
+                if boundary >= &image_positions.first.timestamp {
                     let x = (
-                        (chapter_position.0 - image_positions.first.timestamp)
+                        (boundary - image_positions.first.timestamp)
                         / image_positions.sample_duration
                     ) as f64 / image_positions.sample_step;
-                    cr.move_to(x, chapter_boundary_y0);
+                    cr.move_to(x, boundary_y0);
                     cr.line_to(x, height);
                     cr.stroke();
 
-                    if let Some(ref end_text) = chapter_position.1 {
+                    if let &Some(ref prev_title) = prev_title {
                         cr.move_to(
-                            x - 5f64 - cr.text_extents(end_text).width,
-                            chapter_text_base,
+                            x - 5f64 - cr.text_extents(&prev_title).width,
+                            text_base,
                         );
-                        cr.show_text(end_text);
+                        cr.show_text(&prev_title);
                     }
 
-                    if let Some(ref start_text) = chapter_position.2 {
-                        cr.move_to(x + 5f64, chapter_text_base);
-                        cr.show_text(start_text);
+                    if let &Some(ref next_title) = next_title {
+                        cr.move_to(x + 5f64, text_base);
+                        cr.show_text(&next_title);
                     }
                 }
+            }
+
+            // update UI position
+            if let Ok(mut main_ctrl) = main_ctrl.try_borrow_mut() {
+                main_ctrl.refresh_info(self.current_position);
             }
         }
 

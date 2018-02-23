@@ -6,11 +6,13 @@ use gtk::prelude::*;
 extern crate lazy_static;
 
 use std::collections::BTreeMap;
-use std::collections::Bound::Included;
+
+use std::rc::Rc;
+use std::cell::RefCell;
 
 use metadata::{Timestamp, TocVisit, TocVisitor};
 
-pub type ChapterPositions = Vec<(u64, Option<String>, Option<String>)>;
+pub type ChapterBoundaries = BTreeMap<u64, (Option<String>, Option<String>)>;
 
 const START_COL: u32 = 0;
 const END_COL: u32 = 1;
@@ -121,22 +123,24 @@ pub struct ChapterTreeManager {
     store: gtk::TreeStore,
     iter: Option<gtk::TreeIter>,
     selected_iter: Option<gtk::TreeIter>,
-    position_map: BTreeMap<u64, (Option<gtk::TreeIter>, Option<gtk::TreeIter>)>,
+    pub title_renderer: Option<gtk::CellRendererText>,
+    boundaries: Rc<RefCell<ChapterBoundaries>>,
 }
 
 impl ChapterTreeManager {
-    pub fn new_from(store: gtk::TreeStore) -> Self {
+    pub fn new(store: gtk::TreeStore, boundaries: Rc<RefCell<ChapterBoundaries>>) -> Self {
         ChapterTreeManager {
-            store: store,
+            store,
             iter: None,
             selected_iter: None,
-            position_map: BTreeMap::new(),
+            title_renderer: None,
+            boundaries,
         }
     }
 
-    pub fn init_treeview(&self, treeview: &gtk::TreeView) {
+    pub fn init_treeview(&mut self, treeview: &gtk::TreeView) {
         treeview.set_model(Some(&self.store));
-        self.add_column(treeview, "Title", TITLE_COL, true, true);
+        self.title_renderer = Some(self.add_column(treeview, "Title", TITLE_COL, true, true));
         self.add_column(treeview, "Start", START_STR_COL, false, false);
         self.add_column(treeview, "End", END_STR_COL, false, false);
     }
@@ -148,7 +152,7 @@ impl ChapterTreeManager {
         col_id: u32,
         can_expand: bool,
         is_editable: bool,
-    ) {
+    ) -> gtk::CellRendererText {
         let col = gtk::TreeViewColumn::new();
         col.set_title(title);
 
@@ -173,6 +177,8 @@ impl ChapterTreeManager {
             renderer.set_property_xalign(1f32);
         }
         treeview.append_column(&col);
+
+        renderer
     }
 
     pub fn get_selected_iter(&self) -> Option<gtk::TreeIter> {
@@ -197,13 +203,33 @@ impl ChapterTreeManager {
 
     pub fn clear(&mut self) {
         self.store.clear();
-        self.position_map.clear();
+        self.boundaries
+            .borrow_mut()
+            .clear();
+    }
+
+    pub fn rename_selected_chapter(&mut self, new_title: &str) {
+        if let Some(iter) = self.get_selected_iter() {
+            let mut boundaries = self.boundaries.borrow_mut();
+            boundaries
+                .get_mut(&ChapterEntry::get_end(&self.store, &iter))
+                .expect("rename_selected_chapter couldn't get chapter end boundary")
+                .0 = Some(new_title.to_owned());
+            boundaries
+                .get_mut(&ChapterEntry::get_start(&self.store, &iter))
+                .expect("rename_selected_chapter couldn't get chapter start boundary")
+                .1 = Some(new_title.to_owned());
+        }
     }
 
     pub fn replace_with(&mut self, toc: &Option<gst::Toc>) {
         self.clear();
 
         if let &Some(ref toc) = toc {
+            self.boundaries
+                .borrow_mut()
+                .clear();
+
             let mut toc_visitor = TocVisitor::new(toc);
             toc_visitor.enter_chapters();
 
@@ -217,36 +243,39 @@ impl ChapterTreeManager {
                             let start = start as u64;
                             let end = end as u64;
 
-                            let iter = self.store.insert_with_values(
+                            let title = chapter.get_tags().map_or(None, |tags| {
+                                tags.get::<gst::tags::Title>().map(|tag| {
+                                    tag.get().unwrap().to_owned()
+                                })
+                            }).unwrap_or(DEFAULT_TITLE.to_owned());
+                            self.store.insert_with_values(
                                 None,
                                 None,
                                 &[START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
                                 &[
                                     &start,
                                     &end,
-                                    &chapter.get_tags().map_or(None, |tags| {
-                                        tags.get::<gst::tags::Title>().map(|tag| {
-                                            tag.get().unwrap().to_owned()
-                                        })
-                                    }).unwrap_or(DEFAULT_TITLE.to_owned()),
+                                    &title,
                                     &format!("{}", &Timestamp::format(start, false)),
                                     &format!("{}", &Timestamp::format(end, false)),
                                 ],
                             );
 
-                            let iter_ending_at_start = self.position_map
+                            let mut boundaries = self.boundaries
+                                .borrow_mut();
+                            let ending_at_start = boundaries
                                 .get_mut(&start)
                                 .map_or(None, |entry_at_start| {
                                     entry_at_start.0.take()
                                 });
-                            self.position_map.insert(start, (iter_ending_at_start, Some(iter.clone())));
+                            boundaries.insert(start, (ending_at_start, Some(title.clone())));
 
-                            let iter_starting_at_end = self.position_map
+                            let starting_at_end = boundaries
                                 .get_mut(&end)
                                 .map_or(None, |entry_at_end| {
                                     entry_at_end.1.take()
                                 });
-                            self.position_map.insert(end, (Some(iter), iter_starting_at_end));
+                            boundaries.insert(end, (Some(title), starting_at_end));
                         }
                     }
                     _ => (),
@@ -288,28 +317,6 @@ impl ChapterTreeManager {
         };
 
         while func(ChapterEntry::new(&self.store, &iter)) && self.store.iter_next(&iter) {}
-    }
-
-    pub fn refresh_chapter_positions(
-        &self,
-        first: u64,
-        last: u64,
-        chapter_positions: &mut ChapterPositions,
-    ) {
-        chapter_positions.clear();
-        for (position, end_start_iters) in self.position_map.range(
-            (Included(&first), Included(&last))
-        ) {
-            chapter_positions.push((
-                *position,
-                end_start_iters.0.as_ref().map(|end_iter|
-                    ChapterEntry::get_title(&self.store, end_iter).to_owned()
-                ),
-                end_start_iters.1.as_ref().map(|start_iter|
-                    ChapterEntry::get_title(&self.store, start_iter).to_owned()
-                ),
-            ));
-        }
     }
 
     // Update chapter according to the given position
@@ -383,12 +390,13 @@ impl ChapterTreeManager {
         let (new_iter, end, end_str) = match self.selected_iter.take() {
             Some(selected_iter) => {
                 // a chapter is currently selected
-                let (current_start, current_end, current_end_str) = {
+                let (current_start, current_end, current_end_str, title) = {
                     let selected_chapter = ChapterEntry::new(&self.store, &selected_iter);
                     (
                         selected_chapter.start(),
                         selected_chapter.end(),
                         selected_chapter.end_str(),
+                        selected_chapter.title(),
                     )
                 };
 
@@ -402,16 +410,30 @@ impl ChapterTreeManager {
                     );
                     let new_iter = self.store.insert_after(None, &selected_iter);
 
-                    // Add a new position which didn't exist before in position_map
-                    self.position_map.insert(
-                        position,
-                        (Some(selected_iter), Some(new_iter.clone())),
-                    );
-                    // and update current_end position to reflect new_iter ending there
-                    self.position_map
-                        .get_mut(&current_end)
-                        .expect("ChapterTreeManager::add_chapter failed to get position_map entry")
-                        .0 = Some(new_iter.clone());
+                    {
+                        let mut boundaries = self.boundaries
+                            .borrow_mut();
+
+                        // Add a new position in chapter boundaries which didn't exist before
+                        boundaries.insert(
+                            position,
+                            (
+                                Some(title),
+                                Some(DEFAULT_TITLE.to_owned())
+                            ),
+                        );
+                        // and update current_end position to reflect new_iter ending there
+                        boundaries
+                            .get_mut(&current_end)
+                            .expect(&format!(
+                                concat!(
+                                    "ChapterTreeManager::add_chapter failed to get chapter ",
+                                    "boundary entry at position {}",
+                                ),
+                                position,
+                            ))
+                            .0 = Some(DEFAULT_TITLE.to_owned());
+                    }
 
                     (new_iter, current_end, current_end_str)
                 } else {
@@ -442,13 +464,25 @@ impl ChapterTreeManager {
                         }
 
                         let new_iter = self.store.insert_before(None, &iter);
-                        // Add a new position which didn't exist before in position_map
-                        self.position_map.insert(position, (None, Some(new_iter.clone())));
-                        // and update new_chapter_end position to reflect new_iter ending there
-                        self.position_map
-                            .get_mut(&new_chapter_end)
-                            .expect("ChapterTreeManager::add_chapter failed to get position_map entry")
-                            .0 = Some(new_iter.clone());
+
+                        {
+                            let mut boundaries = self.boundaries
+                                .borrow_mut();
+
+                            // Add a new position which didn't exist before in chapert boundaries
+                            boundaries.insert(position, (None, Some(DEFAULT_TITLE.to_owned())));
+                            // and update new_chapter_end position to reflect new_iter ending there
+                            boundaries
+                                .get_mut(&new_chapter_end)
+                                .expect(&format!(
+                                    concat!(
+                                        "ChapterTreeManager::add_chapter failed to get chapter ",
+                                        "boundary entry at position {}",
+                                    ),
+                                    position,
+                                ))
+                                .0 = Some(DEFAULT_TITLE.to_owned());
+                        }
 
                         (
                             new_iter,
@@ -468,8 +502,13 @@ impl ChapterTreeManager {
                                 };
 
                         let new_iter = self.store.insert(None, insert_position);
-                        self.position_map.insert(position, (None, Some(new_iter.clone())));
-                        self.position_map.insert(duration, (Some(new_iter.clone()), None));
+
+                        {
+                            let mut boundaries = self.boundaries
+                                .borrow_mut();
+                            boundaries.insert(position, (None, Some(DEFAULT_TITLE.to_owned())));
+                            boundaries.insert(duration, (Some(DEFAULT_TITLE.to_owned()), None));
+                        }
 
                         (
                             new_iter,
@@ -518,22 +557,38 @@ impl ChapterTreeManager {
                             &[&selected_chapter.end(), &selected_chapter.end_str()],
                         );
 
-                        self.position_map
-                            .get_mut(&selected_chapter.end())
-                            .expect("ChapterTreeManager::add_chapter failed to get position_map entry")
-                            .0 = Some(prev_iter.clone());
+                        {
+                            let title = ChapterEntry::get_title(&self.store, &prev_iter);
+                            let mut boundaries = self.boundaries
+                                .borrow_mut();
+                            boundaries
+                                .get_mut(&selected_chapter.end())
+                                .expect(&format!(
+                                    concat!(
+                                        "ChapterTreeManager::remove_selected_chapter failed to ",
+                                        "get chapter boundary entry at position {}",
+                                    ),
+                                    &selected_chapter.end(),
+                                ))
+                                .0 = Some(title.clone());
+                        }
 
                         Some(prev_iter)
                     } else {
                         // no chapter before => nothing to select
-                        let must_remove_end = {
-                            let mut end_start_iters = self.position_map
-                            .get_mut(&selected_chapter.end())
-                            .expect(concat!(
-                                "ChapterTreeManager::add_chapter ",
-                                "failed to get position_map entry",
-                            ));
+                        let mut boundaries = self.boundaries
+                            .borrow_mut();
 
+                        let must_remove_end = {
+                            let mut end_start_iters = boundaries
+                                .get_mut(&selected_chapter.end())
+                                .expect(&format!(
+                                    concat!(
+                                        "ChapterTreeManager::remove_selected_chapter failed to ",
+                                        "get chapter boundary entry at position {}",
+                                    ),
+                                    &selected_chapter.end(),
+                                ));
                             if end_start_iters.1.is_some() {
                                 // position still in use
                                 end_start_iters.0 = None;
@@ -544,7 +599,7 @@ impl ChapterTreeManager {
                         };
 
                         if must_remove_end {
-                            self.position_map.remove(&selected_chapter.end());
+                            boundaries.remove(&selected_chapter.end());
                         }
 
                         None
@@ -552,7 +607,9 @@ impl ChapterTreeManager {
                 };
 
                 // next_selected_iter's end replaces current selected_iter end
-                self.position_map.remove(&ChapterEntry::get_start(&self.store, &selected_iter));
+                self.boundaries
+                    .borrow_mut()
+                    .remove(&ChapterEntry::get_start(&self.store, &selected_iter));
 
                 self.store.remove(&selected_iter);
 
@@ -571,6 +628,7 @@ impl ChapterTreeManager {
             None => None,
         }
     }
+
 
     // FIXME: handle hierarchical Tocs
     pub fn get_toc(&self) -> Option<(gst::Toc, usize)> {
@@ -598,18 +656,13 @@ impl ChapterTreeManager {
 
     #[cfg(feature = "trace-position-map")]
     fn trace_position_map(&self) {
-        if self.position_map.len() > 0 {
+        let boundaries = self.boundaries
+            .borrow();
+
+        if boundaries.len() > 0 {
             println!("\nposition_map:");
-            for (position, end_start) in &self.position_map {
-                println!("\t {}: [{:?}, {:?}]",
-                    position,
-                    end_start.0
-                        .as_ref()
-                        .map(|end_iter| ChapterEntry::get_title(&self.store, &end_iter)),
-                    end_start.1
-                        .as_ref()
-                        .map(|start_iter| ChapterEntry::get_title(&self.store, &start_iter)),
-                );
+            for (position, end_start) in boundaries.iter() {
+                println!("\t {}: [{:?}, {:?}]", position, end_start.0, end_start.1);
             }
         } else {
             println!("\nposition_map: empty");

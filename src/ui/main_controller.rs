@@ -18,7 +18,7 @@ use gtk::prelude::*;
 use media::{ContextMessage, PlaybackContext};
 use media::ContextMessage::*;
 
-use super::{AudioController, ChapterPositions, ExportController, InfoController, StreamsController,
+use super::{AudioController, ChapterBoundaries, ExportController, InfoController, StreamsController,
             VideoController};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -65,6 +65,8 @@ pub struct MainController {
 
 impl MainController {
     pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
+        let chapter_boundaries = Rc::new(RefCell::new(ChapterBoundaries::new()));
+
         let this = Rc::new(RefCell::new(MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
@@ -72,8 +74,8 @@ impl MainController {
             open_export_btn: builder.get_object("export_toc-btn").unwrap(),
 
             video_ctrl: VideoController::new(builder),
-            info_ctrl: InfoController::new(builder),
-            audio_ctrl: AudioController::new(builder),
+            info_ctrl: InfoController::new(builder, Rc::clone(&chapter_boundaries)),
+            audio_ctrl: AudioController::new(builder, chapter_boundaries),
             export_ctrl: ExportController::new(builder),
             streams_ctrl: StreamsController::new(builder),
 
@@ -251,19 +253,14 @@ impl MainController {
             .get_position()
     }
 
-    pub fn refresh_info(
-        &mut self,
-        position: u64,
-        first: u64,
-        last: u64,
-        chapter_positions: &mut ChapterPositions,
-    ) {
-        let mut info_ctrl = self.info_ctrl.borrow_mut();
-        info_ctrl.refresh_chapter_positions(first, last, chapter_positions);
+    pub fn refresh(&mut self) {
+        self.audio_ctrl.borrow().redraw();
+    }
 
+    pub fn refresh_info(&mut self, position: u64) {
         match self.state {
             ControllerState::Seeking { .. } => (),
-            _ => info_ctrl.tick(position, false),
+            _ => self.info_ctrl.borrow_mut().tick(position, false),
         }
     }
 
