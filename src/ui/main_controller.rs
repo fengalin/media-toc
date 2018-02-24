@@ -166,17 +166,17 @@ impl MainController {
         if self.state != ControllerState::EOS {
             match context.get_state() {
                 gst::State::Paused => {
-                    AudioController::register_tick_callback(&self.audio_ctrl);
                     self.play_pause_btn.set_icon_name("media-playback-pause");
                     self.state = ControllerState::Playing;
+                    self.audio_ctrl.borrow_mut().switch_to_playing();
                     context.play().unwrap();
                     self.context = Some(context);
                 }
                 gst::State::Playing => {
                     context.pause().unwrap();
                     self.play_pause_btn.set_icon_name("media-playback-start");
-                    AudioController::remove_tick_callback(&self.audio_ctrl);
                     self.state = ControllerState::Paused;
+                    self.audio_ctrl.borrow_mut().switch_to_not_playing();
                     self.context = Some(context);
                 }
                 _ => {
@@ -197,7 +197,7 @@ impl MainController {
             _ => {
                 if self.state == ControllerState::Playing || self.state == ControllerState::Paused {
                     self.info_ctrl.borrow_mut().seek(position, &self.state);
-                    self.audio_ctrl.borrow_mut().seek(position, &self.state);
+                    self.audio_ctrl.borrow_mut().seek(position);
                 }
 
                 self.state = match self.state {
@@ -241,8 +241,6 @@ impl MainController {
                 .as_ref()
                 .expect("MainController::play_range no context")
                 .seek_range(start, end);
-
-            AudioController::register_tick_callback(&self.audio_ctrl);
         }
     }
 
@@ -273,7 +271,7 @@ impl MainController {
 
     fn hold(&mut self) {
         self.switch_to_busy();
-        AudioController::remove_tick_callback(&self.audio_ctrl);
+        self.audio_ctrl.borrow_mut().switch_to_not_playing();
         self.play_pause_btn.set_icon_name("media-playback-start");
 
         if let Some(context) = self.context.as_mut() {
@@ -328,9 +326,9 @@ impl MainController {
                                         .expect("MainController::listener(AsyncDone) no context")
                                         .play()
                                         .unwrap();
-                                    AudioController::register_tick_callback(&this.audio_ctrl);
                                     this.play_pause_btn.set_icon_name("media-playback-pause");
                                     this.state = ControllerState::Playing;
+                                    this.audio_ctrl.borrow_mut().switch_to_playing();
                                 } else if keep_paused {
                                     this.state = ControllerState::Paused;
                                 } else {
@@ -392,7 +390,7 @@ impl MainController {
                                     .pause()
                                     .unwrap();
                                 this.state = ControllerState::Paused;
-                                AudioController::remove_tick_callback(&this.audio_ctrl);
+                                this.audio_ctrl.borrow_mut().stop_play_range();
                                 this.seek(pos_to_restore, true); // accurate
                             }
                             _ => {
@@ -403,7 +401,7 @@ impl MainController {
                                 this.state = ControllerState::EOS;
 
                                 // The tick callback will be register again in case of a seek
-                                AudioController::remove_tick_callback(&this.audio_ctrl);
+                                this.audio_ctrl.borrow_mut().switch_to_not_playing();
                             }
                         }
                     }
@@ -429,7 +427,7 @@ impl MainController {
             if !keep_going {
                 let mut this = this_rc.borrow_mut();
                 this.remove_listener();
-                AudioController::remove_tick_callback(&this.audio_ctrl);
+                this.audio_ctrl.borrow_mut().switch_to_not_playing();
             }
 
             glib::Continue(keep_going)

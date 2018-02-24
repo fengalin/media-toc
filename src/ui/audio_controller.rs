@@ -60,6 +60,7 @@ pub struct AudioController {
     cursor_text_h_width: f64,
 
     is_active: bool,
+    is_playing: bool,
     playback_needs_refresh: bool,
 
     requested_duration: f64,
@@ -71,6 +72,9 @@ pub struct AudioController {
     dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
 
     tick_cb_id: Option<u32>,
+    // Add a RefCell to self in order to
+    // be able to register the tick_callback
+    this_opt: Option<Rc<RefCell<AudioController>>>,
 }
 
 impl AudioController {
@@ -84,7 +88,7 @@ impl AudioController {
             .expect("AudioController::new: couldn't lock dbl_buffer_mtx")
             .get_exposed_buffer_mtx();
 
-        Rc::new(RefCell::new(AudioController {
+        let this = Rc::new(RefCell::new(AudioController {
             container: builder.get_object("audio-container").unwrap(),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
             zoom_in_btn: builder.get_object("audio_zoom_in-toolbutton").unwrap(),
@@ -101,6 +105,7 @@ impl AudioController {
             cursor_text_h_width: 0f64,
 
             is_active: false,
+            is_playing: false,
             playback_needs_refresh: false,
 
             requested_duration: INIT_REQ_DURATION,
@@ -112,7 +117,16 @@ impl AudioController {
             dbl_buffer_mtx: dbl_buffer_mtx,
 
             tick_cb_id: None,
-        }))
+            this_opt: None,
+        }));
+
+        {
+            let mut this_mut = this.borrow_mut();
+            let this_rc = Rc::clone(&this);
+            this_mut.this_opt = Some(this_rc);
+        }
+
+        this
     }
 
     pub fn register_callbacks(
@@ -212,6 +226,7 @@ impl AudioController {
 
     pub fn cleanup(&mut self) {
         self.is_active = false;
+        self.is_playing = false;
         self.playback_needs_refresh = false;
         {
             self.dbl_buffer_mtx
@@ -262,7 +277,7 @@ impl AudioController {
         }
     }
 
-    pub fn seek(&mut self, position: u64, state: &ControllerState) {
+    pub fn seek(&mut self, position: u64) {
         {
             self.waveform_mtx
                 .lock()
@@ -270,10 +285,10 @@ impl AudioController {
                 .as_mut_any()
                 .downcast_mut::<WaveformBuffer>()
                 .expect("AudioController::seek: SamplesExtratctor is not a WaveformBuffer")
-                .seek(position, *state == ControllerState::Playing);
+                .seek(position, self.is_playing);
         }
 
-        if *state == ControllerState::Paused {
+        if !self.is_playing {
             // refresh the buffer in order to render the waveform
             // with samples that might not be rendered in current WaveformImage yet
             self.dbl_buffer_mtx
@@ -284,6 +299,17 @@ impl AudioController {
         self.redraw();
     }
 
+    pub fn switch_to_not_playing(&mut self) {
+        if let Some(tick_cb_id) = self.tick_cb_id.take() {
+            self.drawingarea.remove_tick_callback(tick_cb_id);
+        }
+    }
+
+    pub fn switch_to_playing(&mut self) {
+        self.is_playing = false;
+        self.register_tick_callback();
+    }
+
     pub fn start_play_range(&mut self) {
         self.waveform_mtx
             .lock()
@@ -292,24 +318,28 @@ impl AudioController {
             .downcast_mut::<WaveformBuffer>()
             .expect("AudioController::seek: SamplesExtratctor is not a WaveformBuffer")
             .start_play_range();
+
+        self.register_tick_callback();
     }
 
-    pub fn remove_tick_callback(this_rc: &Rc<RefCell<Self>>) {
-        let mut this = this_rc.borrow_mut();
-        if let Some(tick_cb_id) = this.tick_cb_id.take() {
-            this.drawingarea.remove_tick_callback(tick_cb_id);
+    pub fn stop_play_range(&mut self) {
+        self.remove_tick_callback();
+    }
+
+    fn remove_tick_callback(&mut self) {
+        if let Some(tick_cb_id) = self.tick_cb_id.take() {
+            self.drawingarea.remove_tick_callback(tick_cb_id);
         }
     }
 
-    pub fn register_tick_callback(this_rc: &Rc<RefCell<Self>>) {
-        let mut this = this_rc.borrow_mut();
-        if this.tick_cb_id.is_some() {
+    fn register_tick_callback(&mut self) {
+        if self.tick_cb_id.is_some() {
             return;
         }
 
-        let this_rc = Rc::clone(this_rc);
-        this.tick_cb_id = Some(
-            this.drawingarea
+        let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
+        self.tick_cb_id = Some(
+            self.drawingarea
                 .add_tick_callback(move |_da, _frame_clock| {
                     let this = this_rc.borrow_mut();
                     if this.is_active {
