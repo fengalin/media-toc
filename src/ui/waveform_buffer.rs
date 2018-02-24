@@ -67,6 +67,11 @@ pub struct WaveformBuffer {
     first_visible_sample: Option<usize>,
     first_visible_sample_lock: Option<(i64, LockState)>, // (1st position, LockState)
     sought_sample: Option<usize>,
+
+    // During playback, we take advantage of the running time and thus
+    // the stream of incoming samples to refresh the waveform.
+    // When EOS is reached, no more samples are received, so refresh
+    // must be forced in order to compute the samples window to render
     pub playback_needs_refresh: bool,
 
     req_duration_per_1000px: f64,
