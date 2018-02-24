@@ -783,7 +783,9 @@ mod tests {
 
     #[test]
     fn chapters_boundaries() {
-        gtk::init().ok().expect("tests::chapters_boundaries couldn't init gtk");
+        if gtk::init().is_err() {
+            panic!("tests::chapters_boundaries failed to initialize GTK");
+        }
         // fake store
         let store = gtk::TreeStore::new(&[glib::Type::Bool]);
 
