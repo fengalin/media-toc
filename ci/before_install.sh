@@ -10,12 +10,12 @@ if [ $TRAVIS_OS_NAME = linux ]; then
     export LD_LIBRARY_PATH=$PWD/gstreamer/lib:$LD_LIBRARY_PATH
 
     # GTK3
-    #WD="$PWD"
-    #cd $HOME
-    #curl -L https://github.com/gkoz/gtk-bootstrap/releases/download/gtk-3.18.1-2/deps.txz | tar xJ
-    #cd "$WD"
-    #export PKG_CONFIG_PATH="$HOME/local/lib/pkgconfig":$PKG_CONFIG_PATH
-    #export LD_LIBRARY_PATH="$HOME/local/lib/":$LD_LIBRARY_PATH
+    WD="$PWD"
+    cd $HOME
+    curl -L https://github.com/gkoz/gtk-bootstrap/releases/download/gtk-3.18.1-2/deps.txz | tar xJ
+    cd "$WD"
+    export PKG_CONFIG_PATH="$HOME/local/lib/pkgconfig":$PKG_CONFIG_PATH
+    export LD_LIBRARY_PATH="$HOME/local/lib/":$LD_LIBRARY_PATH
 elif [ $TRAVIS_OS_NAME = osx ]; then
     brew update
     brew install gtk+3 gstreamer gst-plugins-base
