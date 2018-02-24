@@ -27,6 +27,7 @@ a media player with a table of contents.
 at the starting position in paused mode.
 - Zoom in/out the waveform on the time axis.
 - Add/remove a chapter.
+- Drag chapters' boundaries in order to adjust their position.
 - Play current chapter in a loop.
 - Export the table of contents to:
 	* A Matroska container. Currently, this is possible only if the input streams are compatible
@@ -60,8 +61,10 @@ right clicking at the starting position. Use the zoom, left click and right clic
 the position for the chapter to add.
 7. When the cursor (the vertical yellow bar) matches the start of the chapter to add, click on the
 `+` icon under the tree view at the bottom right of the window.
-8. Click in the newly added chapter title column and fill a title for this chapter.
-9. Go back to step 5 if you wish to add another chapter.
+8. If you want to modify chapters boundary, click and drag the boundary to modify to the desired
+position. Note: this operation is only available in paused mode.
+9. Click in the newly added chapter title column and fill a title for this chapter.
+10. Go back to step 5 if you wish to add another chapter.
 
 ## <a name='how-to-save-the-toc'></a>Save the table of contents
 
