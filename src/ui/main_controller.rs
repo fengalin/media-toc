@@ -150,10 +150,6 @@ impl MainController {
         self.window.show_all();
     }
 
-    pub fn get_state(&self) -> &ControllerState {
-        &self.state
-    }
-
     pub fn play_pause(&mut self) {
         let mut context = match self.context.take() {
             Some(context) => context,
@@ -189,6 +185,10 @@ impl MainController {
             self.context = Some(context);
             self.seek(0, true); // accurate (slow)
         }
+    }
+
+    pub fn move_chapter_boundary(&mut self, boundary: u64, to_position: u64) -> bool {
+        self.info_ctrl.borrow_mut().move_chapter_boundary(boundary, to_position)
     }
 
     pub fn seek(&mut self, position: u64, accurate: bool) {

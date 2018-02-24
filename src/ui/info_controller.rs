@@ -390,6 +390,10 @@ impl InfoController {
         }
     }
 
+    pub fn move_chapter_boundary(&mut self, boundary: u64, to_position: u64) -> bool {
+        self.chapter_manager.move_chapter_boundary(boundary, to_position)
+    }
+
     pub fn seek(&mut self, position: u64, state: &ControllerState) {
         self.chapter_manager.prepare_for_seek();
 

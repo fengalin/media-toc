@@ -1,7 +1,10 @@
 extern crate cairo;
 extern crate glib;
+extern crate gdk;
 extern crate gtk;
 extern crate pango;
+
+use gdk::{Cursor, CursorType, WindowExt};
 
 use gtk::{Inhibit, LabelExt, ToolButtonExt, WidgetExt, WidgetExtManual};
 
@@ -22,7 +25,7 @@ use media::{DoubleAudioBuffer, PlaybackContext, SampleExtractor};
 
 use metadata::Timestamp;
 
-use super::{ChaptersBoundaries, ControllerState, DoubleWaveformBuffer, MainController, WaveformBuffer,
+use super::{ChaptersBoundaries, DoubleWaveformBuffer, MainController, WaveformBuffer,
             WaveformConditions, BACKGROUND_COLOR};
 
 const BUFFER_DURATION: u64 = 60_000_000_000; // 60 s
@@ -43,7 +46,16 @@ const CURSOR_TEXT_MN: &str = "00:00.000.000";
 const BOUNDARY_TEXT_H: &str = "00:00:00.000";
 const CURSOR_TEXT_H: &str = "00:00:00.000.000";
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum ControllerState {
+    Disabled,
+    MovingBoundary(u64),
+    Playing,
+    Paused,
+}
+
 pub struct AudioController {
+    window: gtk::ApplicationWindow,
     container: gtk::Box,
     drawingarea: gtk::DrawingArea,
     zoom_in_btn: gtk::ToolButton,
@@ -58,14 +70,17 @@ pub struct AudioController {
     cursor_text_mn_width: f64,
     boundary_text_h_width: f64,
     cursor_text_h_width: f64,
+    area_width: f64,
 
-    is_active: bool,
-    is_playing: bool,
+    state: ControllerState,
     playback_needs_refresh: bool,
 
     requested_duration: f64,
     current_position: u64,
+    first_visible_pos: u64,
     last_visible_pos: u64,
+    sample_duration: u64,
+    sample_step: f64,
     boundaries: Rc<RefCell<ChaptersBoundaries>>,
 
     waveform_mtx: Arc<Mutex<Box<SampleExtractor>>>,
@@ -89,6 +104,7 @@ impl AudioController {
             .get_exposed_buffer_mtx();
 
         let this = Rc::new(RefCell::new(AudioController {
+            window: builder.get_object("application-window").unwrap(),
             container: builder.get_object("audio-container").unwrap(),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
             zoom_in_btn: builder.get_object("audio_zoom_in-toolbutton").unwrap(),
@@ -103,14 +119,17 @@ impl AudioController {
             cursor_text_mn_width: 0f64,
             boundary_text_h_width: 0f64,
             cursor_text_h_width: 0f64,
+            area_width: 0f64,
 
-            is_active: false,
-            is_playing: false,
+            state: ControllerState::Disabled,
             playback_needs_refresh: false,
 
             requested_duration: INIT_REQ_DURATION,
             current_position: 0,
+            first_visible_pos: 0,
             last_visible_pos: 0,
+            sample_duration: 0,
+            sample_step: 0f64,
             boundaries,
 
             waveform_mtx: waveform_mtx,
@@ -146,46 +165,60 @@ impl AudioController {
             });
 
         // widget size changed
-        let main_ctrl_clone = Rc::clone(main_ctrl);
         let this_clone = Rc::clone(this_rc);
         this.drawingarea.connect_size_allocate(move |_, _| {
-            this_clone.borrow_mut().refresh(&main_ctrl_clone);
+            this_clone.borrow_mut().refresh();
         });
 
-        // click in drawing_area
+        // Move cursor over drawing_area
+        let main_ctrl_clone = Rc::clone(main_ctrl);
+        let this_clone = Rc::clone(this_rc);
+        this.drawingarea
+            .connect_motion_notify_event(move |_, event_motion| {
+                AudioController::motion_notify(&this_clone, &main_ctrl_clone, event_motion);
+                Inhibit(true)
+            });
+
+        // Leave drawing_area
+        let this_clone = Rc::clone(this_rc);
+        this.drawingarea
+            .connect_leave_notify_event(move |_, _event_crossing| {
+                let this = this_clone.borrow();
+                match this.state {
+                    ControllerState::Paused => this.reset_cursor(),
+                    _ => (),
+                }
+                Inhibit(true)
+            });
+
+        // button press in drawing_area
         let main_ctrl_clone = Rc::clone(main_ctrl);
         let this_clone = Rc::clone(this_rc);
         this.drawingarea
             .connect_button_press_event(move |_, event_button| {
+                AudioController::button_press(&this_clone, &main_ctrl_clone, event_button);
+                Inhibit(true)
+            });
+
+        // button release in drawing_area
+        let this_clone = Rc::clone(this_rc);
+        this.drawingarea
+            .connect_button_release_event(move |_, event_button| {
                 match event_button.get_button() {
                     1 => {
-                        // left click => seek
-                        let position_opt = this_clone
-                            .borrow()
-                            .get_position_at(event_button.get_position().0);
-                        if let Some(position) = position_opt {
-                            main_ctrl_clone.borrow_mut().seek(position, true); // accurate (slow)
-                        }
-                    }
-                    3 => {
-                        // right click => segment playback
-                        let (position_opt, current_position, last_pos) = {
-                            let this = this_clone.borrow();
-                            (
-                                this.get_position_at(event_button.get_position().0),
-                                this.current_position,
-                                this.last_visible_pos,
-                            )
-                        };
-                        if let Some(start_pos) = position_opt {
-                            // get a reasonable range so that we can still hear
-                            // something even when there are few samples in current window
-                            let end_pos = start_pos + MIN_RANGE_DURATION.max(last_pos - start_pos);
-                            main_ctrl_clone.borrow_mut().play_range(
-                                start_pos,
-                                end_pos,
-                                current_position,
-                            );
+                        // left button
+                        let mut this = this_clone.borrow_mut();
+                        if let ControllerState::MovingBoundary(_boundary) = this.state {
+                            this.state = ControllerState::Paused;
+
+                            match this.get_boundary_at(event_button.get_position().0) {
+                                Some(_boundary) => {
+                                    this.set_cursor(CursorType::SbHDoubleArrow);
+                                }
+                                None => {
+                                    this.reset_cursor();
+                                }
+                            }
                         }
                     }
                     _ => (),
@@ -194,26 +227,24 @@ impl AudioController {
             });
 
         // click zoom in
-        let main_ctrl_clone = Rc::clone(main_ctrl);
         let this_clone = Rc::clone(this_rc);
         this.zoom_in_btn.connect_clicked(move |_| {
             let mut this = this_clone.borrow_mut();
             this.requested_duration /= STEP_REQ_DURATION;
             if this.requested_duration >= MIN_REQ_DURATION {
-                this.refresh(&main_ctrl_clone);
+                this.refresh();
             } else {
                 this.requested_duration = MIN_REQ_DURATION;
             }
         });
 
         // click zoom out
-        let main_ctrl_clone = Rc::clone(main_ctrl);
         let this_clone = Rc::clone(this_rc);
         this.zoom_out_btn.connect_clicked(move |_| {
             let mut this = this_clone.borrow_mut();
             this.requested_duration *= STEP_REQ_DURATION;
             if this.requested_duration <= MAX_REQ_DURATION {
-                this.refresh(&main_ctrl_clone);
+                this.refresh();
             } else {
                 this.requested_duration = MAX_REQ_DURATION;
             }
@@ -225,8 +256,8 @@ impl AudioController {
     }
 
     pub fn cleanup(&mut self) {
-        self.is_active = false;
-        self.is_playing = false;
+        self.state = ControllerState::Disabled;
+        self.reset_cursor();
         self.playback_needs_refresh = false;
         {
             self.dbl_buffer_mtx
@@ -236,7 +267,10 @@ impl AudioController {
         }
         self.requested_duration = INIT_REQ_DURATION;
         self.current_position = 0;
+        self.first_visible_pos = 0;
         self.last_visible_pos = 0;
+        self.sample_duration = 0;
+        self.sample_step = 0f64;
         // AudioController accesses self.boundaries as readonly
         // clearing it is under the responsiblity of ChapterTreeManager
         self.redraw();
@@ -270,7 +304,7 @@ impl AudioController {
                     )));
             }
 
-            self.is_active = true;
+            self.state = ControllerState::Paused;
             self.container.show();
         } else {
             self.container.hide();
@@ -278,6 +312,7 @@ impl AudioController {
     }
 
     pub fn seek(&mut self, position: u64) {
+        let is_playing = self.state == ControllerState::Playing;
         {
             self.waveform_mtx
                 .lock()
@@ -285,10 +320,10 @@ impl AudioController {
                 .as_mut_any()
                 .downcast_mut::<WaveformBuffer>()
                 .expect("AudioController::seek: SamplesExtratctor is not a WaveformBuffer")
-                .seek(position, self.is_playing);
+                .seek(position, is_playing);
         }
 
-        if !self.is_playing {
+        if !is_playing {
             // refresh the buffer in order to render the waveform
             // with samples that might not be rendered in current WaveformImage yet
             self.dbl_buffer_mtx
@@ -300,30 +335,39 @@ impl AudioController {
     }
 
     pub fn switch_to_not_playing(&mut self) {
-        if let Some(tick_cb_id) = self.tick_cb_id.take() {
-            self.drawingarea.remove_tick_callback(tick_cb_id);
+        if self.state != ControllerState::Disabled {
+            self.state = ControllerState::Paused;
+            if let Some(tick_cb_id) = self.tick_cb_id.take() {
+                self.drawingarea.remove_tick_callback(tick_cb_id);
+            }
         }
     }
 
     pub fn switch_to_playing(&mut self) {
-        self.is_playing = false;
-        self.register_tick_callback();
+        if self.state != ControllerState::Disabled {
+            self.state = ControllerState::Playing;
+            self.register_tick_callback();
+        }
     }
 
     pub fn start_play_range(&mut self) {
-        self.waveform_mtx
-            .lock()
-            .expect("AudioController::seek: Couldn't lock waveform_mtx")
-            .as_mut_any()
-            .downcast_mut::<WaveformBuffer>()
-            .expect("AudioController::seek: SamplesExtratctor is not a WaveformBuffer")
-            .start_play_range();
+        if self.state != ControllerState::Disabled {
+            self.waveform_mtx
+                .lock()
+                .expect("AudioController::seek: Couldn't lock waveform_mtx")
+                .as_mut_any()
+                .downcast_mut::<WaveformBuffer>()
+                .expect("AudioController::seek: SamplesExtratctor is not a WaveformBuffer")
+                .start_play_range();
 
-        self.register_tick_callback();
+            self.register_tick_callback();
+        }
     }
 
     pub fn stop_play_range(&mut self) {
-        self.remove_tick_callback();
+        if self.state != ControllerState::Disabled {
+            self.remove_tick_callback();
+        }
     }
 
     fn remove_tick_callback(&mut self) {
@@ -342,36 +386,80 @@ impl AudioController {
             self.drawingarea
                 .add_tick_callback(move |_da, _frame_clock| {
                     let this = this_rc.borrow_mut();
-                    if this.is_active {
-                        if this.playback_needs_refresh {
-                            #[cfg(feature = "trace-audio-controller")]
-                            println!("AudioController::tick forcing refresh");
+                    if this.playback_needs_refresh {
+                        #[cfg(feature = "trace-audio-controller")]
+                        println!("AudioController::tick forcing refresh");
 
-                            this.dbl_buffer_mtx
-                                .lock()
-                                .expect("AudioController::tick: couldn't lock dbl_buffer_mtx")
-                                .refresh(true); // is playing
-                        }
-
-                        this.redraw();
+                        this.dbl_buffer_mtx
+                            .lock()
+                            .expect("AudioController::tick: couldn't lock dbl_buffer_mtx")
+                            .refresh(true); // is playing
                     }
+
+                    this.redraw();
                     glib::Continue(true)
                 }),
         );
     }
 
+    fn set_cursor(&self, cursor_type: CursorType) {
+        let gdk_window = self.window.get_window().unwrap();
+        gdk_window.set_cursor(&Cursor::new_for_display(
+            &gdk_window.get_display(),
+            cursor_type,
+        ));
+    }
+
+    fn reset_cursor(&self) {
+        self.window.get_window().unwrap().set_cursor(None);
+    }
+
     fn get_position_at(&self, x: f64) -> Option<u64> {
-        let waveform_buffer_grd = &mut *self.waveform_mtx
-            .lock()
-            .expect("Couldn't lock waveform buffer in audio controller draw");
-        waveform_buffer_grd
-            .as_any()
-            .downcast_ref::<WaveformBuffer>()
-            .expect(concat!(
-                "AudioController::get_current_and_sample_at ",
-                "SamplesExtratctor is not a waveform buffer",
-            ))
-            .get_position_at(x)
+        if x >= 0f64 && x <= self.area_width {
+            let position = self.first_visible_pos
+                + (x * self.sample_step).round() as u64 * self.sample_duration;
+            if position <= self.last_visible_pos {
+                Some(position)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    fn get_boundary_at(&self, x: f64) -> Option<u64> {
+        let position = self.get_position_at(x);
+        let position = match position {
+            Some(position) => position,
+            None => return None,
+        };
+
+        let delta = if self.sample_step > 0f64 {
+            self.sample_step as u64 * self.sample_duration * 2
+        } else {
+            1
+        };
+
+        let boundaries = self.boundaries.borrow();
+        let lower_bound = if position >= delta {
+            position - delta
+        } else {
+            0
+        };
+        let mut range = boundaries.range((
+            Included(&lower_bound),
+            Included(&(position + delta)),
+        ));
+        match range.next() {
+            Some((boundary, _titles)) => {
+                Some(*boundary)
+            }
+            None => {
+                self.reset_cursor();
+                None
+            }
+        }
     }
 
     fn clean_cairo_context(&self, cr: &cairo::Context) {
@@ -480,19 +568,22 @@ impl AudioController {
         };
 
         self.current_position = current_position;
+        self.first_visible_pos = image_positions.first.timestamp;
+        self.sample_duration = image_positions.sample_duration;
+        self.sample_step = image_positions.sample_step;
 
         #[cfg(feature = "profiling-audio-draw")]
         let before_pos = Utc::now();
 
         let height = f64::from(allocation.height);
-        let width = f64::from(allocation.width);
+        self.area_width = f64::from(allocation.width);
         cr.scale(1f64, 1f64);
         cr.set_source_rgb(1f64, 1f64, 0f64);
         self.adjust_waveform_text_width(cr);
 
         // first position
-        let first_text = Timestamp::format(image_positions.first.timestamp, false);
-        let first_text_end = if image_positions.first.timestamp < HOUR_IN_NANO {
+        let first_text = Timestamp::format(self.first_visible_pos, false);
+        let first_text_end = if self.first_visible_pos < HOUR_IN_NANO {
             2f64 + self.boundary_text_mn_width
         } else {
             2f64 + self.boundary_text_h_width
@@ -518,7 +609,7 @@ impl AudioController {
 
             // make sure the rest of the image is filled with background's color
             cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
-            cr.rectangle(last_pos.x, 0f64, width - last_pos.x, height);
+            cr.rectangle(last_pos.x, 0f64, self.area_width - last_pos.x, height);
             cr.fill();
 
             // Draw in-range chapters boundaries
@@ -526,7 +617,7 @@ impl AudioController {
                 .borrow();
 
             let chapter_range = boundaries.range((
-                Included(&image_positions.first.timestamp),
+                Included(&self.first_visible_pos),
                 Included(&last_pos.timestamp),
             ));
 
@@ -535,27 +626,27 @@ impl AudioController {
             let boundary_y0 = self.twice_font_size + 5f64;
             let text_base = height - self.half_font_size;
 
-            for (boundary, &(ref prev_title, ref next_title)) in chapter_range {
-                if boundary >= &image_positions.first.timestamp {
+            for (boundary, &(ref prev_chapter, ref next_chapter)) in chapter_range {
+                if boundary >= &self.first_visible_pos {
                     let x = (
-                        (boundary - image_positions.first.timestamp)
+                        (boundary - self.first_visible_pos)
                         / image_positions.sample_duration
                     ) as f64 / image_positions.sample_step;
                     cr.move_to(x, boundary_y0);
                     cr.line_to(x, height);
                     cr.stroke();
 
-                    if let &Some(ref prev_title) = prev_title {
+                    if let &Some(ref prev_chapter) = prev_chapter {
                         cr.move_to(
-                            x - 5f64 - cr.text_extents(&prev_title).width,
+                            x - 5f64 - cr.text_extents(&prev_chapter.title).width,
                             text_base,
                         );
-                        cr.show_text(&prev_title);
+                        cr.show_text(&prev_chapter.title);
                     }
 
-                    if let &Some(ref next_title) = next_title {
+                    if let &Some(ref next_chapter) = next_chapter {
                         cr.move_to(x + 5f64, text_base);
-                        cr.show_text(&next_title);
+                        cr.show_text(&next_chapter.title);
                     }
                 }
             }
@@ -576,7 +667,7 @@ impl AudioController {
             } else {
                 5f64 + self.cursor_text_h_width
             };
-            let cursor_text_x = if current_x + cursor_text_end < width {
+            let cursor_text_x = if current_x + cursor_text_end < self.area_width {
                 current_x + 5f64
             } else {
                 current_x - cursor_text_end
@@ -611,7 +702,7 @@ impl AudioController {
         Inhibit(true)
     }
 
-    fn refresh(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
+    fn refresh(&mut self) {
         let allocation = self.drawingarea.get_allocation();
         {
             // refresh the buffer in order to render the waveform
@@ -626,10 +717,116 @@ impl AudioController {
                         allocation.width,
                         allocation.height,
                     )),
-                    *main_ctrl.borrow().get_state() == ControllerState::Playing,
+                    self.state == ControllerState::Playing,
                 );
         }
 
         self.redraw();
+    }
+
+    fn motion_notify(
+        this_rc: &Rc<RefCell<AudioController>>,
+        main_ctrl: &Rc<RefCell<MainController>>,
+        event_motion: &gdk::EventMotion,
+    ) {
+        let (state, x) = {
+            let this = this_rc.borrow();
+
+            let state = this.state.clone();
+            if state == ControllerState::Playing {
+                return;
+            }
+
+            let (x, _y) = event_motion.get_position();
+            (state, x)
+        };
+
+        match state {
+            ControllerState::Paused => {
+                let mut this = this_rc.borrow_mut();
+
+                match this.get_boundary_at(x) {
+                    Some(_boundary) => this.set_cursor(CursorType::SbHDoubleArrow),
+                    None => this.reset_cursor(),
+                };
+            }
+            ControllerState::MovingBoundary(boundary) => {
+                let position = match this_rc.borrow().get_position_at(x) {
+                    Some(position) => position,
+                    None => return,
+                };
+
+                if main_ctrl.borrow_mut().move_chapter_boundary(boundary, position) {
+                    // boundary has moved
+                    let mut this = this_rc.borrow_mut();
+                    this.state = ControllerState::MovingBoundary(position);
+                    this.redraw();
+                }
+            }
+            _ => (),
+        }
+    }
+
+    fn button_press(
+        this_rc: &Rc<RefCell<AudioController>>,
+        main_ctrl: &Rc<RefCell<MainController>>,
+        event_button: &gdk::EventButton,
+    ) {
+        match event_button.get_button() {
+            1 => {
+                // left button
+                let (position_opt, state) = {
+                    let this = this_rc.borrow();
+                    (
+                        this.get_position_at(event_button.get_position().0),
+                        this.state.clone(),
+                    )
+                };
+                if let Some(position) = position_opt {
+                    let must_seek = match state {
+                        ControllerState::Paused => {
+                            let must_seek = {
+                                let mut this = this_rc.borrow_mut();
+                                this
+                                    .get_boundary_at(event_button.get_position().0)
+                                    .map_or(true, |boundary| {
+                                        this.state = ControllerState::MovingBoundary(boundary);
+                                        this.set_cursor(CursorType::Hand1);
+                                        false
+                                    })
+                            };
+                            must_seek
+                        }
+                        _ => true,
+                    };
+
+                    if must_seek {
+                        main_ctrl.borrow_mut().seek(position, true); // accurate (slow)
+                    }
+                }
+            }
+            3 => {
+                // right button => segment playback
+                let (position_opt, current_position, last_pos) = {
+                    let this = this_rc.borrow();
+                    (
+                        this.get_position_at(event_button.get_position().0),
+                        this.current_position,
+                        this.last_visible_pos,
+                    )
+                };
+                if let Some(start_pos) = position_opt {
+                    // get a reasonable range so that we can still hear
+                    // something even when there are few samples in current window
+                    let end_pos = start_pos + MIN_RANGE_DURATION.max(last_pos - start_pos);
+                    main_ctrl.borrow_mut().play_range(
+                        start_pos,
+                        end_pos,
+                        current_position,
+                    );
+                }
+            }
+            _ => (),
+        }
     }
 }

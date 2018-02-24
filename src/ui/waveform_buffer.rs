@@ -212,23 +212,6 @@ impl WaveformBuffer {
         }
     }
 
-    pub fn get_position_at(&self, x: f64) -> Option<u64> {
-        match self.first_visible_sample {
-            Some(ref first_visible_sample) => {
-                let sample_at_x = first_visible_sample
-                    + (x as usize) / self.image.x_step * self.image.sample_step;
-
-                if !self.image.contains_eos || sample_at_x < self.image.upper {
-                    Some(sample_at_x as u64 * self.state.sample_duration)
-                } else {
-                    // not a valid position
-                    None
-                }
-            }
-            None => None,
-        }
-    }
-
     fn refresh_position(&mut self) {
         let (position, mut sample) = self.query_current_sample();
         if self.previous_sample != sample {
