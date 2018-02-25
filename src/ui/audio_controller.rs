@@ -791,7 +791,6 @@ impl AudioController {
                                     .get_boundary_at(event_button.get_position().0)
                                     .map_or(true, |boundary| {
                                         this.state = ControllerState::MovingBoundary(boundary);
-                                        this.set_cursor(CursorType::Hand1);
                                         false
                                     })
                             };
