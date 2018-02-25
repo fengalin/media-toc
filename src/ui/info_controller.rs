@@ -16,9 +16,9 @@ use std::cell::RefCell;
 use media::PlaybackContext;
 
 use metadata;
-use metadata::{MediaInfo, Timestamp};
+use metadata::{ChaptersBoundaries, MediaInfo, Timestamp};
 
-use super::{ChaptersBoundaries, ChapterTreeManager, ControllerState, ImageSurface, MainController};
+use super::{ChapterTreeManager, ControllerState, ImageSurface, MainController};
 
 lazy_static! {
     static ref EMPTY_REPLACEMENT: String = "-".to_owned();

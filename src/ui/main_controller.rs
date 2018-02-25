@@ -18,7 +18,9 @@ use gtk::prelude::*;
 use media::{ContextMessage, PlaybackContext};
 use media::ContextMessage::*;
 
-use super::{AudioController, ChaptersBoundaries, ExportController, InfoController, StreamsController,
+use metadata::ChaptersBoundaries;
+
+use super::{AudioController, ExportController, InfoController, StreamsController,
             VideoController};
 
 #[derive(Clone, Debug, PartialEq)]
