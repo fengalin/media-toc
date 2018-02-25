@@ -181,7 +181,6 @@ impl Deref for ChaptersBoundaries {
 }
 
 /* Discard these tests for now as it fails for Travis-CI's linux host
-*/
 #[cfg(test)]
 mod tests {
     use glib;
@@ -524,5 +523,4 @@ mod tests {
         );
     }
 }
-/*
 */
