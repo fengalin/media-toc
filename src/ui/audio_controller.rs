@@ -451,15 +451,7 @@ impl AudioController {
             Included(&lower_bound),
             Included(&(position + delta)),
         ));
-        match range.next() {
-            Some((boundary, _titles)) => {
-                Some(*boundary)
-            }
-            None => {
-                self.reset_cursor();
-                None
-            }
-        }
+        range.next().map(|(boundary, _chapters)| *boundary)
     }
 
     fn clean_cairo_context(&self, cr: &cairo::Context) {
@@ -626,7 +618,7 @@ impl AudioController {
             let boundary_y0 = self.twice_font_size + 5f64;
             let text_base = height - self.half_font_size;
 
-            for (boundary, &(ref prev_chapter, ref next_chapter)) in chapter_range {
+            for (boundary, ref chapters) in chapter_range {
                 if boundary >= &self.first_visible_pos {
                     let x = (
                         (boundary - self.first_visible_pos)
@@ -636,7 +628,7 @@ impl AudioController {
                     cr.line_to(x, height);
                     cr.stroke();
 
-                    if let &Some(ref prev_chapter) = prev_chapter {
+                    if let Some(ref prev_chapter) = chapters.prev {
                         cr.move_to(
                             x - 5f64 - cr.text_extents(&prev_chapter.title).width,
                             text_base,
@@ -644,7 +636,7 @@ impl AudioController {
                         cr.show_text(&prev_chapter.title);
                     }
 
-                    if let &Some(ref next_chapter) = next_chapter {
+                    if let Some(ref next_chapter) = chapters.next {
                         cr.move_to(x + 5f64, text_base);
                         cr.show_text(&next_chapter.title);
                     }

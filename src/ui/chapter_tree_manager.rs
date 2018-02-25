@@ -20,14 +20,19 @@ pub struct Chapter {
     pub iter: gtk::TreeIter,
 }
 
-#[cfg(test)]
 impl PartialEq for Chapter {
     fn eq(&self, other: &Chapter) -> bool {
         self.title == other.title
     }
 }
 
-pub struct ChaptersBoundaries(BTreeMap<u64, (Option<Chapter>, Option<Chapter>)>);
+#[derive(Debug, PartialEq)]
+pub struct SuccessiveChapters {
+    pub prev: Option<Chapter>,
+    pub next: Option<Chapter>,
+}
+
+pub struct ChaptersBoundaries(BTreeMap<u64, SuccessiveChapters>);
 
 impl ChaptersBoundaries {
     pub fn new() -> Self {
@@ -44,10 +49,13 @@ impl ChaptersBoundaries {
 
         // the chapter to add can share at most one boundary with a previous chapter
         let (start_exists, next_chapter) = match self.0.get_mut(&start) {
-            Some(entry_at_start) => {
+            Some(chapters_at_start) => {
                 // a boundary already exists at start
-                let next_chapter = entry_at_start.1.take();
-                entry_at_start.1 = Some(Chapter{title: title.to_owned(), iter: iter.clone()});
+                let next_chapter = chapters_at_start.next.take();
+                chapters_at_start.next = Some(Chapter{
+                    title: title.to_owned(),
+                    iter: iter.clone(),
+                });
                 (true, next_chapter)
             }
             None => (false, None),
@@ -56,18 +64,21 @@ impl ChaptersBoundaries {
         if start_exists {
             self.0.insert(
                 end,
-                (
-                    Some(Chapter{title: title.to_owned(), iter: iter.clone()}),
-                    next_chapter,
-                ),
+                SuccessiveChapters{
+                    prev: Some(Chapter{title: title.to_owned(), iter: iter.clone()}),
+                    next: next_chapter,
+                },
             );
         } else {
             // no chapter at start
             let (end_exists, prev_chapter) = match self.0.get_mut(&end) {
-                Some(entry_at_end) => {
+                Some(chapters_at_end) => {
                     // a boundary already exists at end
-                    let prev_chapter = entry_at_end.0.take();
-                    entry_at_end.0 = Some(Chapter{title: title.to_owned(), iter: iter.clone()});
+                    let prev_chapter = chapters_at_end.prev.take();
+                    chapters_at_end.prev = Some(Chapter{
+                        title: title.to_owned(),
+                        iter: iter.clone(),
+                    });
                     (true, prev_chapter)
                 }
                 None => (false, None),
@@ -75,19 +86,19 @@ impl ChaptersBoundaries {
 
             self.0.insert(
                 start,
-                (
-                    prev_chapter,
-                    Some(Chapter{title: title.to_owned(), iter: iter.clone()})
-                ),
+                SuccessiveChapters{
+                    prev: prev_chapter,
+                    next: Some(Chapter{title: title.to_owned(), iter: iter.clone()}),
+                },
             );
 
             if !end_exists {
                 self.0.insert(
                     end,
-                    (
-                        Some(Chapter{title: title.to_owned(), iter: iter.clone()}),
-                        None,
-                    ),
+                    SuccessiveChapters{
+                        prev: Some(Chapter{title: title.to_owned(), iter: iter.clone()}),
+                        next: None,
+                    },
                 );
             }
         }
@@ -102,16 +113,16 @@ impl ChaptersBoundaries {
 
         let prev_chapter = self.0.get_mut(&start)
             .expect(&format!("ChaptersBoundaries::remove_chapter no start entry at {}", start))
-            .0.take();
+            .prev.take();
         self.0.remove(&start);
 
         let can_remove_end = {
-            let end_entry = self.0.get_mut(&end)
+            let chapters_at_end = self.0.get_mut(&end)
                 .expect(&format!("ChaptersBoundaries::remove_chapter no end entry at {}", end));
-            if prev_chapter.is_none() && end_entry.1.is_none() {
+            if prev_chapter.is_none() && chapters_at_end.next.is_none() {
                 true
             } else {
-                end_entry.0 = prev_chapter;
+                chapters_at_end.prev = prev_chapter;
                 false
             }
         };
@@ -130,14 +141,14 @@ impl ChaptersBoundaries {
         self.0
             .get_mut(&start)
             .expect("ChaptersBoundaries::rename_chapter couldn't get start entry")
-            .1
+            .next
             .as_mut()
             .expect("ChaptersBoundaries::rename_chapter next_chapter is None")
             .title = new_title.to_owned();
         self.0
             .get_mut(&end)
             .expect("ChaptersBoundaries::rename_chapter couldn't get end entry")
-            .0
+            .prev
             .as_mut()
             .expect("ChaptersBoundaries::rename_chapter prev_chapter is None")
             .title = new_title.to_owned();
@@ -147,10 +158,10 @@ impl ChaptersBoundaries {
     }
 
     pub fn move_boundary(&mut self, boundary: u64, to_position: u64) {
-        let entry = self.0
+        let chapters = self.0
             .remove(&boundary)
             .expect(&format!("ChaptersBoundaries::move_boundary no boundary at {}", boundary));
-        if let Some(_) = self.0.insert(to_position, entry) {
+        if let Some(_) = self.0.insert(to_position, chapters) {
             panic!("ChaptersBoundaries::move_boundary attempt to replace entry at {}", to_position);
         }
     }
@@ -158,11 +169,11 @@ impl ChaptersBoundaries {
     #[cfg(feature = "trace-chapters-boundaries")]
     fn trace(&self) {
         if self.len() > 0 {
-            for (position, end_start) in self.iter() {
+            for (position, chapters) in self.iter() {
                 println!("\t {}: [{:?}, {:?}]",
                     position,
-                    end_start.0.as_ref().map(|prev_chapter| prev_chapter.title.clone()),
-                    end_start.1.as_ref().map(|next_chapter| next_chapter.title.clone()),
+                    chapters.prev.as_ref().map(|prev_chapter| prev_chapter.title.clone()),
+                    chapters.next.as_ref().map(|next_chapter| next_chapter.title.clone()),
                 );
             }
         } else {
@@ -172,7 +183,7 @@ impl ChaptersBoundaries {
 }
 
 impl Deref for ChaptersBoundaries {
-    type Target = BTreeMap<u64, (Option<Chapter>, Option<Chapter>)>;
+    type Target = BTreeMap<u64, SuccessiveChapters>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -688,8 +699,8 @@ impl ChapterTreeManager {
             let boundaries = self.boundaries.borrow();
             boundaries.get(&boundary).map_or((None, None), |chapters| {
                 (
-                    chapters.0.as_ref().map(|prev| prev.iter.clone()),
-                    chapters.1.as_ref().map(|next| next.iter.clone()),
+                    chapters.prev.as_ref().map(|prev| prev.iter.clone()),
+                    chapters.next.as_ref().map(|next| next.iter.clone()),
                 )
             })
         };
@@ -799,87 +810,315 @@ mod tests {
         let chapter_1 = new_chapter(&store, "1");
         boundaries.add_chapter(0, 1, &chapter_1.title, &chapter_1.iter);
         assert_eq!(2, boundaries.len());
-        assert_eq!(Some(&(None, Some(chapter_1.clone()))), boundaries.get(&0));
-        assert_eq!(Some(&(Some(chapter_1.clone()), None)), boundaries.get(&1));
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: None,
+                next: Some(chapter_1.clone()),
+            }),
+            boundaries.get(&0),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_1.clone()),
+                next: None,
+            }),
+            boundaries.get(&1),
+        );
 
         let chapter_2 = new_chapter(&store, "2");
         boundaries.add_chapter(1, 2, &chapter_2.title, &chapter_2.iter);
         assert_eq!(3, boundaries.len());
-        assert_eq!(Some(&(None, Some(chapter_1.clone()))), boundaries.get(&0));
-        assert_eq!(Some(&(Some(chapter_1.clone()), Some(chapter_2.clone()))), boundaries.get(&1));
-        assert_eq!(Some(&(Some(chapter_2.clone()), None)), boundaries.get(&2));
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: None,
+                next: Some(chapter_1.clone()),
+            }),
+            boundaries.get(&0),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_1.clone()),
+                next: Some(chapter_2.clone()),
+            }),
+            boundaries.get(&1),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_2.clone()),
+                next: None,
+            }),
+            boundaries.get(&2),
+        );
 
         let chapter_3 = new_chapter(&store, "3");
         boundaries.add_chapter(2, 4, &chapter_3.title, &chapter_3.iter);
         assert_eq!(4, boundaries.len());
-        assert_eq!(Some(&(None, Some(chapter_1.clone()))), boundaries.get(&0));
-        assert_eq!(Some(&(Some(chapter_1.clone()), Some(chapter_2.clone()))), boundaries.get(&1));
-        assert_eq!(Some(&(Some(chapter_2.clone()), Some(chapter_3.clone()))), boundaries.get(&2));
-        assert_eq!(Some(&(Some(chapter_3.clone()), None)), boundaries.get(&4));
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: None,
+                next: Some(chapter_1.clone()),
+            }),
+            boundaries.get(&0),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_1.clone()),
+                next: Some(chapter_2.clone()),
+            }),
+            boundaries.get(&1),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_2.clone()),
+                next: Some(chapter_3.clone()),
+            }),
+            boundaries.get(&2),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_3.clone()),
+                next: None,
+            }),
+            boundaries.get(&4),
+        );
 
         // Rename
         let chapter_r2 = new_chapter(&store, "r2");
         boundaries.rename_chapter(1, 2, &chapter_r2.title);
         assert_eq!(4, boundaries.len());
-        assert_eq!(Some(&(None, Some(chapter_1.clone()))), boundaries.get(&0));
-        assert_eq!(Some(&(Some(chapter_1.clone()), Some(chapter_r2.clone()))), boundaries.get(&1));
-        assert_eq!(Some(&(Some(chapter_r2.clone()), Some(chapter_3.clone()))), boundaries.get(&2));
-        assert_eq!(Some(&(Some(chapter_3.clone()), None)), boundaries.get(&4));
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: None,
+                next: Some(chapter_1.clone()),
+            }),
+            boundaries.get(&0),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_1.clone()),
+                next: Some(chapter_r2.clone()),
+            }),
+            boundaries.get(&1),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_r2.clone()),
+                next: Some(chapter_3.clone()),
+            }),
+            boundaries.get(&2),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_3.clone()),
+                next: None,
+            }),
+            boundaries.get(&4),
+        );
 
         let chapter_r1 = new_chapter(&store, "r1");
         boundaries.rename_chapter(0, 1, &chapter_r1.title);
         assert_eq!(4, boundaries.len());
-        assert_eq!(Some(&(None, Some(chapter_r1.clone()))), boundaries.get(&0));
-        assert_eq!(Some(&(Some(chapter_r1.clone()), Some(chapter_r2.clone()))), boundaries.get(&1));
-        assert_eq!(Some(&(Some(chapter_r2.clone()), Some(chapter_3.clone()))), boundaries.get(&2));
-        assert_eq!(Some(&(Some(chapter_3.clone()), None)), boundaries.get(&4));
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: None,
+                next: Some(chapter_r1.clone()),
+            }),
+            boundaries.get(&0),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_r1.clone()),
+                next: Some(chapter_r2.clone()),
+            }),
+            boundaries.get(&1),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_r2.clone()),
+                next: Some(chapter_3.clone()),
+            }),
+            boundaries.get(&2),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_3.clone()),
+                next: None,
+            }),
+            boundaries.get(&4),
+        );
 
         let chapter_r3 = new_chapter(&store, "r3");
         boundaries.rename_chapter(2, 4, &chapter_r3.title);
         assert_eq!(4, boundaries.len());
-        assert_eq!(Some(&(None, Some(chapter_r1.clone()))), boundaries.get(&0));
-        assert_eq!(Some(&(Some(chapter_r1.clone()), Some(chapter_r2.clone()))), boundaries.get(&1));
-        assert_eq!(Some(&(Some(chapter_r2.clone()), Some(chapter_r3.clone()))), boundaries.get(&2));
-        assert_eq!(Some(&(Some(chapter_r3.clone()), None)), boundaries.get(&4));
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: None,
+                next: Some(chapter_r1.clone()),
+            }),
+            boundaries.get(&0),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_r1.clone()),
+                next: Some(chapter_r2.clone()),
+            }),
+            boundaries.get(&1),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_r2.clone()),
+                next: Some(chapter_r3.clone()),
+            }),
+            boundaries.get(&2),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_r3.clone()),
+                next: None,
+            }),
+            boundaries.get(&4),
+        );
 
         // Remove in the middle
         boundaries.remove_chapter(1, 2);
         assert_eq!(3, boundaries.len());
-        assert_eq!(Some(&(None, Some(chapter_r1.clone()))), boundaries.get(&0));
-        assert_eq!(Some(&(Some(chapter_r1.clone()), Some(chapter_r3.clone()))), boundaries.get(&2));
-        assert_eq!(Some(&(Some(chapter_r3.clone()), None)), boundaries.get(&4));
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: None,
+                next: Some(chapter_r1.clone()),
+            }),
+            boundaries.get(&0),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_r1.clone()),
+                next: Some(chapter_r3.clone()),
+            }),
+            boundaries.get(&2),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_r3.clone()),
+                next: None,
+            }),
+            boundaries.get(&4),
+        );
 
         // Add in the middle
         let chapter_n2 = new_chapter(&store, "n2");
         boundaries.add_chapter(1, 2, &chapter_n2.title, &chapter_n2.iter);
         assert_eq!(4, boundaries.len());
-        assert_eq!(Some(&(None, Some(chapter_r1.clone()))), boundaries.get(&0));
-        assert_eq!(Some(&(Some(chapter_r1.clone()), Some(chapter_n2.clone()))), boundaries.get(&1));
-        assert_eq!(Some(&(Some(chapter_n2.clone()), Some(chapter_r3.clone()))), boundaries.get(&2));
-        assert_eq!(Some(&(Some(chapter_r3.clone()), None)), boundaries.get(&4));
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: None,
+                next: Some(chapter_r1.clone()),
+            }),
+            boundaries.get(&0),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_r1.clone()),
+                next: Some(chapter_n2.clone()),
+            }),
+            boundaries.get(&1),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_n2.clone()),
+                next: Some(chapter_r3.clone()),
+            }),
+            boundaries.get(&2),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_r3.clone()),
+                next: None,
+            }),
+            boundaries.get(&4),
+        );
 
         // Remove first
         boundaries.remove_chapter(0, 1);
         assert_eq!(3, boundaries.len());
-        assert_eq!(Some(&(None, Some(chapter_n2.clone()))), boundaries.get(&1));
-        assert_eq!(Some(&(Some(chapter_n2.clone()), Some(chapter_r3.clone()))), boundaries.get(&2));
-        assert_eq!(Some(&(Some(chapter_r3.clone()), None)), boundaries.get(&4));
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: None,
+                next: Some(chapter_n2.clone()),
+            }),
+            boundaries.get(&1),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_n2.clone()),
+                next: Some(chapter_r3.clone()),
+            }),
+            boundaries.get(&2),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_r3.clone()),
+                next: None,
+            }),
+            boundaries.get(&4),
+        );
 
         // Add first
         let chapter_n1 = new_chapter(&store, "n1");
         boundaries.add_chapter(0, 1, &chapter_n1.title, &chapter_n1.iter);
         assert_eq!(4, boundaries.len());
-        assert_eq!(Some(&(None, Some(chapter_n1.clone()))), boundaries.get(&0));
-        assert_eq!(Some(&(Some(chapter_n1.clone()), Some(chapter_n2.clone()))), boundaries.get(&1));
-        assert_eq!(Some(&(Some(chapter_n2.clone()), Some(chapter_r3.clone()))), boundaries.get(&2));
-        assert_eq!(Some(&(Some(chapter_r3.clone()), None)), boundaries.get(&4));
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: None,
+                next: Some(chapter_n1.clone()),
+            }),
+            boundaries.get(&0),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_n1.clone()),
+                next: Some(chapter_n2.clone()),
+            }),
+            boundaries.get(&1),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_n2.clone()),
+                next: Some(chapter_r3.clone()),
+            }),
+            boundaries.get(&2),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_r3.clone()),
+                next: None,
+            }),
+            boundaries.get(&4),
+        );
 
         // Remove last
         boundaries.remove_chapter(2, 4);
         assert_eq!(3, boundaries.len());
-        assert_eq!(Some(&(None, Some(chapter_n1.clone()))), boundaries.get(&0));
-        assert_eq!(Some(&(Some(chapter_n1.clone()), Some(chapter_n2.clone()))), boundaries.get(&1));
-        assert_eq!(Some(&(Some(chapter_n2.clone()), None)), boundaries.get(&4));
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: None,
+                next: Some(chapter_n1.clone()),
+            }),
+            boundaries.get(&0),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_n1.clone()),
+                next: Some(chapter_n2.clone()),
+            }),
+            boundaries.get(&1),
+        );
+        assert_eq!(
+            Some(&SuccessiveChapters{
+                prev: Some(chapter_n2.clone()),
+                next: None,
+            }),
+            boundaries.get(&4),
+        );
     }
 }
 */
