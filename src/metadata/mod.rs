@@ -1,6 +1,3 @@
-pub mod chapters_boundaries;
-pub use self::chapters_boundaries::ChaptersBoundaries;
-
 pub mod cue_sheet_format;
 pub use self::cue_sheet_format::CueSheetFormat;
 

@@ -8,7 +8,9 @@ extern crate lazy_static;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use metadata::{ChaptersBoundaries, Timestamp, TocVisit, TocVisitor};
+use metadata::{Timestamp, TocVisit, TocVisitor};
+
+use super::ChaptersBoundaries;
 
 const START_COL: u32 = 0;
 const END_COL: u32 = 1;

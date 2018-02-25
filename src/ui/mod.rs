@@ -1,6 +1,9 @@
 mod audio_controller;
 use self::audio_controller::AudioController;
 
+pub mod chapters_boundaries;
+pub use self::chapters_boundaries::ChaptersBoundaries;
+
 mod chapter_tree_manager;
 use self::chapter_tree_manager::ChapterTreeManager;
 

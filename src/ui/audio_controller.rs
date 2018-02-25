@@ -23,10 +23,10 @@ use std::sync::{Arc, Mutex};
 
 use media::{DoubleAudioBuffer, PlaybackContext, SampleExtractor};
 
-use metadata::{ChaptersBoundaries, Timestamp};
+use metadata::Timestamp;
 
-use super::{DoubleWaveformBuffer, MainController, WaveformBuffer, WaveformConditions,
-            BACKGROUND_COLOR};
+use super::{ChaptersBoundaries, DoubleWaveformBuffer, MainController, WaveformBuffer,
+            WaveformConditions, BACKGROUND_COLOR};
 
 const BUFFER_DURATION: u64 = 60_000_000_000; // 60 s
 const MIN_REQ_DURATION: f64 = 1_953_125f64; // 2 ms / 1000 px
