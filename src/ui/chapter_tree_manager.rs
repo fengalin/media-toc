@@ -222,10 +222,6 @@ impl ChapterTreeManager {
         self.clear();
 
         if let &Some(ref toc) = toc {
-            self.boundaries
-                .borrow_mut()
-                .clear();
-
             let mut toc_visitor = TocVisitor::new(toc);
             toc_visitor.enter_chapters();
 
