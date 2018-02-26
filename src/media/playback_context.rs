@@ -584,7 +584,7 @@ impl PlaybackContext {
                     if pipeline_state != PipelineState::Initialized {
                         let info = &mut info_arc_mtx
                             .lock()
-                            .expect("Failed to lock media info while reading toc data");
+                            .expect("Failed to lock media info while reading tags");
                         info.tags = info.tags
                             .merge(&msg_tag.get_tags(), gst::TagMergeMode::Replace);
                     }
