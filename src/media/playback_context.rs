@@ -1,6 +1,6 @@
 extern crate gstreamer as gst;
 use gstreamer::prelude::*;
-use gstreamer::{BinExt, Caps, ClockTime, ElementFactory, GstObjectExt, PadExt, TocScope};
+use gstreamer::{BinExt, Caps, ClockTime, ElementFactory, GstObjectExt, PadExt};
 
 extern crate gstreamer_app as gst_app;
 extern crate gstreamer_audio as gst_audio;
@@ -593,7 +593,7 @@ impl PlaybackContext {
                     if pipeline_state != PipelineState::Initialized {
                         // FIXME: use updated
                         let (toc, _updated) = msg_toc.get_toc();
-                        if toc.get_scope() == TocScope::Global {
+                        if toc.get_scope() == gst::TocScope::Global {
                             let info = &mut info_arc_mtx
                                 .lock()
                                 .expect("Failed to lock media info while receiving toc");
