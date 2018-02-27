@@ -135,20 +135,26 @@ $ curl https://sh.rustup.rs -sSf | sh
 Select the `stable` toolchain. See the full documentation
 [here](https://github.com/rust-lang-nursery/rustup.rs#installation).
 
+It is convenience to have Rust's tools in the path. On linux, you might want to add this
+in your `.bashrc`:
+```
+export PATH=$PATH:~/.cargo/bin
+```
+
 ## Dependencies
 Rust dependencies are handled by [Cargo](http://doc.crates.io/). You will also
 need the following packages installed on your OS:
 
 ### Fedora
 ```
-sudo dnf install gtk3-devel glib2-devel gstreamer1-devel \
+sudo dnf install gcc gtk3-devel glib2-devel gstreamer1-devel \
 	gstreamer1-plugins-base-devel gstreamer1-plugins-{good,bad-free,ugly-free} \
 	gstreamer1-libav
 ```
 
 ### Debian & Unbuntu
 ```
-sudo apt-get install libgtk-3-dev libgstreamer1.0-dev \
+sudo apt-get install gcc libgtk-3-dev libgstreamer1.0-dev \
 	libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-{good,bad,ugly} \
 	gstreamer1.0-libav
 ```
