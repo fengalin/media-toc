@@ -27,7 +27,7 @@ pub struct AudioBuffer {
     pub eos: bool,
 
     is_new_segment: bool,
-    segment_start: Option<i64>,
+    segment_start: Option<u64>,
     pub segment_lower: usize,
     last_buffer_upper: usize,
     pub lower: usize,
@@ -108,40 +108,27 @@ impl AudioBuffer {
         self.samples.clear();
     }
 
-    pub fn preroll_gst_sample(&mut self, sample: &gst::Sample) {
-        let segment_start = sample.get_segment().unwrap().get_start().get_value();
-        match self.segment_start {
-            Some(current_segment_start) => {
-                if current_segment_start != segment_start {
-                    self.is_new_segment = true;
-                }
-                // else: same segment => might be an async_done after a pause
-                //       or a seek back to the segment's start
-            }
-            None => self.is_new_segment = true,
-        }
-
-        self.segment_start = Some(segment_start);
-    }
-
     // Add samples from the GStreamer pipeline to the AudioBuffer
     // This buffer stores the complete set of samples in a time frame
     // in order to be able to represent the audio at any given precision.
     // Incoming samples are merged to the existing buffer when possible
     // Returns: number of samples received
-    pub fn push_gst_sample(&mut self, sample: &gst::Sample, lower_to_keep: usize) -> usize {
-        #[cfg(feature = "profiling-audio-buffer")]
-        let start = Utc::now();
+    pub fn push_gst_buffer(&mut self, buffer: &gst::Buffer, lower_to_keep: usize) -> usize {
+        let pts = buffer.get_pts().unwrap();
 
-        if self.sample_duration == 0 {
-            #[cfg(any(test, feature = "trace-audio-buffer"))]
-            println!("AudioBuffer::push_gst_sample sample_duration is null");
-            return 0;
+        if buffer.get_flags() & gst::BufferFlags::DISCONT == gst::BufferFlags::DISCONT {
+            // reached a discontinuity
+            if let Some(current_segment_start) = self.segment_start {
+                if current_segment_start != pts {
+                    self.segment_lower = (pts / self.sample_duration) as usize;
+                    self.last_buffer_upper = self.segment_lower;
+                }
+                // else: same segment => might be an async_done after a pause
+                //       or a seek back to the segment's start
+            }
+
+            self.segment_start = Some(pts);
         }
-
-        let buffer = sample
-            .get_buffer()
-            .expect("AudioBuffer::preroll_gst_sample couldn't get buffer");
 
         let buffer_map = buffer.map_readable();
         let incoming_samples = buffer_map
@@ -164,8 +151,6 @@ impl AudioBuffer {
         // we'll rely on the inaccurate pts value...
 
         if self.is_new_segment {
-            self.segment_lower = (buffer.get_pts().unwrap() / self.sample_duration) as usize;
-            self.last_buffer_upper = self.segment_lower;
             self.is_new_segment = false;
         }
 

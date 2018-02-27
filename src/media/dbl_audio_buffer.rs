@@ -167,14 +167,10 @@ impl DoubleAudioBuffer {
         }
     }
 
-    pub fn preroll_gst_sample(&mut self, sample: &gst::Sample) {
-        self.audio_buffer.preroll_gst_sample(sample);
-    }
-
-    pub fn push_gst_sample(&mut self, sample: &gst::Sample) {
+    pub fn push_gst_buffer(&mut self, buffer: &gst::Buffer) {
         // store incoming samples
         self.samples_since_last_extract += self.audio_buffer
-            .push_gst_sample(sample, self.lower_to_keep);
+            .push_gst_buffer(buffer, self.lower_to_keep);
 
         if self.samples_since_last_extract >= EXTRACTION_THRESHOLD {
             // extract new samples and swap

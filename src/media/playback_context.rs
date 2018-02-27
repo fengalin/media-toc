@@ -81,6 +81,8 @@ lazy_static! {
 pub enum PipelineState {
     None,
     Initialized,
+    Playing,
+    Paused,
     StreamsStarted,
     StreamsSelected,
 }
@@ -329,6 +331,9 @@ impl PlaybackContext {
         decodebin_multiqueue
             .set_property("use-interleave", &false)
             .unwrap();
+        decodebin_multiqueue
+            .set_property("use-buffering", &true)
+            .unwrap();
 
         let file_src = gst::ElementFactory::make("filesrc", "filesrc").unwrap();
         file_src
@@ -474,40 +479,39 @@ impl PlaybackContext {
             }
         });
 
-        let dbl_audio_buffer_mtx_eos = Arc::clone(&dbl_audio_buffer_mtx);
-        let dbl_audio_buffer_mtx_pre = Arc::clone(&dbl_audio_buffer_mtx);
-        appsink.set_callbacks(
-            gst_app::AppSinkCallbacks::new()
-                .eos(move |_| {
-                    dbl_audio_buffer_mtx_eos
-                        .lock()
-                        .expect("appsink: eos: couldn't lock dbl_audio_buffer")
-                        .handle_eos();
-                })
-                .new_preroll(move |appsink| match appsink.pull_preroll() {
-                    Some(sample) => {
-                        dbl_audio_buffer_mtx_pre
+        waveform_sink_sink_pad.add_probe(
+            gst::PadProbeType::BUFFER | gst::PadProbeType::EVENT_DOWNSTREAM,
+            move |_pad, probe_info|
+        {
+            if let Some(ref data) = probe_info.data {
+                match *data {
+                    gst::PadProbeData::Buffer(ref buffer) => {
+                        dbl_audio_buffer_mtx
                             .lock()
-                            .expect("appsink: new_preroll: couldn't lock dbl_audio_buffer")
-                            .preroll_gst_sample(&sample);
-                        gst::FlowReturn::Ok
-                    }
-                    None => gst::FlowReturn::Eos,
-                })
-                .new_sample(move |appsink| match appsink.pull_sample() {
-                    Some(sample) => {
+                            .expect("waveform_sink_sink_pad::probe couldn't lock dbl_audio_buffer")
+                            .push_gst_buffer(&buffer);
+                        if buffer.get_flags()
+                            & gst::BufferFlags::DISCONT != gst::BufferFlags::DISCONT
                         {
+                            return gst::PadProbeReturn::Handled;
+                        }
+                    }
+                    gst::PadProbeData::Event(ref event) => {
+                        if gst::EventType::Eos == event.get_type() {
+                            println!("eos");
                             dbl_audio_buffer_mtx
                                 .lock()
-                                .expect("appsink: new_samples: couldn't lock dbl_audio_buffer")
-                                .push_gst_sample(&sample);
+                                .expect(
+                                    "waveform_sink_sink_pad::probe couldn't lock dbl_audio_buffer",
+                                )
+                                .handle_eos();
                         }
-                        gst::FlowReturn::Ok
                     }
-                    None => gst::FlowReturn::Eos,
-                })
-                .build(),
-        );
+                    _ => (),
+                }
+            }
+            gst::PadProbeReturn::Ok
+        });
     }
 
     fn build_video_pipeline(
@@ -578,6 +582,11 @@ impl PlaybackContext {
                         ctx_tx
                             .send(ContextMessage::AsyncDone)
                             .expect("Failed to notify UI");
+                    }
+                }
+                gst::MessageView::Buffering(msg_buffering) => {
+                    if msg_buffering.get_percent() == 100 {
+                        println!("done buffering");
                     }
                 }
                 gst::MessageView::Tag(msg_tag) => {
