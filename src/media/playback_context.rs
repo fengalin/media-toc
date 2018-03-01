@@ -81,8 +81,8 @@ lazy_static! {
 pub enum PipelineState {
     None,
     Initialized,
-    Playing,
-    Paused,
+//    Playing,
+//    Paused,
     StreamsStarted,
     StreamsSelected,
 }
@@ -331,9 +331,6 @@ impl PlaybackContext {
         decodebin_multiqueue
             .set_property("use-interleave", &false)
             .unwrap();
-        decodebin_multiqueue
-            .set_property("use-buffering", &true)
-            .unwrap();
 
         let file_src = gst::ElementFactory::make("filesrc", "filesrc").unwrap();
         file_src
@@ -396,8 +393,15 @@ impl PlaybackContext {
             audio_sink,
         ];
 
-        let waveform_queue = gst::ElementFactory::make("queue", "waveform_queue").unwrap();
+        let waveform_queue = gst::ElementFactory::make("queue2", "waveform_queue").unwrap();
         PlaybackContext::setup_queue(&waveform_queue);
+        // notify when the queue is filling up
+        waveform_queue
+            .set_property("use-buffering", &true)
+            .unwrap();
+        // it would be great to limit buffering notification to when the
+        // queue is completely filled up, unfortunately the properties
+        // low/high-watermark don't seem to allow this
 
         let waveform_convert = gst::ElementFactory::make(
             "audioconvert",
@@ -437,6 +441,7 @@ impl PlaybackContext {
             }
         }
 
+        // FIXME: build a dedicated plugin?
         let appsink = waveform_sink.dynamic_cast::<gst_app::AppSink>().unwrap();
         appsink.set_caps(&Caps::new_simple(
             "audio/x-raw",
@@ -464,47 +469,68 @@ impl PlaybackContext {
                 .set_ref(audio_sink);
         }
 
-        let dbl_audio_buffer_mtx_caps = Arc::clone(&dbl_audio_buffer_mtx);
-        waveform_sink_sink_pad.connect_property_caps_notify(move |pad| {
-            if let Some(caps) = pad.get_current_caps() {
-                #[cfg(feature = "trace-audio-caps")]
-                println!("\nGot new {:#?}", caps);
+        // Don't get buffers from the appsink callbacks because they are held
+        // in paused mode. We want to get buffers as soon as they are available
+        // in the waveform_queue.
+        appsink.set_callbacks(
+            gst_app::AppSinkCallbacks::new()
+                .new_sample(move |appsink| match appsink.pull_sample() {
+                    Some(_sample) => gst::FlowReturn::Ok,
+                    None => gst::FlowReturn::Eos,
+                })
+                .build(),
+        );
 
-                dbl_audio_buffer_mtx_caps
-                    .lock()
-                    .expect(
-                        "PlaybackContext::property_caps_notify couldn't lock dbl_audio_buffer_mtx",
-                    )
-                    .set_caps(&caps);
-            }
-        });
-
-        waveform_sink_sink_pad.add_probe(
-            gst::PadProbeType::BUFFER | gst::PadProbeType::EVENT_DOWNSTREAM,
-            move |_pad, probe_info|
-        {
+        // Get buffers on peer's pad otherwise they are different, for some reasons...
+        let waveform_convert_src_pad = waveform_convert.get_static_pad("src").unwrap();
+        let dbl_audio_buffer_mtx_buffer = Arc::clone(&dbl_audio_buffer_mtx);
+        waveform_convert_src_pad.add_probe(gst::PadProbeType::BUFFER, move |_pad, probe_info| {
             if let Some(ref data) = probe_info.data {
                 match *data {
                     gst::PadProbeData::Buffer(ref buffer) => {
-                        dbl_audio_buffer_mtx
+                        dbl_audio_buffer_mtx_buffer
                             .lock()
-                            .expect("waveform_sink_sink_pad::probe couldn't lock dbl_audio_buffer")
-                            .push_gst_buffer(&buffer);
-                        if buffer.get_flags()
-                            & gst::BufferFlags::DISCONT != gst::BufferFlags::DISCONT
-                        {
-                            return gst::PadProbeReturn::Handled;
-                        }
+                            .expect("waveform_sink::probe couldn't lock dbl_audio_buffer")
+                            .push_gst_buffer(buffer);
                     }
+                    _ => (),
+                }
+            }
+            gst::PadProbeReturn::Ok
+        });
+
+        waveform_sink_sink_pad.add_probe(gst::PadProbeType::EVENT_BOTH, move |_pad, probe_info| {
+            if let Some(ref mut data) = probe_info.data {
+                match *data {
                     gst::PadProbeData::Event(ref event) => {
-                        if gst::EventType::Eos == event.get_type() {
-                            println!("eos");
-                            dbl_audio_buffer_mtx
-                                .lock()
-                                .expect(
-                                    "waveform_sink_sink_pad::probe couldn't lock dbl_audio_buffer",
-                                )
-                                .handle_eos();
+                        match event.view() {
+                            // TODO: handle FlushStart / FlushStop
+                            gst::EventView::Caps(caps_event) => {
+                                let caps = unsafe {
+                                    gst::Caps::from_glib_borrow(caps_event.get_caps().as_ptr())
+                                };
+                                #[cfg(feature = "trace-audio-caps")]
+                                println!("\nGot new {:?}", caps);
+
+                                dbl_audio_buffer_mtx
+                                    .lock()
+                                    .expect("waveform_sink::probe couldn't lock dbl_audio_buffer")
+                                    .set_caps(&caps);
+                            }
+                            gst::EventView::Eos(_) => {
+                                dbl_audio_buffer_mtx
+                                    .lock()
+                                    .expect("waveform_sink::probe couldn't lock dbl_audio_buffer")
+                                    .handle_eos();
+                            }
+                            gst::EventView::Segment(segment_event) => {
+                                let segment = segment_event.get_segment();
+                                dbl_audio_buffer_mtx
+                                    .lock()
+                                    .expect("waveform_sink::probe couldn't lock dbl_audio_buffer")
+                                    .have_gst_segment(&segment);
+                            }
+                            _ => (),
                         }
                     }
                     _ => (),
@@ -586,6 +612,7 @@ impl PlaybackContext {
                 }
                 gst::MessageView::Buffering(msg_buffering) => {
                     if msg_buffering.get_percent() == 100 {
+                        // TODO:  notify the UI to refresh while in Paused mode
                         println!("done buffering");
                     }
                 }

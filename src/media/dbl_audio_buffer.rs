@@ -167,6 +167,10 @@ impl DoubleAudioBuffer {
         }
     }
 
+    pub fn have_gst_segment(&mut self, segment: &gst::Segment) {
+        self.audio_buffer.have_gst_segment(segment);
+    }
+
     pub fn push_gst_buffer(&mut self, buffer: &gst::Buffer) {
         // store incoming samples
         self.samples_since_last_extract += self.audio_buffer

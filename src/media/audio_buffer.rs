@@ -70,6 +70,9 @@ impl AudioBuffer {
         self.capacity = (self.buffer_duration / self.sample_duration) as usize * self.channels;
         self.samples = VecDeque::with_capacity(self.capacity);
         self.drain_size = rate as usize * self.channels; // 1s worth of samples
+
+        #[cfg(any(test, feature = "trace-audio-buffer"))]
+        println!("\nAudioBuffer::init rate {}, channels {}", self.rate, self.channels);
     }
 
     // Clean everytihng so that the AudioBuffer
@@ -108,26 +111,38 @@ impl AudioBuffer {
         self.samples.clear();
     }
 
+    pub fn have_gst_segment(&mut self, segment: &gst::Segment) {
+        #[cfg(any(test, feature = "trace-audio-buffer"))]
+        println!("\nAudioBuffer::have_gst_segment {:?}", segment);
+
+        let segment_start = segment.get_start().get_value() as u64;
+        match self.segment_start {
+            Some(current_segment_start) => {
+                if current_segment_start != segment_start {
+                    self.is_new_segment = true;
+                }
+                // else: same segment => might be an async_done after a pause
+                //       or a seek back to the segment's start
+            }
+            None => self.is_new_segment = true,
+        }
+
+        self.segment_start = Some(segment_start);
+    }
+
     // Add samples from the GStreamer pipeline to the AudioBuffer
     // This buffer stores the complete set of samples in a time frame
     // in order to be able to represent the audio at any given precision.
     // Incoming samples are merged to the existing buffer when possible
     // Returns: number of samples received
     pub fn push_gst_buffer(&mut self, buffer: &gst::Buffer, lower_to_keep: usize) -> usize {
-        let pts = buffer.get_pts().unwrap();
+        #[cfg(feature = "profiling-audio-buffer")]
+        let start = Utc::now();
 
-        if buffer.get_flags() & gst::BufferFlags::DISCONT == gst::BufferFlags::DISCONT {
-            // reached a discontinuity
-            if let Some(current_segment_start) = self.segment_start {
-                if current_segment_start != pts {
-                    self.segment_lower = (pts / self.sample_duration) as usize;
-                    self.last_buffer_upper = self.segment_lower;
-                }
-                // else: same segment => might be an async_done after a pause
-                //       or a seek back to the segment's start
-            }
-
-            self.segment_start = Some(pts);
+        if self.sample_duration == 0 {
+            #[cfg(any(test, feature = "trace-audio-buffer"))]
+            println!("AudioBuffer::push_gst_buffer sample_duration is null");
+            return 0;
         }
 
         let buffer_map = buffer.map_readable();
@@ -151,6 +166,8 @@ impl AudioBuffer {
         // we'll rely on the inaccurate pts value...
 
         if self.is_new_segment {
+            self.segment_lower = (buffer.get_pts().unwrap() / self.sample_duration) as usize;
+            self.last_buffer_upper = self.segment_lower;
             self.is_new_segment = false;
         }
 
@@ -394,35 +411,24 @@ impl AudioBuffer {
             }
         }
 
+        if is_new_segment {
+            let mut segment = gst::Segment::new();
+            segment.set_format(gst::Format::Time);
+            segment.set_start(ClockTime::from_nseconds(
+                self.sample_duration * (lower as u64) + 1,
+            ));
+            self.have_gst_segment(&segment);
+        }
+
+        let self_lower = self.lower;
+
         let mut buffer = gst::Buffer::with_size(samples_u8.len()).unwrap();
         {
             let buffer_mut = buffer.get_mut().unwrap();
             buffer_mut.copy_from_slice(0, &samples_u8).unwrap();
             buffer_mut.set_pts(ClockTime::from(self.sample_duration * (lower as u64) + 1));
         }
-
-        let mut segment = gst::Segment::new();
-        segment.set_format(gst::Format::Time);
-        segment.set_start(ClockTime::from_nseconds(
-            self.sample_duration * (lower as u64) + 1,
-        ));
-
-        let caps = gst::Caps::new_simple(
-            "audio/x-raw",
-            &[
-                ("format", &gst_audio::AUDIO_FORMAT_S16.to_string()),
-                ("layout", &"interleaved"),
-                ("channels", &(self.channels as i32)),
-                ("rate", &(self.rate as i32)),
-            ],
-        );
-
-        let sample = gst::Sample::new(Some(&buffer), Some(&caps), Some(&segment), None);
-        if is_new_segment {
-            self.preroll_gst_sample(&sample);
-        }
-        let self_lower = self.lower;
-        self.push_gst_sample(&sample, self_lower); // never drain buffer in this test
+        self.push_gst_buffer(&buffer, self_lower); // never drain buffer in this test
     }
 }
 
