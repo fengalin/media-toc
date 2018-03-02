@@ -223,7 +223,9 @@ impl ChapterTreeManager {
 
         if let &Some(ref toc) = toc {
             let mut toc_visitor = TocVisitor::new(toc);
-            toc_visitor.enter_chapters();
+            if !toc_visitor.enter_chapters() {
+                return;
+            }
 
             // FIXME: handle hierarchical Tocs
             while let Some(toc_visit) = toc_visitor.next() {

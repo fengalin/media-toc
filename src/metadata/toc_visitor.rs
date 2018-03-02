@@ -74,17 +74,22 @@ impl TocVisitor {
         }
     }
 
-    // panics if expected structure not found
-    pub fn enter_chapters(&mut self) {
+    pub fn enter_chapters(&mut self) -> bool {
         // Skip edition entry and enter chapters
         assert_eq!(Some(TocVisit::EnteringChildren), self.next());
-        match self.next() {
+        let found_edition = match self.next() {
             Some(TocVisit::Node(entry)) => {
-                assert_eq!(gst::TocEntryType::Edition, entry.get_entry_type());
+                gst::TocEntryType::Edition == entry.get_entry_type()
             }
-            _ => panic!("TocVisitor::enter_chapters unexpected root toc entry"),
+            _ => false,
+        };
+
+        if found_edition {
+            self.next()
+                .map_or(false, |visit| TocVisit::EnteringChildren == visit)
+        } else {
+            false
         }
-        assert_eq!(Some(TocVisit::EnteringChildren), self.next());
     }
 
     pub fn next(&mut self) -> Option<TocVisit> {
