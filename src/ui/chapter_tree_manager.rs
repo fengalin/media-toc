@@ -1,9 +1,7 @@
-extern crate gstreamer as gst;
+use gstreamer as gst;
 
-extern crate gtk;
+use gtk;
 use gtk::prelude::*;
-
-extern crate lazy_static;
 
 use std::rc::Rc;
 use std::cell::RefCell;
