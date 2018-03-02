@@ -200,10 +200,12 @@ impl ChapterTreeManager {
     }
 
     pub fn clear(&mut self) {
-        self.store.clear();
+        self.selected_iter = None;
+        self.iter = None;
         self.boundaries
             .borrow_mut()
             .clear();
+        self.store.clear();
     }
 
     pub fn rename_selected_chapter(&mut self, new_title: &str) {
