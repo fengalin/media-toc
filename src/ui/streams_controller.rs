@@ -1,8 +1,8 @@
-extern crate glib;
+use glib;
 
-extern crate gstreamer as gst;
+use gstreamer as gst;
 
-extern crate gtk;
+use gtk;
 use gtk::prelude::*;
 
 use std::rc::{Rc, Weak};

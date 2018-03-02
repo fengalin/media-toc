@@ -1,4 +1,4 @@
-extern crate gstreamer as gst;
+use gstreamer as gst;
 
 use std::io::Write;
 

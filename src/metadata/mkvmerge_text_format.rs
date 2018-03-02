@@ -1,5 +1,4 @@
-extern crate gstreamer as gst;
-extern crate lazy_static;
+use gstreamer as gst;
 
 use std::io::{Read, Write};
 

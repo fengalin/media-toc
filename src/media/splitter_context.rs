@@ -1,8 +1,8 @@
-extern crate gstreamer as gst;
+use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer::ClockTime;
 
-extern crate glib;
+use glib;
 
 use std::sync::mpsc::Sender;
 

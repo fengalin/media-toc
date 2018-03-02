@@ -1,5 +1,4 @@
-extern crate glib;
-extern crate gtk;
+use gtk;
 
 use glib::ObjectExt;
 use glib::signal::SignalHandlerId;

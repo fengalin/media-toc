@@ -1,4 +1,4 @@
-extern crate gtk;
+use gtk;
 
 use std::collections::BTreeMap;
 

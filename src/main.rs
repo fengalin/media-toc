@@ -6,6 +6,7 @@ extern crate glib;
 extern crate gstreamer;
 extern crate gstreamer_audio;
 extern crate gtk;
+extern crate image;
 extern crate pango;
 extern crate sample;
 

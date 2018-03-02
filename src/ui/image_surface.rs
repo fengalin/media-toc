@@ -1,5 +1,5 @@
-extern crate cairo;
-extern crate image;
+use cairo;
+use image;
 
 pub struct ImageSurface {}
 

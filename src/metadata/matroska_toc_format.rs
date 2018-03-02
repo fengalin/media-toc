@@ -1,7 +1,6 @@
-extern crate glib;
 use glib::Cast;
 
-extern crate gstreamer as gst;
+use gstreamer as gst;
 use gstreamer::{TagSetterExt, TocSetterExt};
 
 use super::{Exporter, MediaInfo};

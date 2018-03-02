@@ -1,8 +1,8 @@
-extern crate gstreamer as gst;
+use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer::PadExt;
 
-extern crate glib;
+use glib;
 use glib::ObjectExt;
 
 use std::sync::mpsc::Sender;
