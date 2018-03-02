@@ -1,7 +1,6 @@
 extern crate byteorder;
-
+extern crate cairo;
 extern crate clap;
-
 extern crate gdk;
 extern crate glib;
 extern crate gstreamer;

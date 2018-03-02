@@ -328,35 +328,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gstreamer-app"
-version = "0.11.0"
-source = "git+https://github.com/sdroege/gstreamer-rs.git#4117c01ff2c9ce9b46b8f63315af4dc284788e9b"
-dependencies = [
- "bitflags 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "glib 0.4.1 (git+https://github.com/gtk-rs/glib.git)",
- "glib-sys 0.5.0 (git+https://github.com/gtk-rs/sys)",
- "gobject-sys 0.5.0 (git+https://github.com/gtk-rs/sys)",
- "gstreamer 0.11.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
- "gstreamer-app-sys 0.5.0 (git+https://github.com/sdroege/gstreamer-sys)",
- "gstreamer-base 0.11.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
- "gstreamer-base-sys 0.5.0 (git+https://github.com/sdroege/gstreamer-sys)",
- "gstreamer-sys 0.5.0 (git+https://github.com/sdroege/gstreamer-sys)",
- "libc 0.2.36 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "gstreamer-app-sys"
-version = "0.5.0"
-source = "git+https://github.com/sdroege/gstreamer-sys#9b9a0fd149532280d060aef9471869480e01c07f"
-dependencies = [
- "glib-sys 0.5.0 (git+https://github.com/gtk-rs/sys)",
- "gstreamer-base-sys 0.5.0 (git+https://github.com/sdroege/gstreamer-sys)",
- "gstreamer-sys 0.5.0 (git+https://github.com/sdroege/gstreamer-sys)",
- "libc 0.2.36 (registry+https://github.com/rust-lang/crates.io-index)",
- "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "gstreamer-audio"
 version = "0.11.0"
 source = "git+https://github.com/sdroege/gstreamer-rs.git#4117c01ff2c9ce9b46b8f63315af4dc284788e9b"
@@ -383,20 +354,6 @@ dependencies = [
  "gstreamer-sys 0.5.0 (git+https://github.com/sdroege/gstreamer-sys)",
  "libc 0.2.36 (registry+https://github.com/rust-lang/crates.io-index)",
  "pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "gstreamer-base"
-version = "0.11.0"
-source = "git+https://github.com/sdroege/gstreamer-rs.git#4117c01ff2c9ce9b46b8f63315af4dc284788e9b"
-dependencies = [
- "bitflags 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "glib 0.4.1 (git+https://github.com/gtk-rs/glib.git)",
- "glib-sys 0.5.0 (git+https://github.com/gtk-rs/sys)",
- "gobject-sys 0.5.0 (git+https://github.com/gtk-rs/sys)",
- "gstreamer 0.11.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
- "gstreamer-base-sys 0.5.0 (git+https://github.com/sdroege/gstreamer-sys)",
- "gstreamer-sys 0.5.0 (git+https://github.com/sdroege/gstreamer-sys)",
 ]
 
 [[package]]
@@ -528,7 +485,6 @@ dependencies = [
  "gdk 0.7.0 (git+https://github.com/gtk-rs/gdk.git)",
  "glib 0.4.1 (git+https://github.com/gtk-rs/glib.git)",
  "gstreamer 0.11.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
- "gstreamer-app 0.11.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
  "gstreamer-audio 0.11.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
  "gtk 0.3.0 (git+https://github.com/gtk-rs/gtk.git)",
  "image 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -806,11 +762,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum glib-sys 0.5.0 (git+https://github.com/gtk-rs/sys)" = "<none>"
 "checksum gobject-sys 0.5.0 (git+https://github.com/gtk-rs/sys)" = "<none>"
 "checksum gstreamer 0.11.0 (git+https://github.com/sdroege/gstreamer-rs.git)" = "<none>"
-"checksum gstreamer-app 0.11.0 (git+https://github.com/sdroege/gstreamer-rs.git)" = "<none>"
-"checksum gstreamer-app-sys 0.5.0 (git+https://github.com/sdroege/gstreamer-sys)" = "<none>"
 "checksum gstreamer-audio 0.11.0 (git+https://github.com/sdroege/gstreamer-rs.git)" = "<none>"
 "checksum gstreamer-audio-sys 0.5.0 (git+https://github.com/sdroege/gstreamer-sys)" = "<none>"
-"checksum gstreamer-base 0.11.0 (git+https://github.com/sdroege/gstreamer-rs.git)" = "<none>"
 "checksum gstreamer-base-sys 0.5.0 (git+https://github.com/sdroege/gstreamer-sys)" = "<none>"
 "checksum gstreamer-sys 0.5.0 (git+https://github.com/sdroege/gstreamer-sys)" = "<none>"
 "checksum gtk 0.3.0 (git+https://github.com/gtk-rs/gtk.git)" = "<none>"

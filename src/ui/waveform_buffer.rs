@@ -1,4 +1,4 @@
-extern crate cairo;
+use cairo;
 
 use std::any::Any;
 
@@ -116,8 +116,17 @@ impl WaveformBuffer {
 
         self.conditions_changed = false;
 
+        self.reset_sample_conditions();
         self.image.cleanup();
 
+        self.req_duration_per_1000px = 0f64;
+        self.width = 0;
+        self.width_f = 0f64;
+    }
+
+    fn reset_sample_conditions(&mut self) {
+        #[cfg(feature = "trace-waveform-buffer")]
+        println!("WaveformBuffer{}::reset_sample_conditions", self.image.id);
         self.previous_sample = 0;
         self.current_sample = 0;
         self.cursor_sample = 0;
@@ -127,13 +136,12 @@ impl WaveformBuffer {
         self.sought_sample = None;
         self.playback_needs_refresh = false;
 
-        self.req_duration_per_1000px = 0f64;
-        self.width = 0;
-        self.width_f = 0f64;
         self.sample_step_f = 0f64;
         self.req_sample_window = 0;
         self.half_req_sample_window = 0;
         self.quarter_req_sample_window = 0;
+
+        self.image.cleanup_sample_conditions();
     }
 
     pub fn seek(&mut self, position: u64, is_playing: bool) {
@@ -423,7 +431,7 @@ impl WaveformBuffer {
         };
 
         self.image
-            .update_dimensions(self.sample_step_f, width, height);
+            .update_dimensions(width, height);
 
         if duration_changed || width_changed {
             self.update_sample_window();
@@ -487,6 +495,8 @@ impl WaveformBuffer {
             1f64 / (self.state.duration_per_1000_samples / self.req_duration_per_1000px).ceil()
         };
         self.conditions_changed = true;
+
+        self.image.update_sample_step(self.sample_step_f);
     }
 
     fn update_sample_window(&mut self) {
@@ -584,7 +594,8 @@ impl WaveformBuffer {
     }
 
     #[cfg_attr(feature = "cargo-clippy", allow(collapsible_if))]
-    fn get_sample_range(&mut self, audio_buffer: &AudioBuffer) -> (usize, usize) {        // First step: see how current waveform and the audio_buffer can merge
+    fn get_sample_range(&mut self, audio_buffer: &AudioBuffer) -> (usize, usize) {
+        // First step: see how current waveform and the audio_buffer can merge
         let (lower, upper) = if audio_buffer.lower <= self.image.lower
             && audio_buffer.upper >= self.image.upper
         {
@@ -822,7 +833,7 @@ impl SampleExtractor for WaveformBuffer {
             "WaveformBuffer{}::set_sample_duration per_sample {}",
             self.image.id, per_sample
         );
-        self.reset();
+        self.reset_sample_conditions();
 
         self.state.sample_duration = per_sample;
         self.state.duration_per_1000_samples = per_1000_samples;

@@ -1,4 +1,4 @@
-extern crate cairo;
+use cairo;
 
 use std::i16;
 
@@ -122,12 +122,7 @@ impl WaveformImage {
     pub fn cleanup(&mut self) {
         #[cfg(any(test, feature = "trace-waveform-rendering"))]
         println!("WaveformImage{}::cleanup", self.id);
-
         // clear for reuse
-        self.is_ready = false;
-        self.shareable_state_changed = false;
-
-        self.channel_colors.clear();
 
         // self.exposed_image & self.secondary_image
         // will be cleaned on next with draw
@@ -138,7 +133,17 @@ impl WaveformImage {
 
         self.req_width = 0;
         self.req_height = 0;
+
+        self.cleanup_sample_conditions();
+    }
+
+    pub fn cleanup_sample_conditions(&mut self) {
+        #[cfg(any(test, feature = "trace-waveform-rendering"))]
+        println!("WaveformImage{}::cleanup_sample_conditions", self.id);
+        self.is_ready = false;
         self.force_redraw = false;
+
+        self.channel_colors.clear();
 
         self.lower = 0;
         self.upper = 0;
@@ -168,15 +173,14 @@ impl WaveformImage {
         }
     }
 
-    pub fn update_dimensions(&mut self, sample_step_f: f64, width: i32, height: i32) {
+    pub fn update_dimensions(&mut self, width: i32, height: i32) {
         // if the requested height is different from current height
         // it might be necessary to force rendering when stream
         // is paused or eos
 
-        let force_redraw = (self.sample_step_f - sample_step_f).abs() > 0.01f64
-            || self.req_width != width || self.req_height != height;
+        self.force_redraw |= self.req_width != width || self.req_height != height;
 
-        if force_redraw {
+        if self.force_redraw {
             self.shareable_state_changed = true;
 
             #[cfg(feature = "trace-waveform-rendering")]
@@ -185,17 +189,8 @@ impl WaveformImage {
                 self.id, self.force_redraw, self.req_width, self.req_height, self.sample_step_f
             );
 
-            self.force_redraw = force_redraw;
             self.req_width = width;
             self.req_height = height;
-            self.sample_step_f = sample_step_f;
-            self.sample_step = (sample_step_f as usize).max(1);
-            self.x_step_f = if sample_step_f < 1f64 {
-                (1f64 / sample_step_f).round()
-            } else {
-                1f64
-            };
-            self.x_step = self.x_step_f as usize;
 
             #[cfg(feature = "trace-waveform-rendering")]
             println!(
@@ -203,6 +198,21 @@ impl WaveformImage {
                 self.force_redraw, self.req_width, self.req_height, self.sample_step_f
             );
         }
+    }
+
+    pub fn update_sample_step(&mut self, sample_step_f: f64) {
+        self.force_redraw |= (self.sample_step_f - sample_step_f).abs() > 0.01f64;
+
+        self.sample_step_f = sample_step_f;
+        self.sample_step = (sample_step_f as usize).max(1);
+        self.x_step_f = if sample_step_f < 1f64 {
+            (1f64 / sample_step_f).round()
+        } else {
+            1f64
+        };
+        self.x_step = self.x_step_f as usize;
+
+        self.shareable_state_changed = true;
     }
 
     pub fn is_ready(&self) -> bool {

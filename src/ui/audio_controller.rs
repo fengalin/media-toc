@@ -1,8 +1,8 @@
-extern crate cairo;
-extern crate glib;
-extern crate gdk;
-extern crate gtk;
-extern crate pango;
+use cairo;
+use glib;
+use gdk;
+use gtk;
+use pango;
 
 use gdk::{Cursor, CursorType, WindowExt};
 
@@ -534,6 +534,13 @@ impl AudioController {
                 allocation.width,
                 allocation.height,
             );
+
+            if self.state == ControllerState::Disabled {
+                // Not active yet, don't display
+                #[cfg(feature = "trace-audio-controller")]
+                println!("AudioController::draw still Disabled, not drawing");
+                return Inhibit(true);
+            }
 
             self.playback_needs_refresh = waveform_buffer.playback_needs_refresh;
 

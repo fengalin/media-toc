@@ -23,7 +23,6 @@ gtk = { git = "https://github.com/gtk-rs/gtk.git", features = ["v3_18"] }
 
 gstreamer = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
 gstreamer-audio = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
-gstreamer-app = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
 
 pango = { git = "https://github.com/gtk-rs/pango.git" }
 

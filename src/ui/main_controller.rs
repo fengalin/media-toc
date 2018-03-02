@@ -313,7 +313,6 @@ impl MainController {
                     AsyncDone => {
                         let mut this = this_rc.borrow_mut();
                         match this.state {
-                            ControllerState::Paused => this.refresh(),
                             ControllerState::PendingSelectMedia => this.select_media(),
                             ControllerState::PendingExportToc => this.export_toc(),
                             ControllerState::Seeking {
@@ -331,6 +330,7 @@ impl MainController {
                                     this.audio_ctrl.borrow_mut().switch_to_playing();
                                 } else if keep_paused {
                                     this.state = ControllerState::Paused;
+                                    this.refresh();
                                 } else {
                                     this.state = ControllerState::Playing;
                                 }
@@ -362,8 +362,6 @@ impl MainController {
 
                         this.set_context(context);
                         this.state = ControllerState::Ready;
-
-                        this.refresh();
                     }
                     StreamsSelected => {
                         let mut this = this_rc.borrow_mut();

@@ -459,7 +459,6 @@ impl PlaybackContext {
                 if let Some(ref mut data) = probe_info.data {
                     match *data {
                         gst::PadProbeData::Buffer(ref buffer) => {
-                            println!("buffers");
                             dbl_audio_buffer_mtx
                                 .lock()
                                 .expect("waveform_sink::probe couldn't lock dbl_audio_buffer")
@@ -563,7 +562,6 @@ impl PlaybackContext {
                 gst::MessageView::AsyncDone(_) => {
                     match pipeline_state {
                         PipelineState::StreamsSelected => {
-                            println!("pipeline_state to Paused (AsyncDone)");
                             pipeline_state = PipelineState::Initialized(InitializedState::Paused);
                             {
                                 let info = &mut info_arc_mtx
@@ -580,7 +578,6 @@ impl PlaybackContext {
                                 .expect("Failed to notify UI");
                         }
                         PipelineState::Initialized(_) => {
-                            println!("AsyncDone");
                             ctx_tx
                                 .send(ContextMessage::AsyncDone)
                                 .expect("Failed to notify UI");
@@ -595,7 +592,6 @@ impl PlaybackContext {
                                 return glib::Continue(true);
                             }
 
-                            println!("pipeline changing state to {:?}", msg_state_changed.get_current());
                             match msg_state_changed.get_current() {
                                 gst::State::Playing => {
                                     pipeline_state =
