@@ -1,5 +1,5 @@
-extern crate gstreamer as gst;
-extern crate gstreamer_audio as gst_audio;
+use gstreamer as gst;
+use gstreamer_audio as gst_audio;
 
 use std::any::Any;
 
@@ -85,7 +85,6 @@ impl DoubleAudioBuffer {
 
         let rate = u64::from(audio_info.rate());
         let channels = audio_info.channels() as usize;
-        self.audio_buffer.init(rate, channels);
 
         let sample_duration = 1_000_000_000 / rate;
         let duration_for_1000_samples = 1_000_000_000_000f64 / (rate as f64);
@@ -96,6 +95,8 @@ impl DoubleAudioBuffer {
                 channels.push(AudioChannel::new(position));
             }
         };
+
+        self.audio_buffer.init(audio_info);
 
         {
             let exposed_buffer = &mut self.exposed_buffer_mtx.lock().expect(

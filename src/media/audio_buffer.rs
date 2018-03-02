@@ -1,27 +1,31 @@
-extern crate gstreamer as gst;
+use gstreamer as gst;
+use gstreamer_audio as gst_audio;
+
+use gstreamer_audio::AudioFormat;
+
+use sample::Sample;
 
 #[cfg(feature = "profiling-audio-buffer")]
 use chrono::Utc;
 
-use byte_slice_cast::AsSliceOf;
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
+#[cfg(test)]
+use byteorder::ByteOrder;
 
 use std::collections::vec_deque::VecDeque;
-
-#[cfg(test)]
-extern crate gstreamer_audio as gst_audio;
+use std::io::{Cursor, Read};
 
 #[cfg(test)]
 use gstreamer::ClockTime;
 
-#[cfg(test)]
-use byteorder::{ByteOrder, LittleEndian};
-
 pub struct AudioBuffer {
     buffer_duration: u64,
     capacity: usize,
+    audio_info: Option<gst_audio::AudioInfo>,
     rate: u64,
     pub sample_duration: u64,
     pub channels: usize,
+    bytes_per_sample: usize,
     drain_size: usize,
 
     pub eos: bool,
@@ -40,9 +44,11 @@ impl AudioBuffer {
         AudioBuffer {
             buffer_duration: buffer_duration,
             capacity: 0,
+            audio_info: None,
             rate: 0,
             sample_duration: 0,
             channels: 0,
+            bytes_per_sample: 0,
             drain_size: 0,
 
             eos: false,
@@ -57,19 +63,22 @@ impl AudioBuffer {
         }
     }
 
-    pub fn init(&mut self, rate: u64, channels: usize) {
+    pub fn init(&mut self, audio_info: gst_audio::AudioInfo) {
         // assert_eq!(format, S16);
         // assert_eq!(layout, Interleaved);
 
         // changing caps
         self.cleanup();
 
-        self.rate = rate;
-        self.sample_duration = 1_000_000_000 / rate;
-        self.channels = channels;
+        self.rate = u64::from(audio_info.rate());
+        self.sample_duration = 1_000_000_000 / self.rate;
+        self.channels = audio_info.channels() as usize;
+        self.bytes_per_sample = audio_info.width() as usize / 8;
         self.capacity = (self.buffer_duration / self.sample_duration) as usize * self.channels;
         self.samples = VecDeque::with_capacity(self.capacity);
-        self.drain_size = rate as usize * self.channels; // 1s worth of samples
+        self.drain_size = self.rate as usize * self.channels; // 1s worth of samples
+
+        self.audio_info = Some(audio_info);
 
         #[cfg(any(test, feature = "trace-audio-buffer"))]
         println!("\nAudioBuffer::init rate {}, channels {}", self.rate, self.channels);
@@ -145,14 +154,7 @@ impl AudioBuffer {
             return 0;
         }
 
-        let buffer_map = buffer.map_readable();
-        let incoming_samples = buffer_map
-            .as_ref()
-            .unwrap()
-            .as_slice()
-            .as_slice_of::<i16>()
-            .expect("AudioBuffer::preroll_gst_sample couldn't get audio samples as i16");
-        let buffer_sample_len = incoming_samples.len() / self.channels;
+        let buffer_sample_len = buffer.get_size() / self.bytes_per_sample / self.channels;
 
         // Unfortunately, we can't rely on buffer_pts to figure out
         // the exact position in the segment. Some streams use a pts
@@ -326,19 +328,30 @@ impl AudioBuffer {
         let before_storage = Utc::now();
 
         if upper_to_add_rel > 0 {
-            let lower_idx = lower_to_add_rel * self.channels;
-            let upper_idx = upper_to_add_rel * self.channels;
-            let sample_slice = &incoming_samples[lower_idx..upper_idx];
+            /*let lower_idx = lower_to_add_rel * self.bytes_per_sample * self.channels;
+            let upper_idx = upper_to_add_rel * self.bytes_per_sample * self.channels;
+            let sample_slice = samples_as_bytes[lower_idx..upper_idx]
+                .as_slice_of::<i16>()
+                .expect("AudioBuffer::push_gst_buffer couldn't get audio samples as i16");
+            */
+
+            let map = buffer.map_readable()
+                .take()
+                .unwrap();
+            let converter_iter = SampleConverterIter::new(
+                map.as_slice(),
+                self.audio_info.as_ref().unwrap(),
+                lower_to_add_rel,
+                upper_to_add_rel,
+            ).unwrap();
 
             if !lower_changed || self.samples.is_empty() {
-                // samples can be pushed back to the containr
-                for sample_byte in sample_slice.iter() {
-                    self.samples.push_back(*sample_byte);
+                for sample in converter_iter {
+                    self.samples.push_back(sample);
                 }
             } else {
-                let rev_sample_iter = sample_slice.iter().rev();
-                for sample_byte in rev_sample_iter {
-                    self.samples.push_front(*sample_byte);
+                for sample in converter_iter.rev() {
+                    self.samples.push_front(sample);
                 }
             }
         }
@@ -432,6 +445,92 @@ impl AudioBuffer {
     }
 }
 
+// Convert sample buffer to i16 on the fly
+type ConvertFn = fn(&mut Read) -> i16;
+macro_rules! to_i16(
+    ($read:expr) => {
+        $read.unwrap().to_sample::<i16>()
+    }
+);
+pub struct SampleConverterIter<'a> {
+    cursor: Cursor<&'a [u8]>,
+    bytes_per_sample: usize,
+    convert: ConvertFn,
+    first: usize,
+    last: usize,
+}
+
+impl<'a> SampleConverterIter<'a> {
+    fn new(
+        slice: &'a [u8],
+        audio_info: &gst_audio::AudioInfo,
+        lower: usize,
+        upper: usize,
+    ) -> Option<SampleConverterIter<'a>> {
+        let mut cursor = Cursor::new(slice);
+
+        let bytes_per_sample = audio_info.width() as usize / 8;
+        let channels = audio_info.channels() as usize;
+        cursor.set_position((lower * bytes_per_sample * channels) as u64);
+
+        Some(SampleConverterIter {
+            cursor,
+            bytes_per_sample,
+            convert: SampleConverterIter::get_convert(&audio_info),
+            first: lower * channels,
+            last: upper * channels,
+        })
+    }
+
+    fn get_convert(audio_info: &gst_audio::AudioInfo) -> ConvertFn {
+        let convert: ConvertFn = match audio_info.format() {
+            AudioFormat::S8 => |rdr| to_i16!(rdr.read_i8()),
+            AudioFormat::U8 => |rdr| to_i16!(rdr.read_u8()),
+            AudioFormat::S16le => |rdr| to_i16!(rdr.read_i16::<LittleEndian>()),
+            AudioFormat::S16be => |rdr| to_i16!(rdr.read_i16::<BigEndian>()),
+            AudioFormat::U16le => |rdr| to_i16!(rdr.read_u16::<LittleEndian>()),
+            AudioFormat::U16be => |rdr| to_i16!(rdr.read_u16::<BigEndian>()),
+            AudioFormat::S32le => |rdr| to_i16!(rdr.read_i32::<LittleEndian>()),
+            AudioFormat::S32be => |rdr| to_i16!(rdr.read_i32::<BigEndian>()),
+            AudioFormat::U32le => |rdr| to_i16!(rdr.read_u32::<LittleEndian>()),
+            AudioFormat::U32be => |rdr| to_i16!(rdr.read_u32::<BigEndian>()),
+            AudioFormat::F32le => |rdr| to_i16!(rdr.read_f32::<LittleEndian>()),
+            AudioFormat::F32be => |rdr| to_i16!(rdr.read_f32::<BigEndian>()),
+            AudioFormat::F64le => |rdr| to_i16!(rdr.read_f64::<LittleEndian>()),
+            AudioFormat::F64be => |rdr| to_i16!(rdr.read_f64::<BigEndian>()),
+            _ => unimplemented!("Converting to {:?}", audio_info.format()),
+        };
+
+        convert
+    }
+}
+
+impl<'a> Iterator for SampleConverterIter<'a> {
+    type Item = i16;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.first >= self.last {
+            return None;
+        }
+
+        let item = (self.convert)(&mut self.cursor);
+        self.first += 1;
+        Some(item)
+    }
+}
+
+impl<'a> DoubleEndedIterator for SampleConverterIter<'a> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.first >= self.last || self.last == 0 {
+            return None;
+        }
+
+        self.last -= 1;
+        self.cursor.set_position((self.last * self.bytes_per_sample) as u64);
+        Some((self.convert)(&mut self.cursor))
+    }
+}
+
 pub struct Iter<'a> {
     slice0: &'a [i16],
     slice0_len: usize,
@@ -505,11 +604,13 @@ impl<'a> Iterator for Iter<'a> {
 
 #[cfg(test)]
 mod tests {
-    extern crate gstreamer as gst;
+    use gstreamer as gst;
+    use gstreamer_audio as gst_audio;
+    use gstreamer_audio::AUDIO_FORMAT_S16;
 
     use media::AudioBuffer;
 
-    const SAMPLE_RATE: u64 = 300;
+    const SAMPLE_RATE: u32 = 300;
 
     // Build a buffer with 2 channels in the specified range
     // which would be rendered as a diagonal on a Waveform image
@@ -525,11 +626,13 @@ mod tests {
     }
 
     #[test]
-    fn multiple_gst_samples() {
+    fn multiple_gst_buffers() {
         gst::init().unwrap();
 
         let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
-        audio_buffer.init(SAMPLE_RATE, 2); //2 channels
+        audio_buffer.init(
+            gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, 2).build().unwrap()
+        );
 
         println!("\n* samples [100:200] init");
         audio_buffer.push_samples(&build_buffer(100, 200), 100, true);
@@ -634,7 +737,9 @@ mod tests {
         gst::init().unwrap();
 
         let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
-        audio_buffer.init(SAMPLE_RATE, 2); //2 channels
+        audio_buffer.init(
+            gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, 2).build().unwrap()
+        );
 
         println!("\n* samples [100:200] init");
         // 1. init

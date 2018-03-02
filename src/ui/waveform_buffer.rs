@@ -389,7 +389,8 @@ impl WaveformBuffer {
                 None
             }
         } else {
-            // no image available yet
+            #[cfg(feature = "trace-waveform-buffer")]
+            println!("WaveformBuffer{}::update_first_visible_sample image not ready", self.image.id);
             None
         };
     }
@@ -489,9 +490,8 @@ impl WaveformBuffer {
     }
 
     fn update_sample_window(&mut self) {
-        // force sample window to an even number of samples
-        // so that the cursor can be centered
-        // and make sure to cover at least the width requested
+        // force sample window to an even number of samples so that the cursor can be centered
+        // and make sure to cover at least the requested width
         let half_req_sample_window = (self.sample_step_f * self.width_f / 2f64) as usize;
         let req_sample_window = half_req_sample_window * 2;
 
@@ -584,8 +584,7 @@ impl WaveformBuffer {
     }
 
     #[cfg_attr(feature = "cargo-clippy", allow(collapsible_if))]
-    fn get_sample_range(&mut self, audio_buffer: &AudioBuffer) -> (usize, usize) {
-        // First step: see how current waveform and the audio_buffer can merge
+    fn get_sample_range(&mut self, audio_buffer: &AudioBuffer) -> (usize, usize) {        // First step: see how current waveform and the audio_buffer can merge
         let (lower, upper) = if audio_buffer.lower <= self.image.lower
             && audio_buffer.upper >= self.image.upper
         {
@@ -897,7 +896,7 @@ impl SampleExtractor for WaveformBuffer {
         self.image.update_from_other(&mut other.image);
     }
 
-    // This is the entry point for the update of the waveform.
+    // This is the entry point for the waveform update.
     // This function tries to merge the samples added to the AudioBuffer
     // since last extraction and adapts to the evolving conditions of
     // the playback position and target rendering dimensions and

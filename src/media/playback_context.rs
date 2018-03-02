@@ -1,23 +1,17 @@
-extern crate gstreamer as gst;
+use gstreamer as gst;
+
 use gstreamer::prelude::*;
-use gstreamer::{BinExt, Caps, ClockTime, ElementFactory, GstObjectExt, PadExt};
+use gstreamer::{BinExt, ClockTime, ElementFactory, GstObjectExt, PadExt};
 
-extern crate gstreamer_app as gst_app;
-extern crate gstreamer_audio as gst_audio;
-
-extern crate glib;
+use glib;
 use glib::{Cast, ObjectExt};
 
-extern crate gtk;
-
-extern crate lazy_static;
+use gtk;
 
 use std::path::PathBuf;
 
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
-
-use std::i32;
 
 use metadata::MediaInfo;
 
@@ -78,12 +72,15 @@ lazy_static! {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub enum InitializedState {
+    Playing,
+    Paused,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum PipelineState {
     None,
-    Initialized,
-//    Playing,
-//    Paused,
-    StreamsStarted,
+    Initialized(InitializedState),
     StreamsSelected,
 }
 
@@ -385,7 +382,7 @@ impl PlaybackContext {
             "audioresample",
             "playback_audioresample",
         ).unwrap();
-        let playback_sink_sink_pad = playback_queue.get_static_pad("sink").unwrap();
+        let playback_sink_pad = playback_queue.get_static_pad("sink").unwrap();
         let playback_elements = &[
             &playback_queue,
             &playback_convert,
@@ -399,19 +396,12 @@ impl PlaybackContext {
         waveform_queue
             .set_property("use-buffering", &true)
             .unwrap();
-        // it would be great to limit buffering notification to when the
-        // queue is completely filled up, unfortunately the properties
-        // low/high-watermark don't seem to allow this
 
-        let waveform_convert = gst::ElementFactory::make(
-            "audioconvert",
-            "waveform_audioconvert",
-        ).unwrap();
-        let waveform_sink = gst::ElementFactory::make("appsink", "waveform_sink").unwrap();
-        let waveform_sink_sink_pad = waveform_queue.get_static_pad("sink").unwrap();
+        let waveform_sink = gst::ElementFactory::make("fakesink", "waveform_sink").unwrap();
+        let waveform_sink_pad = waveform_queue.get_static_pad("sink").unwrap();
 
         {
-            let waveform_elements = &[&waveform_queue, &waveform_convert, &waveform_sink];
+            let waveform_elements = &[&waveform_queue, &waveform_sink];
             let tee = gst::ElementFactory::make("tee", "audio_tee").unwrap();
             let mut elements = vec![&tee];
             elements.extend_from_slice(playback_elements);
@@ -426,13 +416,13 @@ impl PlaybackContext {
 
             let tee_playback_src_pad = tee.get_request_pad("src_%u").unwrap();
             assert_eq!(
-                tee_playback_src_pad.link(&playback_sink_sink_pad),
+                tee_playback_src_pad.link(&playback_sink_pad),
                 gst::PadLinkReturn::Ok
             );
 
             let tee_waveform_src_pad = tee.get_request_pad("src_%u").unwrap();
             assert_eq!(
-                tee_waveform_src_pad.link(&waveform_sink_sink_pad),
+                tee_waveform_src_pad.link(&waveform_sink_pad),
                 gst::PadLinkReturn::Ok
             );
 
@@ -442,23 +432,12 @@ impl PlaybackContext {
         }
 
         // FIXME: build a dedicated plugin?
-        let appsink = waveform_sink.dynamic_cast::<gst_app::AppSink>().unwrap();
-        appsink.set_caps(&Caps::new_simple(
-            "audio/x-raw",
-            &[
-                ("format", &gst_audio::AUDIO_FORMAT_S16.to_string()),
-                ("layout", &"interleaved"),
-                ("channels", &gst::IntRange::<i32>::new(1, i32::MAX)),
-                ("rate", &gst::IntRange::<i32>::new(1, i32::MAX)),
-            ],
-        ));
-
         // get samples as fast as possible
-        appsink
+        waveform_sink
             .set_property("sync", &gst::Value::from(&false))
             .unwrap();
         // and don't block pipeline when switching state
-        appsink
+        waveform_sink
             .set_property("async", &gst::Value::from(&false))
             .unwrap();
 
@@ -469,75 +448,68 @@ impl PlaybackContext {
                 .set_ref(audio_sink);
         }
 
-        // Don't get buffers from the appsink callbacks because they are held
-        // in paused mode. We want to get buffers as soon as they are available
-        // in the waveform_queue.
-        appsink.set_callbacks(
-            gst_app::AppSinkCallbacks::new()
-                .new_sample(move |appsink| match appsink.pull_sample() {
-                    Some(_sample) => gst::FlowReturn::Ok,
-                    None => gst::FlowReturn::Eos,
-                })
-                .build(),
-        );
-
-        // Get buffers on peer's pad otherwise they are different, for some reasons...
-        let waveform_convert_src_pad = waveform_convert.get_static_pad("src").unwrap();
-        let dbl_audio_buffer_mtx_buffer = Arc::clone(&dbl_audio_buffer_mtx);
-        waveform_convert_src_pad.add_probe(gst::PadProbeType::BUFFER, move |_pad, probe_info| {
-            if let Some(ref data) = probe_info.data {
-                match *data {
-                    gst::PadProbeData::Buffer(ref buffer) => {
-                        dbl_audio_buffer_mtx_buffer
-                            .lock()
-                            .expect("waveform_sink::probe couldn't lock dbl_audio_buffer")
-                            .push_gst_buffer(buffer);
-                    }
-                    _ => (),
-                }
-            }
-            gst::PadProbeReturn::Ok
-        });
-
-        waveform_sink_sink_pad.add_probe(gst::PadProbeType::EVENT_BOTH, move |_pad, probe_info| {
-            if let Some(ref mut data) = probe_info.data {
-                match *data {
-                    gst::PadProbeData::Event(ref event) => {
-                        match event.view() {
-                            // TODO: handle FlushStart / FlushStop
-                            gst::EventView::Caps(caps_event) => {
-                                let caps = unsafe {
-                                    gst::Caps::from_glib_borrow(caps_event.get_caps().as_ptr())
-                                };
-                                #[cfg(feature = "trace-audio-caps")]
-                                println!("\nGot new {:?}", caps);
-
-                                dbl_audio_buffer_mtx
-                                    .lock()
-                                    .expect("waveform_sink::probe couldn't lock dbl_audio_buffer")
-                                    .set_caps(&caps);
+        // Pull samples directly off the queue in order to get them as soon as they are available
+        // We can't use intermediate elements such as audioconvert because they get paused
+        // and block the buffers
+        let pad_probe_filter = gst::PadProbeType::BUFFER | gst::PadProbeType::EVENT_BOTH;
+        waveform_queue
+            .get_static_pad("sink")
+            .unwrap()
+            .add_probe(pad_probe_filter, move |_pad, probe_info| {
+                if let Some(ref mut data) = probe_info.data {
+                    match *data {
+                        gst::PadProbeData::Buffer(ref buffer) => {
+                            println!("buffers");
+                            dbl_audio_buffer_mtx
+                                .lock()
+                                .expect("waveform_sink::probe couldn't lock dbl_audio_buffer")
+                                .push_gst_buffer(buffer);
+                            if !buffer.get_flags().intersects(gst::BufferFlags::DISCONT) {
+                                return gst::PadProbeReturn::Handled;
                             }
-                            gst::EventView::Eos(_) => {
-                                dbl_audio_buffer_mtx
-                                    .lock()
-                                    .expect("waveform_sink::probe couldn't lock dbl_audio_buffer")
-                                    .handle_eos();
-                            }
-                            gst::EventView::Segment(segment_event) => {
-                                let segment = segment_event.get_segment();
-                                dbl_audio_buffer_mtx
-                                    .lock()
-                                    .expect("waveform_sink::probe couldn't lock dbl_audio_buffer")
-                                    .have_gst_segment(&segment);
-                            }
-                            _ => (),
                         }
+                        gst::PadProbeData::Event(ref event) => {
+                            match event.view() {
+                                // TODO: handle FlushStart / FlushStop
+                                gst::EventView::Caps(caps_event) => {
+                                    let caps = unsafe {
+                                        gst::Caps::from_glib_borrow(caps_event.get_caps().as_ptr())
+                                    };
+                                    #[cfg(feature = "trace-audio-caps")]
+                                    println!("\nGot new {:?}", caps);
+
+                                    dbl_audio_buffer_mtx
+                                        .lock()
+                                        .expect(
+                                            "waveform_sink::probe couldn't lock dbl_audio_buffer"
+                                        )
+                                        .set_caps(&caps);
+                                }
+                                gst::EventView::Eos(_) => {
+                                    dbl_audio_buffer_mtx
+                                        .lock()
+                                        .expect(
+                                            "waveform_sink::probe couldn't lock dbl_audio_buffer"
+                                        )
+                                        .handle_eos();
+                                }
+                                gst::EventView::Segment(segment_event) => {
+                                    let segment = segment_event.get_segment();
+                                    dbl_audio_buffer_mtx
+                                        .lock()
+                                        .expect(
+                                            "waveform_sink::probe couldn't lock dbl_audio_buffer"
+                                        )
+                                        .have_gst_segment(&segment);
+                                }
+                                _ => (),
+                            }
+                        }
+                        _ => (),
                     }
-                    _ => (),
                 }
-            }
-            gst::PadProbeReturn::Ok
-        });
+                gst::PadProbeReturn::Ok
+            });
     }
 
     fn build_video_pipeline(
@@ -589,68 +561,103 @@ impl PlaybackContext {
                     return glib::Continue(false);
                 }
                 gst::MessageView::AsyncDone(_) => {
-                    if pipeline_state == PipelineState::StreamsSelected {
-                        pipeline_state = PipelineState::Initialized;
-                        {
-                            let info = &mut info_arc_mtx
-                                .lock()
-                                .expect("Failed to lock media info while setting duration");
-                            info.duration = pipeline
-                                .query_duration::<gst::ClockTime>()
-                                .unwrap_or_else(|| 0.into())
-                                .nanoseconds()
-                                .unwrap();
+                    match pipeline_state {
+                        PipelineState::StreamsSelected => {
+                            println!("pipeline_state to Paused (AsyncDone)");
+                            pipeline_state = PipelineState::Initialized(InitializedState::Paused);
+                            {
+                                let info = &mut info_arc_mtx
+                                    .lock()
+                                    .expect("Failed to lock media info while setting duration");
+                                info.duration = pipeline
+                                    .query_duration::<gst::ClockTime>()
+                                    .unwrap_or_else(|| 0.into())
+                                    .nanoseconds()
+                                    .unwrap();
+                            }
+                            ctx_tx
+                                .send(ContextMessage::InitDone)
+                                .expect("Failed to notify UI");
                         }
-                        ctx_tx
-                            .send(ContextMessage::InitDone)
-                            .expect("Failed to notify UI");
-                    } else if pipeline_state == PipelineState::Initialized {
-                        ctx_tx
-                            .send(ContextMessage::AsyncDone)
-                            .expect("Failed to notify UI");
+                        PipelineState::Initialized(_) => {
+                            println!("AsyncDone");
+                            ctx_tx
+                                .send(ContextMessage::AsyncDone)
+                                .expect("Failed to notify UI");
+                        }
+                        _ => (),
+                    }
+                }
+                gst::MessageView::StateChanged(msg_state_changed) => {
+                    if let PipelineState::Initialized(_) = pipeline_state {
+                        if let Some(source) = msg_state_changed.get_src() {
+                            if "pipeline" != source.get_name() {
+                                return glib::Continue(true);
+                            }
+
+                            println!("pipeline changing state to {:?}", msg_state_changed.get_current());
+                            match msg_state_changed.get_current() {
+                                gst::State::Playing => {
+                                    pipeline_state =
+                                        PipelineState::Initialized(InitializedState::Playing);
+                                }
+                                gst::State::Paused => {
+                                    pipeline_state =
+                                        PipelineState::Initialized(InitializedState::Paused);
+                                }
+                                _ => {
+                                    pipeline_state = PipelineState::None;
+                                }
+                            }
+                        }
                     }
                 }
                 gst::MessageView::Buffering(msg_buffering) => {
-                    if msg_buffering.get_percent() == 100 {
-                        // TODO:  notify the UI to refresh while in Paused mode
-                        println!("done buffering");
-                    }
+                    println!("buffering {}", msg_buffering.get_percent());
+                    /*if let PipelineState::Initialized(InitializedState::Paused) = pipeline_state {
+                        if msg_buffering.get_percent() == 10 {
+                            // TODO:  notify the UI to refresh while in Paused mode
+                            println!("done updating audio buffer");
+                        }
+                    }*/
                 }
                 gst::MessageView::Tag(msg_tag) => {
-                    if pipeline_state != PipelineState::Initialized {
-                        let info = &mut info_arc_mtx
-                            .lock()
-                            .expect("Failed to lock media info while reading tags");
-                        info.tags = info.tags
-                            .merge(&msg_tag.get_tags(), gst::TagMergeMode::Replace);
-                    }
-                }
-                gst::MessageView::Toc(msg_toc) => {
-                    if pipeline_state != PipelineState::Initialized {
-                        // FIXME: use updated
-                        let (toc, _updated) = msg_toc.get_toc();
-                        if toc.get_scope() == gst::TocScope::Global {
+                    match pipeline_state {
+                        PipelineState::Initialized(_) => (),
+                        _ => {
                             let info = &mut info_arc_mtx
                                 .lock()
-                                .expect("Failed to lock media info while receiving toc");
-                            info.toc = Some(toc);
-                        } else {
-                            println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
+                                .expect("Failed to lock media info while reading tags");
+                            info.tags = info.tags
+                                .merge(&msg_tag.get_tags(), gst::TagMergeMode::Replace);
                         }
                     }
                 }
-                gst::MessageView::StreamStart(_) => {
-                    if pipeline_state == PipelineState::None {
-                        pipeline_state = PipelineState::StreamsStarted;
+                gst::MessageView::Toc(msg_toc) => {
+                    match pipeline_state {
+                        PipelineState::Initialized(_) => (),
+                        _ => {
+                            // FIXME: use updated
+                            let (toc, _updated) = msg_toc.get_toc();
+                            if toc.get_scope() == gst::TocScope::Global {
+                                let info = &mut info_arc_mtx
+                                    .lock()
+                                    .expect("Failed to lock media info while receiving toc");
+                                info.toc = Some(toc);
+                            } else {
+                                println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
+                            }
+                        }
                     }
                 }
                 gst::MessageView::StreamsSelected(_) => {
-                    if pipeline_state == PipelineState::Initialized {
-                        ctx_tx
-                            .send(ContextMessage::StreamsSelected)
-                            .expect("Failed to notify UI");
-                    } else {
-                        pipeline_state = PipelineState::StreamsSelected;
+                    match pipeline_state {
+                        PipelineState::Initialized(_) => {
+                            ctx_tx
+                                .send(ContextMessage::StreamsSelected)
+                                .expect("Failed to notify UI");
+                        }
+                        _ => pipeline_state = PipelineState::StreamsSelected,
                     }
                 }
                 gst::MessageView::StreamCollection(msg_stream_collection) => {

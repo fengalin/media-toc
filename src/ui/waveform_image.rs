@@ -993,6 +993,8 @@ mod tests {
     extern crate cairo;
 
     extern crate gstreamer as gst;
+    use gstreamer_audio as gst_audio;
+    use gstreamer_audio::AUDIO_FORMAT_S16;
 
     use std::fs::{create_dir, File};
     use std::io::ErrorKind;
@@ -1003,7 +1005,7 @@ mod tests {
     use ui::WaveformImage;
 
     const OUT_DIR: &'static str = "target/test";
-    const SAMPLE_RATE: u64 = 300;
+    const SAMPLE_RATE: u32 = 300;
     const SAMPLE_DYN: i32 = 300;
 
     fn prepare_tests() {
@@ -1023,7 +1025,9 @@ mod tests {
 
         // AudioBuffer
         let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
-        audio_buffer.init(SAMPLE_RATE, 2); //2 channels
+        audio_buffer.init(
+            gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, 2).build().unwrap()
+        );
 
         // WaveformImage
         let mut waveform = WaveformImage::new(0);

@@ -1,4 +1,4 @@
-extern crate gstreamer_audio as gst_audio;
+use gstreamer_audio as gst_audio;
 use gstreamer_audio::AudioChannelPosition as Position;
 
 pub enum AudioChannelSide {

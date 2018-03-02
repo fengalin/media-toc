@@ -10,10 +10,11 @@ license = "MIT"
 
 [dependencies]
 clap = "^2"
-byte-slice-cast = "^0"
+byteorder = "^1"
 chrono = "^0"
 image = "^0"
 lazy_static = "^0"
+sample = "^0"
 
 cairo-rs = { git = "https://github.com/gtk-rs/cairo.git" }
 gdk = { git = "https://github.com/gtk-rs/gdk.git" }
@@ -42,5 +43,4 @@ trace-chapters-boundaries = []
 default-features = []
 
 [dev-dependencies]
-byteorder = "1"
 cairo-rs = { git = "https://github.com/gtk-rs/cairo.git", features = ["png"] }

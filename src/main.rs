@@ -1,5 +1,3 @@
-extern crate byte_slice_cast;
-#[cfg(test)]
 extern crate byteorder;
 
 extern crate clap;
@@ -10,6 +8,7 @@ extern crate gstreamer;
 extern crate gstreamer_audio;
 extern crate gtk;
 extern crate pango;
+extern crate sample;
 
 #[macro_use]
 extern crate lazy_static;
