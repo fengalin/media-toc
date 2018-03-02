@@ -539,6 +539,7 @@ impl AudioController {
                 // Not active yet, don't display
                 #[cfg(feature = "trace-audio-controller")]
                 println!("AudioController::draw still Disabled, not drawing");
+                self.clean_cairo_context(cr);
                 return Inhibit(true);
             }
 
