@@ -652,11 +652,6 @@ impl AudioController {
                     }
                 }
             }
-
-            // make sure the rest of the image is filled with background's color
-            cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
-            cr.rectangle(last_pos.x, 0f64, self.area_width - last_pos.x, height);
-            cr.fill();
         }
 
         if let Some(current_x) = image_positions.current {
