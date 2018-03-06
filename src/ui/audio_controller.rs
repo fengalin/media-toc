@@ -34,6 +34,10 @@ const MAX_REQ_DURATION: f64 = 32_000_000_000f64; // 32 s / 1000 px
 const INIT_REQ_DURATION: f64 = 4_000_000_000f64; // 4 s / 1000 px
 const STEP_REQ_DURATION: f64 = 2f64;
 
+// Other UI components refresh period
+const OTHER_UI_REFRESH_PERIOD: u64 = 50_000_000; // 50 ms
+
+// Range playback
 const MIN_RANGE_DURATION: u64 = 100_000_000; // 100 ms
 
 const HOUR_IN_NANO: u64 = 3_600_000_000_000;
@@ -77,6 +81,7 @@ pub struct AudioController {
 
     requested_duration: f64,
     current_position: u64,
+    last_other_ui_refresh: u64,
     first_visible_pos: u64,
     last_visible_pos: u64,
     sample_duration: u64,
@@ -126,6 +131,7 @@ impl AudioController {
 
             requested_duration: INIT_REQ_DURATION,
             current_position: 0,
+            last_other_ui_refresh: 0,
             first_visible_pos: 0,
             last_visible_pos: 0,
             sample_duration: 0,
@@ -267,6 +273,7 @@ impl AudioController {
         }
         self.requested_duration = INIT_REQ_DURATION;
         self.current_position = 0;
+        self.last_other_ui_refresh = 0;
         self.first_visible_pos = 0;
         self.last_visible_pos = 0;
         self.sample_duration = 0;
@@ -607,11 +614,6 @@ impl AudioController {
 
             self.last_visible_pos = last_pos.timestamp;
 
-            // make sure the rest of the image is filled with background's color
-            cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
-            cr.rectangle(last_pos.x, 0f64, self.area_width - last_pos.x, height);
-            cr.fill();
-
             // Draw in-range chapters boundaries
             let boundaries = self.boundaries
                 .borrow();
@@ -651,10 +653,10 @@ impl AudioController {
                 }
             }
 
-            // update UI position
-            if let Ok(mut main_ctrl) = main_ctrl.try_borrow_mut() {
-                main_ctrl.refresh_info(self.current_position);
-            }
+            // make sure the rest of the image is filled with background's color
+            cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
+            cr.rectangle(last_pos.x, 0f64, self.area_width - last_pos.x, height);
+            cr.fill();
         }
 
         if let Some(current_x) = image_positions.current {
@@ -682,7 +684,31 @@ impl AudioController {
         }
 
         #[cfg(feature = "profiling-audio-draw")]
-        let before_refresh_info = Utc::now();
+        let before_refresh_other = Utc::now();
+
+        // update other UI position
+        // Note: we pass by the audio controller here in order
+        // to reduce position queries on the ref gst element
+        // TODO: see if a local clock reduces percetiples short hangs
+        // while the waveform scrolls
+        let must_refresh_other_ui = {
+            if self.state == ControllerState::Playing {
+                if self.last_other_ui_refresh < self.current_position {
+                    self.current_position - self.last_other_ui_refresh > OTHER_UI_REFRESH_PERIOD
+                } else {
+                    false
+                }
+            } else {
+                self.state == ControllerState::Paused
+            }
+        };
+
+        if must_refresh_other_ui {
+            if let Ok(mut main_ctrl) = main_ctrl.try_borrow_mut() {
+                main_ctrl.refresh_info(self.current_position);
+                self.last_other_ui_refresh = self.current_position;
+            }
+        }
 
         #[cfg(feature = "profiling-audio-draw")]
         let end = Utc::now();
@@ -695,7 +721,7 @@ impl AudioController {
             _before_cndt.time().format("%H:%M:%S%.6f"),
             _before_image.time().format("%H:%M:%S%.6f"),
             before_pos.time().format("%H:%M:%S%.6f"),
-            before_refresh_info.time().format("%H:%M:%S%.6f"),
+            before_refresh_other.time().format("%H:%M:%S%.6f"),
             end.time().format("%H:%M:%S%.6f"),
         );
 
