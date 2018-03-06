@@ -6,7 +6,7 @@ use gtk::prelude::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use metadata::{Timestamp, TocVisit, TocVisitor};
+use metadata::{Timestamp, TocVisitor};
 
 use super::ChaptersBoundaries;
 
@@ -228,39 +228,34 @@ impl ChapterTreeManager {
             }
 
             // FIXME: handle hierarchical Tocs
-            while let Some(toc_visit) = toc_visitor.next() {
-                match toc_visit {
-                    TocVisit::Node(chapter) => {
-                        assert_eq!(gst::TocEntryType::Chapter, chapter.get_entry_type());
+            while let Some(chapter) = toc_visitor.next_chapter() {
+                assert_eq!(gst::TocEntryType::Chapter, chapter.get_entry_type());
 
-                        if let Some((start, end)) = chapter.get_start_stop_times() {
-                            let start = start as u64;
-                            let end = end as u64;
+                if let Some((start, end)) = chapter.get_start_stop_times() {
+                    let start = start as u64;
+                    let end = end as u64;
 
-                            let title = chapter.get_tags().map_or(None, |tags| {
-                                tags.get::<gst::tags::Title>().map(|tag| {
-                                    tag.get().unwrap().to_owned()
-                                })
-                            }).unwrap_or(DEFAULT_TITLE.to_owned());
-                            let iter = self.store.insert_with_values(
-                                None,
-                                None,
-                                &[START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
-                                &[
-                                    &start,
-                                    &end,
-                                    &title,
-                                    &format!("{}", &Timestamp::format(start, false)),
-                                    &format!("{}", &Timestamp::format(end, false)),
-                                ],
-                            );
+                    let title = chapter.get_tags().map_or(None, |tags| {
+                        tags.get::<gst::tags::Title>().map(|tag| {
+                            tag.get().unwrap().to_owned()
+                        })
+                    }).unwrap_or(DEFAULT_TITLE.to_owned());
+                    let iter = self.store.insert_with_values(
+                        None,
+                        None,
+                        &[START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
+                        &[
+                            &start,
+                            &end,
+                            &title,
+                            &format!("{}", &Timestamp::format(start, false)),
+                            &format!("{}", &Timestamp::format(end, false)),
+                        ],
+                    );
 
-                            self.boundaries
-                                .borrow_mut()
-                                .add_chapter(start, end, &title, &iter);
-                        }
-                    }
-                    _ => (),
+                    self.boundaries
+                        .borrow_mut()
+                        .add_chapter(start, end, &title, &iter);
                 }
             }
         }
