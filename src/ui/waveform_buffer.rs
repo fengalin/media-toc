@@ -815,7 +815,17 @@ impl SampleExtractor for WaveformBuffer {
     }
 
     fn get_lower(&self) -> usize {
-        self.image.lower
+        self.first_visible_sample.map_or(self.image.lower, |sample| {
+            if sample > self.half_req_sample_window {
+                sample - self.half_req_sample_window
+            } else {
+                sample
+            }
+        })
+    }
+
+    fn get_requested_sample_window(&self) -> usize {
+        self.req_sample_window
     }
 
     fn cleanup(&mut self) {

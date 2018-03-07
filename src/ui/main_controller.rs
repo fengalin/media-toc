@@ -251,7 +251,7 @@ impl MainController {
     }
 
     pub fn refresh(&mut self) {
-        self.audio_ctrl.borrow().redraw();
+        self.audio_ctrl.borrow_mut().refresh();
     }
 
     pub fn refresh_info(&mut self, position: u64) {
@@ -330,7 +330,6 @@ impl MainController {
                                     this.audio_ctrl.borrow_mut().switch_to_playing();
                                 } else if keep_paused {
                                     this.state = ControllerState::Paused;
-                                    this.refresh();
                                 } else {
                                     this.state = ControllerState::Playing;
                                 }
@@ -362,6 +361,12 @@ impl MainController {
 
                         this.set_context(context);
                         this.state = ControllerState::Ready;
+                    }
+                    ReadyForRefresh => {
+                        let mut this = this_rc.borrow_mut();
+                        if this.state == ControllerState::Paused {
+                            this.refresh();
+                        }
                     }
                     StreamsSelected => {
                         let mut this = this_rc.borrow_mut();

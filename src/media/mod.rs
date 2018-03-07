@@ -8,7 +8,7 @@ pub mod dbl_audio_buffer;
 pub use self::dbl_audio_buffer::DoubleAudioBuffer;
 
 pub mod playback_context;
-pub use self::playback_context::PlaybackContext;
+pub use self::playback_context::{PlaybackContext, QUEUE_SIZE_NS};
 
 pub mod sample_extractor;
 pub use self::sample_extractor::SampleExtractor;
@@ -25,5 +25,6 @@ pub enum ContextMessage {
     FailedToOpenMedia,
     FailedToExport,
     InitDone,
+    ReadyForRefresh,
     StreamsSelected,
 }

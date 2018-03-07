@@ -710,11 +710,7 @@ impl AudioController {
         let must_refresh_other_ui = {
             match self.state {
                 ControllerState::Playing => {
-                    if self.last_other_ui_refresh < self.current_position {
-                        self.current_position - self.last_other_ui_refresh > OTHER_UI_REFRESH_PERIOD
-                    } else {
-                        false
-                    }
+                    self.current_position > self.last_other_ui_refresh + OTHER_UI_REFRESH_PERIOD
                 }
                 ControllerState::Paused => true,
                 ControllerState::MovingBoundary(_boundary) => true,
@@ -747,7 +743,9 @@ impl AudioController {
         Inhibit(false)
     }
 
-    fn refresh(&mut self) {
+    pub fn refresh(&mut self) {
+        // FIXME: might not need to use conditions in refresh anymore
+        // now that conditions are updated separately when they change
         let requested_duration = self.requested_duration;
         let area_width = self.area_width;
         let area_height = self.area_height;

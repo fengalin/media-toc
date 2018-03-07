@@ -19,7 +19,7 @@ use super::{ContextMessage, DoubleAudioBuffer};
 
 // Buffer size in ns for queues
 // This is the max duration that queues can hold
-const QUEUE_SIZE_NS: u64 = 5_000_000_000u64; // 5s
+pub const QUEUE_SIZE_NS: u64 = 5_000_000_000u64; // 5s
 
 // The video_sink must be created in the main UI thread
 // as it contains a gtk::Widget
@@ -140,7 +140,7 @@ impl PlaybackContext {
             .expect("PlaybackContext::new failed to lock media info")
             .file_name = file_name;
 
-        this.build_pipeline(dbl_audio_buffer_mtx, (*VIDEO_OUTPUT).sink.clone());
+        this.build_pipeline(ctx_tx.clone(), dbl_audio_buffer_mtx, (*VIDEO_OUTPUT).sink.clone());
         this.register_bus_inspector(ctx_tx);
 
         match this.pause() {
@@ -317,6 +317,7 @@ impl PlaybackContext {
     // TODO: handle errors
     fn build_pipeline(
         &mut self,
+        ctx_tx: Sender<ContextMessage>,
         dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
         video_sink: gst::Element,
     ) {
@@ -340,6 +341,7 @@ impl PlaybackContext {
 
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
+        let ctx_tx_mtx = Arc::new(Mutex::new(ctx_tx));
         self.decodebin
             .connect_pad_added(move |_decodebin, src_pad| {
                 let pipeline = &pipeline_clone;
@@ -350,6 +352,7 @@ impl PlaybackContext {
                         pipeline,
                         src_pad,
                         &audio_sink,
+                        Arc::clone(&ctx_tx_mtx),
                         Arc::clone(&dbl_audio_buffer_mtx),
                     );
                 } else if name.starts_with("video_") {
@@ -369,6 +372,7 @@ impl PlaybackContext {
         pipeline: &gst::Pipeline,
         src_pad: &gst::Pad,
         audio_sink: &gst::Element,
+        ctx_tx_mtx: Arc<Mutex<Sender<ContextMessage>>>,
         dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
     ) {
         let playback_queue = gst::ElementFactory::make("queue", "audio_playback_queue").unwrap();
@@ -392,10 +396,6 @@ impl PlaybackContext {
 
         let waveform_queue = gst::ElementFactory::make("queue2", "waveform_queue").unwrap();
         PlaybackContext::setup_queue(&waveform_queue);
-        // notify when the queue is filling up
-        waveform_queue
-            .set_property("use-buffering", &true)
-            .unwrap();
 
         let waveform_sink = gst::ElementFactory::make("fakesink", "waveform_sink").unwrap();
         let waveform_sink_pad = waveform_queue.get_static_pad("sink").unwrap();
@@ -459,10 +459,19 @@ impl PlaybackContext {
                 if let Some(ref mut data) = probe_info.data {
                     match *data {
                         gst::PadProbeData::Buffer(ref buffer) => {
-                            dbl_audio_buffer_mtx
+                            let must_notify = dbl_audio_buffer_mtx
                                 .lock()
                                 .expect("waveform_sink::probe couldn't lock dbl_audio_buffer")
                                 .push_gst_buffer(buffer);
+
+                            if must_notify {
+                                ctx_tx_mtx
+                                    .lock()
+                                    .expect("waveform_sink::probe couldn't lock ctx_tx_mtx")
+                                    .send(ContextMessage::ReadyForRefresh)
+                                    .expect("Failed to notify UI");
+                            }
+
                             if !buffer.get_flags().intersects(gst::BufferFlags::DISCONT) {
                                 return gst::PadProbeReturn::Handled;
                             }
@@ -491,6 +500,11 @@ impl PlaybackContext {
                                             "waveform_sink::probe couldn't lock dbl_audio_buffer"
                                         )
                                         .handle_eos();
+                                    ctx_tx_mtx
+                                        .lock()
+                                        .expect("waveform_sink::probe couldn't lock ctx_tx_mtx")
+                                        .send(ContextMessage::ReadyForRefresh)
+                                        .expect("Failed to notify UI");
                                 }
                                 gst::EventView::Segment(segment_event) => {
                                     let segment = segment_event.get_segment();
@@ -607,15 +621,6 @@ impl PlaybackContext {
                             }
                         }
                     }
-                }
-                gst::MessageView::Buffering(msg_buffering) => {
-                    println!("buffering {}", msg_buffering.get_percent());
-                    /*if let PipelineState::Initialized(InitializedState::Paused) = pipeline_state {
-                        if msg_buffering.get_percent() == 10 {
-                            // TODO:  notify the UI to refresh while in Paused mode
-                            println!("done updating audio buffer");
-                        }
-                    }*/
                 }
                 gst::MessageView::Tag(msg_tag) => {
                     match pipeline_state {

@@ -31,7 +31,7 @@ pub struct AudioBuffer {
     pub eos: bool,
 
     is_new_segment: bool,
-    segment_start: Option<u64>,
+    pub segment_start: Option<u64>,
     pub segment_lower: usize,
     last_buffer_upper: usize,
     pub lower: usize,

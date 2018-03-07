@@ -7,7 +7,7 @@ use std::mem;
 
 use std::sync::{Arc, Mutex};
 
-use super::{AudioBuffer, AudioChannel, SampleExtractor};
+use super::{AudioBuffer, AudioChannel, QUEUE_SIZE_NS, SampleExtractor};
 
 const EXTRACTION_THRESHOLD: usize = 1024;
 
@@ -28,6 +28,9 @@ pub struct DoubleAudioBuffer {
     exposed_buffer_mtx: Arc<Mutex<Box<SampleExtractor>>>,
     working_buffer: Option<Box<SampleExtractor>>,
     lower_to_keep: usize,
+    sample_gauge: Option<usize>,
+    sample_window: usize,
+    max_sample_window: usize,
     can_handle_eos: bool, // accept / ignore eos (required for range seeks handling)
 }
 
@@ -45,6 +48,9 @@ impl DoubleAudioBuffer {
             exposed_buffer_mtx: Arc::new(Mutex::new(exposed_buffer)),
             working_buffer: Some(working_buffer),
             lower_to_keep: 0,
+            sample_gauge: None,
+            sample_window: 0,
+            max_sample_window: 0,
             can_handle_eos: true,
         }
     }
@@ -74,6 +80,9 @@ impl DoubleAudioBuffer {
     fn reset(&mut self) {
         self.samples_since_last_extract = 0;
         self.lower_to_keep = 0;
+        self.sample_gauge = None;
+        self.sample_window = 0;
+        self.max_sample_window = 0;
         self.can_handle_eos = true;
     }
 
@@ -87,6 +96,7 @@ impl DoubleAudioBuffer {
         let channels = audio_info.channels() as usize;
 
         let sample_duration = 1_000_000_000 / rate;
+        self.max_sample_window = (QUEUE_SIZE_NS / sample_duration) as usize;
         let duration_for_1000_samples = 1_000_000_000_000f64 / (rate as f64);
 
         let mut channels: Vec<AudioChannel> = Vec::with_capacity(channels);
@@ -166,22 +176,37 @@ impl DoubleAudioBuffer {
             // in the extractors' range
             self.extract_samples();
         }
+        self.sample_gauge = None
     }
 
     pub fn have_gst_segment(&mut self, segment: &gst::Segment) {
         self.audio_buffer.have_gst_segment(segment);
+        self.sample_gauge = Some(0);
     }
 
-    pub fn push_gst_buffer(&mut self, buffer: &gst::Buffer) {
+    pub fn push_gst_buffer(&mut self, buffer: &gst::Buffer) -> bool {
         // store incoming samples
-        self.samples_since_last_extract += self.audio_buffer
+        let sample_nb = self.audio_buffer
             .push_gst_buffer(buffer, self.lower_to_keep);
+        self.samples_since_last_extract += sample_nb;
 
-        if self.samples_since_last_extract >= EXTRACTION_THRESHOLD {
+        let sample_window = self.sample_window;
+        let must_notify = self.sample_gauge.as_mut().map_or(false, |gauge| {
+            *gauge += sample_nb;
+            *gauge > sample_window
+        });
+
+        if must_notify || self.samples_since_last_extract >= EXTRACTION_THRESHOLD {
             // extract new samples and swap
             self.extract_samples();
             self.samples_since_last_extract = 0;
+
+            if must_notify {
+                self.sample_gauge = None;
+            }
         }
+
+        must_notify
     }
 
     // Update the working extractor with new samples and swap.
@@ -203,6 +228,8 @@ impl DoubleAudioBuffer {
         }
 
         self.lower_to_keep = working_buffer.get_lower();
+        self.sample_window = working_buffer.get_requested_sample_window()
+            .min(self.max_sample_window);
 
         self.working_buffer = Some(working_buffer);
         // self.working_buffer is now the buffer previously in
