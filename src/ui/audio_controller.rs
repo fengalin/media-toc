@@ -285,6 +285,7 @@ impl AudioController {
         self.sample_step = 0f64;
         // AudioController accesses self.boundaries as readonly
         // clearing it is under the responsiblity of ChapterTreeManager
+        self.update_conditions();
         self.redraw();
     }
 
@@ -307,6 +308,13 @@ impl AudioController {
             let area_height = self.area_height;
             {
                 // init the buffers in order to render the waveform in current conditions
+                #[cfg(feature = "trace-audio-controller")]
+                println!("AudioController:new_media conditions {}, {}x{}",
+                    requested_duration,
+                    area_width,
+                    area_height,
+                );
+
                 self.dbl_buffer_mtx
                     .lock()
                     .expect("AudioController::size-allocate: couldn't lock dbl_buffer_mtx")
