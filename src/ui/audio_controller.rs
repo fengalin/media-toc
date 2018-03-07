@@ -74,6 +74,7 @@ pub struct AudioController {
     cursor_text_mn_width: f64,
     boundary_text_h_width: f64,
     cursor_text_h_width: f64,
+    area_height: f64,
     area_width: f64,
 
     state: ControllerState,
@@ -124,6 +125,7 @@ impl AudioController {
             cursor_text_mn_width: 0f64,
             boundary_text_h_width: 0f64,
             cursor_text_h_width: 0f64,
+            area_height: 0f64,
             area_width: 0f64,
 
             state: ControllerState::Disabled,
@@ -172,8 +174,11 @@ impl AudioController {
 
         // widget size changed
         let this_clone = Rc::clone(this_rc);
-        this.drawingarea.connect_size_allocate(move |_, _| {
-            this_clone.borrow_mut().refresh();
+        this.drawingarea.connect_size_allocate(move |_, alloc| {
+            let mut this = this_clone.borrow_mut();
+            this.area_height = f64::from(alloc.height);
+            this.area_width = f64::from(alloc.width);
+            this.update_conditions();
         });
 
         // Move cursor over drawing_area
@@ -238,7 +243,7 @@ impl AudioController {
             let mut this = this_clone.borrow_mut();
             this.requested_duration /= STEP_REQ_DURATION;
             if this.requested_duration >= MIN_REQ_DURATION {
-                this.refresh();
+                this.update_conditions();
             } else {
                 this.requested_duration = MIN_REQ_DURATION;
             }
@@ -250,7 +255,7 @@ impl AudioController {
             let mut this = this_clone.borrow_mut();
             this.requested_duration *= STEP_REQ_DURATION;
             if this.requested_duration <= MAX_REQ_DURATION {
-                this.refresh();
+                this.update_conditions();
             } else {
                 this.requested_duration = MAX_REQ_DURATION;
             }
@@ -297,17 +302,18 @@ impl AudioController {
             .is_some();
 
         if has_audio {
-            let allocation = self.drawingarea.get_allocation();
+            let requested_duration = self.requested_duration;
+            let area_width = self.area_width;
+            let area_height = self.area_height;
             {
                 // init the buffers in order to render the waveform in current conditions
-                let requested_duration = self.requested_duration;
                 self.dbl_buffer_mtx
                     .lock()
                     .expect("AudioController::size-allocate: couldn't lock dbl_buffer_mtx")
                     .set_conditions(Box::new(WaveformConditions::new(
                         requested_duration,
-                        allocation.width,
-                        allocation.height,
+                        area_width as i32,
+                        area_height as i32,
                     )));
             }
 
@@ -496,25 +502,49 @@ impl AudioController {
         }
     }
 
+    fn update_conditions(&mut self) {
+        #[cfg(feature = "trace-audio-controller")]
+        println!("AudioController:update_conditions {}, {}x{}",
+            self.requested_duration,
+            self.area_width,
+            self.area_height,
+        );
+
+        if self.state == ControllerState::Paused {
+            self.refresh();
+        } else {
+            let waveform_grd = &mut *self.waveform_mtx
+                .lock()
+                .expect("AudioController::update_conditions couldn't lock waveform_mtx");
+            let waveform_buffer = waveform_grd
+                .as_mut_any()
+                .downcast_mut::<WaveformBuffer>()
+                .expect(
+                    "AudioController::update_conditions SamplesExtratctor is not a WaveformBuffer",
+                );
+            waveform_buffer.update_conditions(
+                self.requested_duration,
+                self.area_width as i32,
+                self.area_height as i32,
+            );
+        }
+    }
+
     fn draw(
         &mut self,
         main_ctrl: &Rc<RefCell<MainController>>,
-        drawingarea: &gtk::DrawingArea,
+        _da: &gtk::DrawingArea,
         cr: &cairo::Context,
     ) -> Inhibit {
         #[cfg(feature = "profiling-audio-draw")]
         let before_init = Utc::now();
 
-        let allocation = drawingarea.get_allocation();
-        if allocation.width.is_negative() {
+        if self.state == ControllerState::Disabled {
+            // Not active yet, don't display
             #[cfg(feature = "trace-audio-controller")]
-            println!(
-                "AudioController::draw negative allocation.width: {}",
-                allocation.width
-            );
-
+            println!("AudioController::draw still Disabled, not drawing");
             self.clean_cairo_context(cr);
-            return Inhibit(true);
+            return Inhibit(false);
         }
 
         #[cfg(feature = "profiling-audio-draw")]
@@ -535,21 +565,6 @@ impl AudioController {
 
             #[cfg(feature = "profiling-audio-draw")]
             let _before_cndt = Utc::now();
-
-            waveform_buffer.update_conditions(
-                self.requested_duration,
-                allocation.width,
-                allocation.height,
-            );
-
-            if self.state == ControllerState::Disabled {
-                // Not active yet, don't display
-                #[cfg(feature = "trace-audio-controller")]
-                println!("AudioController::draw still Disabled, not drawing");
-                self.clean_cairo_context(cr);
-                return Inhibit(true);
-            }
-
             self.playback_needs_refresh = waveform_buffer.playback_needs_refresh;
 
             let (current_position, image_opt) = waveform_buffer.get_image();
@@ -569,7 +584,7 @@ impl AudioController {
                     #[cfg(feature = "trace-audio-controller")]
                     println!("AudioController::draw no image");
 
-                    return Inhibit(true);
+                    return Inhibit(false);
                 }
             }
         };
@@ -582,8 +597,6 @@ impl AudioController {
         #[cfg(feature = "profiling-audio-draw")]
         let before_pos = Utc::now();
 
-        let height = f64::from(allocation.height);
-        self.area_width = f64::from(allocation.width);
         cr.scale(1f64, 1f64);
         cr.set_source_rgb(1f64, 1f64, 0f64);
         self.adjust_waveform_text_width(cr);
@@ -626,7 +639,7 @@ impl AudioController {
             cr.set_source_rgb(0.5f64, 0.6f64, 1f64);
             cr.set_line_width(1f64);
             let boundary_y0 = self.twice_font_size + 5f64;
-            let text_base = height - self.half_font_size;
+            let text_base = self.area_height - self.half_font_size;
 
             for (boundary, ref chapters) in chapter_range {
                 if boundary >= &self.first_visible_pos {
@@ -635,7 +648,7 @@ impl AudioController {
                         / image_positions.sample_duration
                     ) as f64 / image_positions.sample_step;
                     cr.move_to(x, boundary_y0);
-                    cr.line_to(x, height);
+                    cr.line_to(x, self.area_height);
                     cr.stroke();
 
                     if let Some(ref prev_chapter) = chapters.prev {
@@ -674,7 +687,7 @@ impl AudioController {
 
             cr.set_line_width(1f64);
             cr.move_to(current_x, 0f64);
-            cr.line_to(current_x, height - self.twice_font_size);
+            cr.line_to(current_x, self.area_height - self.twice_font_size);
             cr.stroke();
         }
 
@@ -720,23 +733,25 @@ impl AudioController {
             end.time().format("%H:%M:%S%.6f"),
         );
 
-        Inhibit(true)
+        Inhibit(false)
     }
 
     fn refresh(&mut self) {
-        let allocation = self.drawingarea.get_allocation();
+        let requested_duration = self.requested_duration;
+        let area_width = self.area_width;
+        let area_height = self.area_height;
+
         {
             // refresh the buffer in order to render the waveform
             // in latest conditions
-            let requested_duration = self.requested_duration;
             self.dbl_buffer_mtx
                 .lock()
                 .expect("AudioController::size-allocate: couldn't lock dbl_buffer_mtx")
                 .refresh_with_conditions(
                     Box::new(WaveformConditions::new(
                         requested_duration,
-                        allocation.width,
-                        allocation.height,
+                        area_width as i32,
+                        area_height as i32,
                     )),
                     self.state == ControllerState::Playing,
                 );
