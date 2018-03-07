@@ -708,14 +708,17 @@ impl AudioController {
         // TODO: see if a local clock reduces percetiples short hangs
         // while the waveform scrolls
         let must_refresh_other_ui = {
-            if self.state == ControllerState::Playing {
-                if self.last_other_ui_refresh < self.current_position {
-                    self.current_position - self.last_other_ui_refresh > OTHER_UI_REFRESH_PERIOD
-                } else {
-                    false
+            match self.state {
+                ControllerState::Playing => {
+                    if self.last_other_ui_refresh < self.current_position {
+                        self.current_position - self.last_other_ui_refresh > OTHER_UI_REFRESH_PERIOD
+                    } else {
+                        false
+                    }
                 }
-            } else {
-                self.state == ControllerState::Paused
+                ControllerState::Paused => true,
+                ControllerState::MovingBoundary(_boundary) => true,
+                _  => false,
             }
         };
 
