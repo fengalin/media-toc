@@ -422,6 +422,12 @@ impl WaveformBuffer {
             } else {
                 let prev_duration = self.req_duration_per_1000px;
                 self.req_duration_per_1000px = duration_per_1000px;
+                #[cfg(feature = "trace-waveform-buffer")]
+                println!("WaveformBuffer{}::update_conditions duration/1000px {} -> {}",
+                    self.image.id,
+                    prev_duration,
+                    self.req_duration_per_1000px,
+                );
                 self.update_sample_step();
                 (true, duration_per_1000px / prev_duration)
             };
@@ -435,6 +441,14 @@ impl WaveformBuffer {
             if prev_width_f != 0f64 {
                 scale_factor = width_f / prev_width_f;
             }
+
+            #[cfg(feature = "trace-waveform-buffer")]
+            println!("WaveformBuffer{}::update_conditions width {} -> {} ({})",
+                self.image.id,
+                self.width,
+                width,
+                scale_factor,
+            );
 
             self.width = width;
             self.width_f = width_f;
@@ -456,6 +470,13 @@ impl WaveformBuffer {
                                 * (1f64 - scale_factor)) as i64;
 
                         if new_first_visible_sample > self.image.sample_step as i64 {
+                            let lower = self.image.lower as i64;
+                            let new_first_visible_sample = if new_first_visible_sample > lower {
+                                new_first_visible_sample
+                            } else {
+                                lower
+                            };
+
                             #[cfg(feature = "trace-waveform-buffer")]
                             println!(
                                 concat!(
@@ -520,7 +541,7 @@ impl WaveformBuffer {
         {
             if req_sample_window != self.req_sample_window {
                 println!(
-                    "\nWaveformBuffer{}::update_sample_window smpl.window prev. {}, new {}",
+                    "WaveformBuffer{}::update_sample_window smpl.window prev. {}, new {}",
                     self.image.id, self.req_sample_window, req_sample_window
                 );
             }
@@ -779,11 +800,10 @@ impl WaveformBuffer {
             }
         };
 
-        // Third step: fallback to defaults if previous step failed
         extraction_range.unwrap_or((
-            audio_buffer.segment_lower,
+            audio_buffer.lower,
             audio_buffer.upper.min(
-                audio_buffer.segment_lower + self.req_sample_window + self.half_req_sample_window,
+                audio_buffer.lower + self.req_sample_window + self.half_req_sample_window,
             ),
         ))
     }
