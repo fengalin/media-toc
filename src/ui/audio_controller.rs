@@ -745,7 +745,11 @@ impl AudioController {
         let must_refresh_other_ui = {
             match self.state {
                 ControllerState::Playing => {
-                    self.current_position > self.last_other_ui_refresh + OTHER_UI_REFRESH_PERIOD
+                    if self.current_position >= self.last_other_ui_refresh {
+                        self.current_position > self.last_other_ui_refresh + OTHER_UI_REFRESH_PERIOD
+                    } else {
+                        true
+                    }
                 }
                 ControllerState::Paused => true,
                 ControllerState::MovingBoundary(_boundary) => true,
