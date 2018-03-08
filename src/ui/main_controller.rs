@@ -34,6 +34,7 @@ pub enum ControllerState {
         keep_paused: bool,
     },
     Stopped,
+    TwoStepsSeek(u64),
 }
 
 const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
@@ -191,42 +192,65 @@ impl MainController {
     }
 
     pub fn seek(&mut self, position: u64, accurate: bool) {
-        match self.state {
-            ControllerState::Stopped | ControllerState::PlayingRange(_) => (),
-            _ => {
-                if self.state == ControllerState::Playing || self.state == ControllerState::Paused {
-                    self.info_ctrl.borrow_mut().seek(position, &self.state);
-                    self.audio_ctrl.borrow_mut().seek(position);
+        let mut must_sync_ctrl = false;
+        let mut seek_pos = position;
+        self.state  = match self.state {
+            ControllerState::Seeking {
+                switch_to_play,
+                keep_paused,
+            } => ControllerState::Seeking {
+                switch_to_play: switch_to_play,
+                keep_paused: keep_paused,
+            },
+            ControllerState::EOS | ControllerState::Ready => ControllerState::Seeking {
+                switch_to_play: true,
+                keep_paused: false,
+            },
+            ControllerState::Paused => {
+                let seek_1st_step = self.audio_ctrl
+                    .borrow()
+                    .get_seek_back_1st_position(position);
+                match seek_1st_step {
+                    Some(seek_1st_step) => {
+                        seek_pos = seek_1st_step;
+                        ControllerState::TwoStepsSeek(position)
+                    }
+                    None => {
+                        must_sync_ctrl = true;
+                        ControllerState::Seeking {
+                            switch_to_play: false,
+                            keep_paused: true,
+                        }
+                    }
                 }
-
-                self.state = match self.state {
-                    ControllerState::Seeking {
-                        switch_to_play,
-                        keep_paused,
-                    } => ControllerState::Seeking {
-                        switch_to_play: switch_to_play,
-                        keep_paused: keep_paused,
-                    },
-                    ControllerState::EOS | ControllerState::Ready => ControllerState::Seeking {
-                        switch_to_play: true,
-                        keep_paused: false,
-                    },
-                    ControllerState::Paused => ControllerState::Seeking {
-                        switch_to_play: false,
-                        keep_paused: true,
-                    },
-                    _ => ControllerState::Seeking {
-                        switch_to_play: false,
-                        keep_paused: false,
-                    },
-                };
-
-                self.context
-                    .as_ref()
-                    .expect("MainController::seek no context")
-                    .seek(position, accurate);
             }
+            ControllerState::TwoStepsSeek(target) => {
+                must_sync_ctrl = true;
+                seek_pos = target;
+                ControllerState::Seeking {
+                    switch_to_play: false,
+                    keep_paused: true,
+                }
+            }
+            ControllerState::Playing => {
+                must_sync_ctrl = true;
+                ControllerState::Seeking {
+                    switch_to_play: false,
+                    keep_paused: false,
+                }
+            }
+            _ => return,
+        };
+
+        if must_sync_ctrl {
+            self.info_ctrl.borrow_mut().seek(seek_pos, &self.state);
+            self.audio_ctrl.borrow_mut().seek(seek_pos);
         }
+
+        self.context
+            .as_ref()
+            .expect("MainController::seek no context")
+            .seek(seek_pos, accurate);
     }
 
     pub fn play_range(&mut self, start: u64, end: u64, pos_to_restore: u64) {
@@ -364,8 +388,10 @@ impl MainController {
                     }
                     ReadyForRefresh => {
                         let mut this = this_rc.borrow_mut();
-                        if this.state == ControllerState::Paused {
-                            this.refresh();
+                        match this.state {
+                            ControllerState::Paused => this.refresh(),
+                            ControllerState::TwoStepsSeek(target) => this.seek(target, true),
+                            _ => (),
                         }
                     }
                     StreamsSelected => {

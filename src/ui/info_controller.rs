@@ -394,7 +394,7 @@ impl InfoController {
     pub fn seek(&mut self, position: u64, state: &ControllerState) {
         self.chapter_manager.prepare_for_seek();
 
-        if *state == ControllerState::Paused {
+        if *state != ControllerState::Playing {
             // force sync
             self.tick(position, false);
         }

@@ -144,6 +144,17 @@ impl WaveformBuffer {
         self.image.cleanup_sample_conditions();
     }
 
+    pub fn get_limits_as_pos(&self) -> (u64, u64) {
+        (
+            self.image.lower as u64 * self.state.sample_duration,
+            self.image.upper as u64 * self.state.sample_duration,
+        )
+    }
+
+    pub fn get_half_window_duration(&self) -> u64 {
+        self.half_req_sample_window as u64 * self.state.sample_duration
+    }
+
     pub fn seek(&mut self, position: u64, is_playing: bool) {
         if self.image.sample_step == 0 {
             return;

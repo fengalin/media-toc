@@ -21,7 +21,7 @@ use std::cell::RefCell;
 
 use std::sync::{Arc, Mutex};
 
-use media::{DoubleAudioBuffer, PlaybackContext, SampleExtractor};
+use media::{DoubleAudioBuffer, PlaybackContext, QUEUE_SIZE_NS, SampleExtractor};
 
 use metadata::Timestamp;
 
@@ -332,15 +332,50 @@ impl AudioController {
         }
     }
 
+    pub fn get_seek_back_1st_position(&self, target: u64) -> Option<u64> {
+        let (lower_pos, upper_pos, half_window_duration) = {
+            let waveform_grd = self.waveform_mtx
+                .lock()
+                .expect("AudioController::get_seek_back_1st_pos Couldn't lock waveform_mtx");
+            let waveform_buf = waveform_grd
+                .as_any()
+                .downcast_ref::<WaveformBuffer>()
+                .expect(
+                    "AudioController::get_seek_back_1st_pos SamplesExtratctor is not a WaveformBuffer",
+                );
+            let limits = waveform_buf.get_limits_as_pos();
+            (
+                limits.0,
+                limits.1,
+                waveform_buf.get_half_window_duration(),
+            )
+        };
+
+        // don't step back more than the pipeline queues can handle
+        let target_step_back = half_window_duration.min(QUEUE_SIZE_NS);
+        if target > target_step_back {
+            if target < lower_pos + target_step_back
+                || target > upper_pos
+            {
+                Some(target - target_step_back)
+            } else {
+                // 1st position already available => don't need 2 steps seek back
+                None
+            }
+        } else {
+            Some(0)
+        }
+    }
+
     pub fn seek(&mut self, position: u64) {
         let is_playing = self.state == ControllerState::Playing;
         {
             self.waveform_mtx
                 .lock()
-                .expect("AudioController::seek: Couldn't lock waveform_mtx")
+                .expect("AudioController::seek Couldn't lock waveform_mtx")
                 .as_mut_any()
                 .downcast_mut::<WaveformBuffer>()
-                .expect("AudioController::seek: SamplesExtratctor is not a WaveformBuffer")
+                .expect("AudioController::seek SamplesExtratctor is not a WaveformBuffer")
                 .seek(position, is_playing);
         }
 
