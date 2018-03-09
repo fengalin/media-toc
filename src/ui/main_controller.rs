@@ -44,6 +44,8 @@ pub struct MainController {
     header_bar: gtk::HeaderBar,
     play_pause_btn: gtk::ToolButton,
     open_export_btn: gtk::Button,
+    info_bar: gtk::InfoBar,
+    info_bar_lbl: gtk::Label,
 
     video_ctrl: VideoController,
     info_ctrl: Rc<RefCell<InfoController>>,
@@ -72,6 +74,8 @@ impl MainController {
             header_bar: builder.get_object("header-bar").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
             open_export_btn: builder.get_object("export_toc-btn").unwrap(),
+            info_bar: builder.get_object("info-bar").unwrap(),
+            info_bar_lbl: builder.get_object("info_bar-lbl").unwrap(),
 
             video_ctrl: VideoController::new(builder),
             info_ctrl: InfoController::new(builder, Rc::clone(&chapters_boundaries)),
@@ -122,6 +126,8 @@ impl MainController {
                 }
             });
 
+            this_mut.info_bar.connect_response(|info_bar, _| info_bar.hide());
+
             this_mut.video_ctrl.register_callbacks(&this);
             InfoController::register_callbacks(&this_mut.info_ctrl, &this);
             AudioController::register_callbacks(&this_mut.audio_ctrl, &this);
@@ -148,6 +154,14 @@ impl MainController {
 
     pub fn show_all(&self) {
         self.window.show_all();
+    }
+
+    pub fn show_message(&self, type_: gtk::MessageType, message: &str) {
+        self.info_bar.set_message_type(type_);
+        self.info_bar_lbl.set_label(message);
+        self.info_bar.show();
+        // workaround see: https://bugzilla.gnome.org/show_bug.cgi?id=710888
+        self.info_bar.queue_resize();
     }
 
     pub fn play_pause(&mut self) {
@@ -436,12 +450,14 @@ impl MainController {
                         }
                     }
                     FailedToOpenMedia => {
-                        eprintln!("ERROR: failed to open media");
+                        eprintln!("ERROR: failed to open file");
 
                         let mut this = this_rc.borrow_mut();
                         this.context = None;
                         this.state = ControllerState::Stopped;
                         this.switch_to_default();
+
+                        this.show_message(gtk::MessageType::Error, "Failed to open file");
 
                         this.keep_going = false;
                         keep_going = false;
@@ -481,6 +497,7 @@ impl MainController {
 
     fn select_media(&mut self) {
         self.switch_to_busy();
+        self.info_bar.hide();
 
         let file_dlg = gtk::FileChooserDialog::new(
             Some("Open a media file"),
@@ -528,7 +545,11 @@ impl MainController {
             }
             Err(error) => {
                 self.switch_to_default();
-                eprintln!("Error opening media: {}", error);
+                eprintln!("Error opening file: {}", error);
+                self.show_message(
+                    gtk::MessageType::Error,
+                    &format!("Error opening file: {}", error),
+                );
             }
         };
     }
