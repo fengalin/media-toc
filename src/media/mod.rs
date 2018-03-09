@@ -1,3 +1,5 @@
+use glib;
+
 pub mod audio_channel;
 pub use self::audio_channel::{AudioChannel, AudioChannelSide};
 
@@ -22,7 +24,7 @@ pub use self::toc_setter_context::TocSetterContext;
 pub enum ContextMessage {
     AsyncDone,
     Eos,
-    FailedToOpenMedia,
+    FailedToOpenMedia(glib::Error),
     FailedToExport,
     InitDone,
     ReadyForRefresh,

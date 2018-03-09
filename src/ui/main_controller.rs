@@ -2,6 +2,8 @@ use glib;
 use gstreamer as gst;
 use gtk;
 
+use std::error::Error;
+
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -449,7 +451,7 @@ impl MainController {
                             }
                         }
                     }
-                    FailedToOpenMedia => {
+                    FailedToOpenMedia(error) => {
                         eprintln!("ERROR: failed to open file");
 
                         let mut this = this_rc.borrow_mut();
@@ -457,7 +459,10 @@ impl MainController {
                         this.state = ControllerState::Stopped;
                         this.switch_to_default();
 
-                        this.show_message(gtk::MessageType::Error, "Failed to open file");
+                        this.show_message(
+                            gtk::MessageType::Error,
+                            &format!("Failed to open file. {}", error.description()),
+                        );
 
                         this.keep_going = false;
                         keep_going = false;

@@ -560,16 +560,17 @@ impl PlaybackContext {
                         .expect("Failed to notify UI");
                 }
                 gst::MessageView::Error(err) => {
+                    let error = err.get_error();
                     eprintln!(
                         "Error from {}: {} ({:?})",
                         msg.get_src()
                             .map(|s| s.get_path_string(),)
                             .unwrap_or_else(|| String::from("None"),),
-                        err.get_error(),
+                        error,
                         err.get_debug()
                     );
                     ctx_tx
-                        .send(ContextMessage::FailedToOpenMedia)
+                        .send(ContextMessage::FailedToOpenMedia(error))
                         .expect("Failed to notify UI");
                     return glib::Continue(false);
                 }
