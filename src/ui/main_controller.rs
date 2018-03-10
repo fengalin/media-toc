@@ -210,6 +210,7 @@ impl MainController {
     pub fn seek(&mut self, position: u64, accurate: bool) {
         let mut must_sync_ctrl = false;
         let mut seek_pos = position;
+        let mut accurate = accurate;
         self.state  = match self.state {
             ControllerState::Seeking {
                 switch_to_play,
@@ -223,6 +224,7 @@ impl MainController {
                 keep_paused: false,
             },
             ControllerState::Paused => {
+                accurate = true;
                 let seek_1st_step = self.audio_ctrl
                     .borrow()
                     .get_seek_back_1st_position(position);
