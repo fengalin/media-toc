@@ -16,6 +16,9 @@ image = "^0"
 lazy_static = "^0"
 sample = "^0"
 
+#gettext-rs = { git = "https://github.com/Koka/gettext-rs", features = ["gettext-system"] }
+gettext-rs = { git = "https://github.com/fengalin/gettext-rs", features = ["gettext-system"] }
+
 cairo-rs = { git = "https://github.com/gtk-rs/cairo.git" }
 gdk = { git = "https://github.com/gtk-rs/gdk.git" }
 glib = { git = "https://github.com/gtk-rs/glib.git" }

@@ -1,0 +1,23 @@
+# French translation for media-toc test.
+# Copyright (C) 2018 François Laignel
+# This file is distributed under the same license as the media-toc package.
+# François Laignel <fengalin@free.fr>, 2018.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: media-toc test master\n"
+"Report-Msgid-Bugs-To: https://github.com/fengalin/media-toc/issues\n"
+"POT-Creation-Date: 2018-03-11 19:00+0100\n"
+"PO-Revision-Date: 2018-03-11 19:00+0100\n"
+"Last-Translator: François Laignel <fengalin@free.fr>\n"
+"Language-Team: français <>\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"X-Generator: Gtranslator 2.91.7\n"
+
+#: src/main.rs:89
+msgid "this is a test"
+msgstr "ceci est un test"

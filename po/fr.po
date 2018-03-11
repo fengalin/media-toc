@@ -1,0 +1,135 @@
+# French translation for media-toc.
+# Copyright (C) 2018 François Laignel
+# This file is distributed under the same license as the media-toc package.
+# François Laignel <fengalin@free.fr>, 2018.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: media-toc master\n"
+"Report-Msgid-Bugs-To: https://github.com/fengalin/media-toc/issues\n"
+"POT-Creation-Date: 2018-03-11 16:49+0100\n"
+"PO-Revision-Date: 2018-03-11 17:02+0100\n"
+"Last-Translator: François Laignel <fengalin@free.fr>\n"
+"Language-Team: français <>\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"X-Generator: Gtranslator 2.91.7\n"
+
+#: src/ui/media-toc.ui:189
+msgid "Repeat Chapter"
+msgstr "Répéter le Chapitre"
+
+#: src/ui/media-toc.ui:214
+msgid "Remove Chapter"
+msgstr "Supprimer le Chapitre"
+
+#: src/ui/media-toc.ui:228
+msgid "Add Chapter"
+msgstr "Ajouter un Chapitre"
+
+#: src/ui/media-toc.ui:262
+msgid "Title:"
+msgstr "Titre :"
+
+#: src/ui/media-toc.ui:274
+msgid "Artist:"
+msgstr "Artiste :"
+
+#: src/ui/media-toc.ui:286
+msgid "Container:"
+msgstr "Conteneur :"
+
+#: src/ui/media-toc.ui:298
+msgid "Video Codec:"
+msgstr "Codec Vidéo :"
+
+#: src/ui/media-toc.ui:310
+msgid "Audio Codec:"
+msgstr "Codec Audio :"
+
+#: src/ui/media-toc.ui:322
+msgid "Duration:"
+msgstr "Durée :"
+
+#: src/ui/media-toc.ui:639
+msgid "Zoom In"
+msgstr "Zoomer"
+
+#: src/ui/media-toc.ui:653
+msgid "Zoom Out"
+msgstr "Dé-zoomer"
+
+#: src/ui/media-toc.ui:679
+msgid "display"
+msgstr "affichage"
+
+#: src/ui/media-toc.ui:695
+msgid "Video Streams"
+msgstr "Flux Vidéos"
+
+#: src/ui/media-toc.ui:728
+msgid "Audio Streams"
+msgstr "Flux Audios"
+
+#: src/ui/media-toc.ui:761
+msgid "Text Streams"
+msgstr "Flux Textes"
+
+#: src/ui/media-toc.ui:791
+msgid "streams"
+msgstr "flux"
+
+#: src/ui/media-toc.ui:832
+msgid "Info text"
+msgstr "Texte d'information"
+
+#: src/ui/media-toc-export.ui:8
+msgid "Export the Table of Contents"
+msgstr "Exporter la Table des Matières"
+
+#: src/ui/media-toc-export.ui:28
+msgid "Export"
+msgstr "Exporter"
+
+#: src/ui/media-toc-export.ui:75
+msgid "Split into one audio file per chapter"
+msgstr "Découper en fichiers audios"
+
+#: src/ui/media-toc-export.ui:97
+msgid "Flac (lossless compression)"
+msgstr "Flac (compression sans perte)"
+
+#: src/ui/media-toc-export.ui:113
+msgid "Wave / PCM (no compression)"
+msgstr "Wave / PCM (pas de compression)"
+
+#: src/ui/media-toc-export.ui:130
+msgid "Opus (lossy compression)"
+msgstr "Opus (compression avec perte)"
+
+#: src/ui/media-toc-export.ui:146
+msgid "Vorbis (lossy compression)"
+msgstr "Vorbis (compression avec perte)"
+
+#: src/ui/media-toc-export.ui:162
+msgid "MP3 (lossy compression)"
+msgstr "MP3 (compression avec perte)"
+
+#: src/ui/media-toc-export.ui:195
+msgid "mkvmerge text format"
+msgstr "Format textuel de mkvmerge"
+
+#: src/ui/media-toc-export.ui:211
+msgid "Cue Sheet format"
+msgstr "Format Cue Sheet"
+
+#: src/ui/media-toc-export.ui:227
+msgid "Matroska Container"
+msgstr "Conteneur Matroska"
+
+#: src/main.rs:51
+msgid "test"
+msgstr "test en français"

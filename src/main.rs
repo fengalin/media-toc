@@ -2,6 +2,7 @@ extern crate byteorder;
 extern crate cairo;
 extern crate clap;
 extern crate gdk;
+extern crate gettextrs;
 extern crate glib;
 extern crate gstreamer;
 extern crate gstreamer_audio;
@@ -20,6 +21,8 @@ extern crate chrono;
 
 use clap::{Arg, App};
 
+use gettextrs::*;
+
 use gtk::{Builder, BuilderExt};
 
 mod metadata;
@@ -28,6 +31,10 @@ mod ui;
 use ui::MainController;
 
 fn main() {
+    setlocale(LocaleCategory::LcAll, "fr_FR.UTF-8");
+    bindtextdomain("media-toc", "/usr/local/share/locale/");
+    textdomain("media-toc");
+
     let matches = App::new("media-toc")
         .version("0.3.0.1")
         .author("François Laignel <fengalin@free.fr>")
@@ -54,6 +61,8 @@ fn main() {
         builder
             .add_from_string(include_str!("ui/media-toc-export.ui"))
             .unwrap();
+        builder.set_translation_domain("media-toc");
+        println!("{:?}", builder.get_translation_domain());
         MainController::new(&builder)
     };
     main_ctrl.borrow().show_all();
@@ -65,4 +74,18 @@ fn main() {
     }
 
     gtk::main();
+}
+
+#[cfg(test)]
+mod tests {
+    use gettextrs::*;
+
+    #[test]
+    fn i18n() {
+        setlocale(LocaleCategory::LcAll, "fr_FR.UTF-8");
+        bindtextdomain("media-toc-test", "test/locale/");
+        textdomain("media-toc-test");
+
+        assert_eq!("ceci est un test", gettext("this is a test"));
+    }
 }
