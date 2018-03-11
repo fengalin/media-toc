@@ -14,6 +14,7 @@ byteorder = "^1"
 chrono = "^0"
 image = "^0"
 lazy_static = "^0"
+locale_config = "0.2"
 sample = "^0"
 
 #gettext-rs = { git = "https://github.com/Koka/gettext-rs", features = ["gettext-system"] }

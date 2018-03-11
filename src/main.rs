@@ -8,6 +8,7 @@ extern crate gstreamer;
 extern crate gstreamer_audio;
 extern crate gtk;
 extern crate image;
+extern crate locale_config;
 extern crate pango;
 extern crate sample;
 
@@ -25,13 +26,15 @@ use gettextrs::*;
 
 use gtk::{Builder, BuilderExt};
 
+use locale_config::Locale;
+
 mod metadata;
 mod media;
 mod ui;
 use ui::MainController;
 
 fn main() {
-    setlocale(LocaleCategory::LcAll, "fr_FR.UTF-8");
+    setlocale(LocaleCategory::LcAll, Locale::current().as_ref());
     bindtextdomain("media-toc", "/usr/local/share/locale/");
     textdomain("media-toc");
 
@@ -61,8 +64,6 @@ fn main() {
         builder
             .add_from_string(include_str!("ui/media-toc-export.ui"))
             .unwrap();
-        builder.set_translation_domain("media-toc");
-        println!("{:?}", builder.get_translation_domain());
         MainController::new(&builder)
     };
     main_ctrl.borrow().show_all();
