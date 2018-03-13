@@ -80,13 +80,16 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use gettextrs::*;
+    use locale_config::Locale;
 
     #[test]
     fn i18n() {
-        setlocale(LocaleCategory::LcAll, "fr_FR.UTF-8");
+        println!("Current locale: {}", Locale::current().as_ref());
+        println!("setlocale returned {:?}", setlocale(LocaleCategory::LcAll, "en_US.UTF-8"));
         bindtextdomain("media-toc-test", "test/locale/");
+        bind_textdomain_codeset("media-toc-test", "UTF-8");
         textdomain("media-toc-test");
 
-        assert_eq!("ceci est un test", gettext("this is a test"));
+        assert_eq!("this is a test", gettext("test-msg"));
     }
 }
