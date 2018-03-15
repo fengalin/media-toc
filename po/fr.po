@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-15 17:48+0100\n"
-"PO-Revision-Date: 2018-03-15 17:23+0100\n"
+"POT-Creation-Date: 2018-03-15 20:29+0100\n"
+"PO-Revision-Date: 2018-03-15 20:30+0100\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: French <>\n"
 "Language: fr\n"
@@ -18,7 +18,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
-#: src/main.rs:46
+#: src/main.rs:49
 msgid ""
 "Build a table of contents from a media file\n"
 "or split a media file into chapters"
@@ -26,17 +26,45 @@ msgstr ""
 "Contruit une table des matière à partir d'un fichier multimédia\n"
 "ou découpe un fichier multimédia en chapitres"
 
-#: src/main.rs:49
-msgid "Path to the input media file"
-msgstr "Chemin du fichier d'entrée"
+#: src/main.rs:51
+msgid "Display this message"
+msgstr "Affiche ce message"
+
+#: src/main.rs:52
+msgid "Print version information"
+msgstr "Affiche la version"
 
 #: src/main.rs:54
-msgid "Failed to initialize GTK."
-msgstr "Impossible d'intialiser GTK."
+msgid "MEDIA"
+msgstr "MÉDIA"
 
-#: src/main.rs:93
+#: src/main.rs:63
+msgid "Path to the input media file"
+msgstr "Chemin du fichier du fichier multimédia"
+
+#: src/main.rs:69
+msgid "Failed to initialize GTK"
+msgstr "Impossible d'intialiser GTK"
+
+#: src/main.rs:109
 msgid "test-msg"
 msgstr "ceci est un test"
+
+#: src/ui/chapter_tree_manager.rs:142
+msgid "Title"
+msgstr "Titre"
+
+#: src/ui/chapter_tree_manager.rs:147
+msgid "Start"
+msgstr "Début"
+
+#: src/ui/chapter_tree_manager.rs:148
+msgid "End"
+msgstr "Fin"
+
+#: src/ui/main_controller.rs:458 src/ui/main_controller.rs:555
+msgid "Error opening file. {}"
+msgstr "Erreur à l'ouverture du fichier. {}"
 
 #: src/ui/media-toc-export.ui:8
 msgid "Export the Table of Contents"
@@ -149,3 +177,39 @@ msgstr "flux"
 #: src/ui/media-toc.ui:832
 msgid "Info text"
 msgstr "Texte d'information"
+
+#: src/ui/streams_controller.rs:311
+msgid "Stream id"
+msgstr "Id. du flux"
+
+#: src/ui/streams_controller.rs:312
+msgid "Language"
+msgstr "Langue"
+
+#: src/ui/streams_controller.rs:313
+msgid "Codec"
+msgstr "Codec"
+
+#: src/ui/streams_controller.rs:314
+msgid "Comment"
+msgstr "Commentaire"
+
+#: src/ui/streams_controller.rs:333
+msgid "Width"
+msgstr "Largeur"
+
+#: src/ui/streams_controller.rs:340
+msgid "Height"
+msgstr "Hauteur"
+
+#: src/ui/streams_controller.rs:371
+msgid "Rate"
+msgstr "Débit"
+
+#: src/ui/streams_controller.rs:378
+msgid "Channels"
+msgstr "Canaux"
+
+#: src/ui/streams_controller.rs:409
+msgid "Format"
+msgstr "Format"

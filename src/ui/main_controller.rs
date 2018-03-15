@@ -1,3 +1,4 @@
+use gettextrs::*;
 use glib;
 use gstreamer as gst;
 use gtk;
@@ -454,17 +455,16 @@ impl MainController {
                         }
                     }
                     FailedToOpenMedia(error) => {
-                        eprintln!("ERROR: failed to open file");
+                        let error = gettext("Error opening file. {}")
+                            .replace("{}", error.description());
+                        eprintln!("{}", error);
 
                         let mut this = this_rc.borrow_mut();
                         this.context = None;
                         this.state = ControllerState::Stopped;
                         this.switch_to_default();
 
-                        this.show_message(
-                            gtk::MessageType::Error,
-                            &format!("Failed to open file. {}", error.description()),
-                        );
+                        this.show_message(gtk::MessageType::Error, &error);
 
                         this.keep_going = false;
                         keep_going = false;
@@ -552,11 +552,10 @@ impl MainController {
             }
             Err(error) => {
                 self.switch_to_default();
-                eprintln!("Error opening file: {}", error);
-                self.show_message(
-                    gtk::MessageType::Error,
-                    &format!("Error opening file: {}", error),
-                );
+                let error = gettext("Error opening file. {}")
+                    .replace("{}", &error);
+                eprintln!("{}", error);
+                self.show_message(gtk::MessageType::Error, &error);
             }
         };
     }

@@ -1,3 +1,5 @@
+use gettextrs::*;
+
 use glib;
 
 use gstreamer as gst;
@@ -305,38 +307,44 @@ impl StreamsController {
 
     fn init_treeviews(&self) {
         self.video_treeview.set_model(Some(&self.video_store));
+
+        let stream_id_lbl = gettext("Stream id");
+        let language_lbl = gettext("Language");
+        let codec_lbl = gettext("Codec");
+        let comment_lbl = gettext("Comment");
+
         self.add_column(
             &self.video_treeview,
-            "Stream id",
+            &stream_id_lbl,
             ALIGN_LEFT,
             STREAM_ID_DISPLAY_COL,
             Some(200),
         );
         self.add_column(
             &self.video_treeview,
-            "Lang.",
+            &language_lbl,
             ALIGN_CENTER,
             LANGUAGE_COL,
             None,
         );
-        self.add_column(&self.video_treeview, "Codec", ALIGN_LEFT, CODEC_COL, None);
+        self.add_column(&self.video_treeview, &codec_lbl, ALIGN_LEFT, CODEC_COL, None);
         self.add_column(
             &self.video_treeview,
-            "Width",
+            &gettext("Width"),
             ALIGN_RIGHT,
             VIDEO_WIDTH_COL,
             None,
         );
         self.add_column(
             &self.video_treeview,
-            "Height",
+            &gettext("Height"),
             ALIGN_RIGHT,
             VIDEO_HEIGHT_COL,
             None,
         );
         self.add_column(
             &self.video_treeview,
-            "Comment",
+            &comment_lbl,
             ALIGN_LEFT,
             COMMENT_COL,
             None,
@@ -345,36 +353,36 @@ impl StreamsController {
         self.audio_treeview.set_model(Some(&self.audio_store));
         self.add_column(
             &self.audio_treeview,
-            "Stream id",
+            &stream_id_lbl,
             ALIGN_LEFT,
             STREAM_ID_DISPLAY_COL,
             Some(200),
         );
         self.add_column(
             &self.audio_treeview,
-            "Lang.",
+            &language_lbl,
             ALIGN_CENTER,
             LANGUAGE_COL,
             None,
         );
-        self.add_column(&self.audio_treeview, "Codec", ALIGN_LEFT, CODEC_COL, None);
+        self.add_column(&self.audio_treeview, &codec_lbl, ALIGN_LEFT, CODEC_COL, None);
         self.add_column(
             &self.audio_treeview,
-            "Rate",
+            &gettext("Rate"),
             ALIGN_RIGHT,
             AUDIO_RATE_COL,
             None,
         );
         self.add_column(
             &self.audio_treeview,
-            "Channels",
+            &gettext("Channels"),
             ALIGN_RIGHT,
             AUDIO_CHANNELS_COL,
             None,
         );
         self.add_column(
             &self.audio_treeview,
-            "Comment",
+            &comment_lbl,
             ALIGN_LEFT,
             COMMENT_COL,
             None,
@@ -383,29 +391,29 @@ impl StreamsController {
         self.text_treeview.set_model(Some(&self.text_store));
         self.add_column(
             &self.text_treeview,
-            "Stream id",
+            &stream_id_lbl,
             ALIGN_LEFT,
             STREAM_ID_DISPLAY_COL,
             Some(200),
         );
         self.add_column(
             &self.text_treeview,
-            "Lang.",
+            &language_lbl,
             ALIGN_CENTER,
             LANGUAGE_COL,
             None,
         );
-        self.add_column(&self.text_treeview, "Codec", ALIGN_LEFT, CODEC_COL, None);
+        self.add_column(&self.text_treeview, &codec_lbl, ALIGN_LEFT, CODEC_COL, None);
         self.add_column(
             &self.text_treeview,
-            "Format",
+            &gettext("Format"),
             ALIGN_LEFT,
             TEXT_FORMAT_COL,
             None,
         );
         self.add_column(
             &self.text_treeview,
-            "Comment",
+            &comment_lbl,
             ALIGN_LEFT,
             COMMENT_COL,
             None,

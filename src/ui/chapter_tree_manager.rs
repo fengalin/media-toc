@@ -6,6 +6,8 @@ use gtk::prelude::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 
+use gettextrs::*;
+
 use metadata::{Timestamp, TocVisitor};
 
 use super::ChaptersBoundaries;
@@ -136,9 +138,14 @@ impl ChapterTreeManager {
 
     pub fn init_treeview(&mut self, treeview: &gtk::TreeView) {
         treeview.set_model(Some(&self.store));
-        self.title_renderer = Some(self.add_column(treeview, "Title", TITLE_COL, true, true));
-        self.add_column(treeview, "Start", START_STR_COL, false, false);
-        self.add_column(treeview, "End", END_STR_COL, false, false);
+        self.title_renderer = Some(self.add_column(treeview,
+            &gettext("Title"),
+            TITLE_COL,
+            true,
+            true,
+        ));
+        self.add_column(treeview, &gettext("Start"), START_STR_COL, false, false);
+        self.add_column(treeview, &gettext("End"), END_STR_COL, false, false);
     }
 
     fn add_column(

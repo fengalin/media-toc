@@ -34,28 +34,43 @@ mod ui;
 use ui::MainController;
 
 fn main() {
-    setlocale(LocaleCategory::LcAll, Locale::current().as_ref());
+    let locale = Locale::current();
+    setlocale(LocaleCategory::LcAll, locale.as_ref());
+
     // FIXME: determine where to find translations
     bindtextdomain("media-toc", "target/locale/");
     bind_textdomain_codeset("media-toc", "UTF-8");
     textdomain("media-toc");
 
+    // Messages are not translated unless gtk (glib) is initialized
+    let is_gtk_ok = gtk::init().is_ok();
+
+    let about_msg = gettext(
+        "Build a table of contents from a media file\nor split a media file into chapters",
+    );
+    let help_msg = gettext("Display this message");
+    let version_msg = gettext("Print version information");
+
+    let input_arg = gettext("MEDIA");
+
     let matches = App::new("media-toc")
         .version("0.3.0.1")
         .author("François Laignel <fengalin@free.fr>")
-        .about(gettext(
-            "Build a table of contents from a media file\nor split a media file into chapters",
-        ).as_str())
-        .arg(Arg::with_name("INPUT")
+        .about(about_msg.as_str())
+        .help_message(help_msg.as_str())
+        .version_message(version_msg.as_str())
+        .arg(Arg::with_name(input_arg.as_str())
             .help(&gettext("Path to the input media file"))
-            .index(1))
+            .last(false))
         .get_matches();
 
-    if gtk::init().is_err() {
-        panic!(gettext("Failed to initialize GTK."));
-    }
 
+    if !is_gtk_ok {
+        panic!(gettext("Failed to initialize GTK"));
+    }
     gstreamer::init().unwrap();
+
+    println!("Locale: {}", locale);
 
     // TODO: there's a `Settings` struct in GTK:
     // https://github.com/gtk-rs/gtk/blob/master/src/auto/settings.rs
@@ -69,7 +84,7 @@ fn main() {
     };
     main_ctrl.borrow().show_all();
 
-    if let Some(input_file) = matches.value_of("INPUT") {
+    if let Some(input_file) = matches.value_of(input_arg.as_str()) {
         main_ctrl
             .borrow_mut()
             .open_media(input_file.into());
