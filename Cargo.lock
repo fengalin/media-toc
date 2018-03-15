@@ -263,15 +263,15 @@ dependencies = [
 [[package]]
 name = "gettext-rs"
 version = "0.3.0"
-source = "git+https://github.com/fengalin/gettext-rs#80cae92126a0fac71e8b5ae4a43c9831c32f6768"
+source = "git+https://github.com/fengalin/gettext-rs?branch=gettext_system_feature#1b67b55e7dd3882f52ec7b7ddd5a82c61168f09d"
 dependencies = [
- "gettext-sys 0.19.8 (git+https://github.com/fengalin/gettext-rs)",
+ "gettext-sys 0.19.8 (git+https://github.com/fengalin/gettext-rs?branch=gettext_system_feature)",
 ]
 
 [[package]]
 name = "gettext-sys"
 version = "0.19.8"
-source = "git+https://github.com/fengalin/gettext-rs#80cae92126a0fac71e8b5ae4a43c9831c32f6768"
+source = "git+https://github.com/fengalin/gettext-rs?branch=gettext_system_feature#1b67b55e7dd3882f52ec7b7ddd5a82c61168f09d"
 dependencies = [
  "cc 1.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -537,7 +537,7 @@ dependencies = [
  "chrono 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.31.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "gdk 0.7.0 (git+https://github.com/gtk-rs/gdk.git)",
- "gettext-rs 0.3.0 (git+https://github.com/fengalin/gettext-rs)",
+ "gettext-rs 0.3.0 (git+https://github.com/fengalin/gettext-rs?branch=gettext_system_feature)",
  "glib 0.4.1 (git+https://github.com/gtk-rs/glib.git)",
  "gstreamer 0.11.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
  "gstreamer-audio 0.11.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
@@ -883,8 +883,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum gdk-pixbuf 0.3.0 (git+https://github.com/gtk-rs/gdk-pixbuf)" = "<none>"
 "checksum gdk-pixbuf-sys 0.5.0 (git+https://github.com/gtk-rs/sys)" = "<none>"
 "checksum gdk-sys 0.5.0 (git+https://github.com/gtk-rs/sys)" = "<none>"
-"checksum gettext-rs 0.3.0 (git+https://github.com/fengalin/gettext-rs)" = "<none>"
-"checksum gettext-sys 0.19.8 (git+https://github.com/fengalin/gettext-rs)" = "<none>"
+"checksum gettext-rs 0.3.0 (git+https://github.com/fengalin/gettext-rs?branch=gettext_system_feature)" = "<none>"
+"checksum gettext-sys 0.19.8 (git+https://github.com/fengalin/gettext-rs?branch=gettext_system_feature)" = "<none>"
 "checksum gif 0.9.2 (registry+https://github.com/rust-lang/crates.io-index)" = "e2e41945ba23db3bf51b24756d73d81acb4f28d85c3dccc32c6fae904438c25f"
 "checksum gio 0.3.0 (git+https://github.com/gtk-rs/gio)" = "<none>"
 "checksum gio-sys 0.5.0 (git+https://github.com/gtk-rs/sys)" = "<none>"
