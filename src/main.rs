@@ -35,23 +35,24 @@ use ui::MainController;
 
 fn main() {
     setlocale(LocaleCategory::LcAll, Locale::current().as_ref());
-    bindtextdomain("media-toc", "/usr/local/share/locale/");
+    // FIXME: determine where to find translations
+    bindtextdomain("media-toc", "target/locale/");
+    bind_textdomain_codeset("media-toc", "UTF-8");
     textdomain("media-toc");
 
     let matches = App::new("media-toc")
         .version("0.3.0.1")
         .author("François Laignel <fengalin@free.fr>")
-        .about(concat!(
-            "Build a table of contents from a media file ",
-            "or split a media file into chapters",
-        ))
+        .about(gettext(
+            "Build a table of contents from a media file\nor split a media file into chapters",
+        ).as_str())
         .arg(Arg::with_name("INPUT")
-            .help("Path to the input media file")
+            .help(&gettext("Path to the input media file"))
             .index(1))
         .get_matches();
 
     if gtk::init().is_err() {
-        panic!("Failed to initialize GTK.");
+        panic!(gettext("Failed to initialize GTK."));
     }
 
     gstreamer::init().unwrap();

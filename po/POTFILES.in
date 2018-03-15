@@ -1,0 +1,5 @@
+# List of source files containing translatable strings.
+# Please keep this file sorted alphabetically.
+src/main.rs
+src/ui/media-toc.ui
+src/ui/media-toc-export.ui

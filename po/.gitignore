@@ -1,0 +1,7 @@
+
+*.gmo
+*.po~
+POTFILES
+media-toc.pot
+stamp-it
+stamp-po

@@ -1,0 +1,15 @@
+# Update the pot file
+xgettext --files-from=po/POTFILES.in --directory=. --from-code=UTF-8 \
+    --default-domain=media-toc --output-dir=po --sort-by-file \
+    --package-name=media-toc -o media-toc.pot \
+    --copyright-holder='François Laignel' \
+    --msgid-bugs-address='François Laignel <fengalin@free.fr>'
+
+if [ -n "$1" ]; then
+    # Merge or create messages for the specified lang
+    if [ -f po/$1.po ]; then
+        msgmerge --directory=po --sort-by-file -o po/$1.po $1.po media-toc.pot;
+    else
+        msginit -o po/$1.po -i po/media-toc.pot;
+    fi
+fi

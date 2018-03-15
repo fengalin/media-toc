@@ -7,6 +7,7 @@ repository = "https://github.com/fengalin/media-toc"
 readme = "README.md"
 description = "Build a table of contents from a media file or split a media file into chapters"
 license = "MIT"
+build = "build.rs"
 
 [dependencies]
 clap = "^2"

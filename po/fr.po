@@ -3,12 +3,13 @@
 # This file is distributed under the same license as the media-toc package.
 # François Laignel <fengalin@free.fr>, 2018.
 #
+#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
-"Report-Msgid-Bugs-To: https://github.com/fengalin/media-toc/issues\n"
-"POT-Creation-Date: 2018-03-11 16:49+0100\n"
-"PO-Revision-Date: 2018-03-11 17:02+0100\n"
+"Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
+"POT-Creation-Date: 2018-03-15 17:48+0100\n"
+"PO-Revision-Date: 2018-03-15 17:23+0100\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: French <>\n"
 "Language: fr\n"
@@ -16,7 +17,70 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
-"X-Generator: Gtranslator 2.91.7\n"
+
+#: src/main.rs:46
+msgid ""
+"Build a table of contents from a media file\n"
+"or split a media file into chapters"
+msgstr ""
+"Contruit une table des matière à partir d'un fichier multimédia\n"
+"ou découpe un fichier multimédia en chapitres"
+
+#: src/main.rs:49
+msgid "Path to the input media file"
+msgstr "Chemin du fichier d'entrée"
+
+#: src/main.rs:54
+msgid "Failed to initialize GTK."
+msgstr "Impossible d'intialiser GTK."
+
+#: src/main.rs:93
+msgid "test-msg"
+msgstr "ceci est un test"
+
+#: src/ui/media-toc-export.ui:8
+msgid "Export the Table of Contents"
+msgstr "Exporter la Table des Matières"
+
+#: src/ui/media-toc-export.ui:28
+msgid "Export"
+msgstr "Exporter"
+
+#: src/ui/media-toc-export.ui:75
+msgid "Split into one audio file per chapter"
+msgstr "Découper en fichiers audios"
+
+#: src/ui/media-toc-export.ui:97
+msgid "Flac (lossless compression)"
+msgstr "Flac (compression sans perte)"
+
+#: src/ui/media-toc-export.ui:113
+msgid "Wave / PCM (no compression)"
+msgstr "Wave / PCM (pas de compression)"
+
+#: src/ui/media-toc-export.ui:130
+msgid "Opus (lossy compression)"
+msgstr "Opus (compression avec perte)"
+
+#: src/ui/media-toc-export.ui:146
+msgid "Vorbis (lossy compression)"
+msgstr "Vorbis (compression avec perte)"
+
+#: src/ui/media-toc-export.ui:162
+msgid "MP3 (lossy compression)"
+msgstr "MP3 (compression avec perte)"
+
+#: src/ui/media-toc-export.ui:195
+msgid "mkvmerge text format"
+msgstr "Format textuel de mkvmerge"
+
+#: src/ui/media-toc-export.ui:211
+msgid "Cue Sheet format"
+msgstr "Format Cue Sheet"
+
+#: src/ui/media-toc-export.ui:227
+msgid "Matroska Container"
+msgstr "Conteneur Matroska"
 
 #: src/ui/media-toc.ui:189
 msgid "Repeat Chapter"
@@ -85,51 +149,3 @@ msgstr "flux"
 #: src/ui/media-toc.ui:832
 msgid "Info text"
 msgstr "Texte d'information"
-
-#: src/ui/media-toc-export.ui:8
-msgid "Export the Table of Contents"
-msgstr "Exporter la Table des Matières"
-
-#: src/ui/media-toc-export.ui:28
-msgid "Export"
-msgstr "Exporter"
-
-#: src/ui/media-toc-export.ui:75
-msgid "Split into one audio file per chapter"
-msgstr "Découper en fichiers audios"
-
-#: src/ui/media-toc-export.ui:97
-msgid "Flac (lossless compression)"
-msgstr "Flac (compression sans perte)"
-
-#: src/ui/media-toc-export.ui:113
-msgid "Wave / PCM (no compression)"
-msgstr "Wave / PCM (pas de compression)"
-
-#: src/ui/media-toc-export.ui:130
-msgid "Opus (lossy compression)"
-msgstr "Opus (compression avec perte)"
-
-#: src/ui/media-toc-export.ui:146
-msgid "Vorbis (lossy compression)"
-msgstr "Vorbis (compression avec perte)"
-
-#: src/ui/media-toc-export.ui:162
-msgid "MP3 (lossy compression)"
-msgstr "MP3 (compression avec perte)"
-
-#: src/ui/media-toc-export.ui:195
-msgid "mkvmerge text format"
-msgstr "Format textuel de mkvmerge"
-
-#: src/ui/media-toc-export.ui:211
-msgid "Cue Sheet format"
-msgstr "Format Cue Sheet"
-
-#: src/ui/media-toc-export.ui:227
-msgid "Matroska Container"
-msgstr "Conteneur Matroska"
-
-#: src/main.rs:51
-msgid "test"
-msgstr "test en français"
