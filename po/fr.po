@@ -3,27 +3,27 @@
 # This file is distributed under the same license as the media-toc package.
 # François Laignel <fengalin@free.fr>, 2018.
 #
-#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
 "POT-Creation-Date: 2018-03-15 22:14+0100\n"
-"PO-Revision-Date: 2018-03-15 20:30+0100\n"
+"PO-Revision-Date: 2018-03-15 22:27+0100\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
-"Language-Team: French <>\n"
+"Language-Team: français <>\n"
 "Language: fr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"X-Generator: Gtranslator 2.91.7\n"
 
 #: src/main.rs:49
 msgid ""
 "Build a table of contents from a media file\n"
 "or split a media file into chapters"
 msgstr ""
-"Contruit une table des matière à partir d'un fichier multimédia\n"
+"Construit une table des matières à partir d'un fichier multimédia\n"
 "ou découpe un fichier multimédia en chapitres"
 
 #: src/main.rs:51
@@ -40,7 +40,7 @@ msgstr "MÉDIA"
 
 #: src/main.rs:63
 msgid "Path to the input media file"
-msgstr "Chemin du fichier du fichier multimédia"
+msgstr "Chemin du fichier multimédia"
 
 #: src/main.rs:69
 msgid "Failed to initialize GTK"
