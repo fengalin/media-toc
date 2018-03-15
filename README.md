@@ -180,7 +180,7 @@ When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
 - From a MSYS2 mingw shell
   - add cargo to the `PATH`:
   ```
-  echo 'PATH=$PATH:/c/Users/'$USER'/.cargo/bin' >> /c/Users/'$USER'/.bashrc
+  echo 'PATH=$PATH:/c/Users/'$USER'/.cargo/bin' >> /home/$USER/.bashrc
   ```
   - Restart the MSYS2 shell before using `cargo`.
 

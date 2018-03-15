@@ -20,6 +20,10 @@ install:
 build_script:
   - cargo build
   - cargo test
-  - cargo build --all-features
+  #- cargo build --all-features
+  - export GETTEXT_SYSTEM=1
+  - cargo clean
+  - cargo build
+  - cargo test
 
 test: false
