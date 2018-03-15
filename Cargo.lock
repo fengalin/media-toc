@@ -263,7 +263,7 @@ dependencies = [
 [[package]]
 name = "gettext-rs"
 version = "0.3.0"
-source = "git+https://github.com/fengalin/gettext-rs?branch=gettext_system_feature#1b67b55e7dd3882f52ec7b7ddd5a82c61168f09d"
+source = "git+https://github.com/fengalin/gettext-rs?branch=gettext_system_feature#6fa3d341edf56b0bdf8c7b4bed70a12b51300bfa"
 dependencies = [
  "gettext-sys 0.19.8 (git+https://github.com/fengalin/gettext-rs?branch=gettext_system_feature)",
 ]
@@ -271,7 +271,7 @@ dependencies = [
 [[package]]
 name = "gettext-sys"
 version = "0.19.8"
-source = "git+https://github.com/fengalin/gettext-rs?branch=gettext_system_feature#1b67b55e7dd3882f52ec7b7ddd5a82c61168f09d"
+source = "git+https://github.com/fengalin/gettext-rs?branch=gettext_system_feature#6fa3d341edf56b0bdf8c7b4bed70a12b51300bfa"
 dependencies = [
  "cc 1.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

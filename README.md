@@ -170,7 +170,7 @@ brew install gtk+3 gstreamer gst-plugins-{base,good,bad,ugly} gst-libav
 - Install the development toolchain, GTK and GStreamer<br>
 Note: for a 32bits system, use `mingw-w64-i686-...`
 ```
-pacman --noconfirm -S mingw-w64-x86_64-gtk3 mingw-w64-x86_64-gstreamer \
+pacman --noconfirm -S gettext-devel mingw-w64-x86_64-gtk3 mingw-w64-x86_64-gstreamer \
 	mingw-w64-x86_64-gst-plugins-{base,good,bad,ugly} mingw-w64-x86_64-gst-libav
 ```
 
