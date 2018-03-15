@@ -1,5 +1,5 @@
 use std::fs::{File, create_dir_all};
-use std::io::Read;
+use std::io::{ErrorKind, Read};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -25,11 +25,21 @@ fn main() {
                 ))
                 .arg("--directory=po")
                 .arg(format!("{}.po", lingua));
-            let msgfmt_status = msgfmt.status()
-                .expect("Failed to invoke `msgfmt`");
 
-            if !msgfmt_status.success() {
-                panic!(format!("Failed to generate mo file for lingua {}\n{:?}", lingua, msgfmt));
+            match msgfmt.status() {
+                Ok(status) => if !status.success() {
+                    panic!(format!("Failed to generate mo file for lingua {}\n{:?}",
+                        lingua,
+                        msgfmt,
+                    ));
+                }
+                Err(ref error) => match error.kind() {
+                    ErrorKind::NotFound => {
+                        eprintln!("Can't generate translations: command `msgfmt` not available");
+                        return;
+                    }
+                    _ => panic!("Error invoking `msgfmt`: {}", error),
+                }
             }
         }
     }
