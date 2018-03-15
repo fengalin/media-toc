@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-15 20:29+0100\n"
+"POT-Creation-Date: 2018-03-15 22:14+0100\n"
 "PO-Revision-Date: 2018-03-15 20:30+0100\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: French <>\n"
@@ -65,6 +65,14 @@ msgstr "Fin"
 #: src/ui/main_controller.rs:458 src/ui/main_controller.rs:555
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
+
+#: src/ui/main_controller.rs:510
+msgid "Open a media file"
+msgstr "Ouvrir un fichier multimédia"
+
+#: src/ui/main_controller.rs:515
+msgid "Open"
+msgstr "Ouvrir"
 
 #: src/ui/media-toc-export.ui:8
 msgid "Export the Table of Contents"

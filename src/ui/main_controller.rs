@@ -507,12 +507,12 @@ impl MainController {
         self.info_bar.hide();
 
         let file_dlg = gtk::FileChooserDialog::new(
-            Some("Open a media file"),
+            Some(&gettext("Open a media file")),
             Some(&self.window),
             gtk::FileChooserAction::Open,
         );
         // Note: couldn't find equivalents for STOCK_OK
-        file_dlg.add_button("Open", gtk::ResponseType::Ok.into());
+        file_dlg.add_button(&gettext("Open"), gtk::ResponseType::Ok.into());
 
         if file_dlg.run() == gtk::ResponseType::Ok.into() {
             if let Some(ref context) = self.context {
