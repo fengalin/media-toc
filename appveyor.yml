@@ -15,10 +15,10 @@ install:
   - SET PATH=C:\Users\appveyor\.cargo\bin;C:\msys64\mingw%BITS%\bin;%PATH%;C:\msys64\usr\bin
   - rustc -Vv
   - cargo -Vv
-  - pacman --noconfirm -S mingw-w64-%ARCH%-gtk3 mingw-w64-%ARCH%-gstreamer mingw-w64-%ARCH%-gst-plugins-base
+  - pacman --noconfirm -S mingw-w64-%ARCH%-gcc mingw-w64-%ARCH%-gtk3 mingw-w64-%ARCH%-gstreamer mingw-w64-%ARCH%-gst-plugins-base
 
 build_script:
-  - SET GETTEXT_SYSTEM=1
+  #- SET GETTEXT_SYSTEM=1
   - cargo build
   - cargo test
   - cargo build --all-features
