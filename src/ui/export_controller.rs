@@ -8,7 +8,7 @@ use gtk::prelude::*;
 use std::cell::RefCell;
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::sync::mpsc::{channel, Receiver};
 
 use media::{ContextMessage, PlaybackContext, SplitterContext, TocSetterContext};
@@ -67,6 +67,8 @@ pub struct ExportController {
 
     this_opt: Option<Rc<RefCell<ExportController>>>,
     listener_src: Option<glib::SourceId>,
+
+    main_ctrl: Option<Weak<RefCell<MainController>>>,
 }
 
 impl ExportController {
@@ -105,6 +107,8 @@ impl ExportController {
 
             this_opt: None,
             listener_src: None,
+
+            main_ctrl: None,
         }));
 
         {
@@ -125,14 +129,13 @@ impl ExportController {
         this_rc: &Rc<RefCell<Self>>,
         main_ctrl: &Rc<RefCell<MainController>>,
     ) {
-        let this = this_rc.borrow();
+        let mut this = this_rc.borrow_mut();
+
+        this.main_ctrl = Some(Rc::downgrade(main_ctrl));
 
         let this_clone = Rc::clone(this_rc);
-        let main_ctrl_clone = Rc::clone(main_ctrl);
         this.export_dlg.connect_delete_event(move |dlg, _| {
-            main_ctrl_clone
-                .borrow_mut()
-                .set_context(this_clone.borrow_mut().playback_ctx.take().unwrap());
+            this_clone.borrow_mut().restore_context();
             dlg.hide_on_delete();
             Inhibit(true)
         });
@@ -144,7 +147,6 @@ impl ExportController {
         });
 
         let this_clone = Rc::clone(this_rc);
-        let main_ctrl_clone = Rc::clone(main_ctrl);
         this.export_btn.connect_clicked(move |_| {
             let mut this = this_clone.borrow_mut();
 
@@ -209,23 +211,21 @@ impl ExportController {
                         ),
                     };
 
-                    let mut main_ctrl = main_ctrl_clone.borrow_mut();
-                    main_ctrl.show_message(msg_type, &msg);
-                    main_ctrl.set_context(this.playback_ctx.take().unwrap());
-                    this.export_dlg.hide();
+                    this.restore_context();
+                    this.show_message(msg_type, &msg);
                 }
                 ExportType::Split => {
                     if this.toc_visitor.is_some() {
-                        this.build_splitter_context(&main_ctrl_clone);
+                        this.build_splitter_context();
                     } else {
                         // No chapter => export the whole file
                         let target_path = this.target_path.clone();
-                        this.build_toc_setter_context(&main_ctrl_clone, &target_path);
+                        this.build_toc_setter_context(&target_path);
                     }
                 }
                 ExportType::SingleFileWithToc => {
                     let target_path = this.target_path.clone();
-                    this.build_toc_setter_context(&main_ctrl_clone, &target_path);
+                    this.build_toc_setter_context(&target_path);
                 }
                 _ => (),
             }
@@ -256,14 +256,44 @@ impl ExportController {
         self.export_dlg.present();
     }
 
+    fn show_message(&self, type_: gtk::MessageType, message: &str) {
+        self.export_dlg.hide();
+        let main_ctrl_rc = self.main_ctrl
+            .as_ref()
+            .unwrap()
+            .upgrade()
+            .expect("ExportController::show_message can't upgrade main_ctrl");
+        main_ctrl_rc.borrow().show_message(type_, message);
+    }
+
+    fn show_info(&self, info: &str) {
+        self.show_message(gtk::MessageType::Info, info);
+    }
+
+    fn show_error(&self, error: &str) {
+        self.show_message(gtk::MessageType::Error, error);
+    }
+
+    fn restore_context(&mut self) {
+        let context = self.playback_ctx.take()
+            .expect("ExportController::restore_context playback_ctx is None");
+        let main_ctrl_rc = self.main_ctrl
+            .as_ref()
+            .unwrap()
+            .upgrade()
+            .expect("ExportController::restore_context can't upgrade main_ctrl");
+        main_ctrl_rc
+            .borrow_mut()
+            .set_context(context);
+    }
+
     fn build_toc_setter_context(
         &mut self,
-        main_ctrl: &Rc<RefCell<MainController>>,
         export_path: &Path,
     ) {
         let (ctx_tx, ui_rx) = channel();
 
-        self.register_toc_setter_listener(LISTENER_PERIOD, ui_rx, Rc::clone(main_ctrl));
+        self.register_toc_setter_listener(LISTENER_PERIOD, ui_rx);
 
         let media_path = self.media_path.clone();
         match TocSetterContext::new(&media_path, export_path, ctx_tx) {
@@ -272,21 +302,20 @@ impl ExportController {
                 self.toc_setter_ctx = Some(toc_setter_ctx);
             }
             Err(error) => {
-                eprintln!("Error exporting media: {}", error);
+                let msg = gettext("Error exporting the media with a table of contents").to_owned();
+                eprintln!("{}: {}", msg, error);
                 self.remove_listener();
                 self.switch_to_available();
-                main_ctrl
-                    .borrow_mut()
-                    .set_context(self.playback_ctx.take().unwrap());
-                self.export_dlg.hide();
+                self.restore_context();
+                self.show_error(&msg);
             }
         };
     }
 
-    fn build_splitter_context(&mut self, main_ctrl: &Rc<RefCell<MainController>>) -> bool {
+    fn build_splitter_context(&mut self) -> bool {
         let (ctx_tx, ui_rx) = channel();
 
-        self.register_splitter_listener(LISTENER_PERIOD, ui_rx, Rc::clone(main_ctrl));
+        self.register_splitter_listener(LISTENER_PERIOD, ui_rx);
 
         if self.toc_visitor.is_none() {
             // FIXME: display message: no chapter
@@ -561,7 +590,6 @@ impl ExportController {
         &mut self,
         timeout: u32,
         ui_rx: Receiver<ContextMessage>,
-        main_ctrl: Rc<RefCell<MainController>>,
     ) {
         let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
 
@@ -581,9 +609,6 @@ impl ExportController {
 
             for message in ui_rx.try_iter() {
                 match message {
-                    AsyncDone => {
-                        println!("ExportContext::toc_setter(AsyncDone)");
-                    }
                     InitDone => {
                         let mut toc_setter_ctx = this.toc_setter_ctx.take().expect(
                             "ExportContext::toc_setter(InitDone) couldn't get ExportContext",
@@ -616,9 +641,7 @@ impl ExportController {
                     }
                     Eos => {
                         this.switch_to_available();
-                        main_ctrl
-                            .borrow_mut()
-                            .set_context(this.playback_ctx.take().unwrap());
+                        this.restore_context();
                         this.export_dlg.hide();
                         keep_going = false;
                     }
@@ -647,7 +670,6 @@ impl ExportController {
         &mut self,
         timeout: u32,
         ui_rx: Receiver<ContextMessage>,
-        main_ctrl: Rc<RefCell<MainController>>,
     ) {
         let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
 
@@ -668,12 +690,10 @@ impl ExportController {
             for message in ui_rx.try_iter() {
                 match message {
                     Eos => {
-                        if !this.build_splitter_context(&main_ctrl) {
+                        if !this.build_splitter_context() {
                             // No more chapters or an error occured
                             this.switch_to_available();
-                            main_ctrl
-                                .borrow_mut()
-                                .set_context(this.playback_ctx.take().unwrap());
+                            this.restore_context();
                             this.export_dlg.hide();
                         }
 
