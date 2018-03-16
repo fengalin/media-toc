@@ -18,8 +18,7 @@ lazy_static = "^0"
 locale_config = "0.2"
 sample = "^0"
 
-#gettext-rs = { git = "https://github.com/Koka/gettext-rs", features = ["gettext-system"] }
-gettext-rs = { git = "https://github.com/fengalin/gettext-rs", branch = "gettext_system_feature", features = ["gettext-system"] }
+gettext-rs = { git = "https://github.com/Koka/gettext-rs", features = ["gettext-system"] }
 
 cairo-rs = { git = "https://github.com/gtk-rs/cairo.git" }
 gdk = { git = "https://github.com/gtk-rs/gdk.git" }
