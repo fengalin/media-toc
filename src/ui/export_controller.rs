@@ -1,3 +1,4 @@
+use gettextrs::*;
 use glib;
 use gstreamer as gst;
 
@@ -186,23 +187,31 @@ impl ExportController {
             match export_type {
                 ExportType::ExternalToc => {
                     // export toc as a standalone file
-                    // TODO: handle file related errors
-                    let mut output_file = File::create(&this.target_path)
-                        .expect("ExportController::export_btn clicked couldn't create output file");
+                    let (msg_type, msg) = match File::create(&this.target_path) {
+                        Ok(mut output_file) => {
+                            let info = this.playback_ctx.as_ref().unwrap().info.lock().expect(
+                                "ExportController::export_btn clicked, failed to lock media info",
+                            );
+                            metadata::Factory::get_writer(&this.export_format).write(
+                                &info,
+                                &mut output_file,
+                            );
+                            (
+                                gtk::MessageType::Info,
+                                gettext("Table of contents exported succesfully")
+                                    .to_owned(),
+                            )
+                        }
+                        Err(_) => (
+                            gtk::MessageType::Error,
+                            gettext("Failed to create the file for the table of contents")
+                                .to_owned(),
+                        ),
+                    };
 
-                    {
-                        let info = this.playback_ctx.as_ref().unwrap().info.lock().expect(
-                            "ExportController::export_btn clicked, failed to lock media info",
-                        );
-                        metadata::Factory::get_writer(&this.export_format).write(
-                            &info,
-                            &mut output_file,
-                        );
-                    }
-
-                    main_ctrl_clone
-                        .borrow_mut()
-                        .set_context(this.playback_ctx.take().unwrap());
+                    let mut main_ctrl = main_ctrl_clone.borrow_mut();
+                    main_ctrl.show_message(msg_type, &msg);
+                    main_ctrl.set_context(this.playback_ctx.take().unwrap());
                     this.export_dlg.hide();
                 }
                 ExportType::Split => {

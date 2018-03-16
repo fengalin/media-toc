@@ -2,6 +2,7 @@
 # Please keep this file sorted alphabetically.
 src/main.rs
 src/ui/chapter_tree_manager.rs
+src/ui/export_controller.rs
 src/ui/main_controller.rs
 src/ui/media-toc.ui
 src/ui/media-toc-export.ui
