@@ -28,19 +28,68 @@ use gtk::{Builder, BuilderExt};
 
 use locale_config::Locale;
 
+use std::env;
+use std::path::PathBuf;
+
 mod metadata;
 mod media;
 mod ui;
 use ui::MainController;
 
-fn main() {
-    let locale = Locale::current();
-    setlocale(LocaleCategory::LcAll, locale.as_ref());
+const TEXT_DOMAIN: &str = "media-toc";
 
-    // FIXME: determine where to find translations
-    bindtextdomain("media-toc", "target/locale/");
-    bind_textdomain_codeset("media-toc", "UTF-8");
-    textdomain("media-toc");
+// TODO: use failure crate
+enum LocaleError {
+    UndefinedLocale,
+    TranslationNotFound,
+}
+
+fn init_localization() -> Result<String, LocaleError> {
+    let locale = Locale::current();
+    let locale_str = locale.as_ref();
+    let lang = locale_str.splitn(2, "-").collect::<Vec<&str>>()[0];
+    if lang.is_empty() {
+        return Err(LocaleError::UndefinedLocale);
+    }
+
+    let mut data_paths = env::split_paths(&env::var("XDG_DATA_DIRS").unwrap_or("".to_owned()))
+        .collect::<Vec<_>>();
+    data_paths.push(PathBuf::from(""));
+    data_paths.push(PathBuf::from("target"));
+    data_paths.iter_mut()
+        .for_each(|path| path.push("locale"));
+
+    // Search translation in the data paths
+    // and take the first found
+    let mut locale_path = data_paths.iter().filter_map(|path| {
+            let mo_path = path
+                .join(lang)
+                .join("LC_MESSAGES")
+                .join(&format!("{}.mo", TEXT_DOMAIN));
+            if mo_path.exists() {
+                Some(path)
+            } else {
+                None
+            }
+        })
+        .take(1);
+
+    locale_path.next()
+        .map_or(
+            Err(LocaleError::TranslationNotFound),
+            |locale_path| {
+                setlocale(LocaleCategory::LcAll, locale_str);
+                bindtextdomain(TEXT_DOMAIN, locale_path.to_str().unwrap());
+                bind_textdomain_codeset(TEXT_DOMAIN, "UTF-8");
+                textdomain(TEXT_DOMAIN);
+                Ok(locale_str.to_owned())
+            }
+        )
+}
+
+fn main() {
+    let locale = init_localization().ok()
+        .unwrap_or("localization disabled".to_owned());
 
     // Messages are not translated unless gtk (glib) is initialized
     let is_gtk_ok = gtk::init().is_ok();
