@@ -480,9 +480,7 @@ impl PlaybackContext {
                             match event.view() {
                                 // TODO: handle FlushStart / FlushStop
                                 gst::EventView::Caps(caps_event) => {
-                                    let caps = unsafe {
-                                        gst::Caps::from_glib_borrow(caps_event.get_caps().as_ptr())
-                                    };
+                                    let caps = caps_event.get_caps();
                                     #[cfg(feature = "trace-audio-caps")]
                                     println!("\nGot new {:?}", caps);
 
@@ -491,7 +489,7 @@ impl PlaybackContext {
                                         .expect(
                                             "waveform_sink::probe couldn't lock dbl_audio_buffer"
                                         )
-                                        .set_caps(&caps);
+                                        .set_caps(caps);
                                 }
                                 gst::EventView::Eos(_) => {
                                     dbl_audio_buffer_mtx

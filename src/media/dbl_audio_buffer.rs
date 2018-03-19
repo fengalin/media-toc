@@ -86,7 +86,7 @@ impl DoubleAudioBuffer {
         self.can_handle_eos = true;
     }
 
-    pub fn set_caps(&mut self, caps: &gst::Caps) {
+    pub fn set_caps(&mut self, caps: &gst::CapsRef) {
         let audio_info = gst_audio::AudioInfo::from_caps(caps)
             .expect("DoubleAudioBuffer::set_caps unable to get AudioInfo");
 
