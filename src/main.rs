@@ -47,34 +47,38 @@ enum LocaleError {
 fn init_localization() -> Result<String, LocaleError> {
     let locale = Locale::current();
     let locale_str = locale.as_ref();
-    let lang = locale_str.splitn(2, "-").collect::<Vec<&str>>()[0];
+    let lang_country = locale_str.splitn(2, ".").collect::<Vec<&str>>()[0];
+    let lang = lang_country.splitn(2, "-").collect::<Vec<&str>>()[0];
     if lang.is_empty() {
         return Err(LocaleError::UndefinedLocale);
     }
 
-    let mut data_paths = env::split_paths(&env::var("XDG_DATA_DIRS").unwrap_or("".to_owned()))
-        .collect::<Vec<_>>();
-    data_paths.push(PathBuf::from(""));
-    data_paths.push(PathBuf::from("target"));
-    data_paths.iter_mut()
-        .for_each(|path| path.push("locale"));
+    let mut pre_paths = Vec::<PathBuf>::new();
+    pre_paths.push(PathBuf::from("target"));
+    let mut pre_paths_iter = pre_paths.into_iter();
 
-    // Search translation in the data paths
+    let data_paths_str = env::var("XDG_DATA_DIRS").unwrap_or("".to_owned());
+    let data_paths_iter = env::split_paths(&data_paths_str);
+
+    // Search translation in all the paths
     // and take the first found
-    let mut locale_path = data_paths.iter().filter_map(|path| {
-            let mo_path = path
-                .join(lang)
-                .join("LC_MESSAGES")
-                .join(&format!("{}.mo", TEXT_DOMAIN));
-            if mo_path.exists() {
-                Some(path)
+    let mo_rel_path = PathBuf::from("LC_MESSAGES")
+        .join(&format!("{}.mo", TEXT_DOMAIN));
+    pre_paths_iter.by_ref()
+        .chain(data_paths_iter)
+        .filter_map(|path| {
+            let locale_path = path.join("locale");
+            if locale_path.join(locale_str).join(&mo_rel_path).exists() {
+                Some(locale_path)
+            } else if locale_path.join(lang_country).join(&mo_rel_path).exists() {
+                Some(locale_path)
+            } else if locale_path.join(lang).join(&mo_rel_path).exists() {
+                Some(locale_path)
             } else {
                 None
             }
         })
-        .take(1);
-
-    locale_path.next()
+        .next()
         .map_or(
             Err(LocaleError::TranslationNotFound),
             |locale_path| {
@@ -83,7 +87,7 @@ fn init_localization() -> Result<String, LocaleError> {
                 bind_textdomain_codeset(TEXT_DOMAIN, "UTF-8");
                 textdomain(TEXT_DOMAIN);
                 Ok(locale_str.to_owned())
-            }
+            },
         )
 }
 
