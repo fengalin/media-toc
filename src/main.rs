@@ -97,12 +97,9 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use gettextrs::{TextDomain, TextDomainError, gettext};
-    use std::env;
 
     #[test]
     fn i18n() {
-        println!("env `XDG_DATA_DIRS`: {:?}", env::var("XDG_DATA_DIRS"));
-
         let locale_msg = match TextDomain::new("media-toc-test")
                 .skip_system_data_paths()
                 .locale("en_US")

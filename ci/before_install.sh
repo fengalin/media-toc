@@ -5,8 +5,8 @@ if [ $TRAVIS_OS_NAME = linux ]; then
 
     # GStreamer
     curl -L https://people.freedesktop.org/~slomo/gstreamer.tar.gz | tar xz
-    sed -i "s;prefix=/root/gstreamer;prefix=$PWD/gstreamer;g" $PWD/gstreamer/lib/pkgconfig/*.pc
-    export PKG_CONFIG_PATH=$PWD/gstreamer/lib/pkgconfig
+    sed -i "s;prefix=/root/gstreamer;prefix=$PWD/gstreamer;g" $PWD/gstreamer/lib/x86_64-linux-gnu/pkgconfig/*.pc
+    export PKG_CONFIG_PATH=$PWD/gstreamer/lib/x86_64-linux-gnu/pkgconfig
     export LD_LIBRARY_PATH=$PWD/gstreamer/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
 
     # GTK3
