@@ -36,8 +36,8 @@ fn main() {
             Ok(locale) => {
                 format!("translation found, `setlocale` returned {:?}", locale)
             }
-            Err(TextDomainError::TranslationNotFound(locale)) => {
-                format!("translation not found for locale {}", locale)
+            Err(TextDomainError::TranslationNotFound(lang)) => {
+                format!("translation not found for language {}", lang)
             }
             Err(TextDomainError::InvalidLocale(locale)) => {
                 format!("Invalid locale {}", locale)
@@ -104,26 +104,21 @@ mod tests {
     fn i18n() {
         match TextDomain::new("media-toc-test")
             .skip_system_data_paths()
-            .locale("en_US")
+            .locale("en_US.UTF-8")
             .push("test")
             .init()
         {
             Ok(locale) => {
                 println!("translation found, `setlocale` returned {:?}", locale);
-                if locale.is_some() {
-                    assert_eq!("this is a test", gettext("test-msg"));
-                } else {
-                    // When `setlocale` returns `None`, the behaviour is different
-                    // depending on the CI systems. Just print the result for now...
-                    println!("Expecting 'this is a test': {}", gettext("test-msg"));
-                }
             }
-            Err(TextDomainError::TranslationNotFound(locale)) => {
-                panic!("translation not found for locale {}", locale);
+            Err(TextDomainError::TranslationNotFound(lang)) => {
+                panic!("translation not found for language {}", lang);
             }
             Err(TextDomainError::InvalidLocale(locale)) => {
                 panic!("Invalid locale {}", locale);
             }
         }
+
+        assert_eq!("this is a test", gettext("test-msg"));
     }
 }
