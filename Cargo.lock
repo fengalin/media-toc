@@ -263,7 +263,7 @@ dependencies = [
 [[package]]
 name = "gettext-rs"
 version = "0.3.0"
-source = "git+https://github.com/fengalin/gettext-rs#be6ae45f1194e973c4954bf52c05cf78ee639924"
+source = "git+https://github.com/fengalin/gettext-rs#bbcda1dd4f2d34f992853c350c3ab0c68d0564ee"
 dependencies = [
  "gettext-sys 0.19.8 (git+https://github.com/fengalin/gettext-rs)",
  "locale_config 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -272,7 +272,7 @@ dependencies = [
 [[package]]
 name = "gettext-sys"
 version = "0.19.8"
-source = "git+https://github.com/fengalin/gettext-rs#be6ae45f1194e973c4954bf52c05cf78ee639924"
+source = "git+https://github.com/fengalin/gettext-rs#bbcda1dd4f2d34f992853c350c3ab0c68d0564ee"
 dependencies = [
  "cc 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
