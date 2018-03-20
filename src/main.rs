@@ -33,7 +33,9 @@ use ui::MainController;
 fn main() {
     let locale = {
         match TextDomain::new("media-toc").prepend("target").init() {
-            Ok(locale) => locale,
+            Ok(locale) => {
+                format!("translation found, `setlocale` returned {:?}", locale)
+            }
             Err(TextDomainError::TranslationNotFound(locale)) => {
                 format!("translation not found for locale {}", locale)
             }
@@ -106,7 +108,9 @@ mod tests {
                 .push("test")
                 .init()
         {
-            Ok(locale) => locale,
+            Ok(locale) => {
+                format!("translation found, `setlocale` returned {:?}", locale)
+            }
             Err(TextDomainError::TranslationNotFound(locale)) => {
                 format!("translation not found for locale {}", locale)
             }
