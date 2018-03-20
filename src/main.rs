@@ -8,7 +8,6 @@ extern crate gstreamer;
 extern crate gstreamer_audio;
 extern crate gtk;
 extern crate image;
-extern crate locale_config;
 extern crate pango;
 extern crate sample;
 
@@ -22,78 +21,27 @@ extern crate chrono;
 
 use clap::{Arg, App};
 
-use gettextrs::*;
+use gettextrs::{TextDomain, TextDomainError, gettext};
 
 use gtk::{Builder, BuilderExt};
-
-use locale_config::Locale;
-
-use std::env;
-use std::path::PathBuf;
 
 mod metadata;
 mod media;
 mod ui;
 use ui::MainController;
 
-const TEXT_DOMAIN: &str = "media-toc";
-
-// TODO: use failure crate
-enum LocaleError {
-    UndefinedLocale,
-    TranslationNotFound,
-}
-
-fn init_localization() -> Result<String, LocaleError> {
-    let locale = Locale::current();
-    let locale_str = locale.as_ref();
-    let lang_country = locale_str.splitn(2, ".").collect::<Vec<&str>>()[0];
-    let lang = lang_country.splitn(2, "-").collect::<Vec<&str>>()[0];
-    if lang.is_empty() {
-        return Err(LocaleError::UndefinedLocale);
-    }
-
-    let mut pre_paths = Vec::<PathBuf>::new();
-    pre_paths.push(PathBuf::from("target"));
-    let mut pre_paths_iter = pre_paths.into_iter();
-
-    let data_paths_str = env::var("XDG_DATA_DIRS").unwrap_or("".to_owned());
-    let data_paths_iter = env::split_paths(&data_paths_str);
-
-    // Search translation in all the paths
-    // and take the first found
-    let mo_rel_path = PathBuf::from("LC_MESSAGES")
-        .join(&format!("{}.mo", TEXT_DOMAIN));
-    pre_paths_iter.by_ref()
-        .chain(data_paths_iter)
-        .filter_map(|path| {
-            let locale_path = path.join("locale");
-            if locale_path.join(locale_str).join(&mo_rel_path).exists() {
-                Some(locale_path)
-            } else if locale_path.join(lang_country).join(&mo_rel_path).exists() {
-                Some(locale_path)
-            } else if locale_path.join(lang).join(&mo_rel_path).exists() {
-                Some(locale_path)
-            } else {
-                None
-            }
-        })
-        .next()
-        .map_or(
-            Err(LocaleError::TranslationNotFound),
-            |locale_path| {
-                setlocale(LocaleCategory::LcAll, locale_str);
-                bindtextdomain(TEXT_DOMAIN, locale_path.to_str().unwrap());
-                bind_textdomain_codeset(TEXT_DOMAIN, "UTF-8");
-                textdomain(TEXT_DOMAIN);
-                Ok(locale_str.to_owned())
-            },
-        )
-}
-
 fn main() {
-    let locale = init_localization().ok()
-        .unwrap_or("localization disabled".to_owned());
+    let locale = {
+        match TextDomain::new("media-toc").prepend("target").init() {
+            Ok(locale) => locale,
+            Err(TextDomainError::TranslationNotFound(locale)) => {
+                format!("translation not found for locale {}", locale)
+            }
+            Err(TextDomainError::InvalidLocale(locale)) => {
+                format!("Invalid locale {}", locale)
+            }
+        }
+    };
 
     // Messages are not translated unless gtk (glib) is initialized
     let is_gtk_ok = gtk::init().is_ok();
@@ -148,16 +96,28 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use gettextrs::*;
-    use locale_config::Locale;
+    use gettextrs::{TextDomain, TextDomainError, gettext};
+    use std::env;
 
     #[test]
     fn i18n() {
-        println!("Current locale: {}", Locale::current().as_ref());
-        println!("setlocale returned {:?}", setlocale(LocaleCategory::LcAll, "en_US.UTF-8"));
-        bindtextdomain("media-toc-test", "test/locale/");
-        bind_textdomain_codeset("media-toc-test", "UTF-8");
-        textdomain("media-toc-test");
+        println!("env `XDG_DATA_DIRS`: {:?}", env::var("XDG_DATA_DIRS"));
+
+        let locale_msg = match TextDomain::new("media-toc-test")
+                .skip_system_data_paths()
+                .locale("en_US")
+                .push("test")
+                .init()
+        {
+            Ok(locale) => locale,
+            Err(TextDomainError::TranslationNotFound(locale)) => {
+                format!("translation not found for locale {}", locale)
+            }
+            Err(TextDomainError::InvalidLocale(locale)) => {
+                format!("Invalid locale {}", locale)
+            }
+        };
+        println!("TextDomain returned {:?}", locale_msg);
 
         assert_eq!("this is a test", gettext("test-msg"));
     }

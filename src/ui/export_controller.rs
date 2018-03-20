@@ -266,9 +266,9 @@ impl ExportController {
         main_ctrl_rc.borrow().show_message(type_, message);
     }
 
-    fn show_info(&self, info: &str) {
+    /*fn show_info(&self, info: &str) {
         self.show_message(gtk::MessageType::Info, info);
-    }
+    }*/
 
     fn show_error(&self, error: &str) {
         self.show_message(gtk::MessageType::Error, error);
