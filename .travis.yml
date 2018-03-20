@@ -26,5 +26,4 @@ script:
     - rustc --version
     - cargo build
     - cargo test
-    - cargo test tests::i18n -- --nocapture
     - cargo build --all-features

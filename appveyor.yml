@@ -20,7 +20,6 @@ install:
 build_script:
   - cargo build
   - cargo test
-  - cargo test tests::i18n -- --nocapture
   - cargo build --all-features
 
 test: false
