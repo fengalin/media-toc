@@ -23,6 +23,9 @@ use media::ContextMessage::*;
 use super::{AudioController, ChaptersBoundaries, ExportController, InfoController, StreamsController,
             VideoController};
 
+const PAUSE_ICON: &str = "media-playback-pause-symbolic";
+const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum ControllerState {
     EOS,
@@ -106,7 +109,6 @@ impl MainController {
                 gtk::main_quit();
                 Inhibit(false)
             });
-            this_mut.window.set_titlebar(&this_mut.header_bar);
 
             let this_rc = Rc::clone(&this);
             this_mut.play_pause_btn.connect_clicked(move |_| {
@@ -179,7 +181,7 @@ impl MainController {
         if self.state != ControllerState::EOS {
             match context.get_state() {
                 gst::State::Paused => {
-                    self.play_pause_btn.set_icon_name("media-playback-pause");
+                    self.play_pause_btn.set_icon_name(PAUSE_ICON);
                     self.state = ControllerState::Playing;
                     self.audio_ctrl.borrow_mut().switch_to_playing();
                     context.play().unwrap();
@@ -187,7 +189,7 @@ impl MainController {
                 }
                 gst::State::Playing => {
                     context.pause().unwrap();
-                    self.play_pause_btn.set_icon_name("media-playback-start");
+                    self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
                     self.state = ControllerState::Paused;
                     self.audio_ctrl.borrow_mut().switch_to_not_playing();
                     self.context = Some(context);
@@ -314,7 +316,7 @@ impl MainController {
     fn hold(&mut self) {
         self.switch_to_busy();
         self.audio_ctrl.borrow_mut().switch_to_not_playing();
-        self.play_pause_btn.set_icon_name("media-playback-start");
+        self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
 
         if let Some(context) = self.context.as_mut() {
             context.pause().unwrap();
@@ -368,7 +370,7 @@ impl MainController {
                                         .expect("MainController::listener(AsyncDone) no context")
                                         .play()
                                         .unwrap();
-                                    this.play_pause_btn.set_icon_name("media-playback-pause");
+                                    this.play_pause_btn.set_icon_name(PAUSE_ICON);
                                     this.state = ControllerState::Playing;
                                     this.audio_ctrl.borrow_mut().switch_to_playing();
                                 } else if keep_paused {
@@ -446,7 +448,7 @@ impl MainController {
                                 #[cfg(feature = "trace-main-controller")]
                                 println!("MainController::listener(eos)");
 
-                                this.play_pause_btn.set_icon_name("media-playback-start");
+                                this.play_pause_btn.set_icon_name(PLAYBACK_ICON);
                                 this.state = ControllerState::EOS;
 
                                 // The tick callback will be register again in case of a seek

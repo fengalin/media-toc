@@ -2,12 +2,89 @@
 <!-- Generated with glade 3.20.4 -->
 <interface>
   <requires lib="gtk+" version="3.18"/>
+  <object class="GtkListStore" id="audio_streams-liststore">
+    <columns>
+      <!-- column-name stream_id_full -->
+      <column type="gchararray"/>
+      <!-- column-name stream_id_display -->
+      <column type="gchararray"/>
+      <!-- column-name language -->
+      <column type="gchararray"/>
+      <!-- column-name codec -->
+      <column type="gchararray"/>
+      <!-- column-name comment -->
+      <column type="gchararray"/>
+      <!-- column-name rate -->
+      <column type="gint"/>
+      <!-- column-name channels -->
+      <column type="gint"/>
+    </columns>
+  </object>
+  <object class="GtkTreeStore" id="chapters-tree-store">
+    <columns>
+      <!-- column-name Start -->
+      <column type="guint64"/>
+      <!-- column-name End -->
+      <column type="guint64"/>
+      <!-- column-name Title -->
+      <column type="gchararray"/>
+      <!-- column-name StartStr -->
+      <column type="gchararray"/>
+      <!-- column-name EndStr -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
+  <object class="GtkImage" id="repeat-image">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="icon_name">media-playlist-repeat-symbolic</property>
+  </object>
+  <object class="GtkImage" id="streams-image">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="icon_name">document-properties-symbolic</property>
+  </object>
+  <object class="GtkListStore" id="text_streams-liststore">
+    <columns>
+      <!-- column-name stream_id_full -->
+      <column type="gchararray"/>
+      <!-- column-name stream_id_display -->
+      <column type="gchararray"/>
+      <!-- column-name language -->
+      <column type="gchararray"/>
+      <!-- column-name codec -->
+      <column type="gchararray"/>
+      <!-- column-name comment -->
+      <column type="gchararray"/>
+      <!-- column-name format -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
+  <object class="GtkListStore" id="video_streams-liststore">
+    <columns>
+      <!-- column-name stream_id_full -->
+      <column type="gchararray"/>
+      <!-- column-name stream_id_display -->
+      <column type="gchararray"/>
+      <!-- column-name language -->
+      <column type="gchararray"/>
+      <!-- column-name codec -->
+      <column type="gchararray"/>
+      <!-- column-name comment -->
+      <column type="gchararray"/>
+      <!-- column-name wdth -->
+      <column type="gint"/>
+      <!-- column-name height -->
+      <column type="gint"/>
+    </columns>
+  </object>
   <object class="GtkApplicationWindow" id="application-window">
     <property name="width_request">1100</property>
     <property name="height_request">900</property>
     <property name="can_focus">False</property>
-    <property name="icon_name">emblem-documents</property>
+    <property name="icon_name">applications-multimedia-symbolic</property>
     <property name="has_resize_grip">True</property>
+    <property name="show_menubar">False</property>
     <signal name="destroy-event" handler="on_destroy" swapped="no"/>
     <child>
       <object class="GtkGrid" id="display-grid">
@@ -287,7 +364,7 @@
                     <property name="halign">end</property>
                     <property name="label" translatable="yes">Remove Chapter</property>
                     <property name="use_underline">True</property>
-                    <property name="icon_name">list-remove</property>
+                    <property name="icon_name">list-remove-symbolic</property>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -301,7 +378,7 @@
                     <property name="halign">end</property>
                     <property name="label" translatable="yes">Add Chapter</property>
                     <property name="use_underline">True</property>
-                    <property name="icon_name">list-add</property>
+                    <property name="icon_name">list-add-symbolic</property>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -489,7 +566,7 @@
                                     <property name="halign">center</property>
                                     <property name="label" translatable="yes">Zoom In</property>
                                     <property name="use_underline">True</property>
-                                    <property name="stock_id">gtk-zoom-in</property>
+                                    <property name="icon_name">zoom-in-symbolic</property>
                                   </object>
                                   <packing>
                                     <property name="expand">False</property>
@@ -503,7 +580,7 @@
                                     <property name="halign">center</property>
                                     <property name="label" translatable="yes">Zoom Out</property>
                                     <property name="use_underline">True</property>
-                                    <property name="stock_id">gtk-zoom-out</property>
+                                    <property name="icon_name">zoom-out-symbolic</property>
                                   </object>
                                   <packing>
                                     <property name="expand">False</property>
@@ -566,7 +643,7 @@
                                 <property name="halign">end</property>
                                 <property name="valign">end</property>
                                 <property name="visible_vertical">False</property>
-                                <property name="icon_name">media-playback-start</property>
+                                <property name="icon_name">media-playback-start-symbolic</property>
                               </object>
                               <packing>
                                 <property name="expand">False</property>
@@ -725,168 +802,57 @@
       </object>
     </child>
     <child type="titlebar">
-      <placeholder/>
-    </child>
-  </object>
-  <object class="GtkListStore" id="audio_streams-liststore">
-    <columns>
-      <!-- column-name stream_id_full -->
-      <column type="gchararray"/>
-      <!-- column-name stream_id_display -->
-      <column type="gchararray"/>
-      <!-- column-name language -->
-      <column type="gchararray"/>
-      <!-- column-name codec -->
-      <column type="gchararray"/>
-      <!-- column-name comment -->
-      <column type="gchararray"/>
-      <!-- column-name rate -->
-      <column type="gint"/>
-      <!-- column-name channels -->
-      <column type="gint"/>
-    </columns>
-  </object>
-  <object class="GtkTreeStore" id="chapters-tree-store">
-    <columns>
-      <!-- column-name Start -->
-      <column type="guint64"/>
-      <!-- column-name End -->
-      <column type="guint64"/>
-      <!-- column-name Title -->
-      <column type="gchararray"/>
-      <!-- column-name StartStr -->
-      <column type="gchararray"/>
-      <!-- column-name EndStr -->
-      <column type="gchararray"/>
-    </columns>
-  </object>
-  <object class="GtkImage" id="repeat-image">
-    <property name="visible">True</property>
-    <property name="can_focus">False</property>
-    <property name="icon_name">media-playlist-repeat</property>
-  </object>
-  <object class="GtkImage" id="streams-image">
-    <property name="visible">True</property>
-    <property name="can_focus">False</property>
-    <property name="stock">gtk-justify-fill</property>
-  </object>
-  <object class="GtkHeaderBar" id="header-bar">
-    <property name="visible">True</property>
-    <property name="can_focus">False</property>
-    <property name="title">media-toc</property>
-    <property name="show_close_button">True</property>
-    <child>
-      <object class="GtkButton" id="open-btn">
+      <object class="GtkHeaderBar" id="header-bar">
         <property name="visible">True</property>
-        <property name="can_focus">True</property>
-        <property name="receives_default">True</property>
+        <property name="can_focus">False</property>
+        <property name="title">media-toc</property>
+        <property name="show_close_button">True</property>
         <child>
-          <object class="GtkImage">
+          <object class="GtkButton" id="open-btn">
             <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="stock">gtk-open</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <child>
+              <object class="GtkImage">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="icon_name">document-open-symbolic</property>
+              </object>
+            </child>
           </object>
+        </child>
+        <child>
+          <object class="GtkToggleButton" id="streams-toggle">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <property name="image">streams-image</property>
+            <property name="always_show_image">True</property>
+          </object>
+          <packing>
+            <property name="pack_type">end</property>
+            <property name="position">2</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkButton" id="export_toc-btn">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <child>
+              <object class="GtkImage">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="icon_name">view-paged-symbolic</property>
+              </object>
+            </child>
+          </object>
+          <packing>
+            <property name="pack_type">end</property>
+            <property name="position">3</property>
+          </packing>
         </child>
       </object>
     </child>
-    <child>
-      <object class="GtkButton" id="save_project-btn">
-        <property name="visible">True</property>
-        <property name="can_focus">True</property>
-        <property name="receives_default">True</property>
-        <child>
-          <object class="GtkImage">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="stock">gtk-save</property>
-          </object>
-        </child>
-      </object>
-      <packing>
-        <property name="position">2</property>
-      </packing>
-    </child>
-    <child>
-      <object class="GtkButton" id="save_project_as-btn">
-        <property name="visible">True</property>
-        <property name="can_focus">True</property>
-        <property name="receives_default">True</property>
-        <child>
-          <object class="GtkImage">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="stock">gtk-save-as</property>
-          </object>
-        </child>
-      </object>
-      <packing>
-        <property name="position">3</property>
-      </packing>
-    </child>
-    <child>
-      <object class="GtkToggleButton" id="streams-toggle">
-        <property name="visible">True</property>
-        <property name="can_focus">True</property>
-        <property name="receives_default">True</property>
-        <property name="image">streams-image</property>
-        <property name="always_show_image">True</property>
-      </object>
-      <packing>
-        <property name="pack_type">end</property>
-        <property name="position">2</property>
-      </packing>
-    </child>
-    <child>
-      <object class="GtkButton" id="export_toc-btn">
-        <property name="visible">True</property>
-        <property name="can_focus">True</property>
-        <property name="receives_default">True</property>
-        <child>
-          <object class="GtkImage">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="stock">gtk-execute</property>
-          </object>
-        </child>
-      </object>
-      <packing>
-        <property name="pack_type">end</property>
-        <property name="position">3</property>
-      </packing>
-    </child>
-  </object>
-  <object class="GtkListStore" id="text_streams-liststore">
-    <columns>
-      <!-- column-name stream_id_full -->
-      <column type="gchararray"/>
-      <!-- column-name stream_id_display -->
-      <column type="gchararray"/>
-      <!-- column-name language -->
-      <column type="gchararray"/>
-      <!-- column-name codec -->
-      <column type="gchararray"/>
-      <!-- column-name comment -->
-      <column type="gchararray"/>
-      <!-- column-name format -->
-      <column type="gchararray"/>
-    </columns>
-  </object>
-  <object class="GtkListStore" id="video_streams-liststore">
-    <columns>
-      <!-- column-name stream_id_full -->
-      <column type="gchararray"/>
-      <!-- column-name stream_id_display -->
-      <column type="gchararray"/>
-      <!-- column-name language -->
-      <column type="gchararray"/>
-      <!-- column-name codec -->
-      <column type="gchararray"/>
-      <!-- column-name comment -->
-      <column type="gchararray"/>
-      <!-- column-name wdth -->
-      <column type="gint"/>
-      <!-- column-name height -->
-      <column type="gint"/>
-    </columns>
   </object>
 </interface>
