@@ -332,6 +332,7 @@
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <property name="show_arrow">False</property>
+                <property name="icon_size">2</property>
                 <child>
                   <object class="GtkToggleToolButton" id="repeat-toolbutton">
                     <property name="visible">True</property>
@@ -495,10 +496,11 @@
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
                                 <property name="halign">end</property>
-                                <property name="vexpand">True</property>
+                                <property name="valign">start</property>
                                 <property name="orientation">vertical</property>
                                 <property name="toolbar_style">icons</property>
                                 <property name="show_arrow">False</property>
+                                <property name="icon_size">2</property>
                                 <child>
                                   <object class="GtkToolButton" id="video-placeholder-toolbutton">
                                     <property name="visible">True</property>
@@ -555,10 +557,11 @@
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
                                 <property name="halign">end</property>
-                                <property name="vexpand">True</property>
+                                <property name="valign">start</property>
                                 <property name="orientation">vertical</property>
                                 <property name="toolbar_style">icons</property>
                                 <property name="show_arrow">False</property>
+                                <property name="icon_size">2</property>
                                 <child>
                                   <object class="GtkToolButton" id="audio_zoom_in-toolbutton">
                                     <property name="visible">True</property>
@@ -603,7 +606,7 @@
                         </child>
                       </object>
                       <packing>
-                        <property name="expand">False</property>
+                        <property name="expand">True</property>
                         <property name="fill">True</property>
                         <property name="position">0</property>
                       </packing>
@@ -636,6 +639,7 @@
                             <property name="valign">end</property>
                             <property name="toolbar_style">icons</property>
                             <property name="show_arrow">False</property>
+                            <property name="icon_size">2</property>
                             <child>
                               <object class="GtkToolButton" id="play_pause-toolbutton">
                                 <property name="visible">True</property>
