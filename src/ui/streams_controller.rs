@@ -1,14 +1,12 @@
-use gettextrs::*;
+use std::rc::{Rc, Weak};
+use std::cell::RefCell;
 
+use gettextrs::gettext;
 use glib;
-
 use gstreamer as gst;
 
 use gtk;
 use gtk::prelude::*;
-
-use std::rc::{Rc, Weak};
-use std::cell::RefCell;
 
 use media::PlaybackContext;
 

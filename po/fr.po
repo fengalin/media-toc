@@ -1,4 +1,5 @@
-# French translation for media-toc.
+# French translations for media-toc-player package
+# Traductions françaises du paquet media-toc-player.
 # Copyright (C) 2018 François Laignel
 # This file is distributed under the same license as the media-toc package.
 # François Laignel <fengalin@free.fr>, 2018.
@@ -7,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-16 12:24+0100\n"
-"PO-Revision-Date: 2018-03-15 12:30+0100\n"
+"POT-Creation-Date: 2018-03-22 14:39+0100\n"
+"PO-Revision-Date: 2018-03-22 14:39+0100\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -18,7 +19,7 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "X-Generator: Gtranslator 2.91.7\n"
 
-#: src/main.rs:51
+#: src/main.rs:52
 msgid ""
 "Build a table of contents from a media file\n"
 "or split a media file into chapters"
@@ -26,27 +27,27 @@ msgstr ""
 "Construit une table des matières à partir d'un fichier multimédia\n"
 "ou découpe un fichier multimédia en chapitres"
 
-#: src/main.rs:53
+#: src/main.rs:54
 msgid "Display this message"
 msgstr "Affiche ce message"
 
-#: src/main.rs:54
+#: src/main.rs:55
 msgid "Print version information"
 msgstr "Affiche la version"
 
-#: src/main.rs:56
+#: src/main.rs:57
 msgid "MEDIA"
 msgstr "MÉDIA"
 
-#: src/main.rs:65
+#: src/main.rs:66
 msgid "Path to the input media file"
 msgstr "Chemin du fichier multimédia"
 
-#: src/main.rs:71
+#: src/main.rs:72
 msgid "Failed to initialize GTK"
 msgstr "Impossible d'intialiser GTK"
 
-#: src/main.rs:111
+#: src/main.rs:122
 msgid "test-msg"
 msgstr "ceci est un test"
 
@@ -62,23 +63,27 @@ msgstr "Début"
 msgid "End"
 msgstr "Fin"
 
-#: src/ui/export_controller.rs:200
+#: src/ui/export_controller.rs:203
 msgid "Table of contents exported succesfully"
 msgstr "Table des matières exportée avec succès"
 
-#: src/ui/export_controller.rs:205
+#: src/ui/export_controller.rs:209
 msgid "Failed to create the file for the table of contents"
 msgstr "Échec à la création du fichier de table des matières"
 
-#: src/ui/main_controller.rs:458 src/ui/main_controller.rs:555
+#: src/ui/export_controller.rs:305
+msgid "Error exporting the media with a table of contents"
+msgstr "Exporter la Table des Matières"
+
+#: src/ui/main_controller.rs:459 src/ui/main_controller.rs:556
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
 
-#: src/ui/main_controller.rs:510
+#: src/ui/main_controller.rs:511
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:515
+#: src/ui/main_controller.rs:516
 msgid "Open"
 msgstr "Ouvrir"
 
@@ -126,106 +131,106 @@ msgstr "Format Cue Sheet"
 msgid "Matroska Container"
 msgstr "Conteneur Matroska"
 
-#: src/ui/media-toc.ui:189
-msgid "Repeat Chapter"
-msgstr "Répéter le Chapitre"
-
-#: src/ui/media-toc.ui:214
-msgid "Remove Chapter"
-msgstr "Supprimer le Chapitre"
-
-#: src/ui/media-toc.ui:228
-msgid "Add Chapter"
-msgstr "Ajouter un Chapitre"
-
-#: src/ui/media-toc.ui:262
+#: src/ui/media-toc.ui:114
 msgid "Title:"
 msgstr "Titre :"
 
-#: src/ui/media-toc.ui:274
+#: src/ui/media-toc.ui:126
 msgid "Artist:"
 msgstr "Artiste :"
 
-#: src/ui/media-toc.ui:286
+#: src/ui/media-toc.ui:138
 msgid "Container:"
 msgstr "Conteneur :"
 
-#: src/ui/media-toc.ui:298
+#: src/ui/media-toc.ui:150
 msgid "Video Codec:"
 msgstr "Codec Vidéo :"
 
-#: src/ui/media-toc.ui:310
+#: src/ui/media-toc.ui:162
 msgid "Audio Codec:"
 msgstr "Codec Audio :"
 
-#: src/ui/media-toc.ui:322
+#: src/ui/media-toc.ui:174
 msgid "Duration:"
 msgstr "Durée :"
 
-#: src/ui/media-toc.ui:639
-msgid "Zoom In"
-msgstr "Zoomer"
+#: src/ui/media-toc.ui:341
+msgid "Repeat Chapter"
+msgstr "Répéter le Chapitre"
 
-#: src/ui/media-toc.ui:653
-msgid "Zoom Out"
-msgstr "Dé-zoomer"
+#: src/ui/media-toc.ui:366
+msgid "Remove Chapter"
+msgstr "Supprimer le Chapitre"
 
-#: src/ui/media-toc.ui:679
-msgid "display"
-msgstr "affichage"
+#: src/ui/media-toc.ui:380
+msgid "Add Chapter"
+msgstr "Ajouter un Chapitre"
 
-#: src/ui/media-toc.ui:695
-msgid "Video Streams"
-msgstr "Flux Vidéos"
-
-#: src/ui/media-toc.ui:728
-msgid "Audio Streams"
-msgstr "Flux Audios"
-
-#: src/ui/media-toc.ui:761
-msgid "Text Streams"
-msgstr "Flux Textes"
-
-#: src/ui/media-toc.ui:791
-msgid "streams"
-msgstr "flux"
-
-#: src/ui/media-toc.ui:832
+#: src/ui/media-toc.ui:440
 msgid "Info text"
 msgstr "Texte d'information"
 
-#: src/ui/streams_controller.rs:311
+#: src/ui/media-toc.ui:570
+msgid "Zoom In"
+msgstr "Zoomer"
+
+#: src/ui/media-toc.ui:584
+msgid "Zoom Out"
+msgstr "Dé-zoomer"
+
+#: src/ui/media-toc.ui:675
+msgid "display"
+msgstr "affichage"
+
+#: src/ui/media-toc.ui:691
+msgid "Video Streams"
+msgstr "Flux Vidéos"
+
+#: src/ui/media-toc.ui:724
+msgid "Audio Streams"
+msgstr "Flux Audios"
+
+#: src/ui/media-toc.ui:757
+msgid "Text Streams"
+msgstr "Flux Textes"
+
+#: src/ui/media-toc.ui:787
+msgid "streams"
+msgstr "flux"
+
+#: src/ui/streams_controller.rs:309
 msgid "Stream id"
 msgstr "Id. du flux"
 
-#: src/ui/streams_controller.rs:312
+#: src/ui/streams_controller.rs:310
 msgid "Language"
 msgstr "Langue"
 
-#: src/ui/streams_controller.rs:313
+#: src/ui/streams_controller.rs:311
 msgid "Codec"
 msgstr "Codec"
 
-#: src/ui/streams_controller.rs:314
+#: src/ui/streams_controller.rs:312
 msgid "Comment"
 msgstr "Commentaire"
 
-#: src/ui/streams_controller.rs:333
+#: src/ui/streams_controller.rs:331
 msgid "Width"
 msgstr "Largeur"
 
-#: src/ui/streams_controller.rs:340
+#: src/ui/streams_controller.rs:338
 msgid "Height"
 msgstr "Hauteur"
 
-#: src/ui/streams_controller.rs:371
+#: src/ui/streams_controller.rs:369
 msgid "Rate"
 msgstr "Débit"
 
-#: src/ui/streams_controller.rs:378
+#: src/ui/streams_controller.rs:376
 msgid "Channels"
 msgstr "Canaux"
 
-#: src/ui/streams_controller.rs:409
+#: src/ui/streams_controller.rs:407
 msgid "Format"
 msgstr "Format"

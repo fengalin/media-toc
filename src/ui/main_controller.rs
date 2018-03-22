@@ -1,8 +1,3 @@
-use gettextrs::*;
-use glib;
-use gstreamer as gst;
-use gtk;
-
 use std::error::Error;
 
 use std::rc::Rc;
@@ -13,9 +8,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::mpsc::{channel, Receiver};
 
-use gdk::{Cursor, CursorType, WindowExt};
-
+use gettextrs::gettext;
+use glib;
+use gstreamer as gst;
+use gtk;
 use gtk::prelude::*;
+
+use gdk::{Cursor, CursorType, WindowExt};
 
 use media::{ContextMessage, PlaybackContext};
 use media::ContextMessage::*;

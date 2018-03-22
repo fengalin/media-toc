@@ -1,12 +1,11 @@
+use std::rc::Rc;
+use std::cell::RefCell;
+
+use gettextrs::gettext;
 use gstreamer as gst;
 
 use gtk;
 use gtk::prelude::*;
-
-use std::rc::Rc;
-use std::cell::RefCell;
-
-use gettextrs::*;
 
 use metadata::{Timestamp, TocVisitor};
 
@@ -18,6 +17,7 @@ const TITLE_COL: u32 = 2;
 const START_STR_COL: u32 = 3;
 const END_STR_COL: u32 = 4;
 
+// FIXME: translate
 lazy_static! {
     static ref DEFAULT_TITLE: String = "untitled".to_owned();
 }
