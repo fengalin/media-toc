@@ -1,7 +1,7 @@
 use glib::Cast;
 
 use gtk;
-use gtk::{BinExt, ButtonExt, ContainerExt, ImageExt, PopoverExt, StackExt, WidgetExt};
+use gtk::{BinExt, ButtonExt, ContainerExt, ImageExt, StackExt, WidgetExt};
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -107,7 +107,9 @@ impl PerspectiveController {
             button.connect_clicked(move |_| {
                 menu_btn_image.set_property_icon_name(Some(&perspective_icon_name));
                 stack.set_visible_child_name(&stack_child_name);
-                popover.popdown();
+                // popdown is available from GTK 3.22
+                // current package used on package is GTK .18
+                popover.hide();
             });
 
             index += 1;
