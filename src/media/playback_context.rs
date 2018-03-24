@@ -526,10 +526,12 @@ impl PlaybackContext {
         src_pad: &gst::Pad,
         video_sink: &gst::Element,
     ) {
+        let queue = gst::ElementFactory::make("queue", "video_queue").unwrap();
+        PlaybackContext::setup_queue(&queue);
         let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
         let scale = gst::ElementFactory::make("videoscale", None).unwrap();
 
-        let elements = &[&convert, &scale, video_sink];
+        let elements = &[&queue, &convert, &scale, video_sink];
         pipeline.add_many(elements).unwrap();
         gst::Element::link_many(elements).unwrap();
 
@@ -537,7 +539,7 @@ impl PlaybackContext {
             e.sync_state_with_parent().unwrap();
         }
 
-        let sink_pad = convert.get_static_pad("sink").unwrap();
+        let sink_pad = queue.get_static_pad("sink").unwrap();
         assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
     }
 
