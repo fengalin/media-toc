@@ -56,9 +56,6 @@ macro_rules! on_stream_selected(
 );
 
 pub struct StreamsController {
-    streams_button: gtk::ToggleButton,
-    display_streams_stack: gtk::Stack,
-
     video_treeview: gtk::TreeView,
     video_store: gtk::ListStore,
     video_selected: Option<String>,
@@ -77,9 +74,6 @@ pub struct StreamsController {
 impl StreamsController {
     pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
         let this_rc = Rc::new(RefCell::new(StreamsController {
-            streams_button: builder.get_object("streams-toggle").unwrap(),
-            display_streams_stack: builder.get_object("display_streams-stack").unwrap(),
-
             video_treeview: builder.get_object("video_streams-treeview").unwrap(),
             video_store: builder.get_object("video_streams-liststore").unwrap(),
             video_selected: None,
@@ -112,20 +106,6 @@ impl StreamsController {
 
         this.main_ctrl = Some(Rc::downgrade(main_ctrl));
 
-        // streams button
-        let this_clone = Rc::clone(this_rc);
-        this.streams_button.connect_clicked(move |button| {
-            let page_name = if button.get_active() {
-                "streams"
-            } else {
-                "display"
-            };
-            this_clone
-                .borrow_mut()
-                .display_streams_stack
-                .set_visible_child_name(page_name);
-        });
-
         // Video stream selection
         let this_clone = Rc::clone(this_rc);
         this.video_treeview
@@ -152,7 +132,6 @@ impl StreamsController {
     }
 
     pub fn cleanup(&mut self) {
-        self.streams_button.set_sensitive(false);
         self.video_store.clear();
         self.video_selected = None;
         self.audio_store.clear();
@@ -162,8 +141,6 @@ impl StreamsController {
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
-        self.streams_button.set_sensitive(true);
-
         let info = context
             .info
             .lock()

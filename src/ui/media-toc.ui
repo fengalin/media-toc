@@ -1,7 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Generated with glade 3.20.4 -->
+<!-- Generated with glade 3.20.4 
+
+The MIT License (MIT)
+
+Copyright (c) Copyright (C) 2018 François Laignel
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+Author: François Laignel
+
+-->
 <interface>
   <requires lib="gtk+" version="3.20"/>
+  <!-- interface-license-type mit -->
+  <!-- interface-name media-toc -->
+  <!-- interface-description Build a table of contents from a media file or split a media file into chapters -->
+  <!-- interface-copyright Copyright (C) 2018 Fran\303\247ois Laignel -->
+  <!-- interface-authors Fran\303\247ois Laignel -->
   <object class="GtkListStore" id="audio_streams-liststore">
     <columns>
       <!-- column-name stream_id_full -->
@@ -39,10 +70,10 @@
     <property name="can_focus">False</property>
     <property name="icon_name">media-playlist-repeat-symbolic</property>
   </object>
-  <object class="GtkImage" id="streams-image">
+  <object class="GtkImage" id="show_chapters-image">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
-    <property name="icon_name">document-properties-symbolic</property>
+    <property name="icon_name">emblem-documents-symbolic</property>
   </object>
   <object class="GtkListStore" id="text_streams-liststore">
     <columns>
@@ -464,7 +495,7 @@
               </packing>
             </child>
             <child>
-              <object class="GtkStack" id="display_streams-stack">
+              <object class="GtkStack" id="perspective-stack">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <property name="hexpand">True</property>
@@ -671,8 +702,8 @@
                     </child>
                   </object>
                   <packing>
-                    <property name="name">display</property>
-                    <property name="title" translatable="yes">display</property>
+                    <property name="name">Display</property>
+                    <property name="title" translatable="yes">Display</property>
                     <property name="icon_name">applications-multimedia-symbolic</property>
                   </packing>
                 </child>
@@ -784,8 +815,8 @@
                     </child>
                   </object>
                   <packing>
-                    <property name="name">streams</property>
-                    <property name="title" translatable="yes">streams</property>
+                    <property name="name">Streams</property>
+                    <property name="title" translatable="yes">Streams</property>
                     <property name="position">1</property>
                   </packing>
                 </child>
@@ -813,22 +844,21 @@
         <property name="title">media-toc</property>
         <property name="show_close_button">True</property>
         <child>
-          <object class="GtkMenuButton" id="stack-menu-btn">
+          <object class="GtkMenuButton" id="perspective-menu-btn">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
-            <property name="popover">stack-popovermenu</property>
+            <property name="popover">perspective-popovermenu</property>
             <child>
-              <object class="GtkBox" id="stack-menu-btn-image-box">
+              <object class="GtkBox" id="perspective-menu-btn-image-box">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <property name="spacing">6</property>
                 <property name="homogeneous">True</property>
                 <child>
-                  <object class="GtkImage" id="stack-menu-btn-selected-image">
+                  <object class="GtkImage" id="perspective-menu-btn-selected-image">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="icon_name">applications-multimedia-symbolic</property>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -837,7 +867,7 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkImage" id="stack-menu-btn-arrow-image">
+                  <object class="GtkImage" id="perspective-menu-btn-arrow-image">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="icon_name">pan-down-symbolic</property>
@@ -870,12 +900,13 @@
           </packing>
         </child>
         <child>
-          <object class="GtkToggleButton" id="streams-toggle">
+          <object class="GtkToggleButton" id="show_chapters-toggle">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
-            <property name="image">streams-image</property>
+            <property name="image">show_chapters-image</property>
             <property name="always_show_image">True</property>
+            <property name="active">True</property>
           </object>
           <packing>
             <property name="pack_type">end</property>
@@ -891,7 +922,7 @@
               <object class="GtkImage">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
-                <property name="icon_name">view-paged-symbolic</property>
+                <property name="icon_name">edit-cut-symbolic</property>
               </object>
             </child>
           </object>
@@ -903,11 +934,11 @@
       </object>
     </child>
   </object>
-  <object class="GtkPopoverMenu" id="stack-popovermenu">
+  <object class="GtkPopoverMenu" id="perspective-popovermenu">
     <property name="can_focus">False</property>
-    <property name="relative_to">stack-menu-btn</property>
+    <property name="relative_to">perspective-menu-btn</property>
     <child>
-      <object class="GtkBox">
+      <object class="GtkBox" id="perspective-popovermenu-box">
         <property name="visible">True</property>
         <property name="can_focus">False</property>
         <property name="margin_left">6</property>
@@ -915,20 +946,20 @@
         <property name="margin_top">6</property>
         <property name="margin_bottom">6</property>
         <property name="orientation">vertical</property>
-        <property name="spacing">6</property>
         <child>
-          <object class="GtkButton">
+          <object class="GtkButton" id="perspective-display-btn">
+            <property name="name">perspective-display-btn</property>
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
             <property name="relief">none</property>
             <child>
-              <object class="GtkBox">
+              <object class="GtkBox" id="perspective-display-box">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <property name="spacing">5</property>
                 <child>
-                  <object class="GtkImage">
+                  <object class="GtkImage" id="perspective-display-image">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="icon_name">applications-multimedia-symbolic</property>
@@ -940,7 +971,7 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkLabel">
+                  <object class="GtkLabel" id="perspective-display-lb">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="label" translatable="yes">Display</property>
@@ -961,18 +992,19 @@
           </packing>
         </child>
         <child>
-          <object class="GtkButton">
+          <object class="GtkButton" id="perspective-streams-btn">
+            <property name="name">perspective-streams-btn</property>
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
             <property name="relief">none</property>
             <child>
-              <object class="GtkBox">
+              <object class="GtkBox" id="perspective-streams-box">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <property name="spacing">5</property>
                 <child>
-                  <object class="GtkImage">
+                  <object class="GtkImage" id="perspective-streams-image">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="icon_name">open-menu-symbolic</property>
@@ -984,7 +1016,7 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkLabel">
+                  <object class="GtkLabel" id="perspective-streams-lbl">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="label" translatable="yes">Streams</property>
@@ -1010,6 +1042,7 @@
       </object>
       <packing>
         <property name="submenu">main</property>
+        <property name="position">1</property>
       </packing>
     </child>
   </object>

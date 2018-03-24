@@ -19,8 +19,8 @@ use gdk::{Cursor, CursorType, WindowExt};
 use media::{ContextMessage, PlaybackContext};
 use media::ContextMessage::*;
 
-use super::{AudioController, ChaptersBoundaries, ExportController, InfoController, StreamsController,
-            VideoController};
+use super::{AudioController, ChaptersBoundaries, ExportController, InfoController,
+            PerspectiveController, StreamsController, VideoController};
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
 const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
@@ -52,6 +52,7 @@ pub struct MainController {
     info_bar: gtk::InfoBar,
     info_bar_lbl: gtk::Label,
 
+    perspective_ctrl: Rc<RefCell<PerspectiveController>>,
     video_ctrl: VideoController,
     info_ctrl: Rc<RefCell<InfoController>>,
     audio_ctrl: Rc<RefCell<AudioController>>,
@@ -82,6 +83,7 @@ impl MainController {
             info_bar: builder.get_object("info-bar").unwrap(),
             info_bar_lbl: builder.get_object("info_bar-lbl").unwrap(),
 
+            perspective_ctrl: PerspectiveController::new(builder),
             video_ctrl: VideoController::new(builder),
             info_ctrl: InfoController::new(builder, Rc::clone(&chapters_boundaries)),
             audio_ctrl: AudioController::new(builder, chapters_boundaries),
@@ -133,6 +135,7 @@ impl MainController {
             this_mut.info_bar.connect_response(|info_bar, _| info_bar.hide());
 
             this_mut.video_ctrl.register_callbacks(&this);
+            PerspectiveController::register_callbacks(&this_mut.perspective_ctrl, &this);
             InfoController::register_callbacks(&this_mut.info_ctrl, &this);
             AudioController::register_callbacks(&this_mut.audio_ctrl, &this);
             ExportController::register_callbacks(&this_mut.export_ctrl, &this);
@@ -397,6 +400,7 @@ impl MainController {
 
                         this.header_bar
                             .set_subtitle(Some(context.file_name.as_str()));
+                        this.perspective_ctrl.borrow().new_media();
                         this.streams_ctrl.borrow_mut().new_media(&context);
                         this.info_ctrl.borrow_mut().new_media(&context);
                         this.video_ctrl.new_media(&context);
@@ -538,6 +542,7 @@ impl MainController {
         self.video_ctrl.cleanup();
         self.export_ctrl.borrow_mut().cleanup();
         self.streams_ctrl.borrow_mut().cleanup();
+        self.perspective_ctrl.borrow().cleanup();
         self.header_bar.set_subtitle("");
 
         let (ctx_tx, ui_rx) = channel();

@@ -22,6 +22,9 @@ lazy_static! {
 }
 
 pub struct InfoController {
+    info_container: gtk::Grid,
+    show_chapters_button: gtk::ToggleButton,
+
     drawingarea: gtk::DrawingArea,
 
     title_lbl: gtk::Label,
@@ -68,6 +71,9 @@ impl InfoController {
         // need a RefCell because the callbacks will use immutable versions of ac
         // when the UI controllers will get a mutable version from time to time
         let this_rc = Rc::new(RefCell::new(InfoController {
+            info_container: builder.get_object("info-chapter_list-grid").unwrap(),
+            show_chapters_button: builder.get_object("show_chapters-toggle").unwrap(),
+
             drawingarea: builder.get_object("thumbnail-drawingarea").unwrap(),
 
             title_lbl: builder.get_object("title-lbl").unwrap(),
@@ -109,6 +115,17 @@ impl InfoController {
         let mut this = this_rc.borrow_mut();
 
         this.main_ctrl = Some(Rc::downgrade(main_ctrl));
+
+        // Show chapters toglle
+        let this_clone = Rc::clone(this_rc);
+        this.show_chapters_button
+            .connect_toggled(move |toggle_button| {
+                if toggle_button.get_active() {
+                    this_clone.borrow().info_container.show();
+                } else {
+                    this_clone.borrow().info_container.hide();
+                }
+            });
 
         // Draw thumnail image
         let this_clone = Rc::clone(this_rc);
@@ -211,6 +228,8 @@ impl InfoController {
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
+        self.show_chapters_button.set_sensitive(true);
+
         let media_path = context.path.clone();
         let file_stem = media_path
             .file_stem()
@@ -315,6 +334,7 @@ impl InfoController {
     }
 
     pub fn cleanup(&mut self) {
+        self.show_chapters_button.set_sensitive(false);
         self.title_lbl.set_text("");
         self.artist_lbl.set_text("");
         self.container_lbl.set_text("");

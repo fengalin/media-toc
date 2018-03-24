@@ -24,7 +24,7 @@ gettext-rs = { git = "https://github.com/Koka/gettext-rs", features = ["gettext-
 cairo-rs = { git = "https://github.com/gtk-rs/cairo.git" }
 gdk = { git = "https://github.com/gtk-rs/gdk.git" }
 glib = { git = "https://github.com/gtk-rs/glib.git" }
-gtk = { git = "https://github.com/gtk-rs/gtk.git", features = ["v3_18"] }
+gtk = { git = "https://github.com/gtk-rs/gtk.git", features = ["v3_22"] }
 
 gstreamer = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }
 gstreamer-audio = { git = "https://github.com/sdroege/gstreamer-rs.git", features = ["v1_10"] }

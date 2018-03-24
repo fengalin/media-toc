@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-22 14:39+0100\n"
-"PO-Revision-Date: 2018-03-22 14:39+0100\n"
+"POT-Creation-Date: 2018-03-24 14:45+0100\n"
+"PO-Revision-Date: 2018-03-24 14:46+0100\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -75,15 +75,15 @@ msgstr "Échec à la création du fichier de table des matières"
 msgid "Error exporting the media with a table of contents"
 msgstr "Exporter la Table des Matières"
 
-#: src/ui/main_controller.rs:459 src/ui/main_controller.rs:556
+#: src/ui/main_controller.rs:462 src/ui/main_controller.rs:559
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
 
-#: src/ui/main_controller.rs:511
+#: src/ui/main_controller.rs:514
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:516
+#: src/ui/main_controller.rs:519
 msgid "Open"
 msgstr "Ouvrir"
 
@@ -131,73 +131,73 @@ msgstr "Format Cue Sheet"
 msgid "Matroska Container"
 msgstr "Conteneur Matroska"
 
-#: src/ui/media-toc.ui:114
+#: src/ui/media-toc.ui:181
 msgid "Title:"
 msgstr "Titre :"
 
-#: src/ui/media-toc.ui:126
+#: src/ui/media-toc.ui:193
 msgid "Artist:"
 msgstr "Artiste :"
 
-#: src/ui/media-toc.ui:138
+#: src/ui/media-toc.ui:205
 msgid "Container:"
 msgstr "Conteneur :"
 
-#: src/ui/media-toc.ui:150
+#: src/ui/media-toc.ui:217
 msgid "Video Codec:"
 msgstr "Codec Vidéo :"
 
-#: src/ui/media-toc.ui:162
+#: src/ui/media-toc.ui:229
 msgid "Audio Codec:"
 msgstr "Codec Audio :"
 
-#: src/ui/media-toc.ui:174
+#: src/ui/media-toc.ui:241
 msgid "Duration:"
 msgstr "Durée :"
 
-#: src/ui/media-toc.ui:341
+#: src/ui/media-toc.ui:408
 msgid "Repeat Chapter"
 msgstr "Répéter le Chapitre"
 
-#: src/ui/media-toc.ui:366
+#: src/ui/media-toc.ui:433
 msgid "Remove Chapter"
 msgstr "Supprimer le Chapitre"
 
-#: src/ui/media-toc.ui:380
+#: src/ui/media-toc.ui:447
 msgid "Add Chapter"
 msgstr "Ajouter un Chapitre"
 
-#: src/ui/media-toc.ui:440
+#: src/ui/media-toc.ui:507
 msgid "Info text"
 msgstr "Texte d'information"
 
-#: src/ui/media-toc.ui:570
+#: src/ui/media-toc.ui:637
 msgid "Zoom In"
 msgstr "Zoomer"
 
-#: src/ui/media-toc.ui:584
+#: src/ui/media-toc.ui:651
 msgid "Zoom Out"
 msgstr "Dé-zoomer"
 
-#: src/ui/media-toc.ui:675
-msgid "display"
-msgstr "affichage"
+#: src/ui/media-toc.ui:742 src/ui/media-toc.ui:1013
+msgid "Display"
+msgstr "Affichage"
 
-#: src/ui/media-toc.ui:691
+#: src/ui/media-toc.ui:759
 msgid "Video Streams"
 msgstr "Flux Vidéos"
 
-#: src/ui/media-toc.ui:724
+#: src/ui/media-toc.ui:792
 msgid "Audio Streams"
 msgstr "Flux Audios"
 
-#: src/ui/media-toc.ui:757
+#: src/ui/media-toc.ui:825
 msgid "Text Streams"
 msgstr "Flux Textes"
 
-#: src/ui/media-toc.ui:787
-msgid "streams"
-msgstr "flux"
+#: src/ui/media-toc.ui:855 src/ui/media-toc.ui:1058
+msgid "Streams"
+msgstr "Flux"
 
 #: src/ui/streams_controller.rs:309
 msgid "Stream id"
