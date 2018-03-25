@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-25 19:37+0200\n"
-"PO-Revision-Date: 2018-03-25 19:38+0200\n"
+"POT-Creation-Date: 2018-03-25 20:13+0200\n"
+"PO-Revision-Date: 2018-03-25 20:14+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -72,10 +72,14 @@ msgid "Failed to create the file for the table of contents"
 msgstr "Échec à la création du fichier de table des matières"
 
 #: src/ui/export_controller.rs:330
-msgid "Error exporting the media with a table of contents"
-msgstr "Exporter la Table des Matières"
+msgid "ERROR: preparing for export: {}"
+msgstr "ERREUR : échec lors de la préparation de l'export : {}"
 
-#: src/ui/export_controller.rs:592
+#: src/ui/export_controller.rs:376
+msgid "ERROR: preparing for split: {}"
+msgstr "ERREUR : échec lors de la préparation du découpage : {}"
+
+#: src/ui/export_controller.rs:599
 msgid ""
 "Matroska Container export requires\n"
 "gst-plugins-good >= 1.14"
@@ -83,23 +87,23 @@ msgstr ""
 "L'export vers un conteneur Matroska nécessite\n"
 "gst-plugins-good >= 1.14"
 
-#: src/ui/export_controller.rs:672
+#: src/ui/export_controller.rs:679
 msgid "ERROR: failed to export media: {}"
-msgstr "ERREUR : échec lors de l'export du média: {}"
+msgstr "ERREUR : échec lors de l'export du média : {}"
 
-#: src/ui/export_controller.rs:683
+#: src/ui/export_controller.rs:690
 msgid "Media exported succesfully"
 msgstr "Table des matières exportée avec succès"
 
-#: src/ui/export_controller.rs:687
+#: src/ui/export_controller.rs:694
 msgid "ERROR: failed to export media"
 msgstr "ERREUR : échec lors de l'export du média"
 
-#: src/ui/export_controller.rs:740
+#: src/ui/export_controller.rs:747
 msgid "Media split succesfully"
 msgstr "Média découpé avec succès"
 
-#: src/ui/export_controller.rs:747
+#: src/ui/export_controller.rs:754
 msgid "ERROR: failed to split media"
 msgstr "ERREUR : échec lors du découpage du média"
 
@@ -333,17 +337,20 @@ msgstr "Canaux"
 msgid "Format"
 msgstr "Format"
 
-#~ msgid "Export the Table of Contents"
-#~ msgstr "Exporter la Table des Matières"
-
-#~ msgid "Split into one audio file per chapter"
-#~ msgstr "Découper en fichiers audios"
-
-#~ msgid "Wave / PCM (no compression)"
-#~ msgstr "Wave / PCM (pas de compression)"
+#~ msgid "MP3 (lossy compression)"
+#~ msgstr "MP3 (compression avec perte)"
 
 #~ msgid "Vorbis (lossy compression)"
 #~ msgstr "Vorbis (compression avec perte)"
 
-#~ msgid "MP3 (lossy compression)"
-#~ msgstr "MP3 (compression avec perte)"
+#~ msgid "Wave / PCM (no compression)"
+#~ msgstr "Wave / PCM (pas de compression)"
+
+#~ msgid "Split into one audio file per chapter"
+#~ msgstr "Découper en fichiers audios"
+
+#~ msgid "Export the Table of Contents"
+#~ msgstr "Exporter la Table des Matières"
+
+#~ msgid "Error exporting the media with a table of contents"
+#~ msgstr "Exporter la Table des Matières"

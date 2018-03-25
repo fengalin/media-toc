@@ -327,8 +327,9 @@ impl ExportController {
                 self.toc_setter_ctx = Some(toc_setter_ctx);
             }
             Err(error) => {
-                let msg = gettext("Error exporting the media with a table of contents").to_owned();
-                eprintln!("{}: {}", msg, error);
+                let msg = gettext("ERROR: preparing for export: {}")
+                    .replacen("{}", &error, 1);
+                eprintln!("{}", msg);
                 self.remove_listener();
                 self.switch_to_available();
                 self.restore_context();
@@ -372,7 +373,13 @@ impl ExportController {
                 true
             }
             Err(error) => {
-                eprintln!("Error exporting media: {}", error);
+                let msg = gettext("ERROR: preparing for split: {}")
+                    .replacen("{}", &error, 1);
+                eprintln!("{}", msg);
+                self.remove_listener();
+                self.switch_to_available();
+                self.restore_context();
+                self.show_error(&msg);
                 false
             }
         }
