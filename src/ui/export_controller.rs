@@ -339,10 +339,6 @@ impl ExportController {
     }
 
     fn build_splitter_context(&mut self, format: &metadata::Format) -> bool {
-        let (ctx_tx, ui_rx) = channel();
-
-        self.register_splitter_listener(format, LISTENER_PERIOD, ui_rx);
-
         if self.toc_visitor.is_none() {
             // FIXME: display message: no chapter
             return false;
@@ -358,8 +354,10 @@ impl ExportController {
         let chapter = self.update_tags(&mut chapter);
 
         let output_path = self.get_split_path(&chapter);
-
         let media_path = self.media_path.clone();
+
+        let (ctx_tx, ui_rx) = channel();
+        self.register_splitter_listener(format, LISTENER_PERIOD, ui_rx);
         match SplitterContext::new(
             &media_path,
             &output_path,
@@ -754,6 +752,7 @@ impl ExportController {
                         let message = gettext("ERROR: failed to split media");
                         eprintln!("{}", message);
                         this.show_error(&message);
+                        this.listener_src = None;
                         keep_going = false;
                         process_done = true;
                     }
@@ -766,8 +765,6 @@ impl ExportController {
             }
 
             if !keep_going {
-                this.listener_src = None;
-
                 if process_done {
                     this.switch_to_available();
                     this.restore_context();
