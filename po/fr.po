@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-25 20:13+0200\n"
-"PO-Revision-Date: 2018-03-25 20:14+0200\n"
+"POT-Creation-Date: 2018-03-25 22:05+0200\n"
+"PO-Revision-Date: 2018-03-25 22:06+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -51,6 +51,70 @@ msgstr "Impossible d'intialiser GTK"
 msgid "test-msg"
 msgstr "ceci est un test"
 
+#: src/media/splitter_context.rs:33
+msgid ""
+"Missing `flacenc`\n"
+"check your gst-plugins-good install"
+msgstr ""
+"`flacenc` manquant\n"
+"Vérifiez l'installation de gst-plugin-good"
+
+#: src/media/splitter_context.rs:39
+msgid ""
+"Missing `wavenc`\n"
+"check your gst-plugins-good install"
+msgstr ""
+"`wavenc` manquant\n"
+"Vérifiez l'installation de gst-plugin-good"
+
+#: src/media/splitter_context.rs:45 src/media/splitter_context.rs:57
+msgid ""
+"Missing `opusenc`\n"
+"check your gst-plugins-good install"
+msgstr ""
+"`opusenc` manquant\n"
+"Vérifiez l'installation de gst-plugin-good"
+
+#: src/media/splitter_context.rs:50 src/media/splitter_context.rs:62
+msgid ""
+"Missing `oggmux`\n"
+"check your gst-plugins-good install"
+msgstr ""
+"`oggmux` manquant\n"
+"Vérifiez l'installation de gst-plugin-good"
+
+#: src/media/splitter_context.rs:69
+msgid ""
+"Missing `lamemp3enc`\n"
+"check your gst-plugins-good install"
+msgstr ""
+"`lamemp3enc` manquant\n"
+"Vérifiez l'installation de gst-plugin-good"
+
+#: src/media/splitter_context.rs:74
+msgid ""
+"Missing `id3v2mux`\n"
+"check your gst-plugins-good install"
+msgstr ""
+"`id3v2mux` manquant\n"
+"Vérifiez l'installation de gst-plugin-good"
+
+#: src/media/toc_setter_context.rs:29
+msgid ""
+"Missing `matroskamux`\n"
+"check your gst-plugins-good install"
+msgstr ""
+"`matroskamux` manquant\n"
+"Vérifiez l'installation de gst-plugin-good"
+
+#: src/media/toc_setter_context.rs:33
+msgid ""
+"Matroska export requires\n"
+"gst-plugins-good >= 1.14"
+msgstr ""
+"L'export vers un conteneur Matroska nécessite\n"
+"gst-plugins-good >= 1.14"
+
 #: src/ui/chapter_tree_manager.rs:142
 msgid "Title"
 msgstr "Titre"
@@ -63,47 +127,39 @@ msgstr "Début"
 msgid "End"
 msgstr "Fin"
 
-#: src/ui/export_controller.rs:249
+#: src/ui/export_controller.rs:289
 msgid "Table of contents exported succesfully"
 msgstr "Table des matières exportée avec succès"
 
-#: src/ui/export_controller.rs:255
+#: src/ui/export_controller.rs:295
 msgid "Failed to create the file for the table of contents"
 msgstr "Échec à la création du fichier de table des matières"
 
-#: src/ui/export_controller.rs:330
+#: src/ui/export_controller.rs:370
 msgid "ERROR: preparing for export: {}"
 msgstr "ERREUR : échec lors de la préparation de l'export : {}"
 
-#: src/ui/export_controller.rs:376
+#: src/ui/export_controller.rs:414
 msgid "ERROR: preparing for split: {}"
 msgstr "ERREUR : échec lors de la préparation du découpage : {}"
 
-#: src/ui/export_controller.rs:599
-msgid ""
-"Matroska Container export requires\n"
-"gst-plugins-good >= 1.14"
-msgstr ""
-"L'export vers un conteneur Matroska nécessite\n"
-"gst-plugins-good >= 1.14"
-
-#: src/ui/export_controller.rs:679
+#: src/ui/export_controller.rs:685
 msgid "ERROR: failed to export media: {}"
 msgstr "ERREUR : échec lors de l'export du média : {}"
 
-#: src/ui/export_controller.rs:690
+#: src/ui/export_controller.rs:696
 msgid "Media exported succesfully"
 msgstr "Table des matières exportée avec succès"
 
-#: src/ui/export_controller.rs:694
+#: src/ui/export_controller.rs:700
 msgid "ERROR: failed to export media"
 msgstr "ERREUR : échec lors de l'export du média"
 
-#: src/ui/export_controller.rs:747
+#: src/ui/export_controller.rs:753
 msgid "Media split succesfully"
 msgstr "Média découpé avec succès"
 
-#: src/ui/export_controller.rs:754
+#: src/ui/export_controller.rs:760
 msgid "ERROR: failed to split media"
 msgstr "ERREUR : échec lors du découpage du média"
 
@@ -167,7 +223,7 @@ msgstr "Zoomer"
 msgid "Zoom Out"
 msgstr "Dé-zoomer"
 
-#: src/ui/media-toc.ui:707 src/ui/media-toc.ui:1635
+#: src/ui/media-toc.ui:707 src/ui/media-toc.ui:1735
 msgid "Display"
 msgstr "Affichage"
 
@@ -183,7 +239,7 @@ msgstr "Flux Audios"
 msgid "Text Streams"
 msgstr "Flux Textes"
 
-#: src/ui/media-toc.ui:823 src/ui/media-toc.ui:1680
+#: src/ui/media-toc.ui:823 src/ui/media-toc.ui:1780
 msgid "Streams"
 msgstr "Flux"
 
@@ -253,11 +309,11 @@ msgstr ""
 "Flac (compression sans perte).\n"
 "Tags gérés."
 
-#: src/ui/media-toc.ui:1234
+#: src/ui/media-toc.ui:1254
 msgid "Wave / PCM"
 msgstr "Wave / PCM"
 
-#: src/ui/media-toc.ui:1250
+#: src/ui/media-toc.ui:1270
 msgid ""
 "No compression.\n"
 "Tags support."
@@ -265,11 +321,11 @@ msgstr ""
 "Sans compression.\n"
 "Tags gérés."
 
-#: src/ui/media-toc.ui:1284
+#: src/ui/media-toc.ui:1324
 msgid "Opus"
 msgstr "Opus"
 
-#: src/ui/media-toc.ui:1300 src/ui/media-toc.ui:1350 src/ui/media-toc.ui:1400
+#: src/ui/media-toc.ui:1340 src/ui/media-toc.ui:1410 src/ui/media-toc.ui:1480
 msgid ""
 "Audio lossy compression.\n"
 "Tags support."
@@ -277,27 +333,27 @@ msgstr ""
 "Compression audio avec perte.\n"
 "Tags gérés."
 
-#: src/ui/media-toc.ui:1334
+#: src/ui/media-toc.ui:1394
 msgid "Vorbis"
 msgstr "Vrobis"
 
-#: src/ui/media-toc.ui:1384
+#: src/ui/media-toc.ui:1464
 msgid "MP3"
 msgstr "MP3"
 
-#: src/ui/media-toc.ui:1423 src/ui/media-toc.ui:1770
+#: src/ui/media-toc.ui:1523 src/ui/media-toc.ui:1870
 msgid "Split"
 msgstr "Découper"
 
-#: src/ui/media-toc.ui:1445
+#: src/ui/media-toc.ui:1545
 msgid "Split Formats"
 msgstr "Formats cibles"
 
-#: src/ui/media-toc.ui:1492
+#: src/ui/media-toc.ui:1592
 msgid "page1"
 msgstr "page1"
 
-#: src/ui/media-toc.ui:1725
+#: src/ui/media-toc.ui:1825
 msgid "Export\t"
 msgstr "Exporter"
 

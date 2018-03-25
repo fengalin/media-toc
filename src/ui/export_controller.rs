@@ -1,4 +1,4 @@
-use gettextrs::*;
+use gettextrs::gettext;
 use glib;
 use gstreamer as gst;
 
@@ -50,10 +50,15 @@ pub struct ExportController {
 
     split_list: gtk::ListBox,
     split_to_flac_row: gtk::ListBoxRow,
+    flac_warning_lbl: gtk::Label,
     split_to_wave_row: gtk::ListBoxRow,
+    wave_warning_lbl: gtk::Label,
     split_to_opus_row: gtk::ListBoxRow,
+    opus_warning_lbl: gtk::Label,
     split_to_vorbis_row: gtk::ListBoxRow,
+    vorbis_warning_lbl: gtk::Label,
     split_to_mp3_row: gtk::ListBoxRow,
+    mp3_warning_lbl: gtk::Label,
     split_progress_bar: gtk::ProgressBar,
     split_btn: gtk::Button,
 
@@ -90,10 +95,15 @@ impl ExportController {
 
             split_list: builder.get_object("split-list-box").unwrap(),
             split_to_flac_row: builder.get_object("flac_split-row").unwrap(),
+            flac_warning_lbl: builder.get_object("flac_warning-lbl").unwrap(),
             split_to_wave_row: builder.get_object("wave_split-row").unwrap(),
+            wave_warning_lbl: builder.get_object("wave_warning-lbl").unwrap(),
             split_to_opus_row: builder.get_object("opus_split-row").unwrap(),
+            opus_warning_lbl: builder.get_object("opus_warning-lbl").unwrap(),
             split_to_vorbis_row: builder.get_object("vorbis_split-row").unwrap(),
+            vorbis_warning_lbl: builder.get_object("vorbis_warning-lbl").unwrap(),
             split_to_mp3_row: builder.get_object("mp3_split-row").unwrap(),
+            mp3_warning_lbl: builder.get_object("mp3_warning-lbl").unwrap(),
             split_progress_bar: builder.get_object("split-progress").unwrap(),
             split_btn: builder.get_object("split-btn").unwrap(),
 
@@ -122,6 +132,7 @@ impl ExportController {
 
             this_mut.export_list.select_row(&this_mut.mkvmerge_txt_row);
             this_mut.split_list.select_row(&this_mut.split_to_flac_row);
+            this_mut.check_requirements();
             this_mut.switch_to_available();
         }
 
@@ -179,6 +190,35 @@ impl ExportController {
     pub fn cleanup(&mut self) {
         self.export_progress_bar.set_fraction(0f64);
         self.split_progress_bar.set_fraction(0f64);
+    }
+
+    fn check_requirements(&self) {
+        if let Err(err) = TocSetterContext::check_requirements() {
+            self.mkvmerge_txt_warning_lbl.set_label(&err);
+            self.mkv_row.set_sensitive(false)
+        }
+
+        if let Err(err) = SplitterContext::check_requirements(Format::Flac) {
+            self.flac_warning_lbl.set_label(&err);
+            self.split_to_flac_row.set_sensitive(false)
+        }
+
+        if let Err(err) = SplitterContext::check_requirements(Format::Wave) {
+            self.wave_warning_lbl.set_label(&err);
+            self.split_to_wave_row.set_sensitive(false)
+        }
+        if let Err(err) = SplitterContext::check_requirements(Format::Opus) {
+            self.opus_warning_lbl.set_label(&err);
+            self.split_to_opus_row.set_sensitive(false)
+        }
+        if let Err(err) = SplitterContext::check_requirements(Format::Vorbis) {
+            self.vorbis_warning_lbl.set_label(&err);
+            self.split_to_vorbis_row.set_sensitive(false)
+        }
+        if let Err(err) = SplitterContext::check_requirements(Format::MP3) {
+            self.mp3_warning_lbl.set_label(&err);
+            self.split_to_mp3_row.set_sensitive(false)
+        }
     }
 
     fn prepare_process(&mut self, format: &metadata::Format) {
@@ -588,38 +628,6 @@ impl ExportController {
         self.export_btn.set_sensitive(true);
         self.split_btn.set_sensitive(true);
         self.split_list.set_sensitive(true);
-
-        // TODO: handle message at origin
-        if TocSetterContext::check_requirements() {
-            self.mkv_row.set_sensitive(true);
-        } else {
-            self.mkvmerge_txt_warning_lbl.set_label(
-                &gettext("Matroska Container export requires\ngst-plugins-good >= 1.14")
-            );
-            self.mkv_row.set_sensitive(false);
-        }
-
-        self.mkvmerge_txt_row.set_sensitive(true);
-        self.cue_row.set_sensitive(true);
-
-        // TODO: display message when feature is not available
-        self.split_to_flac_row.set_sensitive(
-            SplitterContext::check_requirements(Format::Flac),
-        );
-        self.split_to_wave_row.set_sensitive(
-            SplitterContext::check_requirements(Format::Wave),
-        );
-        self.split_to_opus_row.set_sensitive(
-            SplitterContext::check_requirements(Format::Opus),
-        );
-        self.split_to_vorbis_row.set_sensitive(
-            SplitterContext::check_requirements(Format::Vorbis),
-        );
-        self.split_to_mp3_row.set_sensitive(
-            SplitterContext::check_requirements(Format::MP3),
-        );
-
-        self.export_btn.set_sensitive(true);
     }
 
     fn remove_listener(&mut self) {

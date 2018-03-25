@@ -1,3 +1,5 @@
+use gettextrs::gettext;
+
 use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer::PadExt;
@@ -18,14 +20,18 @@ pub struct TocSetterContext {
 }
 
 impl TocSetterContext {
-    pub fn check_requirements() -> bool {
+    pub fn check_requirements() -> Result<(), String> {
         // Exporting to Mastroska containers is only
         // available from gst-plugins-good 1.13.1
         let (major, minor, micro, _nano) = gst::version();
-        (
-            major >=1 && minor >=13 && micro >= 1
-            && gst::ElementFactory::make("matroskamux", None).is_some()
-        )
+        if major >=1 && minor >=13 && micro >= 1 {
+            gst::ElementFactory::make("matroskamux", None).map_or(
+                Err(gettext("Missing `matroskamux`\ncheck your gst-plugins-good install")),
+                |_| Ok(())
+            )
+        } else {
+            Err(gettext("Matroska export requires\ngst-plugins-good >= 1.14"))
+        }
     }
 
     pub fn new(

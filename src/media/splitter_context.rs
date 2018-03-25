@@ -1,3 +1,5 @@
+use gettextrs::gettext;
+
 use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer::ClockTime;
@@ -24,16 +26,56 @@ pub struct SplitterContext {
 }
 
 impl SplitterContext {
-    pub fn check_requirements(format: Format) -> bool {
+    pub fn check_requirements(format: Format) -> Result<(), String> {
         match format {
-            Format::Flac => gst::ElementFactory::make("flacenc", None).is_some(),
-            Format::Wave => gst::ElementFactory::make("wavenc", None).is_some(),
-            Format::Opus => gst::ElementFactory::make("opusenc", None).is_some()
-                && gst::ElementFactory::make("oggmux", None).is_some(),
-            Format::Vorbis => gst::ElementFactory::make("vorbisenc", None).is_some()
-                && gst::ElementFactory::make("oggmux", None).is_some(),
-            Format::MP3 => gst::ElementFactory::make("lamemp3enc", None).is_some()
-                && gst::ElementFactory::make("id3v2mux", None).is_some(),
+            Format::Flac => {
+                gst::ElementFactory::make("flacenc", None).map_or(
+                    Err(gettext("Missing `flacenc`\ncheck your gst-plugins-good install")),
+                    |_| Ok(())
+                )
+            }
+            Format::Wave => {
+                gst::ElementFactory::make("wavenc", None).map_or(
+                    Err(gettext("Missing `wavenc`\ncheck your gst-plugins-good install")),
+                    |_| Ok(())
+                )
+            }
+            Format::Opus => {
+                gst::ElementFactory::make("opusenc", None).map_or(
+                    Err(gettext("Missing `opusenc`\ncheck your gst-plugins-good install")),
+                    |_| Ok(())
+                )
+                    .and_then(|_| {
+                        gst::ElementFactory::make("oggmux", None).map_or(
+                            Err(gettext("Missing `oggmux`\ncheck your gst-plugins-good install")),
+                            |_| Ok(())
+                        )
+                    })
+            }
+            Format::Vorbis => {
+                gst::ElementFactory::make("vorbisenc", None).map_or(
+                    Err(gettext("Missing `opusenc`\ncheck your gst-plugins-good install")),
+                    |_| Ok(())
+                )
+                    .and_then(|_| {
+                        gst::ElementFactory::make("oggmux", None).map_or(
+                            Err(gettext("Missing `oggmux`\ncheck your gst-plugins-good install")),
+                            |_| Ok(())
+                        )
+                    })
+            }
+            Format::MP3 => {
+                gst::ElementFactory::make("lamemp3enc", None).map_or(
+                    Err(gettext("Missing `lamemp3enc`\ncheck your gst-plugins-good install")),
+                    |_| Ok(())
+                )
+                    .and_then(|_| {
+                        gst::ElementFactory::make("id3v2mux", None).map_or(
+                            Err(gettext("Missing `id3v2mux`\ncheck your gst-plugins-good install")),
+                            |_| Ok(())
+                        )
+                    })
+            }
             _ => panic!(
                 "SplitterContext::check_requirements unsupported format: {:?}", format
             ),

@@ -1,6 +1,8 @@
 # List of source files containing translatable strings.
 # Please keep this file sorted alphabetically.
 src/main.rs
+src/media/splitter_context.rs
+src/media/toc_setter_context.rs
 src/ui/chapter_tree_manager.rs
 src/ui/export_controller.rs
 src/ui/main_controller.rs
