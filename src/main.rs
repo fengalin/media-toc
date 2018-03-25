@@ -23,7 +23,7 @@ use clap::{Arg, App};
 
 use gettextrs::{TextDomain, TextDomainError, gettext};
 
-use gtk::{Builder, BuilderExt};
+use gtk::Builder;
 
 mod metadata;
 mod media;
@@ -78,13 +78,7 @@ fn main() {
     // TODO: there's a `Settings` struct in GTK:
     // https://github.com/gtk-rs/gtk/blob/master/src/auto/settings.rs
 
-    let main_ctrl = {
-        let builder = Builder::new_from_string(include_str!("ui/media-toc.ui"));
-        builder
-            .add_from_string(include_str!("ui/media-toc-export.ui"))
-            .unwrap();
-        MainController::new(&builder)
-    };
+    let main_ctrl = MainController::new(&Builder::new_from_string(include_str!("ui/media-toc.ui")));
     main_ctrl.borrow().show_all();
 
     if let Some(input_file) = matches.value_of(input_arg.as_str()) {

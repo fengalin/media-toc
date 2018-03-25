@@ -25,11 +25,11 @@ use super::{AudioController, ChaptersBoundaries, ExportController, InfoControlle
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
 const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum ControllerState {
     EOS,
     Paused,
-    PendingExportToc,
+    PendingTakeContext,
     PendingSelectMedia,
     Playing,
     PlayingRange(u64),
@@ -48,7 +48,6 @@ pub struct MainController {
     window: gtk::ApplicationWindow,
     header_bar: gtk::HeaderBar,
     play_pause_btn: gtk::ToolButton,
-    open_export_btn: gtk::Button,
     info_bar: gtk::InfoBar,
     info_bar_lbl: gtk::Label,
 
@@ -60,6 +59,7 @@ pub struct MainController {
     streams_ctrl: Rc<RefCell<StreamsController>>,
 
     context: Option<PlaybackContext>,
+    take_context_cb: Option<Box<FnMut(PlaybackContext)>>,
     state: ControllerState,
 
     requires_async_dialog: bool, // when pipeline contains video, dialogs must wait for
@@ -79,7 +79,6 @@ impl MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
-            open_export_btn: builder.get_object("export_toc-btn").unwrap(),
             info_bar: builder.get_object("info-bar").unwrap(),
             info_bar_lbl: builder.get_object("info_bar-lbl").unwrap(),
 
@@ -91,6 +90,7 @@ impl MainController {
             streams_ctrl: StreamsController::new(builder),
 
             context: None,
+            take_context_cb: None,
             state: ControllerState::Stopped,
 
             requires_async_dialog: false,
@@ -118,19 +118,6 @@ impl MainController {
 
             // TODO: add key bindings to seek by steps
             // play/pause, etc.
-
-            let this_rc = Rc::clone(&this);
-            this_mut.open_export_btn.connect_clicked(move |_| {
-                let mut this = this_rc.borrow_mut();
-
-                if this.requires_async_dialog && this.state == ControllerState::Playing {
-                    this.hold();
-                    this.state = ControllerState::PendingExportToc;
-                } else {
-                    this.hold();
-                    this.export_toc();
-                }
-            });
 
             this_mut.info_bar.connect_response(|info_bar, _| info_bar.hide());
 
@@ -167,7 +154,7 @@ impl MainController {
         self.info_bar.set_message_type(type_);
         self.info_bar_lbl.set_label(message);
         self.info_bar.show();
-        // workaround see: https://bugzilla.gnome.org/show_bug.cgi?id=710888
+        // workaround, see: https://bugzilla.gnome.org/show_bug.cgi?id=710888
         self.info_bar.queue_resize();
     }
 
@@ -325,10 +312,29 @@ impl MainController {
         };
     }
 
-    fn export_toc(&mut self) {
+    pub fn request_context(&mut self, callback: Box<FnMut(PlaybackContext)>) {
+        self.audio_ctrl.borrow_mut().switch_to_not_playing();
+        self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
+
+        if let Some(context) = self.context.as_mut() {
+            context.pause().unwrap();
+        };
+
+        let must_async = self.requires_async_dialog && self.state == ControllerState::Playing;
+        self.take_context_cb = Some(callback);
+        if must_async {
+            self.state = ControllerState::PendingTakeContext;
+        } else {
+            self.have_context();
+        }
+    }
+
+    fn have_context(&mut self) {
         if let Some(mut context) = self.context.take() {
             self.info_ctrl.borrow().export_chapters(&mut context);
-            self.export_ctrl.borrow_mut().open(context);
+            let mut callback = self.take_context_cb.take()
+                .expect("PlaybackContext::have_context take_context_cb is none");
+            callback(context);
             self.state = ControllerState::Paused;
         }
     }
@@ -361,7 +367,7 @@ impl MainController {
                         let mut this = this_rc.borrow_mut();
                         match this.state {
                             ControllerState::PendingSelectMedia => this.select_media(),
-                            ControllerState::PendingExportToc => this.export_toc(),
+                            ControllerState::PendingTakeContext => this.have_context(),
                             ControllerState::Seeking {
                                 switch_to_play,
                                 keep_paused,

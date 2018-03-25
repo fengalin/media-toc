@@ -5,5 +5,4 @@ src/ui/chapter_tree_manager.rs
 src/ui/export_controller.rs
 src/ui/main_controller.rs
 src/ui/media-toc.ui
-src/ui/media-toc-export.ui
 src/ui/streams_controller.rs

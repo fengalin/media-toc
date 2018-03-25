@@ -47,7 +47,7 @@ impl SplitterContext {
         chapter: gst::TocEntry,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<SplitterContext, String> {
-        println!("  - exporting {:?}...", output_path);
+        println!("  - splitting to {:?}...", output_path);
 
         let mut this = SplitterContext {
             pipeline: gst::Pipeline::new("pipeline"),

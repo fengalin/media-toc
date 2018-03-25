@@ -32,32 +32,34 @@ macro_rules! add_tag_from(
 #[derive(Clone, PartialEq)]
 enum ExportType {
     ExternalToc,
-    None,
     SingleFileWithToc,
-    Split,
 }
 
 pub struct ExportController {
-    export_dlg: gtk::Dialog,
-    open_export_btn: gtk::Button,
-    export_btn: gtk::Button,
-    progress_bar: gtk::ProgressBar,
+    perspective_selector: gtk::MenuButton,
+    open_btn: gtk::Button,
+    chapter_grid: gtk::Grid,
 
-    mkvmerge_txt_rdbtn: gtk::RadioButton,
-    cue_rdbtn: gtk::RadioButton,
-    mkv_rdbtn: gtk::RadioButton,
-    split_rdbtn: gtk::RadioButton,
-    split_to_flac_rdbtn: gtk::RadioButton,
-    split_to_wave_rdbtn: gtk::RadioButton,
-    split_to_opus_rdbtn: gtk::RadioButton,
-    split_to_vorbis_rdbtn: gtk::RadioButton,
-    split_to_mp3_rdbtn: gtk::RadioButton,
+    export_list: gtk::ListBox,
+    mkvmerge_txt_row: gtk::ListBoxRow,
+    mkvmerge_txt_warning_lbl: gtk::Label,
+    cue_row: gtk::ListBoxRow,
+    mkv_row: gtk::ListBoxRow,
+    export_progress_bar: gtk::ProgressBar,
+    export_btn: gtk::Button,
+
+    split_list: gtk::ListBox,
+    split_to_flac_row: gtk::ListBoxRow,
+    split_to_wave_row: gtk::ListBoxRow,
+    split_to_opus_row: gtk::ListBoxRow,
+    split_to_vorbis_row: gtk::ListBoxRow,
+    split_to_mp3_row: gtk::ListBoxRow,
+    split_progress_bar: gtk::ProgressBar,
+    split_btn: gtk::Button,
 
     pub playback_ctx: Option<PlaybackContext>,
     toc_setter_ctx: Option<TocSetterContext>,
     splitter_ctx: Option<SplitterContext>,
-    export_format: metadata::Format,
-    export_type: ExportType,
     media_path: PathBuf,
     target_path: PathBuf,
     extension: String,
@@ -73,31 +75,31 @@ pub struct ExportController {
 
 impl ExportController {
     pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
-        let main_window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
-        let export_dlg: gtk::Dialog = builder.get_object("export-dlg").unwrap();
-        export_dlg.set_transient_for(&main_window);
-
         let this = Rc::new(RefCell::new(ExportController {
-            export_dlg,
-            open_export_btn: builder.get_object("export_toc-btn").unwrap(),
-            export_btn: builder.get_object("export-btn").unwrap(),
-            progress_bar: builder.get_object("export-progress").unwrap(),
+            perspective_selector: builder.get_object("perspective-menu-btn").unwrap(),
+            open_btn: builder.get_object("open-btn").unwrap(),
+            chapter_grid: builder.get_object("info-chapter_list-grid").unwrap(),
 
-            mkvmerge_txt_rdbtn: builder.get_object("mkvmerge_txt-rdbtn").unwrap(),
-            cue_rdbtn: builder.get_object("cue-rdbtn").unwrap(),
-            mkv_rdbtn: builder.get_object("mkv-rdbtn").unwrap(),
-            split_rdbtn: builder.get_object("split-rdbtn").unwrap(),
-            split_to_flac_rdbtn: builder.get_object("split_to_flac-rdbtn").unwrap(),
-            split_to_wave_rdbtn: builder.get_object("split_to_wave-rdbtn").unwrap(),
-            split_to_opus_rdbtn: builder.get_object("split_to_opus-rdbtn").unwrap(),
-            split_to_vorbis_rdbtn: builder.get_object("split_to_vorbis-rdbtn").unwrap(),
-            split_to_mp3_rdbtn: builder.get_object("split_to_mp3-rdbtn").unwrap(),
+            export_list: builder.get_object("export-list-box").unwrap(),
+            mkvmerge_txt_row: builder.get_object("mkvmerge_text_export-row").unwrap(),
+            mkvmerge_txt_warning_lbl: builder.get_object("mkvmerge_text_warning-lbl").unwrap(),
+            cue_row: builder.get_object("cue_sheet_export-row").unwrap(),
+            mkv_row: builder.get_object("matroska_export-row").unwrap(),
+            export_progress_bar: builder.get_object("export-progress").unwrap(),
+            export_btn: builder.get_object("export-btn").unwrap(),
+
+            split_list: builder.get_object("split-list-box").unwrap(),
+            split_to_flac_row: builder.get_object("flac_split-row").unwrap(),
+            split_to_wave_row: builder.get_object("wave_split-row").unwrap(),
+            split_to_opus_row: builder.get_object("opus_split-row").unwrap(),
+            split_to_vorbis_row: builder.get_object("vorbis_split-row").unwrap(),
+            split_to_mp3_row: builder.get_object("mp3_split-row").unwrap(),
+            split_progress_bar: builder.get_object("split-progress").unwrap(),
+            split_btn: builder.get_object("split-btn").unwrap(),
 
             playback_ctx: None,
             toc_setter_ctx: None,
             splitter_ctx: None,
-            export_format: Format::MKVMergeText,
-            export_type: ExportType::None,
             media_path: PathBuf::new(),
             target_path: PathBuf::new(),
             extension: String::new(),
@@ -118,7 +120,8 @@ impl ExportController {
 
             this_mut.cleanup();
 
-            // Set radio buttons initial availability
+            this_mut.export_list.select_row(&this_mut.mkvmerge_txt_row);
+            this_mut.split_list.select_row(&this_mut.split_to_flac_row);
             this_mut.switch_to_available();
         }
 
@@ -133,131 +136,153 @@ impl ExportController {
 
         this.main_ctrl = Some(Rc::downgrade(main_ctrl));
 
+        // Export
         let this_clone = Rc::clone(this_rc);
-        this.export_dlg.connect_delete_event(move |dlg, _| {
-            this_clone.borrow_mut().restore_context();
-            dlg.hide_on_delete();
-            Inhibit(true)
-        });
-
-        let this_clone = Rc::clone(this_rc);
-        this.split_rdbtn.connect_property_active_notify(move |_| {
-            // Enable / disable split sub radio button depending on whether split is selected
-            this_clone.borrow().set_split_sub_btn_sensitivity();
-        });
-
-        let this_clone = Rc::clone(this_rc);
+        let main_ctrl_clone = Rc::clone(main_ctrl);
         this.export_btn.connect_clicked(move |_| {
-            let mut this = this_clone.borrow_mut();
-
-            this.switch_to_available();
-
-            let (format, export_type) = this.get_selected_format();
-            this.export_format = format;
-            this.export_type = export_type.clone();
-            this.idx = 0;
-
-            let is_audio_only = {
-                this.playback_ctx
-                    .as_ref()
-                    .unwrap()
-                    .info
-                    .lock()
-                    .expect("ExportController::export_btn clicked, failed to lock media info")
-                    .streams
-                    .video_selected
-                    .is_none()
-            };
-            this.extension =
-                metadata::Factory::get_extension(&this.export_format, is_audio_only).to_owned();
-
-            this.media_path = this.playback_ctx.as_ref().unwrap().path.clone();
-            this.target_path = this.media_path.with_extension(&this.extension);
-
-            if this.listener_src.is_some() {
-                this.remove_listener();
-            }
-
-            let duration = this.playback_ctx
-                .as_ref()
-                .unwrap()
-                .info.lock()
-                .expect("ExportController::export_btn clicked, failed to lock media info")
-                .duration;
-            this.duration = duration;
-
-            match export_type {
-                ExportType::ExternalToc => {
-                    // export toc as a standalone file
-                    let (msg_type, msg) = match File::create(&this.target_path) {
-                        Ok(mut output_file) => {
-                            let info = this.playback_ctx.as_ref().unwrap().info.lock().expect(
-                                "ExportController::export_btn clicked, failed to lock media info",
-                            );
-                            metadata::Factory::get_writer(&this.export_format).write(
-                                &info,
-                                &mut output_file,
-                            );
-                            (
-                                gtk::MessageType::Info,
-                                gettext("Table of contents exported succesfully")
-                                    .to_owned(),
-                            )
-                        }
-                        Err(_) => (
-                            gtk::MessageType::Error,
-                            gettext("Failed to create the file for the table of contents")
-                                .to_owned(),
-                        ),
-                    };
-
-                    this.restore_context();
-                    this.show_message(msg_type, &msg);
+            let this_clone = Rc::clone(&this_clone);
+            main_ctrl_clone.borrow_mut().request_context(Box::new(move |context| {
+                {
+                    this_clone.borrow_mut().playback_ctx = Some(context);
                 }
-                ExportType::Split => {
-                    if this.toc_visitor.is_some() {
-                        this.build_splitter_context();
-                    } else {
-                        // No chapter => export the whole file
-                        let target_path = this.target_path.clone();
-                        this.build_toc_setter_context(&target_path);
-                    }
+                // launch export asynchronoulsy so that main_ctrl is no longer borrowed
+                let this_clone = Rc::clone(&this_clone);
+                gtk::idle_add(move || {
+                    this_clone.borrow_mut().export();
+                    glib::Continue(false)
+                });
+            }));
+        });
+
+        // Split
+        let this_clone = Rc::clone(this_rc);
+        let main_ctrl_clone = Rc::clone(main_ctrl);
+        this.split_btn.connect_clicked(move |_| {
+            let this_clone = Rc::clone(&this_clone);
+            main_ctrl_clone.borrow_mut().request_context(Box::new(move |context| {
+                {
+                    this_clone.borrow_mut().playback_ctx = Some(context);
                 }
-                ExportType::SingleFileWithToc => {
-                    let target_path = this.target_path.clone();
-                    this.build_toc_setter_context(&target_path);
-                }
-                _ => (),
-            }
+                // launch export asynchronoulsy so that main_ctrl is no longer borrowed
+                let this_clone = Rc::clone(&this_clone);
+                gtk::idle_add(move || {
+                    this_clone.borrow_mut().split();
+                    glib::Continue(false)
+                });
+            }));
         });
     }
 
     pub fn new_media(&mut self, _context: &PlaybackContext) {
-        self.open_export_btn.set_sensitive(true);
     }
 
     pub fn cleanup(&mut self) {
-        self.open_export_btn.set_sensitive(false);
+        self.export_progress_bar.set_fraction(0f64);
+        self.split_progress_bar.set_fraction(0f64);
     }
 
-    pub fn open(&mut self, playback_ctx: PlaybackContext) {
-        self.toc_visitor = playback_ctx
+    fn prepare_process(&mut self, format: &metadata::Format) {
+        self.switch_to_busy();
+
+        self.toc_visitor = self.playback_ctx.as_ref()
+            .expect("ExportController::export playback_ctx is none")
             .info
             .lock()
-            .expect("ExportController::open failed to lock media info")
+            .expect("ExportController::export failed to lock media info")
             .toc
                 .as_ref()
                 .map(|toc| {
                     TocVisitor::new(toc)
                 });
 
-        self.playback_ctx = Some(playback_ctx);
-        self.progress_bar.set_fraction(0f64);
-        self.export_dlg.present();
+        let is_audio_only = {
+            self.playback_ctx
+                .as_ref()
+                .unwrap()
+                .info
+                .lock()
+                .expect("ExportController::export, failed to lock media info")
+                .streams
+                .video_selected
+                .is_none()
+        };
+        self.extension =
+            metadata::Factory::get_extension(format, is_audio_only).to_owned();
+
+        self.media_path = self.playback_ctx.as_ref().unwrap().path.clone();
+        self.target_path = self.media_path.with_extension(&self.extension);
+
+        self.idx = 0;
+
+        if self.listener_src.is_some() {
+            self.remove_listener();
+        }
+
+        let duration = self.playback_ctx
+            .as_ref()
+            .unwrap()
+            .info.lock()
+            .expect("ExportController::export, failed to lock media info")
+            .duration;
+        self.duration = duration;
+    }
+
+    fn export(&mut self) {
+        let (format, export_type) = self.get_export_selection();
+
+        self.prepare_process(&format);
+
+        match export_type {
+            ExportType::ExternalToc => {
+                // export toc as a standalone file
+                let (msg_type, msg) = match File::create(&self.target_path) {
+                    Ok(mut output_file) => {
+                        let info = self.playback_ctx.as_ref().unwrap().info.lock().expect(
+                            "ExportController::export, failed to lock media info",
+                        );
+                        metadata::Factory::get_writer(&format).write(
+                            &info,
+                            &mut output_file,
+                        );
+                        (
+                            gtk::MessageType::Info,
+                            gettext("Table of contents exported succesfully")
+                                .to_owned(),
+                        )
+                    }
+                    Err(_) => (
+                        gtk::MessageType::Error,
+                        gettext("Failed to create the file for the table of contents")
+                            .to_owned(),
+                    ),
+                };
+
+                self.restore_context();
+                self.switch_to_available();
+                self.show_message(msg_type, &msg);
+            }
+            ExportType::SingleFileWithToc => {
+                let target_path = self.target_path.clone();
+                self.build_toc_setter_context(&target_path);
+            }
+        }
+    }
+
+    fn split(&mut self) {
+        let format = self.get_split_selection();
+
+        self.prepare_process(&format);
+
+        if self.toc_visitor.is_some() {
+            self.build_splitter_context(&format);
+        } else {
+            // No chapter => export the whole file
+            let target_path = self.target_path.clone();
+            self.build_toc_setter_context(&target_path);
+        }
     }
 
     fn show_message(&self, type_: gtk::MessageType, message: &str) {
-        self.export_dlg.hide();
         let main_ctrl_rc = self.main_ctrl
             .as_ref()
             .unwrap()
@@ -266,9 +291,9 @@ impl ExportController {
         main_ctrl_rc.borrow().show_message(type_, message);
     }
 
-    /*fn show_info(&self, info: &str) {
+    fn show_info(&self, info: &str) {
         self.show_message(gtk::MessageType::Info, info);
-    }*/
+    }
 
     fn show_error(&self, error: &str) {
         self.show_message(gtk::MessageType::Error, error);
@@ -312,10 +337,10 @@ impl ExportController {
         };
     }
 
-    fn build_splitter_context(&mut self) -> bool {
+    fn build_splitter_context(&mut self, format: &metadata::Format) -> bool {
         let (ctx_tx, ui_rx) = channel();
 
-        self.register_splitter_listener(LISTENER_PERIOD, ui_rx);
+        self.register_splitter_listener(format, LISTENER_PERIOD, ui_rx);
 
         if self.toc_visitor.is_none() {
             // FIXME: display message: no chapter
@@ -337,7 +362,7 @@ impl ExportController {
         match SplitterContext::new(
             &media_path,
             &output_path,
-            &self.export_format,
+            format,
             chapter,
             ctx_tx,
         ) {
@@ -506,78 +531,90 @@ impl ExportController {
         chapter.to_owned()
     }
 
-    fn get_selected_format(&self) -> (metadata::Format, ExportType) {
-        if self.mkvmerge_txt_rdbtn.get_active() {
+    fn get_export_selection(&self) -> (metadata::Format, ExportType) {
+        if self.mkvmerge_txt_row.is_selected() {
             (Format::MKVMergeText, ExportType::ExternalToc)
-        } else if self.cue_rdbtn.get_active() {
+        } else if self.cue_row.is_selected() {
             (Format::CueSheet, ExportType::ExternalToc)
-        } else if self.mkv_rdbtn.get_active() {
+        } else if self.mkv_row.is_selected() {
             (Format::Matroska, ExportType::SingleFileWithToc)
-        } else if self.split_rdbtn.get_active() {
-            if self.split_to_flac_rdbtn.get_active() {
-                (Format::Flac, ExportType::Split)
-            } else if self.split_to_wave_rdbtn.get_active() {
-                (Format::Wave, ExportType::Split)
-            } else if self.split_to_opus_rdbtn.get_active() {
-                (Format::Opus, ExportType::Split)
-            } else if self.split_to_vorbis_rdbtn.get_active() {
-                (Format::Vorbis, ExportType::Split)
-            } else if self.split_to_mp3_rdbtn.get_active() {
-                (Format::MP3, ExportType::Split)
-            } else {
-                unreachable!("ExportController::get_selected_format no selected radio button");
-            }
         } else {
-            unreachable!("ExportController::get_selected_format no selected radio button");
+            unreachable!("ExportController::get_export_selection unknown export type");
+        }
+    }
+
+    fn get_split_selection(&self) -> metadata::Format {
+        if self.split_to_flac_row.is_selected() {
+            Format::Flac
+        } else if self.split_to_wave_row.is_selected() {
+            Format::Wave
+        } else if self.split_to_opus_row.is_selected() {
+            Format::Opus
+        } else if self.split_to_vorbis_row.is_selected() {
+            Format::Vorbis
+        } else if self.split_to_mp3_row.is_selected() {
+            Format::MP3
+        } else {
+            unreachable!("ExportController::get_split_selection unknown split type");
         }
     }
 
     fn switch_to_busy(&self) {
-        self.mkvmerge_txt_rdbtn.set_sensitive(false);
-        self.cue_rdbtn.set_sensitive(false);
-        self.mkv_rdbtn.set_sensitive(false);
-        self.split_rdbtn.set_sensitive(false);
+        // TODO: allow cancelling export / split
+        self.perspective_selector.set_sensitive(false);
+        self.open_btn.set_sensitive(false);
+        self.chapter_grid.set_sensitive(false);
+
+        self.export_list.set_sensitive(false);
         self.export_btn.set_sensitive(false);
-        self.split_to_flac_rdbtn.set_sensitive(false);
-        self.split_to_wave_rdbtn.set_sensitive(false);
-        self.split_to_opus_rdbtn.set_sensitive(false);
-        self.split_to_vorbis_rdbtn.set_sensitive(false);
-        self.split_to_mp3_rdbtn.set_sensitive(false);
+        self.split_list.set_sensitive(false);
+        self.split_btn.set_sensitive(false);
     }
 
     fn switch_to_available(&self) {
+        self.export_progress_bar.set_fraction(0f64);
+        self.split_progress_bar.set_fraction(0f64);
+
+        self.perspective_selector.set_sensitive(true);
+        self.open_btn.set_sensitive(true);
+        self.chapter_grid.set_sensitive(true);
+
+        self.export_list.set_sensitive(true);
+        self.export_btn.set_sensitive(true);
+        self.split_btn.set_sensitive(true);
+        self.split_list.set_sensitive(true);
+
+        // TODO: handle message at origin
         if TocSetterContext::check_requirements() {
-            self.mkv_rdbtn.set_sensitive(true);
+            self.mkv_row.set_sensitive(true);
         } else {
-            self.mkv_rdbtn.set_label("Matroska Container (requires gst-plugins-good >= 1.14)");
-            self.mkv_rdbtn.set_sensitive(false);
+            self.mkvmerge_txt_warning_lbl.set_label(
+                &gettext("Matroska Container export requires\ngst-plugins-good >= 1.14")
+            );
+            self.mkv_row.set_sensitive(false);
         }
 
-        self.mkvmerge_txt_rdbtn.set_sensitive(true);
-        self.cue_rdbtn.set_sensitive(true);
-        self.split_rdbtn.set_sensitive(true);
-        self.set_split_sub_btn_sensitivity();
+        self.mkvmerge_txt_row.set_sensitive(true);
+        self.cue_row.set_sensitive(true);
+
+        // TODO: display message when feature is not available
+        self.split_to_flac_row.set_sensitive(
+            SplitterContext::check_requirements(Format::Flac),
+        );
+        self.split_to_wave_row.set_sensitive(
+            SplitterContext::check_requirements(Format::Wave),
+        );
+        self.split_to_opus_row.set_sensitive(
+            SplitterContext::check_requirements(Format::Opus),
+        );
+        self.split_to_vorbis_row.set_sensitive(
+            SplitterContext::check_requirements(Format::Vorbis),
+        );
+        self.split_to_mp3_row.set_sensitive(
+            SplitterContext::check_requirements(Format::MP3),
+        );
 
         self.export_btn.set_sensitive(true);
-    }
-
-    pub fn set_split_sub_btn_sensitivity(&self) {
-        let state = self.split_rdbtn.get_active();
-        self.split_to_flac_rdbtn.set_sensitive(
-            state && SplitterContext::check_requirements(Format::Flac),
-        );
-        self.split_to_wave_rdbtn.set_sensitive(
-            state && SplitterContext::check_requirements(Format::Wave),
-        );
-        self.split_to_opus_rdbtn.set_sensitive(
-            state && SplitterContext::check_requirements(Format::Opus),
-        );
-        self.split_to_vorbis_rdbtn.set_sensitive(
-            state && SplitterContext::check_requirements(Format::Vorbis),
-        );
-        self.split_to_mp3_rdbtn.set_sensitive(
-            state && SplitterContext::check_requirements(Format::MP3),
-        );
     }
 
     fn remove_listener(&mut self) {
@@ -603,7 +640,7 @@ impl ExportController {
                     Some(toc_setter_ctx) => toc_setter_ctx.get_position(),
                     None => 0,
                 };
-                this.progress_bar
+                this.export_progress_bar
                     .set_fraction(position as f64 / this.duration as f64);
             }
 
@@ -632,22 +669,24 @@ impl ExportController {
                         match toc_setter_ctx.export() {
                             Ok(_) => (),
                             Err(err) => {
-                                this.switch_to_available();
-                                eprintln!("ERROR: failed to export media: {}", err);
+                                let message = gettext("ERROR: failed to export media: {}")
+                                    .replacen("{}", &err, 1);
+                                eprintln!("{}", message);
+                                this.show_error(&message);
+                                keep_going = false;
                             }
                         }
 
                         this.toc_setter_ctx = Some(toc_setter_ctx);
                     }
                     Eos => {
-                        this.switch_to_available();
-                        this.restore_context();
-                        this.export_dlg.hide();
+                        this.show_info(&gettext("Media exported succesfully"));
                         keep_going = false;
                     }
                     FailedToExport => {
-                        this.switch_to_available();
-                        eprintln!("ERROR: failed to export media");
+                        let message = gettext("ERROR: failed to export media");
+                        eprintln!("{}", message);
+                        this.show_error(&message);
                         keep_going = false;
                     }
                     _ => (),
@@ -660,6 +699,8 @@ impl ExportController {
 
             if !keep_going {
                 this.listener_src = None;
+                this.switch_to_available();
+                this.restore_context();
             }
 
             glib::Continue(keep_going)
@@ -668,13 +709,16 @@ impl ExportController {
 
     fn register_splitter_listener(
         &mut self,
+        format: &metadata::Format,
         timeout: u32,
         ui_rx: Receiver<ContextMessage>,
     ) {
         let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
 
+        let format = format.clone();
         self.listener_src = Some(gtk::timeout_add(timeout, move || {
             let mut keep_going = true;
+            let mut process_done = false;
 
             let mut this = this_rc.borrow_mut();
 
@@ -683,26 +727,28 @@ impl ExportController {
                     Some(splitter_ctx) => splitter_ctx.get_position(),
                     None => 0,
                 };
-                this.progress_bar
+                this.split_progress_bar
                     .set_fraction(position as f64 / this.duration as f64);
             }
 
             for message in ui_rx.try_iter() {
                 match message {
                     Eos => {
-                        if !this.build_splitter_context() {
+                        if !this.build_splitter_context(&format) {
                             // No more chapters or an error occured
-                            this.switch_to_available();
-                            this.restore_context();
-                            this.export_dlg.hide();
+                            // FIXME: handle the error
+                            this.show_info(&gettext("Media split succesfully"));
+                            process_done = true;
                         }
 
                         keep_going = false;
                     }
                     FailedToExport => {
-                        this.switch_to_available();
-                        eprintln!("ERROR: failed to export media");
+                        let message = gettext("ERROR: failed to split media");
+                        eprintln!("{}", message);
+                        this.show_error(&message);
                         keep_going = false;
+                        process_done = true;
                     }
                     _ => (),
                 };
@@ -714,6 +760,11 @@ impl ExportController {
 
             if !keep_going {
                 this.listener_src = None;
+
+                if process_done {
+                    this.switch_to_available();
+                    this.restore_context();
+                }
             }
 
             glib::Continue(keep_going)

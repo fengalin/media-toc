@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-24 14:45+0100\n"
-"PO-Revision-Date: 2018-03-24 14:46+0100\n"
+"POT-Creation-Date: 2018-03-25 19:37+0200\n"
+"PO-Revision-Date: 2018-03-25 19:38+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -47,7 +47,7 @@ msgstr "Chemin du fichier multimédia"
 msgid "Failed to initialize GTK"
 msgstr "Impossible d'intialiser GTK"
 
-#: src/main.rs:122
+#: src/main.rs:116
 msgid "test-msg"
 msgstr "ceci est un test"
 
@@ -63,174 +63,287 @@ msgstr "Début"
 msgid "End"
 msgstr "Fin"
 
-#: src/ui/export_controller.rs:203
+#: src/ui/export_controller.rs:249
 msgid "Table of contents exported succesfully"
 msgstr "Table des matières exportée avec succès"
 
-#: src/ui/export_controller.rs:209
+#: src/ui/export_controller.rs:255
 msgid "Failed to create the file for the table of contents"
 msgstr "Échec à la création du fichier de table des matières"
 
-#: src/ui/export_controller.rs:305
+#: src/ui/export_controller.rs:330
 msgid "Error exporting the media with a table of contents"
 msgstr "Exporter la Table des Matières"
 
-#: src/ui/main_controller.rs:462 src/ui/main_controller.rs:559
+#: src/ui/export_controller.rs:592
+msgid ""
+"Matroska Container export requires\n"
+"gst-plugins-good >= 1.14"
+msgstr ""
+"L'export vers un conteneur Matroska nécessite\n"
+"gst-plugins-good >= 1.14"
+
+#: src/ui/export_controller.rs:672
+msgid "ERROR: failed to export media: {}"
+msgstr "ERREUR : échec lors de l'export du média: {}"
+
+#: src/ui/export_controller.rs:683
+msgid "Media exported succesfully"
+msgstr "Table des matières exportée avec succès"
+
+#: src/ui/export_controller.rs:687
+msgid "ERROR: failed to export media"
+msgstr "ERREUR : échec lors de l'export du média"
+
+#: src/ui/export_controller.rs:740
+msgid "Media split succesfully"
+msgstr "Média découpé avec succès"
+
+#: src/ui/export_controller.rs:747
+msgid "ERROR: failed to split media"
+msgstr "ERREUR : échec lors du découpage du média"
+
+#: src/ui/main_controller.rs:469 src/ui/main_controller.rs:567
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
 
-#: src/ui/main_controller.rs:514
+#: src/ui/main_controller.rs:521
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:519
+#: src/ui/main_controller.rs:526
 msgid "Open"
 msgstr "Ouvrir"
 
-#: src/ui/media-toc-export.ui:8
-msgid "Export the Table of Contents"
-msgstr "Exporter la Table des Matières"
-
-#: src/ui/media-toc-export.ui:28
-msgid "Export"
-msgstr "Exporter"
-
-#: src/ui/media-toc-export.ui:75
-msgid "Split into one audio file per chapter"
-msgstr "Découper en fichiers audios"
-
-#: src/ui/media-toc-export.ui:97
-msgid "Flac (lossless compression)"
-msgstr "Flac (compression sans perte)"
-
-#: src/ui/media-toc-export.ui:113
-msgid "Wave / PCM (no compression)"
-msgstr "Wave / PCM (pas de compression)"
-
-#: src/ui/media-toc-export.ui:130
-msgid "Opus (lossy compression)"
-msgstr "Opus (compression avec perte)"
-
-#: src/ui/media-toc-export.ui:146
-msgid "Vorbis (lossy compression)"
-msgstr "Vorbis (compression avec perte)"
-
-#: src/ui/media-toc-export.ui:162
-msgid "MP3 (lossy compression)"
-msgstr "MP3 (compression avec perte)"
-
-#: src/ui/media-toc-export.ui:195
-msgid "mkvmerge text format"
-msgstr "Format textuel de mkvmerge"
-
-#: src/ui/media-toc-export.ui:211
-msgid "Cue Sheet format"
-msgstr "Format Cue Sheet"
-
-#: src/ui/media-toc-export.ui:227
-msgid "Matroska Container"
-msgstr "Conteneur Matroska"
-
-#: src/ui/media-toc.ui:181
+#: src/ui/media-toc.ui:146
 msgid "Title:"
-msgstr "Titre :"
+msgstr "Titre :"
 
-#: src/ui/media-toc.ui:193
+#: src/ui/media-toc.ui:158
 msgid "Artist:"
-msgstr "Artiste :"
+msgstr "Artiste :"
 
-#: src/ui/media-toc.ui:205
+#: src/ui/media-toc.ui:170
 msgid "Container:"
-msgstr "Conteneur :"
+msgstr "Conteneur :"
 
-#: src/ui/media-toc.ui:217
+#: src/ui/media-toc.ui:182
 msgid "Video Codec:"
-msgstr "Codec Vidéo :"
+msgstr "Codec Vidéo :"
 
-#: src/ui/media-toc.ui:229
+#: src/ui/media-toc.ui:194
 msgid "Audio Codec:"
-msgstr "Codec Audio :"
+msgstr "Codec Audio :"
 
-#: src/ui/media-toc.ui:241
+#: src/ui/media-toc.ui:206
 msgid "Duration:"
-msgstr "Durée :"
+msgstr "Durée :"
 
-#: src/ui/media-toc.ui:408
+#: src/ui/media-toc.ui:373
 msgid "Repeat Chapter"
 msgstr "Répéter le Chapitre"
 
-#: src/ui/media-toc.ui:433
+#: src/ui/media-toc.ui:398
 msgid "Remove Chapter"
 msgstr "Supprimer le Chapitre"
 
-#: src/ui/media-toc.ui:447
+#: src/ui/media-toc.ui:412
 msgid "Add Chapter"
 msgstr "Ajouter un Chapitre"
 
-#: src/ui/media-toc.ui:507
+#: src/ui/media-toc.ui:472
 msgid "Info text"
 msgstr "Texte d'information"
 
-#: src/ui/media-toc.ui:637
+#: src/ui/media-toc.ui:602
 msgid "Zoom In"
 msgstr "Zoomer"
 
-#: src/ui/media-toc.ui:651
+#: src/ui/media-toc.ui:616
 msgid "Zoom Out"
 msgstr "Dé-zoomer"
 
-#: src/ui/media-toc.ui:742 src/ui/media-toc.ui:1013
+#: src/ui/media-toc.ui:707 src/ui/media-toc.ui:1635
 msgid "Display"
 msgstr "Affichage"
 
-#: src/ui/media-toc.ui:759
+#: src/ui/media-toc.ui:725
 msgid "Video Streams"
 msgstr "Flux Vidéos"
 
-#: src/ui/media-toc.ui:792
+#: src/ui/media-toc.ui:759
 msgid "Audio Streams"
 msgstr "Flux Audios"
 
-#: src/ui/media-toc.ui:825
+#: src/ui/media-toc.ui:793
 msgid "Text Streams"
 msgstr "Flux Textes"
 
-#: src/ui/media-toc.ui:855 src/ui/media-toc.ui:1058
+#: src/ui/media-toc.ui:823 src/ui/media-toc.ui:1680
 msgid "Streams"
 msgstr "Flux"
 
-#: src/ui/streams_controller.rs:309
+#: src/ui/media-toc.ui:875
+msgid "mkvmerge text format"
+msgstr "Format textuel de mkvmerge"
+
+#: src/ui/media-toc.ui:891
+msgid ""
+"mkvmerge compliant text format.\n"
+"Flat table of contents.\n"
+"Time precision: 1 ms."
+msgstr ""
+"Format textuel compatible avec mkvmerge.\n"
+"Table des matières à plat.\n"
+"Précision temporelle : 1 ms."
+
+#: src/ui/media-toc.ui:927
+msgid "Cue Sheet format"
+msgstr "Format Cue Sheet"
+
+#: src/ui/media-toc.ui:943
+msgid ""
+"Cue Sheet compliant text format.\n"
+"Hierachical table of contents.\n"
+"Time precision: 1 frame (1/75 s)."
+msgstr ""
+"Format textuel Cue Sheet.\n"
+"Table des matières hiérarchique.\n"
+"Précision temporelle : 1 trame (1/75 s)."
+
+#: src/ui/media-toc.ui:979
+msgid "Matroska Container"
+msgstr "Conteneur Matroska"
+
+#: src/ui/media-toc.ui:995
+msgid ""
+"Binary audio, video & text media container.\n"
+"Hierachical table of contents.\n"
+"Time precision: 1 ns."
+msgstr ""
+"Conteneur binaire audio, vidéo et textuel.\n"
+"Table des matières hiérarchique.\n"
+"Précision temporelle : 1 ns."
+
+#: src/ui/media-toc.ui:1039
+msgid "Export"
+msgstr "Exporter"
+
+#: src/ui/media-toc.ui:1061
+msgid "Export Formats"
+msgstr "Formats d'export"
+
+#: src/ui/media-toc.ui:1121
+msgid "page0"
+msgstr "page0"
+
+#: src/ui/media-toc.ui:1184
+msgid "Flac"
+msgstr "Flac"
+
+#: src/ui/media-toc.ui:1200
+msgid ""
+"Audio lossless compression.\n"
+"Tags support."
+msgstr ""
+"Flac (compression sans perte).\n"
+"Tags gérés."
+
+#: src/ui/media-toc.ui:1234
+msgid "Wave / PCM"
+msgstr "Wave / PCM"
+
+#: src/ui/media-toc.ui:1250
+msgid ""
+"No compression.\n"
+"Tags support."
+msgstr ""
+"Sans compression.\n"
+"Tags gérés."
+
+#: src/ui/media-toc.ui:1284
+msgid "Opus"
+msgstr "Opus"
+
+#: src/ui/media-toc.ui:1300 src/ui/media-toc.ui:1350 src/ui/media-toc.ui:1400
+msgid ""
+"Audio lossy compression.\n"
+"Tags support."
+msgstr ""
+"Compression audio avec perte.\n"
+"Tags gérés."
+
+#: src/ui/media-toc.ui:1334
+msgid "Vorbis"
+msgstr "Vrobis"
+
+#: src/ui/media-toc.ui:1384
+msgid "MP3"
+msgstr "MP3"
+
+#: src/ui/media-toc.ui:1423 src/ui/media-toc.ui:1770
+msgid "Split"
+msgstr "Découper"
+
+#: src/ui/media-toc.ui:1445
+msgid "Split Formats"
+msgstr "Formats cibles"
+
+#: src/ui/media-toc.ui:1492
+msgid "page1"
+msgstr "page1"
+
+#: src/ui/media-toc.ui:1725
+msgid "Export\t"
+msgstr "Exporter"
+
+#: src/ui/streams_controller.rs:286
 msgid "Stream id"
 msgstr "Id. du flux"
 
-#: src/ui/streams_controller.rs:310
+#: src/ui/streams_controller.rs:287
 msgid "Language"
 msgstr "Langue"
 
-#: src/ui/streams_controller.rs:311
+#: src/ui/streams_controller.rs:288
 msgid "Codec"
 msgstr "Codec"
 
-#: src/ui/streams_controller.rs:312
+#: src/ui/streams_controller.rs:289
 msgid "Comment"
 msgstr "Commentaire"
 
-#: src/ui/streams_controller.rs:331
+#: src/ui/streams_controller.rs:308
 msgid "Width"
 msgstr "Largeur"
 
-#: src/ui/streams_controller.rs:338
+#: src/ui/streams_controller.rs:315
 msgid "Height"
 msgstr "Hauteur"
 
-#: src/ui/streams_controller.rs:369
+#: src/ui/streams_controller.rs:346
 msgid "Rate"
 msgstr "Débit"
 
-#: src/ui/streams_controller.rs:376
+#: src/ui/streams_controller.rs:353
 msgid "Channels"
 msgstr "Canaux"
 
-#: src/ui/streams_controller.rs:407
+#: src/ui/streams_controller.rs:384
 msgid "Format"
 msgstr "Format"
+
+#~ msgid "Export the Table of Contents"
+#~ msgstr "Exporter la Table des Matières"
+
+#~ msgid "Split into one audio file per chapter"
+#~ msgstr "Découper en fichiers audios"
+
+#~ msgid "Wave / PCM (no compression)"
+#~ msgstr "Wave / PCM (pas de compression)"
+
+#~ msgid "Vorbis (lossy compression)"
+#~ msgstr "Vorbis (compression avec perte)"
+
+#~ msgid "MP3 (lossy compression)"
+#~ msgstr "MP3 (compression avec perte)"
