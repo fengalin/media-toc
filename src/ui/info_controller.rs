@@ -24,7 +24,7 @@ lazy_static! {
 
 pub struct InfoController {
     info_container: gtk::Grid,
-    show_chapters_button: gtk::ToggleButton,
+    show_chapters_btn: gtk::ToggleButton,
 
     drawingarea: gtk::DrawingArea,
 
@@ -36,7 +36,7 @@ pub struct InfoController {
     duration_lbl: gtk::Label,
 
     timeline_scale: gtk::Scale,
-    repeat_button: gtk::ToggleToolButton,
+    repeat_btn: gtk::ToggleToolButton,
 
     chapter_treeview: gtk::TreeView,
     add_chapter_btn: gtk::ToolButton,
@@ -73,7 +73,7 @@ impl InfoController {
         // when the UI controllers will get a mutable version from time to time
         let this_rc = Rc::new(RefCell::new(InfoController {
             info_container: builder.get_object("info-chapter_list-grid").unwrap(),
-            show_chapters_button: builder.get_object("show_chapters-toggle").unwrap(),
+            show_chapters_btn: builder.get_object("show_chapters-toggle").unwrap(),
 
             drawingarea: builder.get_object("thumbnail-drawingarea").unwrap(),
 
@@ -85,7 +85,7 @@ impl InfoController {
             duration_lbl: builder.get_object("duration-lbl").unwrap(),
 
             timeline_scale: builder.get_object("timeline-scale").unwrap(),
-            repeat_button: builder.get_object("repeat-toolbutton").unwrap(),
+            repeat_btn: builder.get_object("repeat-toolbutton").unwrap(),
 
             chapter_treeview,
             add_chapter_btn,
@@ -117,9 +117,9 @@ impl InfoController {
 
         this.main_ctrl = Some(Rc::downgrade(main_ctrl));
 
-        // Show chapters toglle
+        // Show chapters toggle
         let this_clone = Rc::clone(this_rc);
-        this.show_chapters_button
+        this.show_chapters_btn
             .connect_toggled(move |toggle_button| {
                 if toggle_button.get_active() {
                     this_clone.borrow().info_container.show();
@@ -195,7 +195,7 @@ impl InfoController {
 
         // repeat button
         let this_clone = Rc::clone(this_rc);
-        this.repeat_button.connect_clicked(move |button| {
+        this.repeat_btn.connect_clicked(move |button| {
             this_clone.borrow_mut().repeat_chapter = button.get_active();
         });
     }
@@ -318,6 +318,7 @@ impl InfoController {
 
         self.update_marks();
 
+        self.repeat_btn.set_sensitive(true);
         self.add_chapter_btn.set_sensitive(true);
         match self.chapter_manager.get_selected_iter() {
             Some(current_iter) => {

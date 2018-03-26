@@ -71,20 +71,25 @@ fn main() {
     if !is_gtk_ok {
         panic!(gettext("Failed to initialize GTK"));
     }
-    gstreamer::init().unwrap();
 
     println!("Locale: {}", locale);
 
     // TODO: there's a `Settings` struct in GTK:
     // https://github.com/gtk-rs/gtk/blob/master/src/auto/settings.rs
 
-    let main_ctrl = MainController::new(&Builder::new_from_string(include_str!("ui/media-toc.ui")));
+    let is_gst_ok = gstreamer::init().is_ok();
+    let main_ctrl = MainController::new(
+        &Builder::new_from_string(include_str!("ui/media-toc.ui")),
+        is_gst_ok,
+    );
     main_ctrl.borrow().show_all();
 
-    if let Some(input_file) = matches.value_of(input_arg.as_str()) {
-        main_ctrl
-            .borrow_mut()
-            .open_media(input_file.into());
+    if is_gst_ok {
+        if let Some(input_file) = matches.value_of(input_arg.as_str()) {
+            main_ctrl
+                .borrow_mut()
+                .open_media(input_file.into());
+        }
     }
 
     gtk::main();

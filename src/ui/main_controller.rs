@@ -47,6 +47,7 @@ const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
 pub struct MainController {
     window: gtk::ApplicationWindow,
     header_bar: gtk::HeaderBar,
+    open_btn: gtk::Button,
     play_pause_btn: gtk::ToolButton,
     info_bar: gtk::InfoBar,
     info_bar_lbl: gtk::Label,
@@ -72,12 +73,13 @@ pub struct MainController {
 }
 
 impl MainController {
-    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
+    pub fn new(builder: &gtk::Builder, is_gst_ok: bool) -> Rc<RefCell<Self>> {
         let chapters_boundaries = Rc::new(RefCell::new(ChaptersBoundaries::new()));
 
         let this = Rc::new(RefCell::new(MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
+            open_btn: builder.get_object("open-btn").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
             info_bar: builder.get_object("info-bar").unwrap(),
             info_bar_lbl: builder.get_object("info_bar-lbl").unwrap(),
@@ -111,47 +113,57 @@ impl MainController {
                 Inhibit(false)
             });
 
-            let this_rc = Rc::clone(&this);
-            this_mut.play_pause_btn.connect_clicked(move |_| {
-                this_rc.borrow_mut().play_pause();
-            });
-
-            // TODO: add key bindings to seek by steps
-            // play/pause, etc.
-
             this_mut.info_bar.connect_response(|info_bar, _| info_bar.hide());
 
-            this_mut.video_ctrl.register_callbacks(&this);
-            PerspectiveController::register_callbacks(&this_mut.perspective_ctrl, &this);
-            InfoController::register_callbacks(&this_mut.info_ctrl, &this);
-            AudioController::register_callbacks(&this_mut.audio_ctrl, &this);
-            ExportController::register_callbacks(&this_mut.export_ctrl, &this);
-            StreamsController::register_callbacks(&this_mut.streams_ctrl, &this);
+            if is_gst_ok {
+                this_mut.video_ctrl.register_callbacks(&this);
+                PerspectiveController::register_callbacks(&this_mut.perspective_ctrl, &this);
+                InfoController::register_callbacks(&this_mut.info_ctrl, &this);
+                AudioController::register_callbacks(&this_mut.audio_ctrl, &this);
+                ExportController::register_callbacks(&this_mut.export_ctrl, &this);
+                StreamsController::register_callbacks(&this_mut.streams_ctrl, &this);
 
-            let mut req_err = PlaybackContext::check_requirements().err();
-            if req_err.is_some() {
-                let err = req_err.take().unwrap();
+                let mut req_err = PlaybackContext::check_requirements().err();
+                if req_err.is_some() {
+                    let err = req_err.take().unwrap();
+                    let this_rc = Rc::clone(&this);
+                    gtk::idle_add(move || {
+                        this_rc.borrow().show_message(gtk::MessageType::Warning, &err);
+                        glib::Continue(false)
+                    });
+                }
+
                 let this_rc = Rc::clone(&this);
-                gtk::idle_add(move || {
-                    this_rc.borrow().show_message(gtk::MessageType::Warning, &err);
-                    glib::Continue(false)
+                this_mut.open_btn.connect_clicked(move |_| {
+                    let mut this = this_rc.borrow_mut();
+
+                    if this.requires_async_dialog && this.state == ControllerState::Playing {
+                        this.hold();
+                        this.state = ControllerState::PendingSelectMedia;
+                    } else {
+                        this.hold();
+                        this.select_media();
+                    }
                 });
+                this_mut.open_btn.set_sensitive(true);
+
+                let this_rc = Rc::clone(&this);
+                this_mut.play_pause_btn.connect_clicked(move |_| {
+                    this_rc.borrow_mut().play_pause();
+                });
+                this_mut.play_pause_btn.set_sensitive(true);
+
+                // TODO: add key bindings to seek by steps
+                // play/pause, etc.
+
+            } else {
+                // GStreamer initialization failed
+                this_mut.show_message(
+                    gtk::MessageType::Error,
+                    &gettext("Failed to initialize GStreamer, the application can not be used."),
+                );
             }
         }
-
-        let open_btn: gtk::Button = builder.get_object("open-btn").unwrap();
-        let this_rc = Rc::clone(&this);
-        open_btn.connect_clicked(move |_| {
-            let mut this = this_rc.borrow_mut();
-
-            if this.requires_async_dialog && this.state == ControllerState::Playing {
-                this.hold();
-                this.state = ControllerState::PendingSelectMedia;
-            } else {
-                this.hold();
-                this.select_media();
-            }
-        });
 
         this
     }

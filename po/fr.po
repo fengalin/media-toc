@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-26 18:36+0200\n"
-"PO-Revision-Date: 2018-03-26 18:38+0200\n"
+"POT-Creation-Date: 2018-03-27 00:24+0200\n"
+"PO-Revision-Date: 2018-03-27 00:25+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -47,7 +47,7 @@ msgstr "Chemin du fichier multimédia"
 msgid "Failed to initialize GTK"
 msgstr "Impossible d'intialiser GTK"
 
-#: src/main.rs:116
+#: src/main.rs:121
 msgid "test-msg"
 msgstr "ceci est un test"
 
@@ -216,15 +216,20 @@ msgstr "ERREUR : échec lors du découpage du média. {}"
 msgid "Failed to open toc file."
 msgstr "Impossible d'ouvrir le fichier de table des matières."
 
-#: src/ui/main_controller.rs:479 src/ui/main_controller.rs:584
+#: src/ui/main_controller.rs:163
+msgid "Failed to initialize GStreamer, the application can not be used."
+msgstr ""
+"Échec à l'initialisation de GStreamer, l'application ne peut être utilisée."
+
+#: src/ui/main_controller.rs:491 src/ui/main_controller.rs:596
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
 
-#: src/ui/main_controller.rs:538
+#: src/ui/main_controller.rs:550
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:543
+#: src/ui/main_controller.rs:555
 msgid "Open"
 msgstr "Ouvrir"
 
@@ -252,55 +257,55 @@ msgstr "Codec Audio :"
 msgid "Duration:"
 msgstr "Durée :"
 
-#: src/ui/media-toc.ui:373
+#: src/ui/media-toc.ui:374
 msgid "Repeat Chapter"
 msgstr "Répéter le Chapitre"
 
-#: src/ui/media-toc.ui:398
+#: src/ui/media-toc.ui:399
 msgid "Remove Chapter"
 msgstr "Supprimer le Chapitre"
 
-#: src/ui/media-toc.ui:412
+#: src/ui/media-toc.ui:413
 msgid "Add Chapter"
 msgstr "Ajouter un Chapitre"
 
-#: src/ui/media-toc.ui:472
+#: src/ui/media-toc.ui:473
 msgid "Info text"
 msgstr "Texte d'information"
 
-#: src/ui/media-toc.ui:602
+#: src/ui/media-toc.ui:604
 msgid "Zoom In"
 msgstr "Zoomer"
 
-#: src/ui/media-toc.ui:616
+#: src/ui/media-toc.ui:619
 msgid "Zoom Out"
 msgstr "Dé-zoomer"
 
-#: src/ui/media-toc.ui:707 src/ui/media-toc.ui:1737
+#: src/ui/media-toc.ui:711 src/ui/media-toc.ui:1744
 msgid "Display"
 msgstr "Affichage"
 
-#: src/ui/media-toc.ui:727
+#: src/ui/media-toc.ui:731
 msgid "Video Streams"
 msgstr "Flux Vidéos"
 
-#: src/ui/media-toc.ui:761
+#: src/ui/media-toc.ui:765
 msgid "Audio Streams"
 msgstr "Flux Audios"
 
-#: src/ui/media-toc.ui:795
+#: src/ui/media-toc.ui:799
 msgid "Text Streams"
 msgstr "Flux Textes"
 
-#: src/ui/media-toc.ui:825 src/ui/media-toc.ui:1782
+#: src/ui/media-toc.ui:829 src/ui/media-toc.ui:1789
 msgid "Streams"
 msgstr "Flux"
 
-#: src/ui/media-toc.ui:877
+#: src/ui/media-toc.ui:881
 msgid "mkvmerge text format"
 msgstr "Format textuel de mkvmerge"
 
-#: src/ui/media-toc.ui:893
+#: src/ui/media-toc.ui:897
 msgid ""
 "mkvmerge compliant text format.\n"
 "Flat table of contents.\n"
@@ -310,11 +315,11 @@ msgstr ""
 "Table des matières à plat.\n"
 "Précision temporelle : 1 ms."
 
-#: src/ui/media-toc.ui:929
+#: src/ui/media-toc.ui:933
 msgid "Cue Sheet format"
 msgstr "Format Cue Sheet"
 
-#: src/ui/media-toc.ui:945
+#: src/ui/media-toc.ui:949
 msgid ""
 "Cue Sheet compliant text format.\n"
 "Hierachical table of contents.\n"
@@ -324,11 +329,11 @@ msgstr ""
 "Table des matières hiérarchique.\n"
 "Précision temporelle : 1 trame (1/75 s)."
 
-#: src/ui/media-toc.ui:981
+#: src/ui/media-toc.ui:985
 msgid "Matroska Container"
 msgstr "Conteneur Matroska"
 
-#: src/ui/media-toc.ui:997
+#: src/ui/media-toc.ui:1001
 msgid ""
 "Binary audio, video & text media container.\n"
 "Hierachical table of contents.\n"
@@ -338,23 +343,23 @@ msgstr ""
 "Table des matières hiérarchique.\n"
 "Précision temporelle : 1 ns."
 
-#: src/ui/media-toc.ui:1041
+#: src/ui/media-toc.ui:1045
 msgid "Export"
 msgstr "Exporter"
 
-#: src/ui/media-toc.ui:1063
+#: src/ui/media-toc.ui:1067
 msgid "Export Formats"
 msgstr "Formats d'export"
 
-#: src/ui/media-toc.ui:1123
+#: src/ui/media-toc.ui:1127
 msgid "page0"
 msgstr "page0"
 
-#: src/ui/media-toc.ui:1186
+#: src/ui/media-toc.ui:1190
 msgid "Flac"
 msgstr "Flac"
 
-#: src/ui/media-toc.ui:1202
+#: src/ui/media-toc.ui:1206
 msgid ""
 "Audio lossless compression.\n"
 "Tags support."
@@ -362,11 +367,11 @@ msgstr ""
 "Flac (compression sans perte).\n"
 "Tags gérés."
 
-#: src/ui/media-toc.ui:1256
+#: src/ui/media-toc.ui:1260
 msgid "Wave / PCM"
 msgstr "Wave / PCM"
 
-#: src/ui/media-toc.ui:1272
+#: src/ui/media-toc.ui:1276
 msgid ""
 "No compression.\n"
 "Tags support."
@@ -374,11 +379,11 @@ msgstr ""
 "Sans compression.\n"
 "Tags gérés."
 
-#: src/ui/media-toc.ui:1326
+#: src/ui/media-toc.ui:1330
 msgid "Opus"
 msgstr "Opus"
 
-#: src/ui/media-toc.ui:1342 src/ui/media-toc.ui:1412 src/ui/media-toc.ui:1482
+#: src/ui/media-toc.ui:1346 src/ui/media-toc.ui:1416 src/ui/media-toc.ui:1486
 msgid ""
 "Audio lossy compression.\n"
 "Tags support."
@@ -386,27 +391,27 @@ msgstr ""
 "Compression audio avec perte.\n"
 "Tags gérés."
 
-#: src/ui/media-toc.ui:1396
+#: src/ui/media-toc.ui:1400
 msgid "Vorbis"
 msgstr "Vorbis"
 
-#: src/ui/media-toc.ui:1466
+#: src/ui/media-toc.ui:1470
 msgid "MP3"
 msgstr "MP3"
 
-#: src/ui/media-toc.ui:1525 src/ui/media-toc.ui:1872
+#: src/ui/media-toc.ui:1529 src/ui/media-toc.ui:1879
 msgid "Split"
 msgstr "Découper"
 
-#: src/ui/media-toc.ui:1547
+#: src/ui/media-toc.ui:1551
 msgid "Split Formats"
 msgstr "Formats cibles"
 
-#: src/ui/media-toc.ui:1594
+#: src/ui/media-toc.ui:1598
 msgid "page1"
 msgstr "page1"
 
-#: src/ui/media-toc.ui:1827
+#: src/ui/media-toc.ui:1834
 msgid "Export\t"
 msgstr "Exporter"
 

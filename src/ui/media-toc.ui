@@ -368,6 +368,7 @@ Author: François Laignel
                 <child>
                   <object class="GtkToggleToolButton" id="repeat-toolbutton">
                     <property name="visible">True</property>
+                    <property name="sensitive">False</property>
                     <property name="can_focus">False</property>
                     <property name="halign">start</property>
                     <property name="label" translatable="yes">Repeat Chapter</property>
@@ -597,6 +598,7 @@ Author: François Laignel
                                 <child>
                                   <object class="GtkToolButton" id="audio_zoom_in-toolbutton">
                                     <property name="visible">True</property>
+                                    <property name="sensitive">False</property>
                                     <property name="can_focus">False</property>
                                     <property name="halign">center</property>
                                     <property name="label" translatable="yes">Zoom In</property>
@@ -611,6 +613,7 @@ Author: François Laignel
                                 <child>
                                   <object class="GtkToolButton" id="audio_zoom_out-toolbutton">
                                     <property name="visible">True</property>
+                                    <property name="sensitive">False</property>
                                     <property name="can_focus">False</property>
                                     <property name="halign">center</property>
                                     <property name="label" translatable="yes">Zoom Out</property>
@@ -675,6 +678,7 @@ Author: François Laignel
                             <child>
                               <object class="GtkToolButton" id="play_pause-toolbutton">
                                 <property name="visible">True</property>
+                                <property name="sensitive">False</property>
                                 <property name="can_focus">False</property>
                                 <property name="halign">end</property>
                                 <property name="valign">end</property>
@@ -1621,6 +1625,7 @@ Tags support.</property>
         <child>
           <object class="GtkMenuButton" id="perspective-menu-btn">
             <property name="visible">True</property>
+            <property name="sensitive">False</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
             <property name="popover">perspective-popovermenu</property>
@@ -1660,6 +1665,7 @@ Tags support.</property>
         <child>
           <object class="GtkButton" id="open-btn">
             <property name="visible">True</property>
+            <property name="sensitive">False</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
             <child>
@@ -1680,6 +1686,7 @@ Tags support.</property>
         <child>
           <object class="GtkToggleButton" id="show_chapters-toggle">
             <property name="visible">True</property>
+            <property name="sensitive">False</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
             <property name="image">show_chapters-image</property>

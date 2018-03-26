@@ -268,6 +268,8 @@ impl AudioController {
 
     pub fn cleanup(&mut self) {
         self.state = ControllerState::Disabled;
+        self.zoom_in_btn.set_sensitive(false);
+        self.zoom_out_btn.set_sensitive(false);
         self.reset_cursor();
         self.playback_needs_refresh = false;
         {
@@ -326,6 +328,8 @@ impl AudioController {
             }
 
             self.state = ControllerState::Paused;
+            self.zoom_in_btn.set_sensitive(true);
+            self.zoom_out_btn.set_sensitive(true);
             self.container.show();
         } else {
             self.container.hide();
