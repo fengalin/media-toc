@@ -4,8 +4,11 @@ src/main.rs
 src/media/playback_context.rs
 src/media/splitter_context.rs
 src/media/toc_setter_context.rs
+src/metadata/cue_sheet_format.rs
+src/metadata/mkvmerge_text_format.rs
 src/ui/chapter_tree_manager.rs
 src/ui/export_controller.rs
+src/ui/info_controller.rs
 src/ui/main_controller.rs
 src/ui/media-toc.ui
 src/ui/streams_controller.rs
