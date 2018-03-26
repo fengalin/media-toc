@@ -86,13 +86,13 @@ impl InfoController {
             timeline_scale: builder.get_object("timeline-scale").unwrap(),
             repeat_button: builder.get_object("repeat-toolbutton").unwrap(),
 
-            chapter_treeview: chapter_treeview,
-            add_chapter_btn: add_chapter_btn,
-            del_chapter_btn: del_chapter_btn,
+            chapter_treeview,
+            add_chapter_btn,
+            del_chapter_btn,
 
             thumbnail: None,
 
-            chapter_manager: chapter_manager,
+            chapter_manager,
 
             duration: 0,
             repeat_chapter: false,
@@ -228,8 +228,6 @@ impl InfoController {
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
-        self.show_chapters_button.set_sensitive(true);
-
         let media_path = context.path.clone();
         let file_stem = media_path
             .file_stem()
@@ -334,7 +332,6 @@ impl InfoController {
     }
 
     pub fn cleanup(&mut self) {
-        self.show_chapters_button.set_sensitive(false);
         self.title_lbl.set_text("");
         self.artist_lbl.set_text("");
         self.container_lbl.set_text("");
