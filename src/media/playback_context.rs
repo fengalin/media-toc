@@ -1,3 +1,5 @@
+use gettextrs::gettext;
+
 use gstreamer as gst;
 
 use gstreamer::prelude::*;
@@ -31,7 +33,7 @@ struct VideoOutput {
 unsafe impl Sync for VideoOutput {}
 
 lazy_static! {
-    static ref VIDEO_OUTPUT: VideoOutput = {
+    static ref VIDEO_OUTPUT: Option<VideoOutput> = {
         let (video_sink, widget_val) =
             // For some reasons, `gtkglsink` seems to interfer with waveform renderding
             // by inducing more jerks than with `gtksink`.
@@ -50,22 +52,27 @@ lazy_static! {
                 (None, None)
             };
         match (video_sink, widget_val) {
-            (Some(video_sink), Some(widget_val)) => VideoOutput {
-                sink: video_sink,
-                widget: widget_val.get::<gtk::Widget>()
-                    .expect("Failed to get GstGtkWidget glib::Value as gtk::Widget"),
-            },
-            (Some(_video_sink), None) => panic!("Couldn't get video widget"),
+            (Some(video_sink), Some(widget_val)) => {
+                match widget_val.get::<gtk::Widget>() {
+                    Some(widget) => {
+                        Some(VideoOutput {
+                            sink: video_sink,
+                            widget: widget,
+                        })
+                    }
+                    None => {
+                        eprintln!("{}", gettext("ERROR: Failed to get Video Widget."));
+                        None
+                    }
+                }
+            }
+            (Some(_video_sink), None) => {
+                eprintln!("{}", gettext("ERROR: Failed to get Video Widget."));
+                None
+            }
             (None, _) => {
-                let mut msg = "Couldn't find GStreamer GTK video sink. Please install ".to_string();
-                let (major, minor, micro, _nano) = gst::version();
-                msg += if major >= 1 && minor >= 13 && micro >= 1 {
-                    "`gstreamer1-plugins-base` or `gstreamer1.0-plugins-base`"
-                } else {
-                    "`gstreamer1-plugins-bad-free-gtk` or `gstreamer1.0-plugins-bad`"
-                };
-                msg += ", depenging on your distribution.";
-                panic!(msg);
+                eprintln!("{}", gettext("Couldn't find GStreamer GTK video sink."));
+                None
             }
         }
     };
@@ -140,7 +147,11 @@ impl PlaybackContext {
             .expect("PlaybackContext::new failed to lock media info")
             .file_name = file_name;
 
-        this.build_pipeline(ctx_tx.clone(), dbl_audio_buffer_mtx, (*VIDEO_OUTPUT).sink.clone());
+        this.build_pipeline(
+            ctx_tx.clone(),
+            dbl_audio_buffer_mtx,
+            (*VIDEO_OUTPUT).as_ref().map(|video_output| video_output.sink.clone()),
+        );
         this.register_bus_inspector(ctx_tx);
 
         match this.pause() {
@@ -149,8 +160,41 @@ impl PlaybackContext {
         }
     }
 
-    pub fn get_video_widget() -> gtk::Widget {
-        (*VIDEO_OUTPUT).widget.clone()
+    pub fn check_requirements() -> Result<(), String> {
+        gst::ElementFactory::make("decodebin3", None).map_or(
+            Err(gettext("Missing `decodebin3`\ncheck your gst-plugins-base install")),
+            |_| Ok(())
+        )
+            .and_then(|_| {
+                gst::ElementFactory::make("gtksink", None).map_or_else(
+                    || {
+                        let (major, minor, micro, _nano) = gst::version();
+                        let (variant1, variant2) = if major >= 1 && minor >= 13 && micro >= 1 {
+                            (
+                                "gstreamer1-plugins-base",
+                                "gstreamer1.0-plugins-base",
+                            )
+                        } else {
+                            (
+                                "gstreamer1-plugins-bad-free-gtk",
+                                "gstreamer1.0-plugins-bad",
+                            )
+                        };
+                        Err(format!("{} {}\n{}",
+                            gettext("Couldn't find GStreamer GTK video sink."),
+                            gettext("Video playback will be disabled."),
+                            gettext("Please install {} or {}, depenging on your distribution.")
+                                .replacen("{}", variant1, 1)
+                                .replacen("{}", variant2, 1),
+                        ))
+                    },
+                    |_| Ok(())
+                )
+            })
+    }
+
+    pub fn get_video_widget() -> Option<gtk::Widget> {
+        (*VIDEO_OUTPUT).as_ref().map(|video_output| video_output.widget.clone())
     }
 
     pub fn get_position(&mut self) -> u64 {
@@ -314,12 +358,11 @@ impl PlaybackContext {
             .unwrap();
     }
 
-    // TODO: handle errors
     fn build_pipeline(
         &mut self,
         ctx_tx: Sender<ContextMessage>,
         dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
-        video_sink: gst::Element,
+        video_sink: Option<gst::Element>,
     ) {
         // From decodebin3's documentation: "Children: multiqueue0"
         let decodebin_as_bin = self.decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
@@ -356,7 +399,9 @@ impl PlaybackContext {
                         Arc::clone(&dbl_audio_buffer_mtx),
                     );
                 } else if name.starts_with("video_") {
-                    PlaybackContext::build_video_pipeline(pipeline, src_pad, &video_sink);
+                    if let Some(ref video_sink) = video_sink {
+                        PlaybackContext::build_video_pipeline(pipeline, src_pad, video_sink);
+                    }
                 } else {
                     // TODO: handle subtitles
                     /*let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();

@@ -127,6 +127,16 @@ impl MainController {
             AudioController::register_callbacks(&this_mut.audio_ctrl, &this);
             ExportController::register_callbacks(&this_mut.export_ctrl, &this);
             StreamsController::register_callbacks(&this_mut.streams_ctrl, &this);
+
+            let mut req_err = PlaybackContext::check_requirements().err();
+            if req_err.is_some() {
+                let err = req_err.take().unwrap();
+                let this_rc = Rc::clone(&this);
+                gtk::idle_add(move || {
+                    this_rc.borrow().show_message(gtk::MessageType::Warning, &err);
+                    glib::Continue(false)
+                });
+            }
         }
 
         let open_btn: gtk::Button = builder.get_object("open-btn").unwrap();
