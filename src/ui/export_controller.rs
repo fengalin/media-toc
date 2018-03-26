@@ -128,12 +128,11 @@ impl ExportController {
             let this_rc = Rc::clone(&this);
             this_mut.this_opt = Some(this_rc);
 
-            this_mut.cleanup();
-
             this_mut.export_list.select_row(&this_mut.mkvmerge_txt_row);
             this_mut.split_list.select_row(&this_mut.split_to_flac_row);
             this_mut.check_requirements();
-            this_mut.switch_to_available();
+
+            this_mut.cleanup();
         }
 
         this
@@ -185,9 +184,13 @@ impl ExportController {
     }
 
     pub fn new_media(&mut self, _context: &PlaybackContext) {
+        self.export_btn.set_sensitive(true);
+        self.split_btn.set_sensitive(true);
     }
 
     pub fn cleanup(&mut self) {
+        self.export_btn.set_sensitive(false);
+        self.split_btn.set_sensitive(false);
         self.export_progress_bar.set_fraction(0f64);
         self.split_progress_bar.set_fraction(0f64);
     }
@@ -602,6 +605,14 @@ impl ExportController {
 
     fn switch_to_busy(&self) {
         // TODO: allow cancelling export / split
+        if let Some(main_ctrl) = self.main_ctrl
+            .as_ref()
+            .unwrap()
+            .upgrade()
+        {
+            main_ctrl.borrow().set_cursor_waiting();
+        }
+
         self.perspective_selector.set_sensitive(false);
         self.open_btn.set_sensitive(false);
         self.chapter_grid.set_sensitive(false);
@@ -613,6 +624,14 @@ impl ExportController {
     }
 
     fn switch_to_available(&self) {
+        if let Some(main_ctrl) = self.main_ctrl
+            .as_ref()
+            .unwrap()
+            .upgrade()
+        {
+            main_ctrl.borrow().reset_cursor();
+        }
+
         self.export_progress_bar.set_fraction(0f64);
         self.split_progress_bar.set_fraction(0f64);
 

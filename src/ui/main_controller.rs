@@ -508,9 +508,7 @@ impl MainController {
         }));
     }
 
-    fn switch_to_busy(&mut self) {
-        self.window.set_sensitive(false);
-
+    pub fn set_cursor_waiting(&self) {
         let gdk_window = self.window.get_window().unwrap();
         gdk_window.set_cursor(&Cursor::new_for_display(
             &gdk_window.get_display(),
@@ -518,8 +516,17 @@ impl MainController {
         ));
     }
 
-    fn switch_to_default(&mut self) {
+    pub fn reset_cursor(&self) {
         self.window.get_window().unwrap().set_cursor(None);
+    }
+
+    fn switch_to_busy(&mut self) {
+        self.window.set_sensitive(false);
+        self.set_cursor_waiting();
+    }
+
+    fn switch_to_default(&mut self) {
+        self.reset_cursor();
         self.window.set_sensitive(true);
     }
 
