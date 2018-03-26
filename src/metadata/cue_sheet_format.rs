@@ -1,3 +1,4 @@
+use gettextrs::gettext;
 use gstreamer as gst;
 
 use std::io::Write;
@@ -18,20 +19,28 @@ impl CueSheetFormat {
     }
 }
 
+macro_rules! write_fmt(
+    ($dest:ident, $fmt:expr, $( $item:expr ),*) => {
+        if $dest.write_fmt(format_args!($fmt, $( $item ),*)).is_err() {
+            return Err(gettext("Failed to write Cue Sheet file"));
+        }
+    };
+);
+
 impl Writer for CueSheetFormat {
-    fn write(&self, info: &MediaInfo, destination: &mut Write) {
+    fn write(&self, info: &MediaInfo, destination: &mut Write) -> Result<(), String> {
+        if info.toc.is_none() {
+            return Err(gettext("The table of contents is empty"));
+        }
+
         let media_title = info.get_title().map(|title| title.to_owned());
         if let Some(ref title) = media_title {
-            destination
-                .write_fmt(format_args!("TITLE \"{}\"\n", title))
-                .expect("CueSheetFormat::write clicked, failed to write to file");
+            write_fmt!(destination, "TITLE \"{}\"\n", title);
         }
 
         let media_artist = info.get_artist().map(|artist| artist.to_owned());
         if let Some(ref artist) = media_artist {
-            destination
-                .write_fmt(format_args!("PERFORMER \"{}\"\n", artist))
-                .expect("CueSheetFormat::write clicked, failed to write to file");
+            write_fmt!(destination, "PERFORMER \"{}\"\n", artist);
         }
 
         let audio_codec = match info.get_audio_codec() {
@@ -46,26 +55,14 @@ impl Writer for CueSheetFormat {
             }
             None => "WAVE",
         };
-        destination
-            .write_fmt(format_args!(
-                "FILE \"{}\" {}\n",
-                info.get_file_name(),
-                audio_codec
-            ))
-            .expect("CueSheetFormat::write clicked, failed to write to file");
-
-        if info.toc.is_none() {
-            return;
-        }
+        write_fmt!(destination, "FILE \"{}\" {}\n", info.get_file_name(), audio_codec);
 
         let mut index = 0;
         let mut toc_visitor = TocVisitor::new(info.toc.as_ref().unwrap());
         while let Some(chapter) = toc_visitor.next_chapter() {
             index += 1;
             // FIXME: are there other TRACK types than AUDIO?
-            destination
-                .write_fmt(format_args!("  TRACK{:02} AUDIO\n", index))
-                .expect("CueSheetFormat::write clicked, failed to write to file");
+            write_fmt!(destination, "  TRACK{:02} AUDIO\n", index);
 
             let title = chapter.get_tags().map_or(None, |tags| {
                 tags.get::<gst::tags::Title>().map(|tag| {
@@ -74,9 +71,7 @@ impl Writer for CueSheetFormat {
             })
                 .map_or(media_title.clone(), |track_title| Some(track_title))
                 .unwrap_or(super::DEFAULT_TITLE.to_owned());
-            destination
-                .write_fmt(format_args!("    TITLE \"{}\"\n", &title))
-                .expect("CueSheetFormat::write clicked, failed to write to file");
+            write_fmt!(destination, "    TITLE \"{}\"\n", &title);
 
             let artist = chapter.get_tags().map_or(None, |tags| {
                 tags.get::<gst::tags::Artist>().map(|tag| {
@@ -85,23 +80,20 @@ impl Writer for CueSheetFormat {
             })
                 .map_or(media_artist.clone(), |track_artist| Some(track_artist))
                 .unwrap_or(super::DEFAULT_TITLE.to_owned());
-            destination
-                .write_fmt(format_args!("    PERFORMER \"{}\"\n", &artist))
-                .expect("CueSheetFormat::write clicked, failed to write to file");
+            write_fmt!(destination, "    PERFORMER \"{}\"\n", &artist);
 
             if let Some((start, _end)) = chapter.get_start_stop_times() {
                 let start_ts = Timestamp::from_nano(start as u64);
-                destination
-                    .write_fmt(format_args!(
-                        "    INDEX 01 {:02}:{:02}:{:02}\n",
-                        start_ts.h * 60 + start_ts.m,
-                        start_ts.s,
-                        (((start_ts.ms * 1_000 + start_ts.us) * 1_000 + start_ts.nano) as f64
-                            / 1_000_000_000f64 * 75f64)
-                            .round() // frame nb (75 frames/s for Cue Sheets)
-                    ))
-                    .expect("CueSheetFormat::write clicked, failed to write to file");
+                write_fmt!(destination, "    INDEX 01 {:02}:{:02}:{:02}\n",
+                    start_ts.h * 60 + start_ts.m,
+                    start_ts.s,
+                    (((start_ts.ms * 1_000 + start_ts.us) * 1_000 + start_ts.nano) as f64
+                        / 1_000_000_000f64 * 75f64)
+                        .round() // frame nb (75 frames/s for Cue Sheets)
+                );
             }
         }
+
+        Ok(())
     }
 }

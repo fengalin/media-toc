@@ -1,3 +1,4 @@
+use gettextrs::gettext;
 use gstreamer as gst;
 
 use std::io::{Read, Write};
@@ -33,7 +34,7 @@ impl Reader for MKVMergeTextFormat {
         &self,
         info: &MediaInfo,
         source: &mut Read,
-    ) -> Option<gst::Toc> {
+    ) -> Result<gst::Toc, String> {
         fn add_chapter(
             parent: &mut gst::TocEntry,
             mut nb: Option<usize>,
@@ -64,10 +65,13 @@ impl Reader for MKVMergeTextFormat {
                 .append_sub_entry(chapter);
         }
 
+        let error_msg = gettext("Error reading mkvmerge text file.");
+
         let mut content = String::new();
-        source
-            .read_to_string(&mut content)
-            .expect("MKVMergeTextFormat::read failed reading source content");
+        if source.read_to_string(&mut content).is_err() {
+            eprintln!("MKVMergeTextFormat::read failed reading source content");
+            return Err(error_msg);
+        }
 
         let mut toc_edition = gst::TocEntry::new(gst::TocEntryType::Edition, "");
         let mut last_nb = None;
@@ -84,10 +88,13 @@ impl Reader for MKVMergeTextFormat {
                         .parse::<usize>()
                     {
                         Ok(chapter_nb) => chapter_nb,
-                        Err(_) => panic!(
-                            "MKVMergeTextFormat::read couldn't find chapter nb for: {}",
-                            line,
-                        ),
+                        Err(_) => {
+                            eprintln!(
+                                "MKVMergeTextFormat::read couldn't find chapter nb for: {}",
+                                line,
+                            );
+                            return Err(error_msg);
+                        }
                     };
 
                     if tag.ends_with(NAME_TAG) {
@@ -112,32 +119,48 @@ impl Reader for MKVMergeTextFormat {
                         last_nb = Some(cur_nb);
                     }
                 } else {
-                    panic!("MKVMergeTextFormat::read unexpected format for: {}", line);
+                    eprintln!("MKVMergeTextFormat::read unexpected format for: {}", line);
+                    return Err(error_msg);
                 }
             } else {
-                panic!("MKVMergeTextFormat::read expected '=' for: {}", line);
+                eprintln!("MKVMergeTextFormat::read expected '=' for: {}", line);
+                return Err(error_msg);
             }
         }
 
-        last_start.take().map(|last_start| {
-            add_chapter(
-                &mut toc_edition,
-                last_nb,
-                last_start,
-                info.duration,
-                last_title,
-            );
-            let mut toc = gst::Toc::new(gst::TocScope::Global);
-            toc.get_mut().unwrap().append_entry(toc_edition);
-            toc
-        })
+        last_start.take().map_or_else(
+            || {
+                eprintln!("MKVMergeTextFormat::read couldn't update last start");
+                Err(error_msg)
+            },
+            |last_start| {
+                add_chapter(
+                    &mut toc_edition,
+                    last_nb,
+                    last_start,
+                    info.duration,
+                    last_title,
+                );
+                let mut toc = gst::Toc::new(gst::TocScope::Global);
+                toc.get_mut().unwrap().append_entry(toc_edition);
+                Ok(toc)
+            }
+        )
     }
 }
 
+macro_rules! write_fmt(
+    ($dest:ident, $fmt:expr, $( $item:expr ),*) => {
+        if $dest.write_fmt(format_args!($fmt, $( $item ),*)).is_err() {
+            return Err(gettext("Failed to write mkvmerge text file"));
+        }
+    };
+);
+
 impl Writer for MKVMergeTextFormat {
-    fn write(&self, info: &MediaInfo, destination: &mut Write) {
+    fn write(&self, info: &MediaInfo, destination: &mut Write) -> Result<(), String> {
         if info.toc.is_none() {
-            return;
+            return Err(gettext("The table of contents is empty"));
         }
 
         let mut index = 0;
@@ -146,23 +169,20 @@ impl Writer for MKVMergeTextFormat {
             if let Some((start, _end)) = chapter.get_start_stop_times() {
                 index += 1;
                 let prefix = format!("{}{:02}", CHAPTER_TAG, index);
-                destination
-                    .write_fmt(format_args!(
-                        "{}={}\n",
-                        prefix,
-                        Timestamp::from_nano(start as u64).format_with_hours(),
-                    ))
-                    .expect("MKVMergeTextFormat::write clicked, failed to write to file");
+                write_fmt!(destination, "{}={}\n",
+                    prefix,
+                    Timestamp::from_nano(start as u64).format_with_hours()
+                );
 
                 let title = chapter.get_tags().map_or(None, |tags| {
                     tags.get::<gst::tags::Title>().map(|tag| {
                         tag.get().unwrap().to_owned()
                     })
                 }).unwrap_or(super::DEFAULT_TITLE.to_owned());
-                destination
-                    .write_fmt(format_args!("{}{}={}\n", prefix, NAME_TAG, &title))
-                    .expect("MKVMergeTextFormat::write clicked, failed to write to file");
+                write_fmt!(destination, "{}{}={}\n", prefix, NAME_TAG ,&title);
             }
         }
+
+        Ok(())
     }
 }

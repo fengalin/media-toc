@@ -5,11 +5,11 @@ use std::io::{Read, Write};
 use super::MediaInfo;
 
 pub trait Reader {
-    fn read(&self, info: &MediaInfo, source: &mut Read) -> Option<gst::Toc>;
+    fn read(&self, info: &MediaInfo, source: &mut Read) -> Result<gst::Toc, String>;
 }
 
 pub trait Writer {
-    fn write(&self, info: &MediaInfo, destination: &mut Write);
+    fn write(&self, info: &MediaInfo, destination: &mut Write) -> Result<(), String>;
 }
 
 pub trait Exporter {

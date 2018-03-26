@@ -283,20 +283,20 @@ impl ExportController {
                         let info = self.playback_ctx.as_ref().unwrap().info.lock().expect(
                             "ExportController::export, failed to lock media info",
                         );
-                        metadata::Factory::get_writer(&format).write(
+                        match metadata::Factory::get_writer(&format).write(
                             &info,
                             &mut output_file,
-                        );
-                        (
-                            gtk::MessageType::Info,
-                            gettext("Table of contents exported succesfully")
-                                .to_owned(),
-                        )
+                        ) {
+                            Ok(_) => (
+                                gtk::MessageType::Info,
+                                gettext("Table of contents exported succesfully")
+                            ),
+                            Err(err) => (gtk::MessageType::Error, err),
+                        }
                     }
                     Err(_) => (
                         gtk::MessageType::Error,
                         gettext("Failed to create the file for the table of contents")
-                            .to_owned(),
                     ),
                 };
 
