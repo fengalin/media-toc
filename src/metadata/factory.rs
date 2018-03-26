@@ -8,8 +8,8 @@ impl Factory {
     pub fn get_extensions() -> Vec<(&'static str, Format)> {
         let mut result = Vec::<(&'static str, Format)>::new();
 
+        // Only MKVMergeTextFormat implemented for Read ATM
         result.push((MKVMergeTextFormat::get_extension(), Format::MKVMergeText));
-        result.push((CueSheetFormat::get_extension(), Format::CueSheet));
 
         result
     }
