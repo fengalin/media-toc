@@ -7,9 +7,9 @@ use gstreamer::PadExt;
 use glib;
 use glib::ObjectExt;
 
-use std::sync::mpsc::Sender;
-
+use std::error::Error;
 use std::path::Path;
+use std::sync::mpsc::Sender;
 
 use super::ContextMessage;
 
@@ -75,7 +75,6 @@ impl TocSetterContext {
         self.position_query.get_result().get_value() as u64
     }
 
-    // TODO: handle errors
     fn build_pipeline(&mut self, input_path: &Path, output_path: &Path) {
         // Input
         let filesrc = gst::ElementFactory::make("filesrc", None).unwrap();
@@ -154,16 +153,19 @@ impl TocSetterContext {
                     return glib::Continue(false);
                 }
                 gst::MessageView::Error(err) => {
+                    let error = err.get_error();
                     eprintln!(
                         "Error from {}: {} ({:?})",
                         msg.get_src()
                             .map(|s| s.get_path_string(),)
                             .unwrap_or_else(|| String::from("None"),),
-                        err.get_error(),
+                        error,
                         err.get_debug()
                     );
                     ctx_tx
-                        .send(ContextMessage::FailedToExport)
+                        .send(ContextMessage::FailedToExport(
+                            error.description().to_owned()
+                        ))
                         .expect("Error: Failed to notify UI");
                     return glib::Continue(false);
                 }

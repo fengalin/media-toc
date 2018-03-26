@@ -25,7 +25,7 @@ pub enum ContextMessage {
     AsyncDone,
     Eos,
     FailedToOpenMedia(glib::Error),
-    FailedToExport,
+    FailedToExport(String),
     InitDone,
     ReadyForRefresh,
     StreamsSelected,

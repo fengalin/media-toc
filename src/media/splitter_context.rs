@@ -6,11 +6,10 @@ use gstreamer::ClockTime;
 
 use glib;
 
-use std::sync::mpsc::Sender;
-
+use std::error::Error;
 use std::path::Path;
-
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc::Sender;
 
 use metadata::Format;
 
@@ -117,7 +116,6 @@ impl SplitterContext {
         self.position_query.get_result().get_value() as u64
     }
 
-    // TODO: handle errors
     #[cfg_attr(feature = "cargo-clippy", allow(mutex_atomic))]
     fn build_pipeline(&mut self, input_path: &Path, output_path: &Path) {
         /* There are multiple showstoppers to implementing something ideal
@@ -315,7 +313,11 @@ impl SplitterContext {
                 gst::MessageView::Eos(..) => {
                     if pipeline.set_state(gst::State::Null) == gst::StateChangeReturn::Failure {
                         ctx_tx
-                            .send(ContextMessage::FailedToExport)
+                            .send(ContextMessage::FailedToExport(
+                                gettext(
+                                    "ERROR: Failed to terminate properly. Check the resulting file."
+                                )
+                            ))
                             .expect("Error: Failed to notify UI");
                     }
                     ctx_tx
@@ -324,16 +326,19 @@ impl SplitterContext {
                     return glib::Continue(false);
                 }
                 gst::MessageView::Error(err) => {
+                    let error = err.get_error();
                     eprintln!(
                         "Error from {}: {} ({:?})",
                         msg.get_src()
                             .map(|s| s.get_path_string(),)
                             .unwrap_or_else(|| String::from("None"),),
-                        err.get_error(),
+                        error,
                         err.get_debug()
                     );
                     ctx_tx
-                        .send(ContextMessage::FailedToExport)
+                        .send(ContextMessage::FailedToExport(
+                            error.description().to_owned()
+                        ))
                         .expect("Error: Failed to notify UI");
                     return glib::Continue(false);
                 }
@@ -341,7 +346,9 @@ impl SplitterContext {
                     // Start splitting
                     if pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
                         ctx_tx
-                            .send(ContextMessage::FailedToExport)
+                            .send(ContextMessage::FailedToExport(
+                                gettext("ERROR: Failed to start splitting.")
+                            ))
                             .expect("Error: Failed to notify UI");
                     }
                 }

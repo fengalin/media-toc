@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-26 13:06+0200\n"
-"PO-Revision-Date: 2018-03-26 13:13+0200\n"
+"POT-Creation-Date: 2018-03-26 13:58+0200\n"
+"PO-Revision-Date: 2018-03-26 13:55+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -75,7 +75,7 @@ msgstr "L'affichage vidéo sera désactivé."
 msgid "Please install {} or {}, depenging on your distribution."
 msgstr "Veuillez installer {} ou {}, selon votre distribution."
 
-#: src/media/splitter_context.rs:33
+#: src/media/splitter_context.rs:32
 msgid ""
 "Missing `flacenc`\n"
 "check your gst-plugins-good install"
@@ -83,7 +83,7 @@ msgstr ""
 "`flacenc` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: src/media/splitter_context.rs:39
+#: src/media/splitter_context.rs:38
 msgid ""
 "Missing `wavenc`\n"
 "check your gst-plugins-good install"
@@ -91,7 +91,7 @@ msgstr ""
 "`wavenc` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: src/media/splitter_context.rs:45 src/media/splitter_context.rs:57
+#: src/media/splitter_context.rs:44 src/media/splitter_context.rs:56
 msgid ""
 "Missing `opusenc`\n"
 "check your gst-plugins-good install"
@@ -99,7 +99,7 @@ msgstr ""
 "`opusenc` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: src/media/splitter_context.rs:50 src/media/splitter_context.rs:62
+#: src/media/splitter_context.rs:49 src/media/splitter_context.rs:61
 msgid ""
 "Missing `oggmux`\n"
 "check your gst-plugins-good install"
@@ -107,7 +107,7 @@ msgstr ""
 "`oggmux` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: src/media/splitter_context.rs:69
+#: src/media/splitter_context.rs:68
 msgid ""
 "Missing `lamemp3enc`\n"
 "check your gst-plugins-good install"
@@ -115,13 +115,22 @@ msgstr ""
 "`lamemp3enc` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: src/media/splitter_context.rs:74
+#: src/media/splitter_context.rs:73
 msgid ""
 "Missing `id3v2mux`\n"
 "check your gst-plugins-good install"
 msgstr ""
 "`id3v2mux` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
+
+#: src/media/splitter_context.rs:318
+msgid "ERROR: Failed to terminate properly. Check the resulting file."
+msgstr ""
+"ERREUR : Impossible de terminer correctement. Vérifiez le fichier généré."
+
+#: src/media/splitter_context.rs:350
+msgid "ERROR: Failed to start splitting."
+msgstr "ERREUR : Impossible de démarrer le découpage."
 
 #: src/media/toc_setter_context.rs:29
 msgid ""
@@ -159,43 +168,43 @@ msgstr "Table des matières exportée avec succès"
 msgid "Failed to create the file for the table of contents"
 msgstr "Échec à la création du fichier de table des matières"
 
-#: src/ui/export_controller.rs:370
+#: src/ui/export_controller.rs:372
 msgid "ERROR: preparing for export: {}"
 msgstr "ERREUR : échec lors de la préparation de l'export : {}"
 
-#: src/ui/export_controller.rs:414
+#: src/ui/export_controller.rs:411
 msgid "ERROR: preparing for split: {}"
 msgstr "ERREUR : échec lors de la préparation du découpage : {}"
 
-#: src/ui/export_controller.rs:685
+#: src/ui/export_controller.rs:681
 msgid "ERROR: failed to export media: {}"
 msgstr "ERREUR : échec lors de l'export du média : {}"
 
-#: src/ui/export_controller.rs:696
+#: src/ui/export_controller.rs:692
 msgid "Media exported succesfully"
 msgstr "Table des matières exportée avec succès"
 
-#: src/ui/export_controller.rs:700
-msgid "ERROR: failed to export media"
-msgstr "ERREUR : échec lors de l'export du média"
+#: src/ui/export_controller.rs:696
+msgid "ERROR: failed to export media. {}"
+msgstr "ERREUR : échec lors de l'export du média. {}"
 
-#: src/ui/export_controller.rs:753
+#: src/ui/export_controller.rs:750
 msgid "Media split succesfully"
 msgstr "Média découpé avec succès"
 
-#: src/ui/export_controller.rs:760
-msgid "ERROR: failed to split media"
-msgstr "ERREUR : échec lors du découpage du média"
+#: src/ui/export_controller.rs:762
+msgid "ERROR: failed to split media. {}"
+msgstr "ERREUR : échec lors du découpage du média. {}"
 
-#: src/ui/main_controller.rs:469 src/ui/main_controller.rs:567
+#: src/ui/main_controller.rs:479 src/ui/main_controller.rs:577
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
 
-#: src/ui/main_controller.rs:521
+#: src/ui/main_controller.rs:531
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:526
+#: src/ui/main_controller.rs:536
 msgid "Open"
 msgstr "Ouvrir"
 

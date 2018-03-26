@@ -314,7 +314,9 @@ impl ExportController {
         self.prepare_process(&format);
 
         if self.toc_visitor.is_some() {
-            self.build_splitter_context(&format);
+            if let Err(err) = self.build_splitter_context(&format) {
+                self.show_error(&err);
+            }
         } else {
             // No chapter => export the whole file
             let target_path = self.target_path.clone();
@@ -378,15 +380,10 @@ impl ExportController {
         };
     }
 
-    fn build_splitter_context(&mut self, format: &metadata::Format) -> bool {
-        if self.toc_visitor.is_none() {
-            // FIXME: display message: no chapter
-            return false;
-        }
-
+    fn build_splitter_context(&mut self, format: &metadata::Format) -> Result<bool, String> {
         let mut chapter = match self.next_chapter() {
             Some(chapter) => chapter,
-            None => return false,
+            None => return Ok(false),
         };
         // Unfortunately, we need to make a copy here
         // because the chapter is also owned by the self.toc
@@ -408,7 +405,7 @@ impl ExportController {
             Ok(splitter_ctx) => {
                 self.switch_to_busy();
                 self.splitter_ctx = Some(splitter_ctx);
-                true
+                Ok(true)
             }
             Err(error) => {
                 let msg = gettext("ERROR: preparing for split: {}")
@@ -417,8 +414,7 @@ impl ExportController {
                 self.remove_listener();
                 self.switch_to_available();
                 self.restore_context();
-                self.show_error(&msg);
-                false
+                Err(msg)
             }
         }
     }
@@ -696,8 +692,9 @@ impl ExportController {
                         this.show_info(&gettext("Media exported succesfully"));
                         keep_going = false;
                     }
-                    FailedToExport => {
-                        let message = gettext("ERROR: failed to export media");
+                    FailedToExport(error) => {
+                        let message = gettext("ERROR: failed to export media. {}")
+                            .replacen("{}", &error, 1);
                         eprintln!("{}", message);
                         this.show_error(&message);
                         keep_going = false;
@@ -747,17 +744,23 @@ impl ExportController {
             for message in ui_rx.try_iter() {
                 match message {
                     Eos => {
-                        if !this.build_splitter_context(&format) {
-                            // No more chapters or an error occured
-                            // FIXME: handle the error
-                            this.show_info(&gettext("Media split succesfully"));
-                            process_done = true;
-                        }
+                        process_done = match this.build_splitter_context(&format) {
+                            Ok(true) => false, // more chapters
+                            Ok(false) => {
+                                this.show_info(&gettext("Media split succesfully"));
+                                true
+                            }
+                            Err(err) => {
+                                this.show_error(&err);
+                                true
+                            }
+                        };
 
                         keep_going = false;
                     }
-                    FailedToExport => {
-                        let message = gettext("ERROR: failed to split media");
+                    FailedToExport(error) => {
+                        let message = gettext("ERROR: failed to split media. {}")
+                            .replacen("{}", &error, 1);
                         eprintln!("{}", message);
                         this.show_error(&message);
                         this.listener_src = None;
