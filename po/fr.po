@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
 "POT-Creation-Date: 2018-03-26 13:58+0200\n"
-"PO-Revision-Date: 2018-03-26 13:55+0200\n"
+"PO-Revision-Date: 2018-03-26 14:23+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -368,7 +368,7 @@ msgstr ""
 
 #: src/ui/media-toc.ui:1394
 msgid "Vorbis"
-msgstr "Vrobis"
+msgstr "Vorbis"
 
 #: src/ui/media-toc.ui:1464
 msgid "MP3"
