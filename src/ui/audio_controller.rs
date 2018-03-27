@@ -575,7 +575,7 @@ impl AudioController {
     ) -> Inhibit {
         if self.state == ControllerState::Disabled {
             // Not active yet, don't display
-            debug!("AudioController::draw still Disabled, not drawing");
+            debug!("draw still disabled, not drawing");
             self.clean_cairo_context(cr);
             return Inhibit(false);
         }
@@ -601,7 +601,7 @@ impl AudioController {
                 }
                 None => {
                     self.clean_cairo_context(cr);
-                    debug!("AudioController::draw no image");
+                    debug!("draw no image");
                     return Inhibit(false);
                 }
             }
@@ -707,9 +707,9 @@ impl AudioController {
         }
 
         // update other UI position
-        // Note: we pass by the audio controller here in order
+        // Note: we go through the audio controller here in order
         // to reduce position queries on the ref gst element
-        // TODO: see if a local clock reduces percetiples short hangs
+        // TODO: see if a local clock reduces percetibles short hangs
         // while the waveform scrolls
         let must_refresh_other_ui = {
             match self.state {
@@ -727,10 +727,14 @@ impl AudioController {
         };
 
         if must_refresh_other_ui {
-            if let Ok(mut main_ctrl) = main_ctrl.try_borrow_mut() {
-                main_ctrl.refresh_info(self.current_position);
-                self.last_other_ui_refresh = self.current_position;
-            }
+            let main_ctrl = Rc::clone(&main_ctrl);
+            gtk::idle_add(move || {
+                if let Ok(mut main_ctrl) = main_ctrl.try_borrow_mut() {
+                    main_ctrl.refresh_info(current_position);
+                }
+                glib::Continue(false)
+            });
+            self.last_other_ui_refresh = self.current_position;
         }
 
         Inhibit(false)
