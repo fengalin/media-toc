@@ -57,13 +57,6 @@ impl InfoController {
         builder: &gtk::Builder,
         boundaries: Rc<RefCell<ChaptersBoundaries>>,
     ) -> Rc<RefCell<Self>> {
-        let add_chapter_btn: gtk::ToolButton =
-            builder.get_object("add_chapter-toolbutton").unwrap();
-        add_chapter_btn.set_sensitive(false);
-        let del_chapter_btn: gtk::ToolButton =
-            builder.get_object("remove_chapter-toolbutton").unwrap();
-        del_chapter_btn.set_sensitive(false);
-
         let mut chapter_manager =
             ChapterTreeManager::new(builder.get_object("chapters-tree-store").unwrap(), boundaries);
         let chapter_treeview: gtk::TreeView = builder.get_object("chapter-treeview").unwrap();
@@ -88,8 +81,8 @@ impl InfoController {
             repeat_btn: builder.get_object("repeat-toolbutton").unwrap(),
 
             chapter_treeview,
-            add_chapter_btn,
-            del_chapter_btn,
+            add_chapter_btn: builder.get_object("add_chapter-toolbutton").unwrap(),
+            del_chapter_btn: builder.get_object("remove_chapter-toolbutton").unwrap(),
 
             thumbnail: None,
 
@@ -365,6 +358,8 @@ impl InfoController {
         self.duration_lbl.set_text("00:00.000");
         self.thumbnail = None;
         self.chapter_manager.clear();
+        self.add_chapter_btn.set_sensitive(false);
+        self.del_chapter_btn.set_sensitive(false);
         self.timeline_scale.clear_marks();
         self.timeline_scale.set_value(0f64);
         self.duration = 0;

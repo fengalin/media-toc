@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-27 17:21+0200\n"
-"PO-Revision-Date: 2018-03-27 17:21+0200\n"
+"POT-Creation-Date: 2018-03-27 19:51+0200\n"
+"PO-Revision-Date: 2018-03-27 19:52+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -76,11 +76,11 @@ msgid "Video playback will be disabled."
 msgstr "L'affichage vidéo sera désactivé."
 
 #: src/media/playback_context.rs:186
-msgid "Please install {} or {}, depenging on your distribution."
+msgid "Please install {} or {}, depending on your distribution."
 msgstr "Veuillez installer {} ou {}, selon votre distribution."
 
 #: src/media/playback_context.rs:228
-msgid "Could not set media in palying state."
+msgid "Could not set media in playing state."
 msgstr "Impossible de passer le média en mode lecture."
 
 #: src/media/playback_context.rs:235
@@ -182,7 +182,7 @@ msgstr "La table des matières est vide"
 
 #: src/metadata/mkvmerge_text_format.rs:63
 msgid "Failed to read mkvmerge text file."
-msgstr "Échec lors de la lecture du fichier texte mkvmerge"
+msgstr "Échec à la lecture du fichier texte mkvmerge"
 
 #: src/metadata/mkvmerge_text_format.rs:87
 msgid "couldn't find chapter nb for: {}"
@@ -238,7 +238,7 @@ msgstr "Échec à la préparation du découpage : {}"
 
 #: src/ui/export_controller.rs:693 src/ui/export_controller.rs:708
 msgid "Failed to export media. {}"
-msgstr "Échec lors de l'export du média. {}"
+msgstr "Échec à l'export du média. {}"
 
 #: src/ui/export_controller.rs:703
 msgid "Media exported succesfully"
@@ -252,23 +252,23 @@ msgstr "Média découpé avec succès"
 msgid "Failed to split media. {}"
 msgstr "Échec lors du découpage du média. {}"
 
-#: src/ui/info_controller.rs:306
+#: src/ui/info_controller.rs:299
 msgid "Failed to open toc file."
 msgstr "Impossible d'ouvrir le fichier de table des matières."
 
-#: src/ui/main_controller.rs:160
+#: src/ui/main_controller.rs:162
 msgid "Failed to initialize GStreamer, the application can't be used."
 msgstr "Échec à l'initialisation de GStreamer, l'application est inutilisable."
 
-#: src/ui/main_controller.rs:494 src/ui/main_controller.rs:590
+#: src/ui/main_controller.rs:496 src/ui/main_controller.rs:592
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
 
-#: src/ui/main_controller.rs:544
+#: src/ui/main_controller.rs:546
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:549
+#: src/ui/main_controller.rs:551
 msgid "Open"
 msgstr "Ouvrir"
 
@@ -300,51 +300,51 @@ msgstr "Durée :"
 msgid "Repeat Chapter"
 msgstr "Répéter le Chapitre"
 
-#: src/ui/media-toc.ui:399
+#: src/ui/media-toc.ui:400
 msgid "Remove Chapter"
 msgstr "Supprimer le Chapitre"
 
-#: src/ui/media-toc.ui:413
+#: src/ui/media-toc.ui:415
 msgid "Add Chapter"
 msgstr "Ajouter un Chapitre"
 
-#: src/ui/media-toc.ui:473
+#: src/ui/media-toc.ui:475
 msgid "Info text"
 msgstr "Texte d'information"
 
-#: src/ui/media-toc.ui:604
+#: src/ui/media-toc.ui:606
 msgid "Zoom In"
 msgstr "Zoomer"
 
-#: src/ui/media-toc.ui:619
+#: src/ui/media-toc.ui:621
 msgid "Zoom Out"
 msgstr "Dé-zoomer"
 
-#: src/ui/media-toc.ui:711 src/ui/media-toc.ui:1744
+#: src/ui/media-toc.ui:713 src/ui/media-toc.ui:1746
 msgid "Display"
 msgstr "Affichage"
 
-#: src/ui/media-toc.ui:731
+#: src/ui/media-toc.ui:733
 msgid "Video Streams"
 msgstr "Flux Vidéos"
 
-#: src/ui/media-toc.ui:765
+#: src/ui/media-toc.ui:767
 msgid "Audio Streams"
 msgstr "Flux Audios"
 
-#: src/ui/media-toc.ui:799
+#: src/ui/media-toc.ui:801
 msgid "Text Streams"
 msgstr "Flux Textes"
 
-#: src/ui/media-toc.ui:829 src/ui/media-toc.ui:1789
+#: src/ui/media-toc.ui:831 src/ui/media-toc.ui:1791
 msgid "Streams"
 msgstr "Flux"
 
-#: src/ui/media-toc.ui:881
+#: src/ui/media-toc.ui:883
 msgid "mkvmerge text format"
 msgstr "Format textuel de mkvmerge"
 
-#: src/ui/media-toc.ui:897
+#: src/ui/media-toc.ui:899
 msgid ""
 "mkvmerge compliant text format.\n"
 "Flat table of contents.\n"
@@ -354,11 +354,11 @@ msgstr ""
 "Table des matières à plat.\n"
 "Précision temporelle : 1 ms."
 
-#: src/ui/media-toc.ui:933
+#: src/ui/media-toc.ui:935
 msgid "Cue Sheet format"
 msgstr "Format Cue Sheet"
 
-#: src/ui/media-toc.ui:949
+#: src/ui/media-toc.ui:951
 msgid ""
 "Cue Sheet compliant text format.\n"
 "Hierachical table of contents.\n"
@@ -368,11 +368,11 @@ msgstr ""
 "Table des matières hiérarchique.\n"
 "Précision temporelle : 1 trame (1/75 s)."
 
-#: src/ui/media-toc.ui:985
+#: src/ui/media-toc.ui:987
 msgid "Matroska Container"
 msgstr "Conteneur Matroska"
 
-#: src/ui/media-toc.ui:1001
+#: src/ui/media-toc.ui:1003
 msgid ""
 "Binary audio, video & text media container.\n"
 "Hierachical table of contents.\n"
@@ -382,23 +382,23 @@ msgstr ""
 "Table des matières hiérarchique.\n"
 "Précision temporelle : 1 ns."
 
-#: src/ui/media-toc.ui:1045
+#: src/ui/media-toc.ui:1047
 msgid "Export"
 msgstr "Exporter"
 
-#: src/ui/media-toc.ui:1067
+#: src/ui/media-toc.ui:1069
 msgid "Export Formats"
 msgstr "Formats d'export"
 
-#: src/ui/media-toc.ui:1127
+#: src/ui/media-toc.ui:1129
 msgid "page0"
 msgstr "page0"
 
-#: src/ui/media-toc.ui:1190
+#: src/ui/media-toc.ui:1192
 msgid "Flac"
 msgstr "Flac"
 
-#: src/ui/media-toc.ui:1206
+#: src/ui/media-toc.ui:1208
 msgid ""
 "Audio lossless compression.\n"
 "Tags support."
@@ -406,11 +406,11 @@ msgstr ""
 "Flac (compression sans perte).\n"
 "Tags gérés."
 
-#: src/ui/media-toc.ui:1260
+#: src/ui/media-toc.ui:1262
 msgid "Wave / PCM"
 msgstr "Wave / PCM"
 
-#: src/ui/media-toc.ui:1276
+#: src/ui/media-toc.ui:1278
 msgid ""
 "No compression.\n"
 "Tags support."
@@ -418,11 +418,11 @@ msgstr ""
 "Sans compression.\n"
 "Tags gérés."
 
-#: src/ui/media-toc.ui:1330
+#: src/ui/media-toc.ui:1332
 msgid "Opus"
 msgstr "Opus"
 
-#: src/ui/media-toc.ui:1346 src/ui/media-toc.ui:1416 src/ui/media-toc.ui:1486
+#: src/ui/media-toc.ui:1348 src/ui/media-toc.ui:1418 src/ui/media-toc.ui:1488
 msgid ""
 "Audio lossy compression.\n"
 "Tags support."
@@ -430,27 +430,27 @@ msgstr ""
 "Compression audio avec perte.\n"
 "Tags gérés."
 
-#: src/ui/media-toc.ui:1400
+#: src/ui/media-toc.ui:1402
 msgid "Vorbis"
 msgstr "Vorbis"
 
-#: src/ui/media-toc.ui:1470
+#: src/ui/media-toc.ui:1472
 msgid "MP3"
 msgstr "MP3"
 
-#: src/ui/media-toc.ui:1529 src/ui/media-toc.ui:1879
+#: src/ui/media-toc.ui:1531 src/ui/media-toc.ui:1881
 msgid "Split"
 msgstr "Découper"
 
-#: src/ui/media-toc.ui:1551
+#: src/ui/media-toc.ui:1553
 msgid "Split Formats"
 msgstr "Formats cibles"
 
-#: src/ui/media-toc.ui:1598
+#: src/ui/media-toc.ui:1600
 msgid "page1"
 msgstr "page1"
 
-#: src/ui/media-toc.ui:1834
+#: src/ui/media-toc.ui:1836
 msgid "Export\t"
 msgstr "Exporter"
 
@@ -489,9 +489,3 @@ msgstr "Canaux"
 #: src/ui/streams_controller.rs:375
 msgid "Format"
 msgstr "Format"
-
-#~ msgid "Error reading mkvmerge text file."
-#~ msgstr "Erreur à la lecture du fichier texte mkvmerge."
-
-#~ msgid "ERROR: failed to export media: {}"
-#~ msgstr "ERREUR : échec lors de l'export du média : {}"

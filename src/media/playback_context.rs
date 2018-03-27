@@ -183,7 +183,7 @@ impl PlaybackContext {
                         Err(format!("{} {}\n{}",
                             gettext("Couldn't find GStreamer GTK video sink."),
                             gettext("Video playback will be disabled."),
-                            gettext("Please install {} or {}, depenging on your distribution.")
+                            gettext("Please install {} or {}, depending on your distribution.")
                                 .replacen("{}", variant1, 1)
                                 .replacen("{}", variant2, 1),
                         ))
@@ -225,7 +225,7 @@ impl PlaybackContext {
             .accept_eos();
 
         if self.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
-            return Err(gettext("Could not set media in palying state."));
+            return Err(gettext("Could not set media in playing state."));
         }
         Ok(())
     }

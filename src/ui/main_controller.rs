@@ -157,6 +157,8 @@ impl MainController {
 
             } else {
                 // GStreamer initialization failed
+                this_mut.info_bar.connect_response(|_, _| gtk::main_quit());
+
                 let msg = gettext("Failed to initialize GStreamer, the application can't be used.");
                 this_mut.show_message(gtk::MessageType::Error, &msg);
                 error!("{}", msg);
