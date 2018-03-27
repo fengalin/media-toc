@@ -5,19 +5,17 @@ file into chapters. It runs on Linux and Windows and should also work on macOS.
 You might also be interested in [media-toc-player](https://github.com/fengalin/media-toc-player):
 a media player with a table of contents.
 
-**media-toc** is not complete yet, see the [features list](#features) below.
-
 ## <a name='ui'></a>Screenshots
-### UI with a video file
+### media-toc playing a video
 ![media-toc UI Video](assets/media-toc_video.png)
 
-### UI with an audio file
+### media-toc playing an audio file, French localization
 ![media-toc UI Audio](assets/media-toc_audio.png)
 
 ### Waveform showing 5.1 audio channels
 ![media-toc Waveform 5.1 audio channels](assets/waveform_5.1_audio_channels.png)
 
-## <a name='features'></a>Features
+## Features
 
 - Play/Pause an audio/video media
 - Select the streams to play.
@@ -31,9 +29,8 @@ at the starting position in paused mode.
 - Play current chapter in a loop.
 - Export the table of contents to:
 	* A Matroska container. Currently, this is possible only if the input streams are compatible
-	with Matroska containers. I'll add an UI to allow converting streams later. This also requires
-	this [patch on `gst-plugins-good`](https://bugzilla.gnome.org/show_bug.cgi?id=790686)
-	to reactivate table of contents handling in `matroskamux`.
+	with Matroska containers. I'll add an UI to allow converting streams later. This requires
+	[`gst-plugins-good` 1.14](https://gstreamer.freedesktop.org/) or above.
 	* [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
 	* [Cue Sheet](http://wiki.hydrogenaud.io/index.php?title=Cue_sheet).
 - Split the media file's first audio stream into `flac`, `wave`, `opus`, `vorbis` or `mp3` files:
@@ -81,7 +78,8 @@ with a `txt` extension will be created in the media's folder.
 ## Export the resulting media with its table of contents in a Matroska container
 
 Currently, this is possible only for media with streams compatible with Matroska containers.
-Warning: this also requires this [patch on `gst-plugins-good`](https://bugzilla.gnome.org/show_bug.cgi?id=790686).
+Warning: this also requires [`gst-plugins-good` 1.14](https://gstreamer.freedesktop.org/)
+or above.
 
 1. Open a media with a table of contents, define the chapters as explained in [this how-to](#how-to-create-the-toc)
 or open a media for which you already defined a table of contents (see [this how-to](#how-to-save-the-toc)).
@@ -103,9 +101,8 @@ The files are named after the artist, media title, chapter number and chapter ti
 
 ## Use `mkvmerge` to add the toc to an existing Matrsoka media
 
-Currently, exporting the table of contents to a Matroska container requires a patched version of
-`gst-plugins-good`. If you don't know how to patch `gst-plugins-good`, you can follow these
-instructions to use `mkvmerge`:
+Exporting the table of contents to a Matroska container requires [`gst-plugins-good` 1.14](https://gstreamer.freedesktop.org/)
+or above. If you use an ealier version, follow these instructions:
 
 1. Install `mkvtoolnix` using your package manager.
 2. Export your table of contents to the `mkvmerge simple chapter format` (see [this how-to](#how-to-save-the-toc)).
