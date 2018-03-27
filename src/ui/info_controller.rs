@@ -127,6 +127,7 @@ impl InfoController {
                     this_clone.borrow().info_container.hide();
                 }
             });
+        this.show_chapters_btn.set_sensitive(true);
 
         // Draw thumnail image
         let this_clone = Rc::clone(this_rc);
@@ -231,8 +232,7 @@ impl InfoController {
     fn show_error(&self, message: String) {
         let main_ctrl_weak = Weak::clone(self.main_ctrl.as_ref().unwrap());
         gtk::idle_add(move || {
-            let main_ctrl_rc = main_ctrl_weak.upgrade()
-                .expect("InfoController::show_error can't upgrade main_ctrl");
+            let main_ctrl_rc = main_ctrl_weak.upgrade().unwrap();
             main_ctrl_rc.borrow().show_message(gtk::MessageType::Error, &message);
             glib::Continue(false)
         });
@@ -242,9 +242,9 @@ impl InfoController {
         let media_path = context.path.clone();
         let file_stem = media_path
             .file_stem()
-            .expect("InfoController::new_media clicked, failed to get file_stem")
+            .unwrap()
             .to_str()
-            .expect("InfoController::new_media clicked, failed to get file_stem as str");
+            .unwrap();
 
         // check the presence of toc files
         let toc_extensions = metadata::Factory::get_extensions();
@@ -266,7 +266,7 @@ impl InfoController {
             let info = context
                 .info
                 .lock()
-                .expect("InfoController::new_media failed to lock media info");
+                .unwrap();
 
             self.duration = info.duration;
             self.timeline_scale.set_range(0f64, info.duration as f64);
@@ -373,9 +373,7 @@ impl InfoController {
     fn repeat_at(main_ctrl: &Option<Weak<RefCell<MainController>>>, position: u64) {
         let main_ctrl_weak = Weak::clone(main_ctrl.as_ref().unwrap());
         gtk::idle_add(move || {
-            let main_ctrl_rc = main_ctrl_weak
-                .upgrade()
-                .expect("InfoController::tick can't upgrade main_ctrl while repeating chapter");
+            let main_ctrl_rc = main_ctrl_weak.upgrade().unwrap();
             main_ctrl_rc.borrow_mut().seek(position, true); // accurate (slow)
             glib::Continue(false)
         });
@@ -451,7 +449,7 @@ impl InfoController {
             .as_ref()
             .unwrap()
             .upgrade()
-            .expect("InfoController::get_position can't upgrade main_ctrl");
+            .unwrap();
         let mut main_ctrl = main_ctrl_rc.borrow_mut();
         main_ctrl.get_position()
     }
@@ -484,10 +482,7 @@ impl InfoController {
 
     pub fn export_chapters(&self, context: &mut PlaybackContext) {
         if let Some((toc, count)) = self.chapter_manager.get_toc() {
-            let mut info = context
-                .info
-                .lock()
-                .expect("InfoController::export_chapters failed to lock media info");
+            let mut info = context.info.lock().unwrap();
             info.toc = Some(toc);
             info.chapter_count = Some(count);
         }

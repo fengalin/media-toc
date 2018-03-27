@@ -20,38 +20,36 @@ pub struct VideoController {
 
 impl VideoController {
     pub fn new(builder: &gtk::Builder) -> Self {
-        let container: gtk::Box = builder.get_object("video-container").unwrap();
-        let is_available = match PlaybackContext::get_video_widget() {
-            Some(video_widget) => {
-                container.pack_start(&video_widget, true, true, 0);
-                container.reorder_child(&video_widget, 0);
-                true
-            }
-            None => {
-                let container = container.clone();
-                gtk::idle_add(move || {
-                    container.hide();
-                    glib::Continue(false)
-                });
-                false
-            }
-        };
-
         VideoController {
-            is_available,
-            container,
+            is_available: false,
+            container: builder.get_object("video-container").unwrap(),
             cleaner_id: None,
         }
     }
 
-    pub fn register_callbacks(&self, main_ctrl: &Rc<RefCell<MainController>>) {
-        if self.is_available {
-            let main_ctrl_clone = Rc::clone(main_ctrl);
-            self.container
-                .connect_button_press_event(move |_, _event_button| {
-                    main_ctrl_clone.borrow_mut().play_pause();
-                    Inhibit(false)
+    pub fn register_callbacks(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
+        match PlaybackContext::get_video_widget() {
+            Some(video_widget) => {
+                self.container.pack_start(&video_widget, true, true, 0);
+                self.container.reorder_child(&video_widget, 0);
+
+                let main_ctrl_clone = Rc::clone(main_ctrl);
+                self.container
+                    .connect_button_press_event(move |_, _event_button| {
+                        main_ctrl_clone.borrow_mut().play_pause();
+                        Inhibit(false)
+                    });
+
+                self.is_available = true;
+            }
+            None => {
+                let container = self.container.clone();
+                gtk::idle_add(move || {
+                    container.hide();
+                    glib::Continue(false)
                 });
+                self.is_available = false;
+            }
         }
     }
 
@@ -84,7 +82,7 @@ impl VideoController {
             let has_video = context
                 .info
                 .lock()
-                .expect("Failed to lock media info while initializing video controller")
+                .unwrap()
                 .streams
                 .video_selected
                 .is_some();

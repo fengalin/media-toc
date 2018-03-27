@@ -130,7 +130,6 @@ impl ExportController {
 
             this_mut.export_list.select_row(&this_mut.mkvmerge_txt_row);
             this_mut.split_list.select_row(&this_mut.split_to_flac_row);
-            this_mut.check_requirements();
 
             this_mut.cleanup();
         }
@@ -143,6 +142,8 @@ impl ExportController {
         main_ctrl: &Rc<RefCell<MainController>>,
     ) {
         let mut this = this_rc.borrow_mut();
+
+        this.check_requirements();
 
         this.main_ctrl = Some(Rc::downgrade(main_ctrl));
 
@@ -197,28 +198,34 @@ impl ExportController {
 
     fn check_requirements(&self) {
         if let Err(err) = TocSetterContext::check_requirements() {
+            warn!("{}", err);
             self.mkvmerge_txt_warning_lbl.set_label(&err);
             self.mkv_row.set_sensitive(false)
         }
 
         if let Err(err) = SplitterContext::check_requirements(Format::Flac) {
+            warn!("{}", err);
             self.flac_warning_lbl.set_label(&err);
             self.split_to_flac_row.set_sensitive(false)
         }
 
         if let Err(err) = SplitterContext::check_requirements(Format::Wave) {
+            warn!("{}", err);
             self.wave_warning_lbl.set_label(&err);
             self.split_to_wave_row.set_sensitive(false)
         }
         if let Err(err) = SplitterContext::check_requirements(Format::Opus) {
+            warn!("{}", err);
             self.opus_warning_lbl.set_label(&err);
             self.split_to_opus_row.set_sensitive(false)
         }
         if let Err(err) = SplitterContext::check_requirements(Format::Vorbis) {
+            warn!("{}", err);
             self.vorbis_warning_lbl.set_label(&err);
             self.split_to_vorbis_row.set_sensitive(false)
         }
         if let Err(err) = SplitterContext::check_requirements(Format::MP3) {
+            warn!("{}", err);
             self.mp3_warning_lbl.set_label(&err);
             self.split_to_mp3_row.set_sensitive(false)
         }
@@ -228,10 +235,10 @@ impl ExportController {
         self.switch_to_busy();
 
         self.toc_visitor = self.playback_ctx.as_ref()
-            .expect("ExportController::export playback_ctx is none")
+            .unwrap()
             .info
             .lock()
-            .expect("ExportController::export failed to lock media info")
+            .unwrap()
             .toc
                 .as_ref()
                 .map(|toc| {
@@ -244,7 +251,7 @@ impl ExportController {
                 .unwrap()
                 .info
                 .lock()
-                .expect("ExportController::export, failed to lock media info")
+                .unwrap()
                 .streams
                 .video_selected
                 .is_none()
@@ -265,7 +272,7 @@ impl ExportController {
             .as_ref()
             .unwrap()
             .info.lock()
-            .expect("ExportController::export, failed to lock media info")
+            .unwrap()
             .duration;
         self.duration = duration;
     }
@@ -280,9 +287,7 @@ impl ExportController {
                 // export toc as a standalone file
                 let (msg_type, msg) = match File::create(&self.target_path) {
                     Ok(mut output_file) => {
-                        let info = self.playback_ctx.as_ref().unwrap().info.lock().expect(
-                            "ExportController::export, failed to lock media info",
-                        );
+                        let info = self.playback_ctx.as_ref().unwrap().info.lock().unwrap();
                         match metadata::Factory::get_writer(&format).write(
                             &info,
                             &mut output_file,
@@ -332,7 +337,7 @@ impl ExportController {
             .as_ref()
             .unwrap()
             .upgrade()
-            .expect("ExportController::show_message can't upgrade main_ctrl");
+            .unwrap();
         main_ctrl_rc.borrow().show_message(type_, message);
     }
 
@@ -346,12 +351,12 @@ impl ExportController {
 
     fn restore_context(&mut self) {
         let context = self.playback_ctx.take()
-            .expect("ExportController::restore_context playback_ctx is None");
+            .unwrap();
         let main_ctrl_rc = self.main_ctrl
             .as_ref()
             .unwrap()
             .upgrade()
-            .expect("ExportController::restore_context can't upgrade main_ctrl");
+            .unwrap();
         main_ctrl_rc
             .borrow_mut()
             .set_context(context);
@@ -372,13 +377,13 @@ impl ExportController {
                 self.toc_setter_ctx = Some(toc_setter_ctx);
             }
             Err(error) => {
-                let msg = gettext("ERROR: preparing for export: {}")
-                    .replacen("{}", &error, 1);
-                eprintln!("{}", msg);
                 self.remove_listener();
                 self.switch_to_available();
                 self.restore_context();
+                let msg = gettext("Failed to prepare for export. {}")
+                    .replacen("{}", &error, 1);
                 self.show_error(&msg);
+                error!("{}", msg);
             }
         };
     }
@@ -411,12 +416,12 @@ impl ExportController {
                 Ok(true)
             }
             Err(error) => {
-                let msg = gettext("ERROR: preparing for split: {}")
-                    .replacen("{}", &error, 1);
-                eprintln!("{}", msg);
                 self.remove_listener();
                 self.switch_to_available();
                 self.restore_context();
+                let msg = gettext("Failed to prepare for split. {}")
+                    .replacen("{}", &error, 1);
+                error!("{}", msg);
                 Err(msg)
             }
         }
@@ -443,7 +448,7 @@ impl ExportController {
             .unwrap()
             .info
             .lock()
-            .expect("ExportController::get_split_name failed to lock media info");
+            .unwrap();
 
         // TODO: make format customisable
         if let Some(artist) = info.get_artist() {
@@ -480,7 +485,7 @@ impl ExportController {
                     .unwrap()
                     .info
                     .lock()
-                    .expect("ExportController::update_tags failed to lock media info");
+                    .unwrap();
 
                 // Select tags suitable for a track
                 add_tag_from!(tags, info.tags, gst::tags::Artist);
@@ -545,8 +550,7 @@ impl ExportController {
                     );
                 }
 
-                info.chapter_count
-                    .expect("ExportController::update_tags chapter_count is none")
+                info.chapter_count.unwrap()
             };
 
             // Add track specific tags
@@ -557,9 +561,7 @@ impl ExportController {
             }).unwrap_or(DEFAULT_TITLE.to_owned());
             tags.add::<gst::tags::Title>(&title.as_str(), gst::TagMergeMode::Replace);
 
-            let (start, end) = chapter
-                .get_start_stop_times()
-                .expect("SplitterContext::build_pipeline failed to get chapter's start/end");
+            let (start, end) = chapter.get_start_stop_times().unwrap();
 
             tags.add::<gst::tags::TrackNumber>(&(self.idx as u32), gst::TagMergeMode::Replace);
             tags.add::<gst::tags::TrackCount>(&(chapter_count as u32), gst::TagMergeMode::Replace);
@@ -675,33 +677,23 @@ impl ExportController {
             for message in ui_rx.try_iter() {
                 match message {
                     InitDone => {
-                        let mut toc_setter_ctx = this.toc_setter_ctx.take().expect(
-                            "ExportContext::toc_setter(InitDone) couldn't get ExportContext",
-                        );
+                        let mut toc_setter_ctx = this.toc_setter_ctx.take().unwrap();
 
                         let exporter = MatroskaTocFormat::new();
                         {
-                            let muxer = toc_setter_ctx
-                                .get_muxer()
-                                .expect("ExportContext::toc_setter(InitDone) couldn't get muxer");
-
-                            let info = this.playback_ctx.as_ref().unwrap().info.lock().expect(
-                                concat!(
-                                    "ExportController::toc_setter(InitDone) ",
-                                    "failed to lock media info",
-                                ),
-                            );
+                            let muxer = toc_setter_ctx.get_muxer().unwrap();
+                            let info = this.playback_ctx.as_ref().unwrap().info.lock().unwrap();
                             exporter.export(&info, muxer);
                         }
 
                         match toc_setter_ctx.export() {
                             Ok(_) => (),
                             Err(err) => {
-                                let message = gettext("ERROR: failed to export media: {}")
-                                    .replacen("{}", &err, 1);
-                                eprintln!("{}", message);
-                                this.show_error(&message);
                                 keep_going = false;
+                                let message = gettext("Failed to export media. {}")
+                                    .replacen("{}", &err, 1);
+                                this.show_error(&message);
+                                error!("{}", message);
                             }
                         }
 
@@ -712,11 +704,11 @@ impl ExportController {
                         keep_going = false;
                     }
                     FailedToExport(error) => {
-                        let message = gettext("ERROR: failed to export media. {}")
-                            .replacen("{}", &error, 1);
-                        eprintln!("{}", message);
-                        this.show_error(&message);
                         keep_going = false;
+                        let message = gettext("Failed to export media. {}")
+                            .replacen("{}", &error, 1);
+                        this.show_error(&message);
+                        error!("{}", message);
                     }
                     _ => (),
                 };
@@ -778,13 +770,13 @@ impl ExportController {
                         keep_going = false;
                     }
                     FailedToExport(error) => {
-                        let message = gettext("ERROR: failed to split media. {}")
-                            .replacen("{}", &error, 1);
-                        eprintln!("{}", message);
-                        this.show_error(&message);
                         this.listener_src = None;
                         keep_going = false;
                         process_done = true;
+                        let message = gettext("Failed to split media. {}")
+                            .replacen("{}", &error, 1);
+                        error!("{}", message);
+                        this.show_error(&message);
                     }
                     _ => (),
                 };

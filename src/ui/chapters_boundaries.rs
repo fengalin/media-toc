@@ -34,8 +34,7 @@ impl ChaptersBoundaries {
     }
 
     pub fn add_chapter(&mut self, start: u64, end: u64, title: &str, iter: &gtk::TreeIter) {
-        #[cfg(feature = "trace-chapters-boundaries")]
-        println!("\nadd_chapter {}, {}, {}", start, end, title);
+        debug!("add_chapter {}, {}, {}", start, end, title);
 
         // the chapter to add can share at most one boundary with a previous chapter
         let (start_exists, next_chapter) = match self.0.get_mut(&start) {
@@ -92,23 +91,19 @@ impl ChaptersBoundaries {
                 );
             }
         }
-
-        #[cfg(feature = "trace-chapters-boundaries")]
-        self.trace();
     }
 
     pub fn remove_chapter(&mut self, start: u64, end: u64) {
-        #[cfg(feature = "trace-chapters-boundaries")]
-        println!("\nremove_chapter {}, {}", start, end);
+        debug!("remove_chapter {}, {}", start, end);
 
         let prev_chapter = self.0.get_mut(&start)
-            .expect(&format!("ChaptersBoundaries::remove_chapter no start entry at {}", start))
+            .unwrap()
             .prev.take();
         self.0.remove(&start);
 
         let can_remove_end = {
             let chapters_at_end = self.0.get_mut(&end)
-                .expect(&format!("ChaptersBoundaries::remove_chapter no end entry at {}", end));
+                .unwrap();
             if prev_chapter.is_none() && chapters_at_end.next.is_none() {
                 true
             } else {
@@ -119,55 +114,33 @@ impl ChaptersBoundaries {
         if can_remove_end {
             self.0.remove(&end);
         }
-
-        #[cfg(feature = "trace-chapters-boundaries")]
-        self.trace();
     }
 
     pub fn rename_chapter(&mut self, start: u64, end: u64, new_title: &str) {
-        #[cfg(feature = "trace-chapters-boundaries")]
-        println!("\nrename_chapter {}, {}, {}", start, end, new_title);
+        debug!("rename_chapter {}, {}, {}", start, end, new_title);
 
         self.0
             .get_mut(&start)
-            .expect("ChaptersBoundaries::rename_chapter couldn't get start entry")
+            .unwrap()
             .next
             .as_mut()
-            .expect("ChaptersBoundaries::rename_chapter next_chapter is None")
+            .unwrap()
             .title = new_title.to_owned();
         self.0
             .get_mut(&end)
-            .expect("ChaptersBoundaries::rename_chapter couldn't get end entry")
+            .unwrap()
             .prev
             .as_mut()
-            .expect("ChaptersBoundaries::rename_chapter prev_chapter is None")
+            .unwrap()
             .title = new_title.to_owned();
-
-        #[cfg(feature = "trace-chapters-boundaries")]
-        self.trace();
     }
 
     pub fn move_boundary(&mut self, boundary: u64, to_position: u64) {
         let chapters = self.0
             .remove(&boundary)
-            .expect(&format!("ChaptersBoundaries::move_boundary no boundary at {}", boundary));
+            .unwrap();
         if let Some(_) = self.0.insert(to_position, chapters) {
             panic!("ChaptersBoundaries::move_boundary attempt to replace entry at {}", to_position);
-        }
-    }
-
-    #[cfg(feature = "trace-chapters-boundaries")]
-    fn trace(&self) {
-        if self.len() > 0 {
-            for (position, chapters) in self.iter() {
-                println!("\t {}: [{:?}, {:?}]",
-                    position,
-                    chapters.prev.as_ref().map(|prev_chapter| prev_chapter.title.clone()),
-                    chapters.next.as_ref().map(|next_chapter| next_chapter.title.clone()),
-                );
-            }
-        } else {
-            println!("\tempty");
         }
     }
 }

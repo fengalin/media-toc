@@ -34,16 +34,28 @@ impl ImageSurface {
                             stride,
                         ) {
                             Ok(surface) => Ok(surface),
-                            Err(error) => Err(format!(
-                                "Error creating ImageSurface from aligned image: {:?}",
-                                error
-                            )),
+                            Err(error) => {
+                                let msg = format!(
+                                    "Error creating ImageSurface from aligned image: {:?}",
+                                    error,
+                                );
+                                warn!("{}", msg);
+                                Err(msg)
+                            }
                         }
                     }
-                    None => Err("Error converting image to raw RGB".to_owned()),
+                    None => {
+                        let msg = "Error converting image to raw RGB".to_owned();
+                        warn!("{}", msg);
+                        Err(msg)
+                    }
                 }
             }
-            Err(error) => Err(format!("Error loading image: {:?}", error)),
+            Err(error) => {
+                let msg = format!("Error loading image: {:?}", error);
+                warn!("{}", msg);
+                Err(msg)
+            }
         }
     }
 }

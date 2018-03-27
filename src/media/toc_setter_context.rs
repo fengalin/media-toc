@@ -39,7 +39,7 @@ impl TocSetterContext {
         output_path: &Path,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<TocSetterContext, String> {
-        println!("\n\n* Exporting {:?} to {:?}...", input_path, output_path);
+        info!("{}", gettext("Exporting to {}...").replacen("{}", output_path.to_str().unwrap(), 1));
 
         let mut this = TocSetterContext {
             pipeline: gst::Pipeline::new("pipeline"),
@@ -91,10 +91,7 @@ impl TocSetterContext {
         }
 
         // Muxer and output sink
-        let muxer = gst::ElementFactory::make("matroskamux", None).expect(concat!(
-            "TocSetterContext::build_pipeline couldn't find matroskamux plugin. ",
-            "Please install the gstreamer good plugins package"
-        ));
+        let muxer = gst::ElementFactory::make("matroskamux", None).unwrap();
         muxer
             .set_property("writing-app", &gst::Value::from("media-toc"))
             .unwrap();
@@ -149,24 +146,15 @@ impl TocSetterContext {
                 gst::MessageView::Eos(..) => {
                     ctx_tx
                         .send(ContextMessage::Eos)
-                        .expect("Eos: Failed to notify UI");
+                        .unwrap();
                     return glib::Continue(false);
                 }
                 gst::MessageView::Error(err) => {
-                    let error = err.get_error();
-                    eprintln!(
-                        "Error from {}: {} ({:?})",
-                        msg.get_src()
-                            .map(|s| s.get_path_string(),)
-                            .unwrap_or_else(|| String::from("None"),),
-                        error,
-                        err.get_debug()
-                    );
                     ctx_tx
                         .send(ContextMessage::FailedToExport(
-                            error.description().to_owned()
+                            err.get_error().description().to_owned()
                         ))
-                        .expect("Error: Failed to notify UI");
+                        .unwrap();
                     return glib::Continue(false);
                 }
                 gst::MessageView::AsyncDone(_) => {
@@ -174,11 +162,11 @@ impl TocSetterContext {
                         init_done = true;
                         ctx_tx
                             .send(ContextMessage::InitDone)
-                            .expect("InitDone: Failed to notify UI");
+                            .unwrap();
                     } else {
                         ctx_tx
                             .send(ContextMessage::AsyncDone)
-                            .expect("AsyncDone: Failed to notify UI");
+                            .unwrap();
                     }
                 }
                 _ => (),

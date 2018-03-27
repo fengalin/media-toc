@@ -1,5 +1,3 @@
-use std::error::Error;
-
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -126,6 +124,7 @@ impl MainController {
                 let mut req_err = PlaybackContext::check_requirements().err();
                 if req_err.is_some() {
                     let err = req_err.take().unwrap();
+                    error!("{}", err);
                     let this_rc = Rc::clone(&this);
                     gtk::idle_add(move || {
                         this_rc.borrow().show_message(gtk::MessageType::Warning, &err);
@@ -158,10 +157,9 @@ impl MainController {
 
             } else {
                 // GStreamer initialization failed
-                this_mut.show_message(
-                    gtk::MessageType::Error,
-                    &gettext("Failed to initialize GStreamer, the application can not be used."),
-                );
+                let msg = gettext("Failed to initialize GStreamer, the application can't be used.");
+                this_mut.show_message(gtk::MessageType::Error, &msg);
+                error!("{}", msg);
             }
         }
 
@@ -476,9 +474,6 @@ impl MainController {
                                 this.seek(pos_to_restore, true); // accurate
                             }
                             _ => {
-                                #[cfg(feature = "trace-main-controller")]
-                                println!("MainController::listener(eos)");
-
                                 this.play_pause_btn.set_icon_name(PLAYBACK_ICON);
                                 this.state = ControllerState::EOS;
 
@@ -488,19 +483,18 @@ impl MainController {
                         }
                     }
                     FailedToOpenMedia(error) => {
-                        let error = gettext("Error opening file. {}")
-                            .replace("{}", error.description());
-                        eprintln!("{}", error);
-
                         let mut this = this_rc.borrow_mut();
                         this.context = None;
                         this.state = ControllerState::Stopped;
                         this.switch_to_default();
 
-                        this.show_message(gtk::MessageType::Error, &error);
-
                         this.keep_going = false;
                         keep_going = false;
+
+                        let error = gettext("Error opening file. {}")
+                            .replacen("{}", &error, 1);
+                        this.show_message(gtk::MessageType::Error, &error);
+                        error!("{}", error);
                     }
                     _ => (),
                 };
@@ -595,8 +589,8 @@ impl MainController {
                 self.switch_to_default();
                 let error = gettext("Error opening file. {}")
                     .replace("{}", &error);
-                eprintln!("{}", error);
                 self.show_message(gtk::MessageType::Error, &error);
+                error!("{}", error);
             }
         };
     }

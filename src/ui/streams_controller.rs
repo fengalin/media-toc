@@ -141,10 +141,7 @@ impl StreamsController {
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
-        let info = context
-            .info
-            .lock()
-            .expect("StreamsController::have_streams: failed to lock media info");
+        let info = context.info.lock().unwrap();
 
         // Video streams
         for stream in &info.streams.video {
@@ -211,11 +208,7 @@ impl StreamsController {
 
     pub fn trigger_stream_selection(&self) {
         // Asynchronoulsy notify the main controller
-        let main_ctrl_weak = Weak::clone(
-            self.main_ctrl
-                .as_ref()
-                .expect("StreamsController::trigger_stream_selection no main_ctrl"),
-        );
+        let main_ctrl_weak = Weak::clone(self.main_ctrl.as_ref().unwrap());
         let mut streams: Vec<String> = Vec::new();
         if let Some(stream) = self.video_selected.as_ref() {
             streams.push(stream.clone());
@@ -227,9 +220,7 @@ impl StreamsController {
             streams.push(stream.clone());
         }
         gtk::idle_add(move || {
-            let main_ctrl_rc = main_ctrl_weak
-                .upgrade()
-                .expect("StreamsController::stream_changed can't upgrade main_ctrl");
+            let main_ctrl_rc = main_ctrl_weak.upgrade().unwrap();
             main_ctrl_rc.borrow_mut().select_streams(&streams);
             glib::Continue(false)
         });

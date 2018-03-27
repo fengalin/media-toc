@@ -88,7 +88,7 @@ impl SplitterContext {
         chapter: gst::TocEntry,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<SplitterContext, String> {
-        println!("  - splitting to {:?}...", output_path);
+        info!("{}", gettext("Splitting {}...").replacen("{}", output_path.to_str().unwrap(), 1));
 
         let mut this = SplitterContext {
             pipeline: gst::Pipeline::new("pipeline"),
@@ -190,18 +190,14 @@ impl SplitterContext {
 
         // Note: can't use AtomicBool here as pad probes are multithreaded so the function is Fn
         // not FnMut. See: https://github.com/sdroege/gstreamer-rs/pull/71
-        let (start, end) = self.chapter
-            .get_start_stop_times()
-            .expect("SplitterContext::build_pipeline failed to get chapter's start/end");
+        let (start, end) = self.chapter.get_start_stop_times().unwrap();
         let seek_done = Arc::new(Mutex::new(false));
         let pipeline = self.pipeline.clone();
         audio_enc_sink_pad.add_probe(gst::PadProbeType::BUFFER, move |_pad, probe_info| {
             if let Some(ref data) = probe_info.data {
                 if let gst::PadProbeData::Buffer(ref buffer) = *data {
                     if buffer.get_flags() & gst::BufferFlags::DISCONT == gst::BufferFlags::DISCONT {
-                        let mut seek_done_grp = seek_done
-                            .lock()
-                            .expect("audio_enc_sink_pad(buffer):: couldn't lock seek_done");
+                        let mut seek_done_grp = seek_done.lock().unwrap();
                         if !*seek_done_grp {
                             // First buffer before seek
                             // let's seek and drop buffers until seek start sending new segment
@@ -215,7 +211,8 @@ impl SplitterContext {
                             ) {
                                 Ok(_) => (),
                                 Err(_) => {
-                                    eprintln!("Error: Failed to seek");
+                                    // FIXME: feedback to the user using the UI channel
+                                    error!("{}", gettext("Failed to intialize the split"));
                                 }
                             };
                             *seek_done_grp = true;
@@ -255,11 +252,7 @@ impl SplitterContext {
         };
 
         if let Some(tags) = self.chapter.get_tags() {
-            let tag_setter = tag_setter
-                .clone()
-                .dynamic_cast::<gst::TagSetter>()
-                .expect("SplitterContext::build_pipeline tag_setter is not a TagSetter");
-
+            let tag_setter = tag_setter.clone().dynamic_cast::<gst::TagSetter>().unwrap();
             tag_setter.merge_tags(&tags, gst::TagMergeMode::ReplaceAll);
         }
 
@@ -314,32 +307,19 @@ impl SplitterContext {
                     if pipeline.set_state(gst::State::Null) == gst::StateChangeReturn::Failure {
                         ctx_tx
                             .send(ContextMessage::FailedToExport(
-                                gettext(
-                                    "ERROR: Failed to terminate properly. Check the resulting file."
-                                )
+                                gettext("Failed to terminate properly. Check the resulting file.")
                             ))
-                            .expect("Error: Failed to notify UI");
+                            .unwrap();
                     }
-                    ctx_tx
-                        .send(ContextMessage::Eos)
-                        .expect("Eos: Failed to notify UI");
+                    ctx_tx.send(ContextMessage::Eos).unwrap();
                     return glib::Continue(false);
                 }
                 gst::MessageView::Error(err) => {
-                    let error = err.get_error();
-                    eprintln!(
-                        "Error from {}: {} ({:?})",
-                        msg.get_src()
-                            .map(|s| s.get_path_string(),)
-                            .unwrap_or_else(|| String::from("None"),),
-                        error,
-                        err.get_debug()
-                    );
                     ctx_tx
                         .send(ContextMessage::FailedToExport(
-                            error.description().to_owned()
+                            err.get_error().description().to_owned()
                         ))
-                        .expect("Error: Failed to notify UI");
+                        .unwrap();
                     return glib::Continue(false);
                 }
                 gst::MessageView::AsyncDone(_) => {
@@ -347,9 +327,9 @@ impl SplitterContext {
                     if pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
                         ctx_tx
                             .send(ContextMessage::FailedToExport(
-                                gettext("ERROR: Failed to start splitting.")
+                                gettext("Failed to start splitting.")
                             ))
-                            .expect("Error: Failed to notify UI");
+                            .unwrap();
                     }
                 }
                 _ => (),

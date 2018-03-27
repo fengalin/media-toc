@@ -10,8 +10,8 @@ use glib::{Cast, ObjectExt};
 
 use gtk;
 
+use std::error::Error;
 use std::path::PathBuf;
-
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
@@ -39,13 +39,13 @@ lazy_static! {
             // by inducing more jerks than with `gtksink`.
             // For some media, the CPU usage is lower, but at the cost of memory usage
             /*if let Some(gtkglsink) = ElementFactory::make("gtkglsink", "video_sink") {
-                println!("Using gtkglsink");
+                debug!("Using gtkglsink");
                 let glsinkbin = ElementFactory::make("glsinkbin", "video_sink_bin").unwrap();
                 glsinkbin.set_property("sink", &gtkglsink.to_value()).unwrap();
                 let widget_val = gtkglsink.get_property("widget");
                 (Some(glsinkbin), widget_val.ok())
             } else*/ if let Some(sink) = ElementFactory::make("gtksink", "video_sink") {
-                //println!("Using gtksink");
+                debug!("Using gtksink");
                 let widget_val = sink.get_property("widget");
                 (Some(sink), widget_val.ok())
             } else {
@@ -61,17 +61,17 @@ lazy_static! {
                         })
                     }
                     None => {
-                        eprintln!("{}", gettext("ERROR: Failed to get Video Widget."));
+                        error!("{}", gettext("Failed to get Video Widget."));
                         None
                     }
                 }
             }
             (Some(_video_sink), None) => {
-                eprintln!("{}", gettext("ERROR: Failed to get Video Widget."));
+                error!("{}", gettext("Failed to get Video Widget."));
                 None
             }
             (None, _) => {
-                eprintln!("{}", gettext("Couldn't find GStreamer GTK video sink."));
+                error!("{}", gettext("Couldn't find GStreamer GTK video sink."));
                 None
             }
         }
@@ -121,7 +121,7 @@ impl PlaybackContext {
         dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<PlaybackContext, String> {
-        println!("\n* Opening {:?}...", path);
+        info!("{}", gettext("Opening {}...").replacen("{}", path.to_str().unwrap(), 1));
 
         let file_name = String::from(path.file_name().unwrap().to_str().unwrap());
 
@@ -239,7 +239,7 @@ impl PlaybackContext {
 
     pub fn stop(&self) {
         if self.pipeline.set_state(gst::State::Null) == gst::StateChangeReturn::Failure {
-            println!("Could not set media in Null state");
+            warn!("Could not set media in Null state");
             //return Err("could not set media in Null state".into());
         }
     }
@@ -276,11 +276,8 @@ impl PlaybackContext {
             .ok()
             .unwrap();
         if self.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
-            println!("Seeking range: Could not set media in palying state");
-            self.dbl_audio_buffer_mtx
-                .lock()
-                .expect("PlaybackContext::play: couldn't lock dbl_audio_buffer_mtx")
-                .accept_eos();
+            warn!("Seeking range: Could not set media in palying state");
+            self.dbl_audio_buffer_mtx.lock().unwrap().accept_eos();
         }
     }
 
@@ -290,9 +287,7 @@ impl PlaybackContext {
         self.decodebin.send_event(select_streams_evt);
 
         {
-            let mut info = self.info
-                .lock()
-                .expect("MainController::select_streams failed to lock info");
+            let mut info = self.info.lock().unwrap();
             info.streams.select_streams(&stream_ids);
         }
     }
@@ -306,8 +301,7 @@ impl PlaybackContext {
         queue
             .connect("overrun", false, |args| {
                 let queue = args[0].get::<gst::Element>().unwrap();
-                println!(
-                    "\n/!\\ OVERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
+                warn!("OVERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
                     queue.get_name(),
                     queue
                         .get_property("max-size-bytes")
@@ -333,8 +327,7 @@ impl PlaybackContext {
         queue
             .connect("underrun", false, |args| {
                 let queue = args[0].get::<gst::Element>().unwrap();
-                println!(
-                    "\n/!\\ UNDERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
+                warn!("UNDERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
                     queue.get_name(),
                     queue
                         .get_property("max-size-bytes")
@@ -523,37 +516,19 @@ impl PlaybackContext {
                             match event.view() {
                                 // TODO: handle FlushStart / FlushStop
                                 gst::EventView::Caps(caps_event) => {
-                                    let caps = caps_event.get_caps();
-                                    #[cfg(feature = "trace-audio-caps")]
-                                    println!("\nGot new {:?}", caps);
-
-                                    dbl_audio_buffer_mtx
-                                        .lock()
-                                        .expect(
-                                            "waveform_sink::probe couldn't lock dbl_audio_buffer"
-                                        )
-                                        .set_caps(caps);
+                                    dbl_audio_buffer_mtx.lock().unwrap()
+                                        .set_caps(caps_event.get_caps());
                                 }
                                 gst::EventView::Eos(_) => {
-                                    dbl_audio_buffer_mtx
-                                        .lock()
-                                        .expect(
-                                            "waveform_sink::probe couldn't lock dbl_audio_buffer"
-                                        )
+                                    dbl_audio_buffer_mtx.lock().unwrap()
                                         .handle_eos();
-                                    ctx_tx_mtx
-                                        .lock()
-                                        .expect("waveform_sink::probe couldn't lock ctx_tx_mtx")
+                                    ctx_tx_mtx.lock().unwrap()
                                         .send(ContextMessage::ReadyForRefresh)
-                                        .expect("Failed to notify UI");
+                                        .unwrap();
                                 }
                                 gst::EventView::Segment(segment_event) => {
                                     let segment = segment_event.get_segment();
-                                    dbl_audio_buffer_mtx
-                                        .lock()
-                                        .expect(
-                                            "waveform_sink::probe couldn't lock dbl_audio_buffer"
-                                        )
+                                    dbl_audio_buffer_mtx.lock().unwrap()
                                         .have_gst_segment(&segment);
                                 }
                                 _ => (),
@@ -601,18 +576,11 @@ impl PlaybackContext {
                         .expect("Failed to notify UI");
                 }
                 gst::MessageView::Error(err) => {
-                    let error = err.get_error();
-                    eprintln!(
-                        "Error from {}: {} ({:?})",
-                        msg.get_src()
-                            .map(|s| s.get_path_string(),)
-                            .unwrap_or_else(|| String::from("None"),),
-                        error,
-                        err.get_debug()
-                    );
                     ctx_tx
-                        .send(ContextMessage::FailedToOpenMedia(error))
-                        .expect("Failed to notify UI");
+                        .send(ContextMessage::FailedToOpenMedia(
+                            err.get_error().description().to_owned()
+                        ))
+                        .unwrap();
                     return glib::Continue(false);
                 }
                 gst::MessageView::AsyncDone(_) => {
@@ -683,12 +651,10 @@ impl PlaybackContext {
                             // FIXME: use updated
                             let (toc, _updated) = msg_toc.get_toc();
                             if toc.get_scope() == gst::TocScope::Global {
-                                let info = &mut info_arc_mtx
-                                    .lock()
-                                    .expect("Failed to lock media info while receiving toc");
+                                let info = &mut info_arc_mtx.lock().unwrap();
                                 info.toc = Some(toc);
                             } else {
-                                println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
+                                warn!("skipping toc with scope: {:?}", toc.get_scope());
                             }
                         }
                     }
@@ -698,16 +664,14 @@ impl PlaybackContext {
                         PipelineState::Initialized(_) => {
                             ctx_tx
                                 .send(ContextMessage::StreamsSelected)
-                                .expect("Failed to notify UI");
+                                .unwrap();
                         }
                         _ => pipeline_state = PipelineState::StreamsSelected,
                     }
                 }
                 gst::MessageView::StreamCollection(msg_stream_collection) => {
                     let stream_collection = msg_stream_collection.get_stream_collection();
-                    let info = &mut info_arc_mtx
-                        .lock()
-                        .expect("Failed to lock media info while initializing audio stream");
+                    let info = &mut info_arc_mtx.lock().unwrap();
                     stream_collection
                         .iter()
                         .for_each(|stream| info.streams.add_stream(&stream));

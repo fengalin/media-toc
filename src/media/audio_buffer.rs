@@ -5,9 +5,6 @@ use gstreamer_audio::AudioFormat;
 
 use sample::Sample;
 
-#[cfg(feature = "profiling-audio-buffer")]
-use chrono::Utc;
-
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 #[cfg(test)]
 use byteorder::ByteOrder;
@@ -80,15 +77,13 @@ impl AudioBuffer {
 
         self.audio_info = Some(audio_info);
 
-        #[cfg(any(test, feature = "trace-audio-buffer"))]
-        println!("\nAudioBuffer::init rate {}, channels {}", self.rate, self.channels);
+        debug!("init rate {}, channels {}", self.rate, self.channels);
     }
 
     // Clean everytihng so that the AudioBuffer
     // can be reused for a different media
     pub fn cleanup(&mut self) {
-        #[cfg(any(test, feature = "trace-audio-buffer"))]
-        println!("\nAudioBuffer cleaning up");
+        debug!("cleaning up");
 
         self.reset();
         self.segment_start = None;
@@ -102,8 +97,7 @@ impl AudioBuffer {
     // So we need to keep track of the segment start in order not
     // to reset current sequence (self.last_buffer_upper).
     pub fn reset(&mut self) {
-        #[cfg(any(test, feature = "trace-audio-buffer"))]
-        println!("\nAudioBuffer resetting");
+        debug!("resetting");
 
         self.capacity = 0;
         self.rate = 0;
@@ -121,8 +115,7 @@ impl AudioBuffer {
     }
 
     pub fn have_gst_segment(&mut self, segment: &gst::Segment) {
-        #[cfg(any(test, feature = "trace-audio-buffer"))]
-        println!("\nAudioBuffer::have_gst_segment {:?}", segment);
+        debug!("have_gst_segment {:?}", segment);
 
         let segment_start = segment.get_start().get_value() as u64;
         match self.segment_start {
@@ -145,12 +138,8 @@ impl AudioBuffer {
     // Incoming samples are merged to the existing buffer when possible
     // Returns: number of samples received
     pub fn push_gst_buffer(&mut self, buffer: &gst::Buffer, lower_to_keep: usize) -> usize {
-        #[cfg(feature = "profiling-audio-buffer")]
-        let start = Utc::now();
-
         if self.sample_duration == 0 {
-            #[cfg(any(test, feature = "trace-audio-buffer"))]
-            println!("AudioBuffer::push_gst_buffer sample_duration is null");
+            debug!("push_gst_buffer sample_duration is null");
             return 0;
         }
 
@@ -195,7 +184,7 @@ impl AudioBuffer {
                 if incoming_lower == self.upper {
                     // 1. append incoming buffer to the end of internal storage
                     #[cfg(test)]
-                    println!("AudioBuffer case 1. appending to the end (full)");
+                    trace!("case 1. appending to the end (full)");
                     // self.lower unchanged
                     self.upper = incoming_upper;
                     self.eos = false;
@@ -209,10 +198,7 @@ impl AudioBuffer {
                     )
                 } else if incoming_lower >= self.lower && incoming_upper <= self.upper {
                     // 2. incoming buffer included in current container
-                    #[cfg(any(test, feature = "trace-audio-buffer"))]
-                    println!(
-                        concat!(
-                            "AudioBuffer case 2. contained in current container ",
+                    debug!(concat!("case 2. contained in current container ",
                             "self [{}, {}], incoming [{}, {}]",
                         ),
                         self.lower,
@@ -229,12 +215,7 @@ impl AudioBuffer {
                     )
                 } else if incoming_lower > self.lower && incoming_lower < self.upper {
                     // 3. can append [self.upper, upper] to the end
-                    #[cfg(any(test, feature = "trace-audio-buffer"))]
-                    println!(
-                        concat!(
-                            "AudioBuffer case 3. append to the end (partial) ",
-                            "[{}, {}], incoming [{}, {}]",
-                        ),
+                    debug!("case 3. append to the end (partial) [{}, {}], incoming [{}, {}]",
                         self.upper,
                         incoming_upper,
                         incoming_lower,
@@ -254,9 +235,7 @@ impl AudioBuffer {
                     )
                 } else if incoming_upper < self.upper && incoming_upper >= self.lower {
                     // 4. can insert [lower, self.lower] at the begining
-                    #[cfg(any(test, feature = "trace-audio-buffer"))]
-                    println!(
-                        "AudioBuffer case 4. insert at the begining [{}, {}], incoming [{}, {}]",
+                    debug!("case 4. insert at the begining [{}, {}], incoming [{}, {}]",
                         incoming_lower, self.lower, incoming_lower, incoming_upper
                     );
                     let upper_to_add = self.lower;
@@ -271,9 +250,7 @@ impl AudioBuffer {
                     )
                 } else {
                     // 5. can't merge with previous buffer
-                    #[cfg(any(test, feature = "trace-audio-buffer"))]
-                    println!(
-                        "AudioBuffer case 5. can't merge self [{}, {}], incoming [{}, {}]",
+                    debug!("case 5. can't merge self [{}, {}], incoming [{}, {}]",
                         self.lower, self.upper, incoming_lower, incoming_upper
                     );
                     self.samples.clear();
@@ -290,8 +267,7 @@ impl AudioBuffer {
                 }
             } else {
                 // 6. initializing
-                #[cfg(any(test, feature = "trace-audio-buffer"))]
-                println!("AudioBuffer init [{}, {}]", incoming_lower, incoming_upper);
+                debug!("init [{}, {}]", incoming_lower, incoming_upper);
                 self.lower = incoming_lower;
                 self.upper = incoming_upper;
                 self.eos = false;
@@ -303,9 +279,6 @@ impl AudioBuffer {
                     buffer_sample_len, // upper_to_add_rel
                 )
             };
-
-        #[cfg(feature = "profiling-audio-buffer")]
-        let before_drain = Utc::now();
 
         // Don't drain if samples are to be added at the begining...
         // drain only if we have enough samples in history
@@ -319,22 +292,12 @@ impl AudioBuffer {
                 > self.capacity
             && lower_to_keep.min(incoming_lower) > self.lower + self.drain_size / self.channels
         {
-            //println!("draining... len before: {}", self.samples.len());
+            debug!("draining... len before: {}", self.samples.len());
             self.samples.drain(..self.drain_size);
             self.lower += self.drain_size / self.channels;
         }
 
-        #[cfg(feature = "profiling-audio-buffer")]
-        let before_storage = Utc::now();
-
         if upper_to_add_rel > 0 {
-            /*let lower_idx = lower_to_add_rel * self.bytes_per_sample * self.channels;
-            let upper_idx = upper_to_add_rel * self.bytes_per_sample * self.channels;
-            let sample_slice = samples_as_bytes[lower_idx..upper_idx]
-                .as_slice_of::<i16>()
-                .expect("AudioBuffer::push_gst_buffer couldn't get audio samples as i16");
-            */
-
             let map = buffer.map_readable()
                 .take()
                 .unwrap();
@@ -355,18 +318,6 @@ impl AudioBuffer {
                 }
             }
         }
-
-        #[cfg(feature = "profiling-audio-buffer")]
-        let end = Utc::now();
-
-        #[cfg(feature = "profiling-audio-buffer")]
-        println!(
-            "audio-buffer,{},{},{},{}",
-            start.time().format("%H:%M:%S%.6f"),
-            before_drain.time().format("%H:%M:%S%.6f"),
-            before_storage.time().format("%H:%M:%S%.6f"),
-            end.time().format("%H:%M:%S%.6f"),
-        );
 
         buffer_sample_len // nb of samples received
     }
@@ -562,9 +513,7 @@ impl<'a> Iter<'a> {
             })
         } else {
             // out of bound TODO: return an error
-            #[cfg(test)]
-            println!(
-                "AudioBuffer::Iter::new [{}, {}] out of bounds [{}, {}]",
+            trace!("Iter::new [{}, {}] out of bounds [{}, {}]",
                 lower, upper, buffer.lower, buffer.upper
             );
             None
@@ -604,6 +553,7 @@ impl<'a> Iterator for Iter<'a> {
 
 #[cfg(test)]
 mod tests {
+    //use env_logger;
     use gstreamer as gst;
     use gstreamer_audio as gst_audio;
     use gstreamer_audio::AUDIO_FORMAT_S16;
@@ -627,6 +577,7 @@ mod tests {
 
     #[test]
     fn multiple_gst_buffers() {
+        //env_logger::try_init();
         gst::init().unwrap();
 
         let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
@@ -634,7 +585,7 @@ mod tests {
             gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, 2).build().unwrap()
         );
 
-        println!("\n* samples [100:200] init");
+        info!("samples [100:200] init");
         audio_buffer.push_samples(&build_buffer(100, 200), 100, true);
         assert_eq!(audio_buffer.lower, 100);
         assert_eq!(audio_buffer.upper, 200);
@@ -644,7 +595,7 @@ mod tests {
             Some(&[199, -199][..])
         );
 
-        println!("* samples [50:100]: appending to the begining");
+        info!("samples [50:100]: appending to the begining");
         audio_buffer.push_samples(&build_buffer(50, 100), 50, true);
         assert_eq!(audio_buffer.lower, 50);
         assert_eq!(audio_buffer.upper, 200);
@@ -654,7 +605,7 @@ mod tests {
             Some(&[199, -199][..])
         );
 
-        println!("* samples [0:75]: overlaping on the begining");
+        info!("samples [0:75]: overlaping on the begining");
         audio_buffer.push_samples(&build_buffer(0, 75), 0, true);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 200);
@@ -664,7 +615,7 @@ mod tests {
             Some(&[199, -199][..])
         );
 
-        println!("* samples [200:300]: appending to the end - different segment");
+        info!("samples [200:300]: appending to the end - different segment");
         audio_buffer.push_samples(&build_buffer(200, 300), 200, true);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 300);
@@ -674,7 +625,7 @@ mod tests {
             Some(&[299, -299][..])
         );
 
-        println!("* samples [250:275]: contained in current - different segment");
+        info!("samples [250:275]: contained in current - different segment");
         audio_buffer.push_samples(&build_buffer(250, 275), 250, true);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 300);
@@ -684,7 +635,7 @@ mod tests {
             Some(&[299, -299][..])
         );
 
-        println!("* samples [275:400]: overlaping on the end");
+        info!("samples [275:400]: overlaping on the end");
         audio_buffer.push_samples(&build_buffer(275, 400), 275, false);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 400);
@@ -694,7 +645,7 @@ mod tests {
             Some(&[399, -399][..])
         );
 
-        println!("* samples [400:450]: appending to the end");
+        info!("samples [400:450]: appending to the end");
         audio_buffer.push_samples(&build_buffer(400, 450), 400, false);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 450);
@@ -712,10 +663,7 @@ mod tests {
         step: usize,
         expected_values: &[i16],
     ) {
-        println!(
-            "\tchecking iter for [{}, {}], step {}...",
-            lower, upper, step
-        );
+        debug!("checking iter for [{}, {}], step {}...", lower, upper, step);
         let mut iter = audio_buffer.iter(lower, upper, step).unwrap();
 
         for expected_value in expected_values {
@@ -729,11 +677,12 @@ mod tests {
                 }
             }
         }
-        println!("\t... done");
+        debug!("... done");
     }
 
     #[test]
     fn test_iter() {
+        //env_logger::try_init();
         gst::init().unwrap();
 
         let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
@@ -741,7 +690,7 @@ mod tests {
             gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, 2).build().unwrap()
         );
 
-        println!("\n* samples [100:200] init");
+        info!("* samples [100:200] init");
         // 1. init
         audio_buffer.push_samples(&build_buffer(100, 200), 100, true);
 

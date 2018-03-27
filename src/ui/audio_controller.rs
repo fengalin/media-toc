@@ -10,9 +10,6 @@ use gtk::{Inhibit, LabelExt, ToolButtonExt, WidgetExt, WidgetExtManual};
 
 use pango::{ContextExt, LayoutExt};
 
-#[cfg(feature = "profiling-audio-draw")]
-use chrono::Utc;
-
 use std::boxed::Box;
 use std::collections::Bound::Included;
 
@@ -106,7 +103,7 @@ impl AudioController {
         let dbl_buffer_mtx = DoubleWaveformBuffer::new_mutex(BUFFER_DURATION);
         let waveform_mtx = dbl_buffer_mtx
             .lock()
-            .expect("AudioController::new: couldn't lock dbl_buffer_mtx")
+            .unwrap()
             .get_exposed_buffer_mtx();
 
         let this = Rc::new(RefCell::new(AudioController {
@@ -275,7 +272,7 @@ impl AudioController {
         {
             self.dbl_buffer_mtx
                 .lock()
-                .expect("AudioController::cleanup: Couldn't lock dbl_buffer_mtx")
+                .unwrap()
                 .cleanup();
         }
         self.requested_duration = INIT_REQ_DURATION;
@@ -299,7 +296,7 @@ impl AudioController {
         let has_audio = context
             .info
             .lock()
-            .expect("Failed to lock media info while initializing audio controller")
+            .unwrap()
             .streams
             .audio_selected
             .is_some();
@@ -310,8 +307,7 @@ impl AudioController {
             let area_height = self.area_height;
             {
                 // init the buffers in order to render the waveform in current conditions
-                #[cfg(feature = "trace-audio-controller")]
-                println!("AudioController:new_media conditions {}, {}x{}",
+                debug!("new_media conditions {}, {}x{}",
                     requested_duration,
                     area_width,
                     area_height,
@@ -319,7 +315,7 @@ impl AudioController {
 
                 self.dbl_buffer_mtx
                     .lock()
-                    .expect("AudioController::size-allocate: couldn't lock dbl_buffer_mtx")
+                    .unwrap()
                     .set_conditions(Box::new(WaveformConditions::new(
                         requested_duration,
                         area_width as i32,
@@ -340,13 +336,11 @@ impl AudioController {
         let (lower_pos, upper_pos, half_window_duration) = {
             let waveform_grd = self.waveform_mtx
                 .lock()
-                .expect("AudioController::get_seek_back_1st_pos Couldn't lock waveform_mtx");
+                .unwrap();
             let waveform_buf = waveform_grd
                 .as_any()
                 .downcast_ref::<WaveformBuffer>()
-                .expect(
-                    "AudioController::get_seek_back_1st_pos SamplesExtratctor is not a WaveformBuffer",
-                );
+                .unwrap();
             let limits = waveform_buf.get_limits_as_pos();
             (
                 limits.0,
@@ -376,10 +370,10 @@ impl AudioController {
         {
             self.waveform_mtx
                 .lock()
-                .expect("AudioController::seek Couldn't lock waveform_mtx")
+                .unwrap()
                 .as_mut_any()
                 .downcast_mut::<WaveformBuffer>()
-                .expect("AudioController::seek SamplesExtratctor is not a WaveformBuffer")
+                .unwrap()
                 .seek(position, is_playing);
         }
 
@@ -388,7 +382,7 @@ impl AudioController {
             // with samples that might not be rendered in current WaveformImage yet
             self.dbl_buffer_mtx
                 .lock()
-                .expect("AudioController::seek: couldn't lock dbl_buffer_mtx")
+                .unwrap()
                 .refresh(false); // not playing
         }
         self.redraw();
@@ -414,10 +408,10 @@ impl AudioController {
         if self.state != ControllerState::Disabled {
             self.waveform_mtx
                 .lock()
-                .expect("AudioController::seek: Couldn't lock waveform_mtx")
+                .unwrap()
                 .as_mut_any()
                 .downcast_mut::<WaveformBuffer>()
-                .expect("AudioController::seek: SamplesExtratctor is not a WaveformBuffer")
+                .unwrap()
                 .start_play_range();
 
             self.register_tick_callback();
@@ -447,12 +441,11 @@ impl AudioController {
                 .add_tick_callback(move |_da, _frame_clock| {
                     let this = this_rc.borrow_mut();
                     if this.playback_needs_refresh {
-                        #[cfg(feature = "trace-audio-controller")]
-                        println!("AudioController::tick forcing refresh");
+                        trace!("tick forcing refresh");
 
                         this.dbl_buffer_mtx
                             .lock()
-                            .expect("AudioController::tick: couldn't lock dbl_buffer_mtx")
+                            .unwrap()
                             .refresh(true); // is playing
                     }
 
@@ -550,8 +543,7 @@ impl AudioController {
     }
 
     fn update_conditions(&mut self) {
-        #[cfg(feature = "trace-audio-controller")]
-        println!("AudioController:update_conditions {}, {}x{}",
+        debug!("update_conditions {}, {}x{}",
             self.requested_duration,
             self.area_width,
             self.area_height,
@@ -562,13 +554,11 @@ impl AudioController {
         } else {
             let waveform_grd = &mut *self.waveform_mtx
                 .lock()
-                .expect("AudioController::update_conditions couldn't lock waveform_mtx");
+                .unwrap();
             let waveform_buffer = waveform_grd
                 .as_mut_any()
                 .downcast_mut::<WaveformBuffer>()
-                .expect(
-                    "AudioController::update_conditions SamplesExtratctor is not a WaveformBuffer",
-                );
+                .unwrap();
             waveform_buffer.update_conditions(
                 self.requested_duration,
                 self.area_width as i32,
@@ -583,43 +573,27 @@ impl AudioController {
         _da: &gtk::DrawingArea,
         cr: &cairo::Context,
     ) -> Inhibit {
-        #[cfg(feature = "profiling-audio-draw")]
-        let before_init = Utc::now();
-
         if self.state == ControllerState::Disabled {
             // Not active yet, don't display
-            #[cfg(feature = "trace-audio-controller")]
-            println!("AudioController::draw still Disabled, not drawing");
+            debug!("AudioController::draw still Disabled, not drawing");
             self.clean_cairo_context(cr);
             return Inhibit(false);
         }
 
-        #[cfg(feature = "profiling-audio-draw")]
-        let before_lock = Utc::now();
-        #[cfg(feature = "profiling-audio-draw")]
-        let mut _before_cndt = Utc::now();
-        #[cfg(feature = "profiling-audio-draw")]
-        let mut _before_image = Utc::now();
-
         let (current_position, image_positions) = {
             let waveform_grd = &mut *self.waveform_mtx
                 .lock()
-                .expect("AudioController::draw: couldn't lock waveform_mtx");
+                .unwrap();
             let waveform_buffer = waveform_grd
                 .as_mut_any()
                 .downcast_mut::<WaveformBuffer>()
-                .expect("AudioController::draw: SamplesExtratctor is not a WaveformBuffer");
+                .unwrap();
 
-            #[cfg(feature = "profiling-audio-draw")]
-            let _before_cndt = Utc::now();
             self.playback_needs_refresh = waveform_buffer.playback_needs_refresh;
 
             let (current_position, image_opt) = waveform_buffer.get_image();
             match image_opt {
                 Some((image, image_positions)) => {
-                    #[cfg(feature = "profiling-audio-draw")]
-                    let _before_image = Utc::now();
-
                     cr.set_source_surface(image, -image_positions.first.x, 0f64);
                     cr.paint();
 
@@ -627,10 +601,7 @@ impl AudioController {
                 }
                 None => {
                     self.clean_cairo_context(cr);
-
-                    #[cfg(feature = "trace-audio-controller")]
-                    println!("AudioController::draw no image");
-
+                    debug!("AudioController::draw no image");
                     return Inhibit(false);
                 }
             }
@@ -640,9 +611,6 @@ impl AudioController {
         self.first_visible_pos = image_positions.first.timestamp;
         self.sample_duration = image_positions.sample_duration;
         self.sample_step = image_positions.sample_step;
-
-        #[cfg(feature = "profiling-audio-draw")]
-        let before_pos = Utc::now();
 
         cr.scale(1f64, 1f64);
         cr.set_source_rgb(1f64, 1f64, 0f64);
@@ -738,9 +706,6 @@ impl AudioController {
             cr.stroke();
         }
 
-        #[cfg(feature = "profiling-audio-draw")]
-        let before_refresh_other = Utc::now();
-
         // update other UI position
         // Note: we pass by the audio controller here in order
         // to reduce position queries on the ref gst element
@@ -768,21 +733,6 @@ impl AudioController {
             }
         }
 
-        #[cfg(feature = "profiling-audio-draw")]
-        let end = Utc::now();
-
-        #[cfg(feature = "profiling-audio-draw")]
-        println!(
-            "audio-draw,{},{},{},{},{},{},{}",
-            before_init.time().format("%H:%M:%S%.6f"),
-            before_lock.time().format("%H:%M:%S%.6f"),
-            _before_cndt.time().format("%H:%M:%S%.6f"),
-            _before_image.time().format("%H:%M:%S%.6f"),
-            before_pos.time().format("%H:%M:%S%.6f"),
-            before_refresh_other.time().format("%H:%M:%S%.6f"),
-            end.time().format("%H:%M:%S%.6f"),
-        );
-
         Inhibit(false)
     }
 
@@ -798,7 +748,7 @@ impl AudioController {
             // in latest conditions
             self.dbl_buffer_mtx
                 .lock()
-                .expect("AudioController::size-allocate: couldn't lock dbl_buffer_mtx")
+                .unwrap()
                 .refresh_with_conditions(
                     Box::new(WaveformConditions::new(
                         requested_duration,

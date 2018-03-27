@@ -1,6 +1,7 @@
 extern crate byteorder;
 extern crate cairo;
 extern crate clap;
+extern crate env_logger;
 extern crate gdk;
 extern crate gettextrs;
 extern crate glib;
@@ -12,11 +13,12 @@ extern crate pango;
 extern crate sample;
 
 #[macro_use]
+extern crate log;
+
+#[macro_use]
 extern crate lazy_static;
 
-#[cfg(any(feature = "dump-waveform", feature = "profiling-audio-draw",
-          feature = "profiling-audio-buffer", feature = "profiling-waveform-buffer",
-          feature = "profile-waveform-image"))]
+#[cfg(feature = "dump-waveform")]
 extern crate chrono;
 
 use clap::{Arg, App};
@@ -31,19 +33,19 @@ mod ui;
 use ui::MainController;
 
 fn main() {
-    let locale = {
-        match TextDomain::new("media-toc").prepend("target").init() {
-            Ok(locale) => {
-                format!("translation found, `setlocale` returned {:?}", locale)
-            }
-            Err(TextDomainError::TranslationNotFound(lang)) => {
-                format!("translation not found for language {}", lang)
-            }
-            Err(TextDomainError::InvalidLocale(locale)) => {
-                format!("Invalid locale {}", locale)
-            }
+    env_logger::init();
+
+    match TextDomain::new("media-toc").prepend("target").init() {
+        Ok(locale) => {
+            info!("Translation found, `setlocale` returned {:?}", locale)
         }
-    };
+        Err(TextDomainError::TranslationNotFound(lang)) => {
+            warn!("Translation not found for language {}", lang)
+        }
+        Err(TextDomainError::InvalidLocale(locale)) => {
+            error!("Invalid locale {}", locale)
+        }
+    }
 
     // Messages are not translated unless gtk (glib) is initialized
     let is_gtk_ok = gtk::init().is_ok();
@@ -69,10 +71,8 @@ fn main() {
 
 
     if !is_gtk_ok {
-        panic!(gettext("Failed to initialize GTK"));
+        error!("{}", gettext("Failed to initialize GTK"));
     }
-
-    println!("Locale: {}", locale);
 
     // TODO: there's a `Settings` struct in GTK:
     // https://github.com/gtk-rs/gtk/blob/master/src/auto/settings.rs

@@ -14,6 +14,7 @@ cairo-rs = "0.4"
 clap = "^2"
 byteorder = "^1"
 chrono = "^0"
+env_logger = "0.5"
 gdk = "0.8"
 glib = "0.5"
 gstreamer = { version = "0.11", features = ["v1_10"] }
@@ -21,6 +22,7 @@ gstreamer-audio = { version = "0.11", features = ["v1_10"] }
 gtk = { version = "0.4", features = ["v3_18"] }
 image = "^0"
 lazy_static = "^0"
+log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 pango = "0.4"
 sample = "^0"
 
@@ -30,17 +32,7 @@ gettext-rs = { git = "https://github.com/Koka/gettext-rs", features = ["gettext-
 
 [features]
 dump-waveform = ["cairo-rs/png"]
-profiling-audio-draw = []
-profiling-audio-buffer = []
-profile-waveform-image = []
-trace-audio-buffer = []
-trace-audio-caps = []
-trace-audio-controller = []
-trace-main-controller = []
 trace-playback-queues = []
-trace-waveform-buffer = []
-trace-waveform-rendering = []
-trace-chapters-boundaries = []
 default-features = []
 
 [dev-dependencies]

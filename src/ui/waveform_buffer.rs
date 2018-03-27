@@ -111,8 +111,7 @@ impl WaveformBuffer {
     }
 
     fn reset(&mut self) {
-        #[cfg(feature = "trace-waveform-buffer")]
-        println!("WaveformBuffer{}::reset", self.image.id);
+        debug!("{}_reset", self.image.id);
 
         self.conditions_changed = false;
 
@@ -125,8 +124,7 @@ impl WaveformBuffer {
     }
 
     fn reset_sample_conditions(&mut self) {
-        #[cfg(feature = "trace-waveform-buffer")]
-        println!("WaveformBuffer{}::reset_sample_conditions", self.image.id);
+        debug!("{}_reset_sample_conditions", self.image.id);
         self.previous_sample = 0;
         self.current_sample = 0;
         self.cursor_sample = 0;
@@ -163,12 +161,8 @@ impl WaveformBuffer {
         let sought_sample = (position / self.state.sample_duration) as usize
             / self.image.sample_step * self.image.sample_step;
 
-        #[cfg(feature = "trace-waveform-buffer")]
-        println!(
-            concat!(
-                "\nWaveformBuffer{}::seek cursor_sample {}, sought sample {} ({}), ",
-                "image [{}, {}], contains_eos: {}",
-            ),
+        debug!(
+            "{}_seek cursor_sample {}, sought sample {} ({}), image [{}, {}], contains_eos: {}",
             self.image.id,
             self.cursor_sample,
             sought_sample,
@@ -355,10 +349,9 @@ impl WaveformBuffer {
                     }
                 } else if self.cursor_sample >= self.image.upper {
                     // cursor_sample appears after image last sample
-                    #[cfg(feature = "trace-waveform-buffer")]
-                    println!(
+                    debug!(
                         concat!(
-                            "WaveformBuffer{}::update_first_visible_sample ",
+                            "{}_update_first_visible_sample ",
                             "cursor_sample {} appears above image upper bound {}",
                         ),
                         self.image.id,
@@ -395,10 +388,9 @@ impl WaveformBuffer {
             } else {
                 // cursor_sample appears before image first sample
                 // => wait until situation clarifies
-                #[cfg(feature = "trace-waveform-buffer")]
-                println!(
+                debug!(
                     concat!(
-                        "WaveformBuffer{}::update_first_visible_sample cursor_sample {} ",
+                        "{}_update_first_visible_sample cursor_sample {} ",
                         "appears before image first sample {}",
                     ),
                     self.image.id,
@@ -408,8 +400,7 @@ impl WaveformBuffer {
                 None
             }
         } else {
-            #[cfg(feature = "trace-waveform-buffer")]
-            println!("WaveformBuffer{}::update_first_visible_sample image not ready", self.image.id);
+            debug!("{}_update_first_visible_sample image not ready", self.image.id);
             None
         };
     }
@@ -422,8 +413,7 @@ impl WaveformBuffer {
             } else {
                 let prev_duration = self.req_duration_per_1000px;
                 self.req_duration_per_1000px = duration_per_1000px;
-                #[cfg(feature = "trace-waveform-buffer")]
-                println!("WaveformBuffer{}::update_conditions duration/1000px {} -> {}",
+                debug!("{}_update_conditions duration/1000px {} -> {}",
                     self.image.id,
                     prev_duration,
                     self.req_duration_per_1000px,
@@ -442,8 +432,7 @@ impl WaveformBuffer {
                 scale_factor = width_f / prev_width_f;
             }
 
-            #[cfg(feature = "trace-waveform-buffer")]
-            println!("WaveformBuffer{}::update_conditions width {} -> {} ({})",
+            debug!("{}_update_conditions width {} -> {} ({})",
                 self.image.id,
                 self.width,
                 width,
@@ -477,10 +466,9 @@ impl WaveformBuffer {
                                 lower
                             };
 
-                            #[cfg(feature = "trace-waveform-buffer")]
-                            println!(
+                            debug!(
                                 concat!(
-                                    "WaveformBuffer{}::rebase range [{}, {}], window {}, ",
+                                    "{}_rebase range [{}, {}], window {}, ",
                                     "first {} -> {}, sample_step {}, cursor_sample {}",
                                 ),
                                 self.image.id,
@@ -537,14 +525,11 @@ impl WaveformBuffer {
         let half_req_sample_window = (self.sample_step_f * self.width_f / 2f64) as usize;
         let req_sample_window = half_req_sample_window * 2;
 
-        #[cfg(feature = "trace-waveform-buffer")]
-        {
-            if req_sample_window != self.req_sample_window {
-                println!(
-                    "WaveformBuffer{}::update_sample_window smpl.window prev. {}, new {}",
-                    self.image.id, self.req_sample_window, req_sample_window
-                );
-            }
+        if req_sample_window != self.req_sample_window {
+            debug!(
+                "{}_update_sample_window smpl.window prev. {}, new {}",
+                self.image.id, self.req_sample_window, req_sample_window
+            );
         }
 
         self.req_sample_window = req_sample_window;
@@ -557,16 +542,6 @@ impl WaveformBuffer {
     // This function is to be called as close as possible to
     // the actual presentation of the waveform.
     pub fn get_image(&mut self) -> (u64, Option<(&cairo::ImageSurface, ImagePositions)>) {
-        #[cfg(feature = "trace-waveform-buffer")]
-        {
-            if let Some(sought_sample) = self.sought_sample {
-                println!(
-                    "WaveformBuffer{}::get_image seeking to {} - lock: {:?}",
-                    self.image.id, sought_sample, self.first_visible_sample_lock,
-                );
-            }
-        }
-
         self.update_first_visible_sample();
         match self.first_visible_sample {
             Some(first_visible_sample) => {
@@ -645,10 +620,9 @@ impl WaveformBuffer {
         } else {
             // not able to merge buffer with current waveform
             // synchronize on latest segment received
-            #[cfg(feature = "trace-waveform-buffer")]
-            println!(
+            debug!(
                 concat!(
-                    "WaveformBuffer{}::get_sample_range not able to merge: ",
+                    "{}_get_sample_range not able to merge: ",
                     "cursor {}, image [{}, {}], buffer [{}, {}], segment: {}",
                 ),
                 self.image.id,
@@ -669,9 +643,8 @@ impl WaveformBuffer {
         // Second step: find the range to display
         let extraction_range = if upper - lower <= self.req_sample_window {
             // image can use the full window
-            #[cfg(feature = "trace-waveform-buffer")]
-            println!(
-                "WaveformBuffer{}::get_sample_range using full window, range [{}, {}]",
+            trace!(
+                "{}_get_sample_range using full window, range [{}, {}]",
                 self.image.id, lower, upper,
             );
 
@@ -694,10 +667,9 @@ impl WaveformBuffer {
                             ),
                         ))
                     } else {
-                        #[cfg(feature = "trace-waveform-buffer")]
-                        println!(
+                        debug!(
                             concat!(
-                                "WaveformBuffer{}::get_sample_range first_visible_sample ",
+                                "{}_get_sample_range first_visible_sample ",
                                 "{} and cursor {} not in the same range [{}, {}]",
                             ),
                             self.image.id,
@@ -747,9 +719,8 @@ impl WaveformBuffer {
                         // cursor can be centered or is in second half of the window
                         if self.cursor_sample + self.half_req_sample_window < upper {
                             // cursor can be centered
-                            #[cfg(feature = "trace-waveform-buffer")]
-                            println!(
-                                "WaveformBuffer{}::get_sample_range centering cursor: {}",
+                            trace!(
+                                "{}_get_sample_range centering cursor: {}",
                                 self.image.id, self.cursor_sample,
                             );
 
@@ -759,9 +730,8 @@ impl WaveformBuffer {
                             ))
                         } else {
                             // cursor in second half
-                            #[cfg(feature = "trace-waveform-buffer")]
-                            println!(
-                                "WaveformBuffer{}::get_sample_range cursor: {} in second half",
+                            trace!(
+                                "{}_get_sample_range cursor: {} in second half",
                                 self.image.id, self.cursor_sample,
                             );
 
@@ -781,12 +751,8 @@ impl WaveformBuffer {
                             }
                         }
                     } else {
-                        #[cfg(feature = "trace-waveform-buffer")]
-                        println!(
-                            concat!(
-                                "WaveformBuffer{}::get_sample_range cursor ",
-                                "{} in first half or before range [{}, {}]",
-                            ),
+                        trace!(
+                            "{}_get_sample_range cursor {} in first half or before range [{}, {}]",
                             self.image.id,
                             self.cursor_sample,
                             lower,
@@ -861,19 +827,14 @@ impl SampleExtractor for WaveformBuffer {
 
     fn cleanup(&mut self) {
         // clear for reuse
-        #[cfg(feature = "trace-waveform-buffer")]
-        println!("WaveformBuffer{}::cleanup", self.image.id);
+        debug!("{}_cleanup", self.image.id);
 
         self.state.cleanup();
         self.reset();
     }
 
     fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64) {
-        #[cfg(feature = "trace-waveform-buffer")]
-        println!(
-            "WaveformBuffer{}::set_sample_duration per_sample {}",
-            self.image.id, per_sample
-        );
+        debug!("{}_set_sample_duration per_sample {}", self.image.id, per_sample);
         self.reset_sample_conditions();
 
         self.state.sample_duration = per_sample;
@@ -887,9 +848,7 @@ impl SampleExtractor for WaveformBuffer {
     }
 
     fn set_conditions(&mut self, conditions: Box<Any>) {
-        let cndt = conditions
-            .downcast::<WaveformConditions>()
-            .expect("WaveformBuffer::set_conditions conditions is not a WaveformConditions");
+        let cndt = conditions.downcast::<WaveformConditions>().unwrap();
         self.update_conditions(cndt.duration_per_1000px, cndt.width, cndt.height);
     }
 
@@ -907,10 +866,7 @@ impl SampleExtractor for WaveformBuffer {
     }
 
     fn update_concrete_state(&mut self, other: &mut SampleExtractor) {
-        let other = other
-            .as_mut_any()
-            .downcast_mut::<WaveformBuffer>()
-            .expect("WaveformBuffer.update_concrete_state: unable to downcast other ");
+        let other = other.as_mut_any().downcast_mut::<WaveformBuffer>().unwrap();
 
         self.previous_sample = other.previous_sample;
         self.current_sample = other.current_sample;
@@ -922,15 +878,6 @@ impl SampleExtractor for WaveformBuffer {
 
         // playback_needs_refresh is set during extract_samples
         // so other must be updated with self status
-        #[cfg(feature = "trace-waveform-buffer")]
-        {
-            if self.playback_needs_refresh && !other.playback_needs_refresh {
-                println!(
-                    "WaveformBuffer{}::update_concrete_state setting playback_needs_refresh",
-                    other.image.id,
-                );
-            }
-        }
         other.playback_needs_refresh = self.playback_needs_refresh;
 
         if other.conditions_changed {
@@ -968,22 +915,12 @@ impl SampleExtractor for WaveformBuffer {
         self.playback_needs_refresh = if audio_buffer.eos && !self.image.contains_eos {
             // there won't be any refresh on behalf of audio_buffer
             // and image will still need more sample if playback continues
-            #[cfg(feature = "trace-waveform-buffer")]
-            println!(
-                "WaveformBuffer{}::extract_samples setting playback_needs_refresh",
-                self.image.id,
-            );
+            debug!("{}_extract_samples setting playback_needs_refresh", self.image.id);
 
             true
         } else {
-            #[cfg(feature = "trace-waveform-buffer")]
-            {
-                if self.playback_needs_refresh {
-                    println!(
-                        "WaveformBuffer{}::extract_samples resetting playback_needs_refresh",
-                        self.image.id,
-                    );
-                }
+            if self.playback_needs_refresh {
+                debug!("{}_extract_samples resetting playback_needs_refresh", self.image.id);
             }
             false
         };
@@ -997,14 +934,8 @@ impl SampleExtractor for WaveformBuffer {
             self.image.render(audio_buffer, lower, upper);
 
             self.playback_needs_refresh = {
-                #[cfg(feature = "trace-waveform-buffer")]
-                {
-                    if self.playback_needs_refresh && self.image.contains_eos {
-                        println!(
-                            "WaveformBuffer{}::refresh resetting playback_needs_refresh",
-                            self.image.id,
-                        );
-                    }
+                if self.playback_needs_refresh && self.image.contains_eos {
+                    debug!("{}_refresh resetting playback_needs_refresh", self.image.id);
                 }
 
                 !self.image.contains_eos

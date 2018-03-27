@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-27 00:24+0200\n"
-"PO-Revision-Date: 2018-03-27 00:25+0200\n"
+"POT-Creation-Date: 2018-03-27 16:49+0200\n"
+"PO-Revision-Date: 2018-03-27 16:57+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -19,7 +19,7 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "X-Generator: Gtranslator 2.91.7\n"
 
-#: src/main.rs:52
+#: src/main.rs:54
 msgid ""
 "Build a table of contents from a media file\n"
 "or split a media file into chapters"
@@ -27,37 +27,41 @@ msgstr ""
 "Construit une table des matières à partir d'un fichier multimédia\n"
 "ou découpe un fichier multimédia en chapitres"
 
-#: src/main.rs:54
+#: src/main.rs:56
 msgid "Display this message"
 msgstr "Affiche ce message"
 
-#: src/main.rs:55
+#: src/main.rs:57
 msgid "Print version information"
 msgstr "Affiche la version"
 
-#: src/main.rs:57
+#: src/main.rs:59
 msgid "MEDIA"
 msgstr "MÉDIA"
 
-#: src/main.rs:66
+#: src/main.rs:68
 msgid "Path to the input media file"
 msgstr "Chemin du fichier multimédia"
 
-#: src/main.rs:72
+#: src/main.rs:74
 msgid "Failed to initialize GTK"
-msgstr "Impossible d'intialiser GTK"
+msgstr "Impossible d'initialiser GTK"
 
 #: src/main.rs:121
 msgid "test-msg"
 msgstr "ceci est un test"
 
 #: src/media/playback_context.rs:64 src/media/playback_context.rs:70
-msgid "ERROR: Failed to get Video Widget."
-msgstr "ERREUR : Impossible d'obtenir l'afficheur vidéo."
+msgid "Failed to get Video Widget."
+msgstr "Impossible de créer l'afficheur vidéo."
 
 #: src/media/playback_context.rs:74 src/media/playback_context.rs:184
 msgid "Couldn't find GStreamer GTK video sink."
 msgstr "Impossible de trouver l'élément « GTK video sink »."
+
+#: src/media/playback_context.rs:124
+msgid "Opening {}..."
+msgstr "Ouverture de {}…"
 
 #: src/media/playback_context.rs:165
 msgid ""
@@ -123,14 +127,22 @@ msgstr ""
 "`id3v2mux` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: src/media/splitter_context.rs:318
-msgid "ERROR: Failed to terminate properly. Check the resulting file."
-msgstr ""
-"ERREUR : Impossible de terminer correctement. Vérifiez le fichier généré."
+#: src/media/splitter_context.rs:91
+msgid "Splitting {}..."
+msgstr "Découpage de {}…"
 
-#: src/media/splitter_context.rs:350
-msgid "ERROR: Failed to start splitting."
-msgstr "ERREUR : Impossible de démarrer le découpage."
+#: src/media/splitter_context.rs:215
+msgid "Failed to intialize the split"
+msgstr "Impossible d'initialiser le découpage"
+
+#: src/media/splitter_context.rs:310
+msgid "Failed to terminate properly. Check the resulting file."
+msgstr ""
+"Impossible de terminer correctement. Veuillez vérifiez le fichier généré."
+
+#: src/media/splitter_context.rs:330
+msgid "Failed to start splitting."
+msgstr "Impossible de démarrer le découpage."
 
 #: src/media/toc_setter_context.rs:29
 msgid ""
@@ -148,19 +160,43 @@ msgstr ""
 "L'export vers un conteneur Matroska nécessite\n"
 "gst-plugins-good >= 1.14"
 
+#: src/media/toc_setter_context.rs:42
+msgid "Exporting to {}..."
+msgstr "Export vers {}…"
+
 #: src/metadata/cue_sheet_format.rs:25
 msgid "Failed to write Cue Sheet file"
 msgstr "Échec à l'écriture du fichier Cue Sheet."
 
-#: src/metadata/cue_sheet_format.rs:33 src/metadata/mkvmerge_text_format.rs:163
+#: src/metadata/cue_sheet_format.rs:33 src/metadata/mkvmerge_text_format.rs:165
 msgid "The table of contents is empty"
 msgstr "La table des matières est vide"
 
-#: src/metadata/mkvmerge_text_format.rs:68
-msgid "Error reading mkvmerge text file."
-msgstr "Erreur à la lecture du fichier texte mkvmerge."
+#: src/metadata/mkvmerge_text_format.rs:63
+msgid "Failed to read mkvmerge text file."
+msgstr "Échec lors de la lecture du fichier texte mkvmerge"
 
-#: src/metadata/mkvmerge_text_format.rs:155
+#: src/metadata/mkvmerge_text_format.rs:87
+msgid "couldn't find chapter nb for: {}"
+msgstr "impossible de trouver le n° de chapitre : {}"
+
+#: src/metadata/mkvmerge_text_format.rs:102
+msgid "unexpected timestamp: {}"
+msgstr "marqueur temporel non reconnu : {}"
+
+#: src/metadata/mkvmerge_text_format.rs:124
+msgid "unexpected format for: {}"
+msgstr "format non reconnu pour : {}"
+
+#: src/metadata/mkvmerge_text_format.rs:128
+msgid "expected '=' in: {}"
+msgstr "'=' attendu dans : {}"
+
+#: src/metadata/mkvmerge_text_format.rs:135
+msgid "couldn't update last start position"
+msgstr "impossible de mettre à jour la dernière position de départ"
+
+#: src/metadata/mkvmerge_text_format.rs:157
 msgid "Failed to write mkvmerge text file"
 msgstr "Échec à l'écriture du fichier texte mkvmerge"
 
@@ -176,60 +212,55 @@ msgstr "Début"
 msgid "End"
 msgstr "Fin"
 
-#: src/ui/export_controller.rs:292
+#: src/ui/export_controller.rs:297
 msgid "Table of contents exported succesfully"
 msgstr "Table des matières exportée avec succès"
 
-#: src/ui/export_controller.rs:299
+#: src/ui/export_controller.rs:304
 msgid "Failed to create the file for the table of contents"
 msgstr "Échec à la création du fichier de table des matières"
 
-#: src/ui/export_controller.rs:375
-msgid "ERROR: preparing for export: {}"
-msgstr "ERREUR : échec lors de la préparation de l'export : {}"
+#: src/ui/export_controller.rs:383
+msgid "Failed to prepare for export. {}"
+msgstr "Échec à la préparation de l'export : {}"
 
-#: src/ui/export_controller.rs:414
-msgid "ERROR: preparing for split: {}"
-msgstr "ERREUR : échec lors de la préparation du découpage : {}"
+#: src/ui/export_controller.rs:422
+msgid "Failed to prepare for split. {}"
+msgstr "Échec à la préparation du découpage : {}"
 
-#: src/ui/export_controller.rs:700
-msgid "ERROR: failed to export media: {}"
-msgstr "ERREUR : échec lors de l'export du média : {}"
+#: src/ui/export_controller.rs:693 src/ui/export_controller.rs:708
+msgid "Failed to export media. {}"
+msgstr "Échec lors de l'export du média. {}"
 
-#: src/ui/export_controller.rs:711
+#: src/ui/export_controller.rs:703
 msgid "Media exported succesfully"
 msgstr "Table des matières exportée avec succès"
 
-#: src/ui/export_controller.rs:715
-msgid "ERROR: failed to export media. {}"
-msgstr "ERREUR : échec lors de l'export du média. {}"
-
-#: src/ui/export_controller.rs:769
+#: src/ui/export_controller.rs:761
 msgid "Media split succesfully"
 msgstr "Média découpé avec succès"
 
-#: src/ui/export_controller.rs:781
-msgid "ERROR: failed to split media. {}"
-msgstr "ERREUR : échec lors du découpage du média. {}"
+#: src/ui/export_controller.rs:776
+msgid "Failed to split media. {}"
+msgstr "Échec lors du découpage du média. {}"
 
-#: src/ui/info_controller.rs:306
+#: src/ui/info_controller.rs:305
 msgid "Failed to open toc file."
 msgstr "Impossible d'ouvrir le fichier de table des matières."
 
-#: src/ui/main_controller.rs:163
-msgid "Failed to initialize GStreamer, the application can not be used."
-msgstr ""
-"Échec à l'initialisation de GStreamer, l'application ne peut être utilisée."
+#: src/ui/main_controller.rs:160
+msgid "Failed to initialize GStreamer, the application can't be used."
+msgstr "Échec à l'initialisation de GStreamer, l'application est inutilisable."
 
-#: src/ui/main_controller.rs:491 src/ui/main_controller.rs:596
+#: src/ui/main_controller.rs:494 src/ui/main_controller.rs:590
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
 
-#: src/ui/main_controller.rs:550
+#: src/ui/main_controller.rs:544
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:555
+#: src/ui/main_controller.rs:549
 msgid "Open"
 msgstr "Ouvrir"
 
@@ -415,38 +446,44 @@ msgstr "page1"
 msgid "Export\t"
 msgstr "Exporter"
 
-#: src/ui/streams_controller.rs:286
+#: src/ui/streams_controller.rs:277
 msgid "Stream id"
 msgstr "Id. du flux"
 
-#: src/ui/streams_controller.rs:287
+#: src/ui/streams_controller.rs:278
 msgid "Language"
 msgstr "Langue"
 
-#: src/ui/streams_controller.rs:288
+#: src/ui/streams_controller.rs:279
 msgid "Codec"
 msgstr "Codec"
 
-#: src/ui/streams_controller.rs:289
+#: src/ui/streams_controller.rs:280
 msgid "Comment"
 msgstr "Commentaire"
 
-#: src/ui/streams_controller.rs:308
+#: src/ui/streams_controller.rs:299
 msgid "Width"
 msgstr "Largeur"
 
-#: src/ui/streams_controller.rs:315
+#: src/ui/streams_controller.rs:306
 msgid "Height"
 msgstr "Hauteur"
 
-#: src/ui/streams_controller.rs:346
+#: src/ui/streams_controller.rs:337
 msgid "Rate"
 msgstr "Débit"
 
-#: src/ui/streams_controller.rs:353
+#: src/ui/streams_controller.rs:344
 msgid "Channels"
 msgstr "Canaux"
 
-#: src/ui/streams_controller.rs:384
+#: src/ui/streams_controller.rs:375
 msgid "Format"
 msgstr "Format"
+
+#~ msgid "Error reading mkvmerge text file."
+#~ msgstr "Erreur à la lecture du fichier texte mkvmerge."
+
+#~ msgid "ERROR: failed to export media: {}"
+#~ msgstr "ERREUR : échec lors de l'export du média : {}"

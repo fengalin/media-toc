@@ -27,7 +27,6 @@ impl MKVMergeTextFormat {
     }
 }
 
-// FIXME: handle errors
 #[cfg_attr(feature = "cargo-clippy", allow(match_wild_err_arm))]
 impl Reader for MKVMergeTextFormat {
     fn read(
@@ -42,12 +41,8 @@ impl Reader for MKVMergeTextFormat {
             end: u64,
             mut title: Option<&str>,
         ) {
-            let nb = nb
-                .take()
-                .expect("MKVMergeTextFormat::add_chapter no number for chapter");
-            let title = title
-                .take()
-                .expect("MKVMergeTextFormat::add_chapter no title for chapter");
+            let nb = nb.take().unwrap();
+            let title = title.take().unwrap();
 
             let mut chapter = gst::TocEntry::new(gst::TocEntryType::Chapter, &format!("{:02}", nb));
             chapter
@@ -65,11 +60,11 @@ impl Reader for MKVMergeTextFormat {
                 .append_sub_entry(chapter);
         }
 
-        let error_msg = gettext("Error reading mkvmerge text file.");
+        let error_msg = gettext("Failed to read mkvmerge text file.");
 
         let mut content = String::new();
         if source.read_to_string(&mut content).is_err() {
-            eprintln!("MKVMergeTextFormat::read failed reading source content");
+            error!("{}", error_msg);
             return Err(error_msg);
         }
 
@@ -89,9 +84,8 @@ impl Reader for MKVMergeTextFormat {
                     {
                         Ok(chapter_nb) => chapter_nb,
                         Err(_) => {
-                            eprintln!(
-                                "MKVMergeTextFormat::read couldn't find chapter nb for: {}",
-                                line,
+                            error!("{}", gettext("couldn't find chapter nb for: {}")
+                                .replacen("{}", line, 1)
                             );
                             return Err(error_msg);
                         }
@@ -102,7 +96,15 @@ impl Reader for MKVMergeTextFormat {
                     } else {
                         // New chapter start
                         // First add previous if any, now that we know its end
-                        let cur_start = Timestamp::from_string(value).nano_total;
+                        let cur_start = match Timestamp::from_string(value) {
+                            Ok(timestamp) => timestamp.nano_total,
+                            Err(()) => {
+                                error!("{}", gettext("unexpected timestamp: {}")
+                                    .replacen("{}", value, 1)
+                                );
+                                return Err(error_msg);
+                            }
+                        };
 
                         if let Some(last_start) = last_start.take() {
                             // update previous chapter's end
@@ -119,18 +121,18 @@ impl Reader for MKVMergeTextFormat {
                         last_nb = Some(cur_nb);
                     }
                 } else {
-                    eprintln!("MKVMergeTextFormat::read unexpected format for: {}", line);
+                    error!("{}", gettext("unexpected format for: {}").replacen("{}", line, 1));
                     return Err(error_msg);
                 }
             } else {
-                eprintln!("MKVMergeTextFormat::read expected '=' for: {}", line);
+                error!("{}", gettext("expected '=' in: {}").replacen("{}", line, 1));
                 return Err(error_msg);
             }
         }
 
         last_start.take().map_or_else(
             || {
-                eprintln!("MKVMergeTextFormat::read couldn't update last start");
+                error!("{}", gettext("couldn't update last start position"));
                 Err(error_msg)
             },
             |last_start| {
