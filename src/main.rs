@@ -72,6 +72,7 @@ fn main() {
 
     if !is_gtk_ok {
         error!("{}", gettext("Failed to initialize GTK"));
+        return;
     }
 
     // TODO: there's a `Settings` struct in GTK:
