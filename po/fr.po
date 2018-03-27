@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-27 16:49+0200\n"
-"PO-Revision-Date: 2018-03-27 16:57+0200\n"
+"POT-Creation-Date: 2018-03-27 17:21+0200\n"
+"PO-Revision-Date: 2018-03-27 17:21+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -47,7 +47,7 @@ msgstr "Chemin du fichier multimédia"
 msgid "Failed to initialize GTK"
 msgstr "Impossible d'initialiser GTK"
 
-#: src/main.rs:121
+#: src/main.rs:122
 msgid "test-msg"
 msgstr "ceci est un test"
 
@@ -78,6 +78,14 @@ msgstr "L'affichage vidéo sera désactivé."
 #: src/media/playback_context.rs:186
 msgid "Please install {} or {}, depenging on your distribution."
 msgstr "Veuillez installer {} ou {}, selon votre distribution."
+
+#: src/media/playback_context.rs:228
+msgid "Could not set media in palying state."
+msgstr "Impossible de passer le média en mode lecture."
+
+#: src/media/playback_context.rs:235
+msgid "Could not set media in paused state."
+msgstr "Impossible de passer le média en mode pause."
 
 #: src/media/splitter_context.rs:32
 msgid ""
@@ -244,7 +252,7 @@ msgstr "Média découpé avec succès"
 msgid "Failed to split media. {}"
 msgstr "Échec lors du découpage du média. {}"
 
-#: src/ui/info_controller.rs:305
+#: src/ui/info_controller.rs:306
 msgid "Failed to open toc file."
 msgstr "Impossible d'ouvrir le fichier de table des matières."
 

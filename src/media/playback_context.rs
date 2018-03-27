@@ -225,22 +225,21 @@ impl PlaybackContext {
             .accept_eos();
 
         if self.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
-            return Err("Could not set media in palying state".into());
+            return Err(gettext("Could not set media in palying state."));
         }
         Ok(())
     }
 
     pub fn pause(&self) -> Result<(), String> {
         if self.pipeline.set_state(gst::State::Paused) == gst::StateChangeReturn::Failure {
-            return Err("Could not set media in Paused state".into());
+            return Err(gettext("Could not set media in paused state."));
         }
         Ok(())
     }
 
     pub fn stop(&self) {
         if self.pipeline.set_state(gst::State::Null) == gst::StateChangeReturn::Failure {
-            warn!("Could not set media in Null state");
-            //return Err("could not set media in Null state".into());
+            warn!("could not set media in Null state");
         }
     }
 
