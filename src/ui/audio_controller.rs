@@ -1,13 +1,10 @@
 use cairo;
-use glib;
 use gdk;
-use gtk;
-use pango;
-
 use gdk::{Cursor, CursorType, WindowExt};
-
+use glib;
+use gtk;
 use gtk::{Inhibit, LabelExt, ToolButtonExt, WidgetExt, WidgetExtManual};
-
+use pango;
 use pango::{ContextExt, LayoutExt};
 
 use std::boxed::Box;
@@ -77,6 +74,7 @@ pub struct AudioController {
     state: ControllerState,
     playback_needs_refresh: bool,
 
+    base_time: Option<i64>,
     requested_duration: f64,
     current_position: u64,
     last_other_ui_refresh: u64,
@@ -129,6 +127,7 @@ impl AudioController {
             playback_needs_refresh: false,
 
             requested_duration: INIT_REQ_DURATION,
+            base_time: None,
             current_position: 0,
             last_other_ui_refresh: 0,
             first_visible_pos: 0,
@@ -276,6 +275,7 @@ impl AudioController {
                 .cleanup();
         }
         self.requested_duration = INIT_REQ_DURATION;
+        self.base_time = None;
         self.current_position = 0;
         self.last_other_ui_refresh = 0;
         self.first_visible_pos = 0;
@@ -439,7 +439,7 @@ impl AudioController {
         self.tick_cb_id = Some(
             self.drawingarea
                 .add_tick_callback(move |_da, _frame_clock| {
-                    let this = this_rc.borrow_mut();
+                    let this = this_rc.borrow();
                     if this.playback_needs_refresh {
                         trace!("tick forcing refresh");
 
@@ -549,9 +549,7 @@ impl AudioController {
             self.area_height,
         );
 
-        if self.state == ControllerState::Paused {
-            self.refresh();
-        } else {
+        {
             let waveform_grd = &mut *self.waveform_mtx
                 .lock()
                 .unwrap();
@@ -565,6 +563,16 @@ impl AudioController {
                 self.area_height as i32,
             );
         }
+        self.refresh();
+    }
+
+    pub fn refresh(&mut self) {
+        self.dbl_buffer_mtx
+            .lock()
+            .unwrap()
+            .refresh(self.state == ControllerState::Playing);
+
+        self.redraw();
     }
 
     fn draw(
@@ -738,32 +746,6 @@ impl AudioController {
         }
 
         Inhibit(false)
-    }
-
-    pub fn refresh(&mut self) {
-        // FIXME: might not need to use conditions in refresh anymore
-        // now that conditions are updated separately when they change
-        let requested_duration = self.requested_duration;
-        let area_width = self.area_width;
-        let area_height = self.area_height;
-
-        {
-            // refresh the buffer in order to render the waveform
-            // in latest conditions
-            self.dbl_buffer_mtx
-                .lock()
-                .unwrap()
-                .refresh_with_conditions(
-                    Box::new(WaveformConditions::new(
-                        requested_duration,
-                        area_width as i32,
-                        area_height as i32,
-                    )),
-                    self.state == ControllerState::Playing,
-                );
-        }
-
-        self.redraw();
     }
 
     fn motion_notify(

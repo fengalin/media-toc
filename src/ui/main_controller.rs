@@ -33,6 +33,7 @@ pub enum ControllerState {
     PlayingRange(u64),
     Ready,
     Seeking {
+        seek_pos: u64,
         switch_to_play: bool,
         keep_paused: bool,
     },
@@ -227,13 +228,16 @@ impl MainController {
         let mut accurate = accurate;
         self.state  = match self.state {
             ControllerState::Seeking {
+                seek_pos: _seek_pos,
                 switch_to_play,
                 keep_paused,
             } => ControllerState::Seeking {
+                seek_pos: position,
                 switch_to_play: switch_to_play,
                 keep_paused: keep_paused,
             },
             ControllerState::EOS | ControllerState::Ready => ControllerState::Seeking {
+                seek_pos: position,
                 switch_to_play: true,
                 keep_paused: false,
             },
@@ -248,8 +252,8 @@ impl MainController {
                         ControllerState::TwoStepsSeek(position)
                     }
                     None => {
-                        must_sync_ctrl = true;
                         ControllerState::Seeking {
+                            seek_pos: position,
                             switch_to_play: false,
                             keep_paused: true,
                         }
@@ -260,6 +264,7 @@ impl MainController {
                 must_sync_ctrl = true;
                 seek_pos = target;
                 ControllerState::Seeking {
+                    seek_pos: position,
                     switch_to_play: false,
                     keep_paused: true,
                 }
@@ -267,6 +272,7 @@ impl MainController {
             ControllerState::Playing => {
                 must_sync_ctrl = true;
                 ControllerState::Seeking {
+                    seek_pos: position,
                     switch_to_play: false,
                     keep_paused: false,
                 }
@@ -391,6 +397,7 @@ impl MainController {
                             ControllerState::PendingSelectMedia => this.select_media(),
                             ControllerState::PendingTakeContext => this.have_context(),
                             ControllerState::Seeking {
+                                seek_pos,
                                 switch_to_play,
                                 keep_paused,
                             } => {
@@ -405,6 +412,8 @@ impl MainController {
                                     this.audio_ctrl.borrow_mut().switch_to_playing();
                                 } else if keep_paused {
                                     this.state = ControllerState::Paused;
+                                    this.info_ctrl.borrow_mut().seek(seek_pos, &this.state);
+                                    this.audio_ctrl.borrow_mut().seek(seek_pos);
                                 } else {
                                     this.state = ControllerState::Playing;
                                 }

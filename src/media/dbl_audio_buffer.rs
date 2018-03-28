@@ -1,4 +1,5 @@
 use gstreamer as gst;
+use gstreamer::{ClockExt, ElementExt, ElementExtManual};
 use gstreamer_audio as gst_audio;
 
 use std::any::Any;
@@ -32,6 +33,12 @@ pub struct DoubleAudioBuffer {
     sample_window: usize,
     max_sample_window: usize,
     can_handle_eos: bool, // accept / ignore eos (required for range seeks handling)
+    audio_ref: Option<gst::Element>,
+    clock: Option<gst::Clock>,
+    must_update_position: bool,
+    has_new_position: bool,
+    segment_start: u64,
+    base_time: u64,
 }
 
 impl DoubleAudioBuffer {
@@ -52,6 +59,12 @@ impl DoubleAudioBuffer {
             sample_window: 0,
             max_sample_window: 0,
             can_handle_eos: true,
+            audio_ref: None,
+            clock: None,
+            must_update_position: false,
+            has_new_position: false,
+            segment_start: 0,
+            base_time: 0,
         }
     }
 
@@ -70,6 +83,8 @@ impl DoubleAudioBuffer {
         }
 
         self.working_buffer.as_mut().unwrap().cleanup();
+        self.audio_ref = None;
+        self.clock = None;
     }
 
     fn reset(&mut self) {
@@ -79,6 +94,10 @@ impl DoubleAudioBuffer {
         self.sample_window = 0;
         self.max_sample_window = 0;
         self.can_handle_eos = true;
+        self.must_update_position = false;
+        self.has_new_position = false;
+        self.segment_start = 0;
+        self.base_time = 0;
     }
 
     pub fn set_caps(&mut self, caps: &gst::CapsRef) {
@@ -116,23 +135,14 @@ impl DoubleAudioBuffer {
     }
 
     pub fn set_ref(&mut self, audio_ref: &gst::Element) {
-        {
-            let exposed_buffer = &mut self.exposed_buffer_mtx.lock().unwrap();
-            exposed_buffer.set_audio_sink(audio_ref.clone());
-        }
-
-        let working_buffer = self.working_buffer.as_mut().unwrap();
-        working_buffer.set_audio_sink(audio_ref.clone());
+        self.audio_ref = Some(audio_ref.clone());
     }
 
     // Init the buffers with the provided conditions.
     // Conditions concrete type must conform to a struct expected
     // by the concrete implementation of the SampleExtractor.
     pub fn set_conditions<T: Any + Clone>(&mut self, conditions: Box<T>) {
-        {
-            self.working_buffer.as_mut().unwrap().set_conditions(conditions.clone());
-        }
-
+        self.working_buffer.as_mut().unwrap().set_conditions(conditions.clone());
         {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
             exposed_buffer_box.set_conditions(conditions);
@@ -163,6 +173,7 @@ impl DoubleAudioBuffer {
     pub fn have_gst_segment(&mut self, segment: &gst::Segment) {
         self.audio_buffer.have_gst_segment(segment);
         self.sample_gauge = Some(0);
+        self.must_update_position = true;
     }
 
     pub fn push_gst_buffer(&mut self, buffer: &gst::Buffer) -> bool {
@@ -190,9 +201,43 @@ impl DoubleAudioBuffer {
         must_notify
     }
 
+    fn update_position(&mut self) {
+        if self.clock.is_some() {
+            let mut query = gst::Query::new_position(gst::Format::Time);
+            if self.audio_ref.as_ref().unwrap().query(&mut query) {
+                self.base_time = self.clock.as_ref().unwrap().get_time().nanoseconds().unwrap();
+                self.segment_start = query.get_result().get_value() as u64;
+                self.working_buffer.as_mut().unwrap().new_position(
+                    self.segment_start,
+                    self.base_time,
+                );
+                self.has_new_position = true;
+                self.must_update_position = false;
+            }
+        }
+    }
+
     // Update the working extractor with new samples and swap.
-    pub fn extract_samples(&mut self) {
+    fn extract_samples(&mut self) {
+        let must_set_clock = if self.clock.is_some() {
+            false
+        } else {
+            match self.audio_ref.as_ref().unwrap().get_clock().take() {
+                Some(clock) => {
+                    self.clock = Some(clock);
+                    true
+                }
+                None => false,
+            }
+        };
+        if self.must_update_position {
+            self.update_position();
+        }
+
         let mut working_buffer = self.working_buffer.take().unwrap();
+        if must_set_clock {
+            working_buffer.set_clock(self.clock.as_ref().unwrap());
+        }
         working_buffer.extract_samples(&self.audio_buffer);
 
         // swap buffers
@@ -207,6 +252,13 @@ impl DoubleAudioBuffer {
         self.lower_to_keep = working_buffer.get_lower();
         self.sample_window = working_buffer.get_requested_sample_window()
             .min(self.max_sample_window);
+        if must_set_clock {
+            working_buffer.set_clock(self.clock.as_ref().unwrap());
+        }
+        if self.has_new_position {
+            working_buffer.new_position(self.segment_start, self.base_time);
+            self.has_new_position = false;
+        }
 
         self.working_buffer = Some(working_buffer);
         // self.working_buffer is now the buffer previously in
@@ -235,43 +287,10 @@ impl DoubleAudioBuffer {
         }
 
         self.lower_to_keep = working_buffer.get_lower();
-
-        self.working_buffer = Some(working_buffer);
-        // self.working_buffer is now the buffer previously in
-        // self.exposed_buffer_mtx
-    }
-
-    // Refresh the working buffer with the provided conditions and swap.
-    // Conditions concrete type must conform to a struct expected
-    // by the concrete implementation of the SampleExtractor.
-    pub fn refresh_with_conditions<T: Any + Clone>(
-        &mut self,
-        conditions: Box<T>,
-        is_playing: bool,
-    ) {
-        let mut working_buffer = self.working_buffer.take().unwrap();
-
-        {
-            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
-            if !is_playing {
-                exposed_buffer_box.switch_to_paused();
-            }
-
-            // get latest state from the previously exposed buffer
-            working_buffer.update_concrete_state(exposed_buffer_box.as_mut());
-
-            // refresh working buffer
-            working_buffer.refresh_with_conditions(&self.audio_buffer, conditions.clone());
-
-            // swap buffers
-            mem::swap(exposed_buffer_box, &mut working_buffer);
+        if self.has_new_position {
+            working_buffer.new_position(self.segment_start, self.base_time);
+            self.has_new_position = false;
         }
-
-        // working buffer is last exposed buffer
-        // refresh with new conditions
-        working_buffer.refresh_with_conditions(&self.audio_buffer, conditions);
-
-        self.lower_to_keep = working_buffer.get_lower();
 
         self.working_buffer = Some(working_buffer);
         // self.working_buffer is now the buffer previously in

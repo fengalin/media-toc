@@ -1,8 +1,7 @@
 use gstreamer as gst;
-use gstreamer::ElementExtManual;
+use gstreamer::ClockExt;
 
 use std::any::Any;
-
 use std::boxed::Box;
 
 use super::{AudioBuffer, AudioChannel};
@@ -10,7 +9,9 @@ use super::{AudioBuffer, AudioChannel};
 pub struct SampleExtractionState {
     pub sample_duration: u64,
     pub duration_per_1000_samples: f64,
-    audio_sink: Option<gst::Element>,
+    clock: Option<gst::Clock>,
+    segment_start: u64,
+    base_time: u64,
 }
 
 impl SampleExtractionState {
@@ -18,18 +19,19 @@ impl SampleExtractionState {
         SampleExtractionState {
             sample_duration: 0,
             duration_per_1000_samples: 0f64,
-            audio_sink: None,
+            clock: None,
+            segment_start: 0,
+            base_time: 0,
         }
-    }
-
-    pub fn set_audio_sink(&mut self, audio_sink: gst::Element) {
-        self.audio_sink = Some(audio_sink);
     }
 
     pub fn cleanup(&mut self) {
         // clear for reuse
         self.sample_duration = 0;
         self.duration_per_1000_samples = 0f64;
+        self.clock = None;
+        self.segment_start = 0;
+        self.base_time = 0;
     }
 }
 
@@ -41,8 +43,14 @@ pub trait SampleExtractor: Send {
 
     fn cleanup(&mut self);
 
-    fn set_audio_sink(&mut self, audio_sink: gst::Element) {
-        self.get_extraction_state_mut().set_audio_sink(audio_sink);
+    fn set_clock(&mut self, clock: &gst::Clock) {
+        self.get_extraction_state_mut().clock = Some(clock.clone());
+    }
+
+    fn new_position(&mut self, segment_start: u64, base_time: u64) {
+        let state = self.get_extraction_state_mut();
+        state.segment_start = segment_start;
+        state.base_time = base_time;
     }
 
     fn set_channels(&mut self, channels: &[AudioChannel]);
@@ -63,12 +71,16 @@ pub trait SampleExtractor: Send {
     // extraction process by keeping conditions between frames
     fn update_concrete_state(&mut self, other: &mut SampleExtractor);
 
-    fn query_current_sample(&mut self) -> (u64, usize) {
+    fn get_current_sample(&mut self) -> (u64, usize) {
         // (position, sample)
         let state = &mut self.get_extraction_state_mut();
-        let mut query = gst::Query::new_position(gst::Format::Time);
-        state.audio_sink.as_ref().unwrap().query(&mut query);
-        let position = query.get_result().get_value() as u64;
+        let position = match state.clock {
+            Some(ref clock) => {
+                let current_time = clock.get_time().nanoseconds().unwrap();
+                current_time - state.base_time + state.segment_start
+            }
+            None => 0,
+        };
         (position, (position / state.sample_duration) as usize)
     }
 
@@ -80,8 +92,4 @@ pub trait SampleExtractor: Send {
     // Refresh the extractionm in its current sample range
     // and position.
     fn refresh(&mut self, audio_buffer: &AudioBuffer);
-
-    // Refresh the extractionm in its current sample range
-    // and position but with new conditions. E.g. change scale
-    fn refresh_with_conditions(&mut self, audio_buffer: &AudioBuffer, conditions: Box<Any>);
 }

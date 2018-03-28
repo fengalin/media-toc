@@ -1,13 +1,10 @@
 use cairo;
 
 use std::any::Any;
-
 use std::boxed::Box;
-
 use std::sync::{Arc, Mutex};
 
 use media::{AudioBuffer, AudioChannel, DoubleAudioBuffer, SampleExtractor};
-
 use media::sample_extractor::SampleExtractionState;
 
 use super::WaveformImage;
@@ -226,7 +223,7 @@ impl WaveformBuffer {
     }
 
     fn refresh_position(&mut self) {
-        let (position, mut sample) = self.query_current_sample();
+        let (position, mut sample) = self.get_current_sample();
         if self.previous_sample != sample {
             if self.image.contains_eos && sample >= self.image.upper {
                 sample = self.image.upper - 1;
@@ -941,11 +938,5 @@ impl SampleExtractor for WaveformBuffer {
                 !self.image.contains_eos
             };
         } // else: no need to refresh
-    }
-
-    // Refresh the waveform in its current sample range and position
-    fn refresh_with_conditions(&mut self, audio_buffer: &AudioBuffer, conditions: Box<Any>) {
-        self.set_conditions(conditions);
-        self.refresh(audio_buffer);
     }
 }
