@@ -17,7 +17,6 @@ use super::ContextMessage;
 
 pub struct SplitterContext {
     pipeline: gst::Pipeline,
-    position_ref: Option<gst::Element>,
     position_query: gst::query::Position<gst::Query>,
 
     format: Format,
@@ -92,7 +91,6 @@ impl SplitterContext {
 
         let mut this = SplitterContext {
             pipeline: gst::Pipeline::new("pipeline"),
-            position_ref: None,
             position_query: gst::Query::new_position(gst::Format::Time),
 
             format: format.clone(),
@@ -109,10 +107,7 @@ impl SplitterContext {
     }
 
     pub fn get_position(&mut self) -> u64 {
-        self.position_ref
-            .as_ref()
-            .unwrap()
-            .query(&mut self.position_query);
+        self.pipeline.query(&mut self.position_query);
         self.position_query.get_result().get_value() as u64
     }
 
@@ -150,8 +145,6 @@ impl SplitterContext {
 
         filesrc.link(&decodebin).unwrap();
         decodebin.sync_state_with_parent().unwrap();
-
-        self.position_ref = Some(decodebin.clone());
 
         // Audio encoder
         let audio_enc = match self.format {

@@ -68,10 +68,7 @@ impl TocSetterContext {
     }
 
     pub fn get_position(&mut self) -> u64 {
-        self.muxer
-            .as_ref()
-            .unwrap()
-            .query(&mut self.position_query);
+        self.pipeline.query(&mut self.position_query);
         self.position_query.get_result().get_value() as u64
     }
 

@@ -94,7 +94,6 @@ pub enum PipelineState {
 pub struct PlaybackContext {
     pipeline: gst::Pipeline,
     decodebin: gst::Element,
-    position_element: Option<gst::Element>,
     position_query: gst::query::Position<gst::Query>,
 
     dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
@@ -128,7 +127,6 @@ impl PlaybackContext {
         let mut this = PlaybackContext {
             pipeline: gst::Pipeline::new("pipeline"),
             decodebin: gst::ElementFactory::make("decodebin3", "decodebin").unwrap(),
-            position_element: None,
             position_query: gst::Query::new_position(gst::Format::Time),
 
             dbl_audio_buffer_mtx: Arc::clone(&dbl_audio_buffer_mtx),
@@ -198,18 +196,7 @@ impl PlaybackContext {
     }
 
     pub fn get_position(&mut self) -> u64 {
-        let pipeline = self.pipeline.clone();
-        self.position_element
-            .get_or_insert_with(|| {
-                if let Some(video) = pipeline.get_by_name("video_sink") {
-                    video
-                } else if let Some(audio) = pipeline.get_by_name("audio_playback_sink") {
-                    audio
-                } else {
-                    panic!("No sink in pipeline");
-                }
-            })
-            .query(&mut self.position_query);
+        self.pipeline.query(&mut self.position_query);
         self.position_query.get_result().get_value() as u64
     }
 
