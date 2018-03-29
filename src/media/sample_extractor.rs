@@ -1,5 +1,5 @@
 use gstreamer as gst;
-use gstreamer::ClockExt;
+use gstreamer::ElementExtManual;
 
 use std::any::Any;
 use std::boxed::Box;
@@ -9,9 +9,10 @@ use super::{AudioBuffer, AudioChannel};
 pub struct SampleExtractionState {
     pub sample_duration: u64,
     pub duration_per_1000_samples: f64,
-    clock: Option<gst::Clock>,
-    segment_start: u64,
-    base_time: u64,
+    state: gst::State,
+    audio_ref: Option<gst::Element>,
+    pub time_ref: Option<(u64, u64)>, // (base_time, base_frame_time)
+    pub last_pos: u64,
 }
 
 impl SampleExtractionState {
@@ -19,9 +20,10 @@ impl SampleExtractionState {
         SampleExtractionState {
             sample_duration: 0,
             duration_per_1000_samples: 0f64,
-            clock: None,
-            segment_start: 0,
-            base_time: 0,
+            state: gst::State::Null,
+            audio_ref: None,
+            time_ref: None,
+            last_pos: 0,
         }
     }
 
@@ -29,9 +31,10 @@ impl SampleExtractionState {
         // clear for reuse
         self.sample_duration = 0;
         self.duration_per_1000_samples = 0f64;
-        self.clock = None;
-        self.segment_start = 0;
-        self.base_time = 0;
+        self.state = gst::State::Null;
+        self.audio_ref = None;
+        self.time_ref = None;
+        self.last_pos = 0;
     }
 }
 
@@ -43,14 +46,17 @@ pub trait SampleExtractor: Send {
 
     fn cleanup(&mut self);
 
-    fn set_clock(&mut self, clock: &gst::Clock) {
-        self.get_extraction_state_mut().clock = Some(clock.clone());
+    fn set_state(&mut self, state: gst::State) {
+        self.get_extraction_state_mut().state = state;
     }
 
-    fn new_position(&mut self, segment_start: u64, base_time: u64) {
+    fn set_time_ref(&mut self, audio_ref: &gst::Element) {
         let state = self.get_extraction_state_mut();
-        state.segment_start = segment_start;
-        state.base_time = base_time;
+        state.audio_ref = Some(audio_ref.clone());
+    }
+
+    fn new_segment(&mut self) {
+        self.get_extraction_state_mut().time_ref = None;
     }
 
     fn set_channels(&mut self, channels: &[AudioChannel]);
@@ -71,16 +77,40 @@ pub trait SampleExtractor: Send {
     // extraction process by keeping conditions between frames
     fn update_concrete_state(&mut self, other: &mut SampleExtractor);
 
-    fn get_current_sample(&mut self) -> (u64, usize) {
+    fn get_current_sample(&mut self, frame_time: u64) -> (u64, usize) {
         // (position, sample)
         let state = &mut self.get_extraction_state_mut();
-        let position = match state.clock {
-            Some(ref clock) => {
-                let current_time = clock.get_time().nanoseconds().unwrap();
-                current_time - state.base_time + state.segment_start
+        let position = match state.state {
+            gst::State::Playing => {
+                if let Some(&(base_time, base_frame_time)) = state.time_ref.as_ref() {
+                    (frame_time - base_frame_time) * 1_000 + base_time
+                } else {
+                    let mut query = gst::Query::new_position(gst::Format::Time);
+                    let base_time = if state.audio_ref.as_ref().unwrap().query(&mut query) {
+                        state.time_ref = None;
+                        let base_time = query.get_result().get_value() as u64;
+                        state.time_ref = Some((base_time, frame_time));
+                        base_time
+                    } else {
+                        state.last_pos
+                    };
+                    base_time
+                }
             }
-            None => 0,
+            gst::State::Paused => {
+                state.time_ref = None;
+                let mut query = gst::Query::new_position(gst::Format::Time);
+                if state.audio_ref.as_ref().unwrap().query(&mut query) {
+                    query.get_result().get_value() as u64
+                } else {
+                    state.last_pos
+                }
+            }
+            _ => state.last_pos,
         };
+
+        state.last_pos = position;
+
         (position, (position / state.sample_duration) as usize)
     }
 

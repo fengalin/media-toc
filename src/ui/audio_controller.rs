@@ -1,6 +1,6 @@
 use cairo;
 use gdk;
-use gdk::{Cursor, CursorType, WindowExt};
+use gdk::{Cursor, CursorType, FrameClockExt, WindowExt};
 use glib;
 use gtk;
 use gtk::{Inhibit, LabelExt, ToolButtonExt, WidgetExt, WidgetExtManual};
@@ -578,7 +578,7 @@ impl AudioController {
     fn draw(
         &mut self,
         main_ctrl: &Rc<RefCell<MainController>>,
-        _da: &gtk::DrawingArea,
+        da: &gtk::DrawingArea,
         cr: &cairo::Context,
     ) -> Inhibit {
         if self.state == ControllerState::Disabled {
@@ -599,7 +599,9 @@ impl AudioController {
 
             self.playback_needs_refresh = waveform_buffer.playback_needs_refresh;
 
-            let (current_position, image_opt) = waveform_buffer.get_image();
+            let (current_position, image_opt) = waveform_buffer.get_image(
+                da.get_frame_clock().unwrap().get_frame_time() as u64
+            );
             match image_opt {
                 Some((image, image_positions)) => {
                     cr.set_source_surface(image, -image_positions.first.x, 0f64);

@@ -222,8 +222,8 @@ impl WaveformBuffer {
         }
     }
 
-    fn refresh_position(&mut self) {
-        let (position, mut sample) = self.get_current_sample();
+    fn refresh_position(&mut self, frame_time: u64) {
+        let (position, mut sample) = self.get_current_sample(frame_time);
         if self.previous_sample != sample {
             if self.image.contains_eos && sample >= self.image.upper {
                 sample = self.image.upper - 1;
@@ -246,9 +246,9 @@ impl WaveformBuffer {
     }
 
     // Update to current position and compute the first sample to display.
-    fn update_first_visible_sample(&mut self) {
+    fn update_first_visible_sample(&mut self, frame_time: u64) {
         self.first_visible_sample = if self.image.is_ready() {
-            self.refresh_position();
+            self.refresh_position(frame_time);
 
             if self.cursor_sample >= self.image.lower {
                 // current sample appears after first buffer sample
@@ -538,8 +538,10 @@ impl WaveformBuffer {
     // Get the waveform as an image in current conditions.
     // This function is to be called as close as possible to
     // the actual presentation of the waveform.
-    pub fn get_image(&mut self) -> (u64, Option<(&cairo::ImageSurface, ImagePositions)>) {
-        self.update_first_visible_sample();
+    pub fn get_image(&mut self, frame_time: u64)
+        -> (u64, Option<(&cairo::ImageSurface, ImagePositions)>)
+    {
+        self.update_first_visible_sample(frame_time);
         match self.first_visible_sample {
             Some(first_visible_sample) => {
                 let cursor_opt = if self.cursor_sample >= first_visible_sample
@@ -888,6 +890,9 @@ impl SampleExtractor for WaveformBuffer {
 
             other.conditions_changed = false;
         } // else: other has nothing new
+
+        self.state.time_ref = other.state.time_ref;
+        self.state.last_pos = other.state.last_pos;
 
         self.image.update_from_other(&mut other.image);
     }

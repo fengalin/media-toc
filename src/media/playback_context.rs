@@ -553,6 +553,7 @@ impl PlaybackContext {
     fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
         let mut pipeline_state = PipelineState::None;
         let info_arc_mtx = Arc::clone(&self.info);
+        let dbl_audio_buffer_mtx = Arc::clone(&self.dbl_audio_buffer_mtx);
         let pipeline = self.pipeline.clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
@@ -604,14 +605,29 @@ impl PlaybackContext {
 
                             match msg_state_changed.get_current() {
                                 gst::State::Playing => {
+                                    {
+                                        let dbl_audio_buffer = &mut dbl_audio_buffer_mtx.lock()
+                                            .unwrap();
+                                        dbl_audio_buffer.set_state(gst::State::Playing);
+                                    }
                                     pipeline_state =
                                         PipelineState::Initialized(InitializedState::Playing);
                                 }
                                 gst::State::Paused => {
+                                    {
+                                        let dbl_audio_buffer = &mut dbl_audio_buffer_mtx.lock()
+                                            .unwrap();
+                                        dbl_audio_buffer.set_state(gst::State::Paused);
+                                    }
                                     pipeline_state =
                                         PipelineState::Initialized(InitializedState::Paused);
                                 }
                                 _ => {
+                                    {
+                                        let dbl_audio_buffer = &mut dbl_audio_buffer_mtx.lock()
+                                            .unwrap();
+                                        dbl_audio_buffer.set_state(gst::State::Null);
+                                    }
                                     pipeline_state = PipelineState::None;
                                 }
                             }
