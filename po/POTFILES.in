@@ -5,6 +5,7 @@ src/media/playback_context.rs
 src/media/splitter_context.rs
 src/media/toc_setter_context.rs
 src/metadata/cue_sheet_format.rs
+src/metadata/media_info.rs
 src/metadata/mkvmerge_text_format.rs
 src/ui/chapter_tree_manager.rs
 src/ui/export_controller.rs

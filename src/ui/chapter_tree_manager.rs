@@ -7,7 +7,7 @@ use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 
-use metadata::{Timestamp, TocVisitor};
+use metadata::{get_default_chapter_title, Timestamp, TocVisitor};
 
 use super::ChaptersBoundaries;
 
@@ -16,11 +16,6 @@ const END_COL: u32 = 1;
 const TITLE_COL: u32 = 2;
 const START_STR_COL: u32 = 3;
 const END_STR_COL: u32 = 4;
-
-// FIXME: translate
-lazy_static! {
-    static ref DEFAULT_TITLE: String = "untitled".to_owned();
-}
 
 pub struct ChapterEntry<'a> {
     store: &'a gtk::TreeStore,
@@ -237,7 +232,7 @@ impl ChapterTreeManager {
                             tags.get::<gst::tags::Title>()
                                 .map(|tag| tag.get().unwrap().to_owned())
                         })
-                        .unwrap_or_else(|| DEFAULT_TITLE.to_owned());
+                        .unwrap_or_else(|| get_default_chapter_title());
                     let iter = self.store.insert_with_values(
                         None,
                         None,
@@ -429,11 +424,12 @@ impl ChapterTreeManager {
             }
         };
 
+        let default_title = get_default_chapter_title();
         self.store.set(
             &new_iter,
             &[TITLE_COL, START_COL, START_STR_COL, END_COL, END_STR_COL],
             &[
-                &*DEFAULT_TITLE,
+                &default_title,
                 &position,
                 &Timestamp::format(position, false),
                 &end,
@@ -443,7 +439,7 @@ impl ChapterTreeManager {
 
         self.boundaries
             .borrow_mut()
-            .add_chapter(position, end, &DEFAULT_TITLE, &new_iter);
+            .add_chapter(position, end, &default_title, &new_iter);
 
         self.selected_iter = Some(new_iter.clone());
         self.iter = Some(new_iter.clone());

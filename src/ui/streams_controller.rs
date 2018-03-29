@@ -229,9 +229,9 @@ impl StreamsController {
     fn add_stream(&self, store: &gtk::ListStore, stream: &Stream) -> gtk::TreeIter {
         let id_parts: Vec<&str> = stream.id.split('/').collect();
         let stream_id_display = if id_parts.len() == 2 {
-            id_parts[1]
+            id_parts[1].to_owned()
         } else {
-            "unknown"
+            gettext("unknown")
         };
 
         let iter = store.insert_with_values(

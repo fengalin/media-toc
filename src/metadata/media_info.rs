@@ -1,4 +1,9 @@
+use gettext;
 use gstreamer as gst;
+
+pub fn get_default_chapter_title() -> String {
+    gettext("untitled")
+}
 
 #[derive(Clone)]
 pub struct Stream {

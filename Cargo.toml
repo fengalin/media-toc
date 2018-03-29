@@ -1,6 +1,6 @@
 [package]
 name = "media-toc"
-version = "0.3.1"
+version = "0.4.0"
 authors = ["François Laignel <fengalin@free.fr>"]
 keywords = ["multimedia", "chapter", "table-of-contents", "gtk3", "gstreamer"]
 repository = "https://github.com/fengalin/media-toc"

@@ -3,7 +3,7 @@ use gstreamer as gst;
 
 use std::io::Write;
 
-use super::{MediaInfo, Timestamp, TocVisitor, Writer};
+use super::{get_default_chapter_title, MediaInfo, Timestamp, TocVisitor, Writer};
 
 static EXTENSION: &'static str = "cue";
 
@@ -76,7 +76,7 @@ impl Writer for CueSheetFormat {
                         .map(|tag| tag.get().unwrap().to_owned())
                 })
                 .or_else(|| media_title.clone())
-                .unwrap_or_else(|| super::DEFAULT_TITLE.to_owned());
+                .unwrap_or_else(|| get_default_chapter_title());
             write_fmt!(destination, "    TITLE \"{}\"\n", &title);
 
             let artist = chapter
@@ -86,7 +86,7 @@ impl Writer for CueSheetFormat {
                         .map(|tag| tag.get().unwrap().to_owned())
                 })
                 .or_else(|| media_artist.clone())
-                .unwrap_or_else(|| super::DEFAULT_TITLE.to_owned());
+                .unwrap_or_else(|| get_default_chapter_title());
             write_fmt!(destination, "    PERFORMER \"{}\"\n", &artist);
 
             if let Some((start, _end)) = chapter.get_start_stop_times() {

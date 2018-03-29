@@ -3,7 +3,7 @@ use gstreamer as gst;
 
 use std::io::{Read, Write};
 
-use super::{MediaInfo, Reader, Timestamp, TocVisitor, Writer};
+use super::{get_default_chapter_title, MediaInfo, Reader, Timestamp, TocVisitor, Writer};
 
 static EXTENSION: &'static str = "txt";
 
@@ -185,7 +185,7 @@ impl Writer for MKVMergeTextFormat {
                         tags.get::<gst::tags::Title>()
                             .map(|tag| tag.get().unwrap().to_owned())
                     })
-                    .unwrap_or_else(|| super::DEFAULT_TITLE.to_owned());
+                    .unwrap_or_else(|| get_default_chapter_title());
                 write_fmt!(destination, "{}{}={}\n", prefix, NAME_TAG, &title);
             }
         }

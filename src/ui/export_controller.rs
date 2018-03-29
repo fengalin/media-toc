@@ -15,7 +15,7 @@ use media::{ContextMessage, PlaybackContext, SplitterContext, TocSetterContext};
 use media::ContextMessage::*;
 
 use metadata;
-use metadata::{Exporter, Format, MatroskaTocFormat, TocVisitor, DEFAULT_TITLE};
+use metadata::{get_default_chapter_title, Exporter, Format, MatroskaTocFormat, TocVisitor};
 
 use super::MainController;
 
@@ -435,7 +435,7 @@ impl ExportController {
                 tags.get::<gst::tags::Title>()
                     .map(|tag| tag.get().unwrap().to_owned())
             })
-            .unwrap_or_else(|| DEFAULT_TITLE.to_owned());
+            .unwrap_or_else(|| get_default_chapter_title());
 
         split_name += &format!("{:02}. {}.{}", self.idx, &track_title, self.extension,);
 
@@ -523,7 +523,7 @@ impl ExportController {
                     tags.get::<gst::tags::Title>()
                         .map(|tag| tag.get().unwrap().to_owned())
                 })
-                .unwrap_or_else(|| DEFAULT_TITLE.to_owned());
+                .unwrap_or_else(|| get_default_chapter_title());
             tags.add::<gst::tags::Title>(&title.as_str(), gst::TagMergeMode::Replace);
 
             let (start, end) = chapter.get_start_stop_times().unwrap();
