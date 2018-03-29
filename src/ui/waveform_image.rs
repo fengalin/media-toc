@@ -179,6 +179,7 @@ impl WaveformImage {
 
         if self.force_redraw {
             self.shareable_state_changed = true;
+            self.is_ready = self.sample_step != 0;
 
             debug!("{}_upd.dim prev. f.redraw {}, w {}, h {}, sample_step_f. {}",
                 self.id, self.force_redraw, self.req_width, self.req_height, self.sample_step_f
@@ -187,14 +188,15 @@ impl WaveformImage {
             self.req_width = width;
             self.req_height = height;
 
-            debug!("new f.redraw {}, w {}, h {}, sample_step_f. {}",
-                self.force_redraw, self.req_width, self.req_height, self.sample_step_f
+            debug!("{}_new f.redraw {}, w {}, h {}, sample_step_f. {}",
+                self.id, self.force_redraw, self.req_width, self.req_height, self.sample_step_f
             );
         }
     }
 
     pub fn update_sample_step(&mut self, sample_step_f: f64) {
         self.force_redraw |= (self.sample_step_f - sample_step_f).abs() > 0.01f64;
+        self.is_ready = self.force_redraw && (self.req_width != 0);
 
         self.sample_step_f = sample_step_f;
         self.sample_step = (sample_step_f as usize).max(1);

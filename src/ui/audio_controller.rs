@@ -302,18 +302,25 @@ impl AudioController {
             .is_some();
 
         if has_audio {
-            let requested_duration = self.requested_duration;
-            let area_width = self.area_width;
-            let area_height = self.area_height;
-            {
-                // init the buffers in order to render the waveform in current conditions
-                debug!("new_media conditions {}, {}x{}",
+            self.zoom_in_btn.set_sensitive(true);
+            self.zoom_out_btn.set_sensitive(true);
+            self.container.show();
+
+            // Refresh conditions asynchronously so that
+            // all widget are arranged to their target positions
+            let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
+            gtk::idle_add(move || {
+                let mut this = this_rc.borrow_mut();
+                let requested_duration = this.requested_duration;
+                let area_width = this.area_width;
+                let area_height = this.area_height;
+                debug!("new_media(async) conditions {}, {}x{}",
                     requested_duration,
                     area_width,
                     area_height,
                 );
 
-                self.dbl_buffer_mtx
+                this.dbl_buffer_mtx
                     .lock()
                     .unwrap()
                     .set_conditions(Box::new(WaveformConditions::new(
@@ -321,12 +328,12 @@ impl AudioController {
                         area_width as i32,
                         area_height as i32,
                     )));
-            }
 
-            self.state = ControllerState::Paused;
-            self.zoom_in_btn.set_sensitive(true);
-            self.zoom_out_btn.set_sensitive(true);
-            self.container.show();
+                this.state = ControllerState::Paused;
+                this.refresh();
+
+                glib::Continue(false)
+            });
         } else {
             self.container.hide();
         }
@@ -543,27 +550,29 @@ impl AudioController {
     }
 
     fn update_conditions(&mut self) {
-        debug!("update_conditions {}, {}x{}",
-            self.requested_duration,
-            self.area_width,
-            self.area_height,
-        );
-
-        {
-            let waveform_grd = &mut *self.waveform_mtx
-                .lock()
-                .unwrap();
-            let waveform_buffer = waveform_grd
-                .as_mut_any()
-                .downcast_mut::<WaveformBuffer>()
-                .unwrap();
-            waveform_buffer.update_conditions(
+        if self.state != ControllerState::Disabled {
+            debug!("update_conditions {}, {}x{}",
                 self.requested_duration,
-                self.area_width as i32,
-                self.area_height as i32,
+                self.area_width,
+                self.area_height,
             );
+
+            {
+                let waveform_grd = &mut *self.waveform_mtx
+                    .lock()
+                    .unwrap();
+                let waveform_buffer = waveform_grd
+                    .as_mut_any()
+                    .downcast_mut::<WaveformBuffer>()
+                    .unwrap();
+                waveform_buffer.update_conditions(
+                    self.requested_duration,
+                    self.area_width as i32,
+                    self.area_height as i32,
+                );
+            }
+            self.refresh();
         }
-        self.refresh();
     }
 
     pub fn refresh(&mut self) {

@@ -141,8 +141,11 @@ impl DoubleAudioBuffer {
         {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
             exposed_buffer_box.set_conditions(conditions.clone());
+            exposed_buffer_box.refresh(&self.audio_buffer);
         }
-        self.working_buffer.as_mut().unwrap().set_conditions(conditions);
+        let working_buffer = self.working_buffer.as_mut().unwrap();
+        working_buffer.set_conditions(conditions);
+        working_buffer.refresh(&self.audio_buffer);
     }
 
     pub fn ignore_eos(&mut self) {

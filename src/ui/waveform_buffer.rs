@@ -942,6 +942,8 @@ impl SampleExtractor for WaveformBuffer {
 
                 !self.image.contains_eos
             };
-        } // else: no need to refresh
+        } else {
+            debug!("{}_refresh image not ready", self.image.id);
+        }
     }
 }
