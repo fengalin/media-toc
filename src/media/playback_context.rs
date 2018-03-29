@@ -567,6 +567,11 @@ impl PlaybackContext {
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
+                    {
+                        let dbl_audio_buffer =
+                            &mut dbl_audio_buffer_mtx.lock().unwrap();
+                        dbl_audio_buffer.set_state(gst::State::Paused);
+                    }
                     ctx_tx
                         .send(ContextMessage::Eos)
                         .expect("Failed to notify UI");
