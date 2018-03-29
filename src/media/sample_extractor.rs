@@ -86,15 +86,14 @@ pub trait SampleExtractor: Send {
                     (frame_time - base_frame_time) * 1_000 + base_time
                 } else {
                     let mut query = gst::Query::new_position(gst::Format::Time);
-                    let base_time = if state.audio_ref.as_ref().unwrap().query(&mut query) {
+                    if state.audio_ref.as_ref().unwrap().query(&mut query) {
                         state.time_ref = None;
                         let base_time = query.get_result().get_value() as u64;
                         state.time_ref = Some((base_time, frame_time));
                         base_time
                     } else {
                         state.last_pos
-                    };
-                    base_time
+                    }
                 }
             }
             gst::State::Paused => {

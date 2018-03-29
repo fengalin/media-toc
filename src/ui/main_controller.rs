@@ -238,8 +238,8 @@ impl MainController {
                 keep_paused,
             } => ControllerState::Seeking {
                 seek_pos: position,
-                switch_to_play: switch_to_play,
-                keep_paused: keep_paused,
+                switch_to_play,
+                keep_paused,
             },
             ControllerState::EOS | ControllerState::Ready => ControllerState::Seeking {
                 seek_pos: position,

@@ -133,8 +133,8 @@ impl AudioController {
             sample_step: 0f64,
             boundaries,
 
-            waveform_mtx: waveform_mtx,
-            dbl_buffer_mtx: dbl_buffer_mtx,
+            waveform_mtx,
+            dbl_buffer_mtx,
 
             tick_cb_id: None,
             this_opt: None,
@@ -188,9 +188,8 @@ impl AudioController {
         this.drawingarea
             .connect_leave_notify_event(move |_, _event_crossing| {
                 let this = this_clone.borrow();
-                match this.state {
-                    ControllerState::Paused => this.reset_cursor(),
-                    _ => (),
+                if let ControllerState::Paused = this.state {
+                    this.reset_cursor();
                 }
                 Inhibit(true)
             });
@@ -208,24 +207,21 @@ impl AudioController {
         let this_clone = Rc::clone(this_rc);
         this.drawingarea
             .connect_button_release_event(move |_, event_button| {
-                match event_button.get_button() {
-                    1 => {
-                        // left button
-                        let mut this = this_clone.borrow_mut();
-                        if let ControllerState::MovingBoundary(_boundary) = this.state {
-                            this.state = ControllerState::Paused;
+                if 1 == event_button.get_button() {
+                    // left button
+                    let mut this = this_clone.borrow_mut();
+                    if let ControllerState::MovingBoundary(_boundary) = this.state {
+                        this.state = ControllerState::Paused;
 
-                            match this.get_boundary_at(event_button.get_position().0) {
-                                Some(_boundary) => {
-                                    this.set_cursor(CursorType::SbHDoubleArrow);
-                                }
-                                None => {
-                                    this.reset_cursor();
-                                }
+                        match this.get_boundary_at(event_button.get_position().0) {
+                            Some(_boundary) => {
+                                this.set_cursor(CursorType::SbHDoubleArrow);
+                            }
+                            None => {
+                                this.reset_cursor();
                             }
                         }
                     }
-                    _ => (),
                 }
                 Inhibit(true)
             });
@@ -643,8 +639,8 @@ impl AudioController {
             let boundary_y0 = self.twice_font_size + 5f64;
             let text_base = self.area_height - self.half_font_size;
 
-            for (boundary, ref chapters) in chapter_range {
-                if boundary >= &self.first_visible_pos {
+            for (boundary, chapters) in chapter_range {
+                if *boundary >= self.first_visible_pos {
                     let x = ((boundary - self.first_visible_pos) / image_positions.sample_duration)
                         as f64 / image_positions.sample_step;
                     cr.move_to(x, boundary_y0);
@@ -712,7 +708,7 @@ impl AudioController {
         };
 
         if must_refresh_other_ui {
-            let main_ctrl = Rc::clone(&main_ctrl);
+            let main_ctrl = Rc::clone(main_ctrl);
             gtk::idle_add(move || {
                 if let Ok(mut main_ctrl) = main_ctrl.try_borrow_mut() {
                     main_ctrl.refresh_info(current_position);
@@ -789,17 +785,14 @@ impl AudioController {
                 if let Some(position) = position_opt {
                     let must_seek = match state {
                         ControllerState::Paused => {
-                            let must_seek = {
-                                let mut this = this_rc.borrow_mut();
-                                this.get_boundary_at(event_button.get_position().0).map_or(
-                                    true,
-                                    |boundary| {
-                                        this.state = ControllerState::MovingBoundary(boundary);
-                                        false
-                                    },
-                                )
-                            };
-                            must_seek
+                            let mut this = this_rc.borrow_mut();
+                            this.get_boundary_at(event_button.get_position().0).map_or(
+                                true,
+                                |boundary| {
+                                    this.state = ControllerState::MovingBoundary(boundary);
+                                    false
+                                },
+                            )
                         }
                         _ => true,
                     };

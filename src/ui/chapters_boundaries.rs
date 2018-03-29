@@ -131,7 +131,7 @@ impl ChaptersBoundaries {
 
     pub fn move_boundary(&mut self, boundary: u64, to_position: u64) {
         let chapters = self.0.remove(&boundary).unwrap();
-        if let Some(_) = self.0.insert(to_position, chapters) {
+        if self.0.insert(to_position, chapters).is_some() {
             panic!(
                 "ChaptersBoundaries::move_boundary attempt to replace entry at {}",
                 to_position

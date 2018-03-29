@@ -323,7 +323,7 @@ impl ExportController {
         self.prepare_process(&format);
 
         if self.toc_visitor.is_some() {
-            if let Err(err) = self.build_splitter_context(&format) {
+            if let Err(err) = self.build_splitter_context(format) {
                 self.show_error(&err);
             }
         } else {
@@ -374,7 +374,7 @@ impl ExportController {
         };
     }
 
-    fn build_splitter_context(&mut self, format: &metadata::Format) -> Result<bool, String> {
+    fn build_splitter_context(&mut self, format: metadata::Format) -> Result<bool, String> {
         let mut chapter = match self.next_chapter() {
             Some(chapter) => chapter,
             None => return Ok(false),
@@ -431,11 +431,11 @@ impl ExportController {
 
         let track_title = chapter
             .get_tags()
-            .map_or(None, |tags| {
+            .and_then(|tags| {
                 tags.get::<gst::tags::Title>()
                     .map(|tag| tag.get().unwrap().to_owned())
             })
-            .unwrap_or(DEFAULT_TITLE.to_owned());
+            .unwrap_or_else(|| DEFAULT_TITLE.to_owned());
 
         split_name += &format!("{:02}. {}.{}", self.idx, &track_title, self.extension,);
 
@@ -519,11 +519,11 @@ impl ExportController {
             // Add track specific tags
             let title = chapter
                 .get_tags()
-                .map_or(None, |tags| {
+                .and_then(|tags| {
                     tags.get::<gst::tags::Title>()
                         .map(|tag| tag.get().unwrap().to_owned())
                 })
-                .unwrap_or(DEFAULT_TITLE.to_owned());
+                .unwrap_or_else(|| DEFAULT_TITLE.to_owned());
             tags.add::<gst::tags::Title>(&title.as_str(), gst::TagMergeMode::Replace);
 
             let (start, end) = chapter.get_start_stop_times().unwrap();
@@ -683,13 +683,12 @@ impl ExportController {
 
     fn register_splitter_listener(
         &mut self,
-        format: &metadata::Format,
+        format: metadata::Format,
         timeout: u32,
         ui_rx: Receiver<ContextMessage>,
     ) {
         let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
 
-        let format = format.clone();
         self.listener_src = Some(gtk::timeout_add(timeout, move || {
             let mut keep_going = true;
             let mut process_done = false;
@@ -708,7 +707,7 @@ impl ExportController {
             for message in ui_rx.try_iter() {
                 match message {
                     Eos => {
-                        process_done = match this.build_splitter_context(&format) {
+                        process_done = match this.build_splitter_context(format) {
                             Ok(true) => false, // more chapters
                             Ok(false) => {
                                 this.show_info(&gettext("Media split succesfully"));
@@ -739,11 +738,9 @@ impl ExportController {
                 }
             }
 
-            if !keep_going {
-                if process_done {
-                    this.switch_to_available();
-                    this.restore_context();
-                }
+            if !keep_going && process_done {
+                this.switch_to_available();
+                this.restore_context();
             }
 
             glib::Continue(keep_going)

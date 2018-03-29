@@ -24,7 +24,7 @@ pub use self::toc_visitor::{TocVisit, TocVisitor};
 
 pub static DEFAULT_TITLE: &'static str = "untitled";
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Format {
     CueSheet,
     Flac,

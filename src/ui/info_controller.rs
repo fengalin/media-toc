@@ -283,8 +283,9 @@ impl InfoController {
 
             self.streams_changed(&info);
 
-            let extern_toc = toc_candidates.next().map_or(None, |(toc_path, format)| {
-                match File::open(toc_path) {
+            let extern_toc = toc_candidates
+                .next()
+                .and_then(|(toc_path, format)| match File::open(toc_path) {
                     Ok(mut toc_file) => {
                         match metadata::Factory::get_reader(&format).read(&info, &mut toc_file) {
                             Ok(toc) => Some(toc),
@@ -298,8 +299,7 @@ impl InfoController {
                         self.show_error(gettext("Failed to open toc file."));
                         None
                     }
-                }
-            });
+                });
 
             if extern_toc.is_some() {
                 self.chapter_manager.replace_with(&extern_toc);

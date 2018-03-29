@@ -39,7 +39,7 @@ pub struct AudioBuffer {
 impl AudioBuffer {
     pub fn new(buffer_duration: u64) -> Self {
         AudioBuffer {
-            buffer_duration: buffer_duration,
+            buffer_duration,
             capacity: 0,
             audio_info: None,
             rate: 0,
@@ -427,7 +427,7 @@ impl<'a> SampleConverterIter<'a> {
         Some(SampleConverterIter {
             cursor,
             bytes_per_sample,
-            convert: SampleConverterIter::get_convert(&audio_info),
+            convert: SampleConverterIter::get_convert(audio_info),
             first: lower * channels,
             last: upper * channels,
         })

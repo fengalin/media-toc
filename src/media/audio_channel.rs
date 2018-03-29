@@ -49,9 +49,6 @@ impl AudioChannel {
             _ => (AudioChannelSide::NotLocalized, 0.7f64),
         };
 
-        AudioChannel {
-            side: side,
-            factor: factor,
-        }
+        AudioChannel { side, factor }
     }
 }

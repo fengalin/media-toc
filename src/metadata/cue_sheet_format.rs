@@ -71,22 +71,22 @@ impl Writer for CueSheetFormat {
 
             let title = chapter
                 .get_tags()
-                .map_or(None, |tags| {
+                .and_then(|tags| {
                     tags.get::<gst::tags::Title>()
                         .map(|tag| tag.get().unwrap().to_owned())
                 })
-                .map_or(media_title.clone(), |track_title| Some(track_title))
-                .unwrap_or(super::DEFAULT_TITLE.to_owned());
+                .or_else(|| media_title.clone())
+                .unwrap_or_else(|| super::DEFAULT_TITLE.to_owned());
             write_fmt!(destination, "    TITLE \"{}\"\n", &title);
 
             let artist = chapter
                 .get_tags()
-                .map_or(None, |tags| {
+                .and_then(|tags| {
                     tags.get::<gst::tags::Artist>()
                         .map(|tag| tag.get().unwrap().to_owned())
                 })
-                .map_or(media_artist.clone(), |track_artist| Some(track_artist))
-                .unwrap_or(super::DEFAULT_TITLE.to_owned());
+                .or_else(|| media_artist.clone())
+                .unwrap_or_else(|| super::DEFAULT_TITLE.to_owned());
             write_fmt!(destination, "    PERFORMER \"{}\"\n", &artist);
 
             if let Some((start, _end)) = chapter.get_start_stop_times() {

@@ -790,9 +790,9 @@ pub struct WaveformConditions {
 impl WaveformConditions {
     pub fn new(duration_per_1000px: f64, width: i32, height: i32) -> Self {
         WaveformConditions {
-            duration_per_1000px: duration_per_1000px,
-            width: width,
-            height: height,
+            duration_per_1000px,
+            width,
+            height,
         }
     }
 }

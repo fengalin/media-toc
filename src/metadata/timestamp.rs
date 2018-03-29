@@ -41,7 +41,7 @@ impl Timestamp {
         let m_total = s_total / 60;
 
         Timestamp {
-            nano_total: nano_total,
+            nano_total,
             nano: nano_total % 1_000,
             us: us_total % 1_000,
             ms: ms_total % 1_000,

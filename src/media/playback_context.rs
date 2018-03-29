@@ -52,12 +52,12 @@ lazy_static! {
                 (None, None)
             };
         match (video_sink, widget_val) {
-            (Some(video_sink), Some(widget_val)) => {
+            (Some(sink), Some(widget_val)) => {
                 match widget_val.get::<gtk::Widget>() {
                     Some(widget) => {
                         Some(VideoOutput {
-                            sink: video_sink,
-                            widget: widget,
+                            sink,
+                            widget,
                         })
                     }
                     None => {
@@ -66,7 +66,7 @@ lazy_static! {
                     }
                 }
             }
-            (Some(_video_sink), None) => {
+            (Some(_sink), None) => {
                 error!("{}", gettext("Failed to get Video Widget."));
                 None
             }
@@ -521,11 +521,10 @@ impl PlaybackContext {
                                     .unwrap();
                             }
                             gst::EventView::Segment(segment_event) => {
-                                let segment = segment_event.get_segment();
                                 dbl_audio_buffer_mtx
                                     .lock()
                                     .unwrap()
-                                    .have_gst_segment(&segment);
+                                    .have_gst_segment(segment_event.get_segment());
                             }
                             _ => (),
                         }

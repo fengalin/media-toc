@@ -93,7 +93,7 @@ impl SplitterContext {
     pub fn new(
         input_path: &Path,
         output_path: &Path,
-        format: &Format,
+        format: Format,
         chapter: gst::TocEntry,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<SplitterContext, String> {
@@ -105,8 +105,7 @@ impl SplitterContext {
         let mut this = SplitterContext {
             pipeline: gst::Pipeline::new("pipeline"),
             position_query: gst::Query::new_position(gst::Format::Time),
-
-            format: format.clone(),
+            format,
             chapter,
         };
 

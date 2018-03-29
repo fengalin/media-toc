@@ -29,10 +29,7 @@ pub struct ChapterEntry<'a> {
 
 impl<'a> ChapterEntry<'a> {
     pub fn new(store: &'a gtk::TreeStore, iter: &'a gtk::TreeIter) -> ChapterEntry<'a> {
-        ChapterEntry {
-            store: store,
-            iter: iter,
-        }
+        ChapterEntry { store, iter }
     }
 
     pub fn title(&self) -> String {
@@ -220,7 +217,7 @@ impl ChapterTreeManager {
     pub fn replace_with(&mut self, toc: &Option<gst::Toc>) {
         self.clear();
 
-        if let &Some(ref toc) = toc {
+        if let Some(ref toc) = *toc {
             let mut toc_visitor = TocVisitor::new(toc);
             if !toc_visitor.enter_chapters() {
                 return;
@@ -236,11 +233,11 @@ impl ChapterTreeManager {
 
                     let title = chapter
                         .get_tags()
-                        .map_or(None, |tags| {
+                        .and_then(|tags| {
                             tags.get::<gst::tags::Title>()
                                 .map(|tag| tag.get().unwrap().to_owned())
                         })
-                        .unwrap_or(DEFAULT_TITLE.to_owned());
+                        .unwrap_or_else(|| DEFAULT_TITLE.to_owned());
                     let iter = self.store.insert_with_values(
                         None,
                         None,

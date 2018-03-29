@@ -181,11 +181,11 @@ impl Writer for MKVMergeTextFormat {
 
                 let title = chapter
                     .get_tags()
-                    .map_or(None, |tags| {
+                    .and_then(|tags| {
                         tags.get::<gst::tags::Title>()
                             .map(|tag| tag.get().unwrap().to_owned())
                     })
-                    .unwrap_or(super::DEFAULT_TITLE.to_owned());
+                    .unwrap_or_else(|| super::DEFAULT_TITLE.to_owned());
                 write_fmt!(destination, "{}{}={}\n", prefix, NAME_TAG, &title);
             }
         }

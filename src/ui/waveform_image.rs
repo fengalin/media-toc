@@ -83,7 +83,7 @@ impl WaveformImage {
         }
 
         WaveformImage {
-            id: id,
+            id,
             is_ready: false,
             shareable_state_changed: false,
 
@@ -574,7 +574,7 @@ impl WaveformImage {
                         self.clear_area(&cr, new_last_pixel, self.image_width_f);
                         WaveformSample {
                             x: new_last_pixel,
-                            values: values,
+                            values,
                         }
                     })
                 }
@@ -897,7 +897,7 @@ impl WaveformImage {
         }
 
         let last_added = WaveformSample {
-            x: x,
+            x,
             values: last_values,
         };
         let last_for_amp0 = match self.first.as_ref() {
