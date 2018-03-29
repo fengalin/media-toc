@@ -285,10 +285,7 @@ impl MainController {
             self.audio_ctrl.borrow_mut().seek(seek_pos);
         }
 
-        self.context
-            .as_ref()
-            .expect("MainController::seek no context")
-            .seek(seek_pos, accurate);
+        self.context.as_ref().unwrap().seek(seek_pos, accurate);
     }
 
     pub fn play_range(&mut self, start: u64, end: u64, pos_to_restore: u64) {
@@ -297,19 +294,12 @@ impl MainController {
             self.audio_ctrl.borrow_mut().start_play_range();
 
             self.state = ControllerState::PlayingRange(pos_to_restore);
-
-            self.context
-                .as_ref()
-                .expect("MainController::play_range no context")
-                .seek_range(start, end);
+            self.context.as_ref().unwrap().seek_range(start, end);
         }
     }
 
     pub fn get_position(&mut self) -> u64 {
-        self.context
-            .as_mut()
-            .expect("MainController::get_position no context")
-            .get_position()
+        self.context.as_mut().unwrap().get_position()
     }
 
     pub fn refresh(&mut self) {
@@ -324,10 +314,7 @@ impl MainController {
     }
 
     pub fn select_streams(&mut self, stream_ids: &[String]) {
-        self.context
-            .as_ref()
-            .expect("MainController::select_streams no context")
-            .select_streams(stream_ids);
+        self.context.as_ref().unwrap().select_streams(stream_ids);
     }
 
     fn hold(&mut self) {
@@ -360,8 +347,7 @@ impl MainController {
     fn have_context(&mut self) {
         if let Some(mut context) = self.context.take() {
             self.info_ctrl.borrow().export_chapters(&mut context);
-            let mut callback = self.take_context_cb.take()
-                .expect("PlaybackContext::have_context take_context_cb is none");
+            let mut callback = self.take_context_cb.take().unwrap();
             callback(context);
             self.state = ControllerState::Paused;
         }
@@ -402,11 +388,7 @@ impl MainController {
                                 keep_paused,
                             } => {
                                 if switch_to_play {
-                                    this.context
-                                        .as_mut()
-                                        .expect("MainController::listener(AsyncDone) no context")
-                                        .play()
-                                        .unwrap();
+                                    this.context.as_mut().unwrap().play().unwrap();
                                     this.play_pause_btn.set_icon_name(PAUSE_ICON);
                                     this.state = ControllerState::Playing;
                                     this.audio_ctrl.borrow_mut().switch_to_playing();
@@ -423,14 +405,12 @@ impl MainController {
                     }
                     InitDone => {
                         let mut this = this_rc.borrow_mut();
-                        let mut context = this.context
-                            .take()
-                            .expect("MainController(InitDone) no context available");
+                        let mut context = this.context.take().unwrap();
 
                         this.requires_async_dialog = context
                             .info
                             .lock()
-                            .expect("MainController(InitDone) failed to lock info")
+                            .unwrap()
                             .streams
                             .video_selected
                             .is_some();
@@ -457,15 +437,9 @@ impl MainController {
                     }
                     StreamsSelected => {
                         let mut this = this_rc.borrow_mut();
-                        let mut context = this.context
-                            .take()
-                            .expect("MainController(StreamsSelected) no context available");
+                        let mut context = this.context.take().unwrap();
                         {
-                            let info = context
-                                .info
-                                .lock()
-                                .expect("MainController(StreamsSelected) failed to lock info");
-
+                            let info = context.info.lock().unwrap();
                             this.info_ctrl.borrow().streams_changed(&info);
                         }
                         this.set_context(context);
@@ -475,11 +449,7 @@ impl MainController {
                         match this.state {
                             ControllerState::PlayingRange(pos_to_restore) => {
                                 // end of range => pause and seek back to pos_to_restore
-                                this.context
-                                    .as_ref()
-                                    .expect("MainController::listener(eos) no context")
-                                    .pause()
-                                    .unwrap();
+                                this.context.as_ref().unwrap().pause().unwrap();
                                 this.state = ControllerState::Paused;
                                 this.audio_ctrl.borrow_mut().stop_play_range();
                                 this.seek(pos_to_restore, true); // accurate
