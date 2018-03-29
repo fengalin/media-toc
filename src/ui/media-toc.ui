@@ -23,7 +23,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-Author: François Laignel
+Author: François Laignel <fengalin@free.fr>
 
 -->
 <interface>
@@ -32,7 +32,7 @@ Author: François Laignel
   <!-- interface-name media-toc -->
   <!-- interface-description Build a table of contents from a media file or split a media file into chapters -->
   <!-- interface-copyright Copyright (C) 2018 Fran\303\247ois Laignel -->
-  <!-- interface-authors Fran\303\247ois Laignel -->
+  <!-- interface-authors Fran\303\247ois Laignel <fengalin@free.fr> -->
   <object class="GtkListStore" id="audio_streams-liststore">
     <columns>
       <!-- column-name stream_id_full -->
