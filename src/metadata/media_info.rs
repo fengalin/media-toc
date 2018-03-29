@@ -1,4 +1,4 @@
-use gettext;
+use gettextrs::gettext;
 use gstreamer as gst;
 
 pub fn get_default_chapter_title() -> String {

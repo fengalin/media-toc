@@ -37,8 +37,8 @@ const MIN_RANGE_DURATION: u64 = 100_000_000; // 100 ms
 const HOUR_IN_NANO: u64 = 3_600_000_000_000;
 
 // Use this text to compute the largest text box for the waveform boundaries
-// This is requried in order to position the labels in such a way that it doesn't
-// moves constantly depending on the digits width
+// This is required to position the labels in such a way that they don't
+// move constantly depending on the digits width
 const BOUNDARY_TEXT_MN: &str = "00:00.000";
 const CURSOR_TEXT_MN: &str = "00:00.000.000";
 const BOUNDARY_TEXT_H: &str = "00:00:00.000";
@@ -74,7 +74,6 @@ pub struct AudioController {
     state: ControllerState,
     playback_needs_refresh: bool,
 
-    base_time: Option<i64>,
     requested_duration: f64,
     current_position: u64,
     last_other_ui_refresh: u64,
@@ -124,7 +123,6 @@ impl AudioController {
             playback_needs_refresh: false,
 
             requested_duration: INIT_REQ_DURATION,
-            base_time: None,
             current_position: 0,
             last_other_ui_refresh: 0,
             first_visible_pos: 0,
@@ -261,11 +259,8 @@ impl AudioController {
         self.zoom_out_btn.set_sensitive(false);
         self.reset_cursor();
         self.playback_needs_refresh = false;
-        {
-            self.dbl_buffer_mtx.lock().unwrap().cleanup();
-        }
+        self.dbl_buffer_mtx.lock().unwrap().cleanup();
         self.requested_duration = INIT_REQ_DURATION;
-        self.base_time = None;
         self.current_position = 0;
         self.last_other_ui_refresh = 0;
         self.first_visible_pos = 0;
