@@ -293,7 +293,13 @@ impl StreamsController {
             LANGUAGE_COL,
             None,
         );
-        self.add_column(&self.video_treeview, &codec_lbl, ALIGN_LEFT, CODEC_COL, None);
+        self.add_column(
+            &self.video_treeview,
+            &codec_lbl,
+            ALIGN_LEFT,
+            CODEC_COL,
+            None,
+        );
         self.add_column(
             &self.video_treeview,
             &gettext("Width"),
@@ -331,7 +337,13 @@ impl StreamsController {
             LANGUAGE_COL,
             None,
         );
-        self.add_column(&self.audio_treeview, &codec_lbl, ALIGN_LEFT, CODEC_COL, None);
+        self.add_column(
+            &self.audio_treeview,
+            &codec_lbl,
+            ALIGN_LEFT,
+            CODEC_COL,
+            None,
+        );
         self.add_column(
             &self.audio_treeview,
             &gettext("Rate"),

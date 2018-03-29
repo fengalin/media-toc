@@ -26,56 +26,66 @@ pub struct SplitterContext {
 impl SplitterContext {
     pub fn check_requirements(format: Format) -> Result<(), String> {
         match format {
-            Format::Flac => {
-                gst::ElementFactory::make("flacenc", None).map_or(
-                    Err(gettext("Missing `flacenc`\ncheck your gst-plugins-good install")),
-                    |_| Ok(())
+            Format::Flac => gst::ElementFactory::make("flacenc", None).map_or(
+                Err(gettext(
+                    "Missing `flacenc`\ncheck your gst-plugins-good install",
+                )),
+                |_| Ok(()),
+            ),
+            Format::Wave => gst::ElementFactory::make("wavenc", None).map_or(
+                Err(gettext(
+                    "Missing `wavenc`\ncheck your gst-plugins-good install",
+                )),
+                |_| Ok(()),
+            ),
+            Format::Opus => gst::ElementFactory::make("opusenc", None)
+                .map_or(
+                    Err(gettext(
+                        "Missing `opusenc`\ncheck your gst-plugins-good install",
+                    )),
+                    |_| Ok(()),
                 )
-            }
-            Format::Wave => {
-                gst::ElementFactory::make("wavenc", None).map_or(
-                    Err(gettext("Missing `wavenc`\ncheck your gst-plugins-good install")),
-                    |_| Ok(())
+                .and_then(|_| {
+                    gst::ElementFactory::make("oggmux", None).map_or(
+                        Err(gettext(
+                            "Missing `oggmux`\ncheck your gst-plugins-good install",
+                        )),
+                        |_| Ok(()),
+                    )
+                }),
+            Format::Vorbis => gst::ElementFactory::make("vorbisenc", None)
+                .map_or(
+                    Err(gettext(
+                        "Missing `opusenc`\ncheck your gst-plugins-good install",
+                    )),
+                    |_| Ok(()),
                 )
-            }
-            Format::Opus => {
-                gst::ElementFactory::make("opusenc", None).map_or(
-                    Err(gettext("Missing `opusenc`\ncheck your gst-plugins-good install")),
-                    |_| Ok(())
+                .and_then(|_| {
+                    gst::ElementFactory::make("oggmux", None).map_or(
+                        Err(gettext(
+                            "Missing `oggmux`\ncheck your gst-plugins-good install",
+                        )),
+                        |_| Ok(()),
+                    )
+                }),
+            Format::MP3 => gst::ElementFactory::make("lamemp3enc", None)
+                .map_or(
+                    Err(gettext(
+                        "Missing `lamemp3enc`\ncheck your gst-plugins-good install",
+                    )),
+                    |_| Ok(()),
                 )
-                    .and_then(|_| {
-                        gst::ElementFactory::make("oggmux", None).map_or(
-                            Err(gettext("Missing `oggmux`\ncheck your gst-plugins-good install")),
-                            |_| Ok(())
-                        )
-                    })
-            }
-            Format::Vorbis => {
-                gst::ElementFactory::make("vorbisenc", None).map_or(
-                    Err(gettext("Missing `opusenc`\ncheck your gst-plugins-good install")),
-                    |_| Ok(())
-                )
-                    .and_then(|_| {
-                        gst::ElementFactory::make("oggmux", None).map_or(
-                            Err(gettext("Missing `oggmux`\ncheck your gst-plugins-good install")),
-                            |_| Ok(())
-                        )
-                    })
-            }
-            Format::MP3 => {
-                gst::ElementFactory::make("lamemp3enc", None).map_or(
-                    Err(gettext("Missing `lamemp3enc`\ncheck your gst-plugins-good install")),
-                    |_| Ok(())
-                )
-                    .and_then(|_| {
-                        gst::ElementFactory::make("id3v2mux", None).map_or(
-                            Err(gettext("Missing `id3v2mux`\ncheck your gst-plugins-good install")),
-                            |_| Ok(())
-                        )
-                    })
-            }
+                .and_then(|_| {
+                    gst::ElementFactory::make("id3v2mux", None).map_or(
+                        Err(gettext(
+                            "Missing `id3v2mux`\ncheck your gst-plugins-good install",
+                        )),
+                        |_| Ok(()),
+                    )
+                }),
             _ => panic!(
-                "SplitterContext::check_requirements unsupported format: {:?}", format
+                "SplitterContext::check_requirements unsupported format: {:?}",
+                format
             ),
         }
     }
@@ -87,7 +97,10 @@ impl SplitterContext {
         chapter: gst::TocEntry,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<SplitterContext, String> {
-        info!("{}", gettext("Splitting {}...").replacen("{}", output_path.to_str().unwrap(), 1));
+        info!(
+            "{}",
+            gettext("Splitting {}...").replacen("{}", output_path.to_str().unwrap(), 1)
+        );
 
         let mut this = SplitterContext {
             pipeline: gst::Pipeline::new("pipeline"),
@@ -223,9 +236,7 @@ impl SplitterContext {
 
         // add a muxer when required
         let (tag_setter, audio_muxer) = match self.format {
-            Format::Flac | Format::Wave => {
-                (audio_enc.clone(), audio_enc.clone())
-            }
+            Format::Flac | Format::Wave => (audio_enc.clone(), audio_enc.clone()),
             Format::Opus | Format::Vorbis => {
                 let ogg_muxer = gst::ElementFactory::make("oggmux", None).unwrap();
                 self.pipeline.add(&ogg_muxer).unwrap();
@@ -299,9 +310,9 @@ impl SplitterContext {
                 gst::MessageView::Eos(..) => {
                     if pipeline.set_state(gst::State::Null) == gst::StateChangeReturn::Failure {
                         ctx_tx
-                            .send(ContextMessage::FailedToExport(
-                                gettext("Failed to terminate properly. Check the resulting file.")
-                            ))
+                            .send(ContextMessage::FailedToExport(gettext(
+                                "Failed to terminate properly. Check the resulting file.",
+                            )))
                             .unwrap();
                     }
                     ctx_tx.send(ContextMessage::Eos).unwrap();
@@ -310,7 +321,7 @@ impl SplitterContext {
                 gst::MessageView::Error(err) => {
                     ctx_tx
                         .send(ContextMessage::FailedToExport(
-                            err.get_error().description().to_owned()
+                            err.get_error().description().to_owned(),
                         ))
                         .unwrap();
                     return glib::Continue(false);
@@ -319,9 +330,9 @@ impl SplitterContext {
                     // Start splitting
                     if pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
                         ctx_tx
-                            .send(ContextMessage::FailedToExport(
-                                gettext("Failed to start splitting.")
-                            ))
+                            .send(ContextMessage::FailedToExport(gettext(
+                                "Failed to start splitting.",
+                            )))
                             .unwrap();
                     }
                 }

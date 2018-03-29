@@ -7,7 +7,7 @@ use std::mem;
 
 use std::sync::{Arc, Mutex};
 
-use super::{AudioBuffer, AudioChannel, QUEUE_SIZE_NS, SampleExtractor};
+use super::{AudioBuffer, AudioChannel, SampleExtractor, QUEUE_SIZE_NS};
 
 const EXTRACTION_THRESHOLD: usize = 1024;
 
@@ -131,7 +131,10 @@ impl DoubleAudioBuffer {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
             exposed_buffer_box.set_time_ref(audio_ref);
         }
-        self.working_buffer.as_mut().unwrap().set_time_ref(audio_ref);
+        self.working_buffer
+            .as_mut()
+            .unwrap()
+            .set_time_ref(audio_ref);
     }
 
     // Init the buffers with the provided conditions.
@@ -219,7 +222,8 @@ impl DoubleAudioBuffer {
         }
 
         self.lower_to_keep = working_buffer.get_lower();
-        self.sample_window = working_buffer.get_requested_sample_window()
+        self.sample_window = working_buffer
+            .get_requested_sample_window()
             .min(self.max_sample_window);
 
         self.working_buffer = Some(working_buffer);

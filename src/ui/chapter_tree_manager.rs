@@ -75,10 +75,10 @@ impl<'a> ChapterEntry<'a> {
             .set_start_stop_times(self.start() as i64, self.end() as i64);
 
         let mut tag_list = gst::TagList::new();
-        tag_list.get_mut().unwrap().add::<gst::tags::Title>(
-            &self.title().as_str(),
-            gst::TagMergeMode::Replace,
-        );
+        tag_list
+            .get_mut()
+            .unwrap()
+            .add::<gst::tags::Title>(&self.title().as_str(), gst::TagMergeMode::Replace);
         toc_entry.get_mut().unwrap().set_tags(tag_list);
 
         toc_entry
@@ -138,12 +138,8 @@ impl ChapterTreeManager {
 
     pub fn init_treeview(&mut self, treeview: &gtk::TreeView) {
         treeview.set_model(Some(&self.store));
-        self.title_renderer = Some(self.add_column(treeview,
-            &gettext("Title"),
-            TITLE_COL,
-            true,
-            true,
-        ));
+        self.title_renderer =
+            Some(self.add_column(treeview, &gettext("Title"), TITLE_COL, true, true));
         self.add_column(treeview, &gettext("Start"), START_STR_COL, false, false);
         self.add_column(treeview, &gettext("End"), END_STR_COL, false, false);
     }
@@ -207,21 +203,17 @@ impl ChapterTreeManager {
     pub fn clear(&mut self) {
         self.selected_iter = None;
         self.iter = None;
-        self.boundaries
-            .borrow_mut()
-            .clear();
+        self.boundaries.borrow_mut().clear();
         self.store.clear();
     }
 
     pub fn rename_selected_chapter(&mut self, new_title: &str) {
         if let Some(iter) = self.get_selected_iter() {
-            self.boundaries
-                .borrow_mut()
-                .rename_chapter(
-                    ChapterEntry::get_start(&self.store, &iter),
-                    ChapterEntry::get_end(&self.store, &iter),
-                    new_title,
-                );
+            self.boundaries.borrow_mut().rename_chapter(
+                ChapterEntry::get_start(&self.store, &iter),
+                ChapterEntry::get_end(&self.store, &iter),
+                new_title,
+            );
         }
     }
 
@@ -242,11 +234,13 @@ impl ChapterTreeManager {
                     let start = start as u64;
                     let end = end as u64;
 
-                    let title = chapter.get_tags().map_or(None, |tags| {
-                        tags.get::<gst::tags::Title>().map(|tag| {
-                            tag.get().unwrap().to_owned()
+                    let title = chapter
+                        .get_tags()
+                        .map_or(None, |tags| {
+                            tags.get::<gst::tags::Title>()
+                                .map(|tag| tag.get().unwrap().to_owned())
                         })
-                    }).unwrap_or(DEFAULT_TITLE.to_owned());
+                        .unwrap_or(DEFAULT_TITLE.to_owned());
                     let iter = self.store.insert_with_values(
                         None,
                         None,
@@ -418,11 +412,7 @@ impl ChapterTreeManager {
                         }
 
                         let new_iter = self.store.insert_before(None, &iter);
-                        (
-                            new_iter,
-                            new_chapter_end,
-                            iter_chapter.start_str(),
-                        )
+                        (new_iter, new_chapter_end, iter_chapter.start_str())
                     }
                     None => {
                         // No chapter in iter:
@@ -436,11 +426,7 @@ impl ChapterTreeManager {
                                 };
 
                         let new_iter = self.store.insert(None, insert_position);
-                        (
-                            new_iter,
-                            duration,
-                            Timestamp::format(duration, false),
-                        )
+                        (new_iter, duration, Timestamp::format(duration, false))
                     }
                 }
             }
@@ -568,7 +554,9 @@ impl ChapterTreeManager {
                 );
             }
 
-            self.boundaries.borrow_mut().move_boundary(boundary, to_position);
+            self.boundaries
+                .borrow_mut()
+                .move_boundary(boundary, to_position);
             true
         } else {
             // no change
@@ -592,7 +580,7 @@ impl ChapterTreeManager {
                     if !self.store.iter_next(&iter) {
                         let mut toc = gst::Toc::new(gst::TocScope::Global);
                         toc.get_mut().unwrap().append_entry(toc_edition);
-                        return Some((toc, count))
+                        return Some((toc, count));
                     }
                 }
             }

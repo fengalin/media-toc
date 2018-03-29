@@ -397,7 +397,10 @@ impl WaveformBuffer {
                 None
             }
         } else {
-            debug!("{}_update_first_visible_sample image not ready", self.image.id);
+            debug!(
+                "{}_update_first_visible_sample image not ready",
+                self.image.id
+            );
             None
         };
     }
@@ -410,10 +413,9 @@ impl WaveformBuffer {
             } else {
                 let prev_duration = self.req_duration_per_1000px;
                 self.req_duration_per_1000px = duration_per_1000px;
-                debug!("{}_update_conditions duration/1000px {} -> {}",
-                    self.image.id,
-                    prev_duration,
-                    self.req_duration_per_1000px,
+                debug!(
+                    "{}_update_conditions duration/1000px {} -> {}",
+                    self.image.id, prev_duration, self.req_duration_per_1000px,
                 );
                 self.update_sample_step();
                 (true, duration_per_1000px / prev_duration)
@@ -429,11 +431,9 @@ impl WaveformBuffer {
                 scale_factor = width_f / prev_width_f;
             }
 
-            debug!("{}_update_conditions width {} -> {} ({})",
-                self.image.id,
-                self.width,
-                width,
-                scale_factor,
+            debug!(
+                "{}_update_conditions width {} -> {} ({})",
+                self.image.id, self.width, width, scale_factor,
             );
 
             self.width = width;
@@ -441,8 +441,7 @@ impl WaveformBuffer {
             true
         };
 
-        self.image
-            .update_dimensions(width, height);
+        self.image.update_dimensions(width, height);
 
         if duration_changed || width_changed {
             self.update_sample_window();
@@ -538,9 +537,10 @@ impl WaveformBuffer {
     // Get the waveform as an image in current conditions.
     // This function is to be called as close as possible to
     // the actual presentation of the waveform.
-    pub fn get_image(&mut self, frame_time: u64)
-        -> (u64, Option<(&cairo::ImageSurface, ImagePositions)>)
-    {
+    pub fn get_image(
+        &mut self,
+        frame_time: u64,
+    ) -> (u64, Option<(&cairo::ImageSurface, ImagePositions)>) {
         self.update_first_visible_sample(frame_time);
         match self.first_visible_sample {
             Some(first_visible_sample) => {
@@ -644,7 +644,9 @@ impl WaveformBuffer {
             // image can use the full window
             trace!(
                 "{}_get_sample_range using full window, range [{}, {}]",
-                self.image.id, lower, upper,
+                self.image.id,
+                lower,
+                upper,
             );
 
             self.first_visible_sample = None;
@@ -720,7 +722,8 @@ impl WaveformBuffer {
                             // cursor can be centered
                             trace!(
                                 "{}_get_sample_range centering cursor: {}",
-                                self.image.id, self.cursor_sample,
+                                self.image.id,
+                                self.cursor_sample,
                             );
 
                             Some((
@@ -731,7 +734,8 @@ impl WaveformBuffer {
                             // cursor in second half
                             trace!(
                                 "{}_get_sample_range cursor: {} in second half",
-                                self.image.id, self.cursor_sample,
+                                self.image.id,
+                                self.cursor_sample,
                             );
 
                             // attempt to get an optimal range
@@ -767,9 +771,9 @@ impl WaveformBuffer {
 
         extraction_range.unwrap_or((
             audio_buffer.lower,
-            audio_buffer.upper.min(
-                audio_buffer.lower + self.req_sample_window + self.half_req_sample_window,
-            ),
+            audio_buffer
+                .upper
+                .min(audio_buffer.lower + self.req_sample_window + self.half_req_sample_window),
         ))
     }
 }
@@ -811,13 +815,14 @@ impl SampleExtractor for WaveformBuffer {
     }
 
     fn get_lower(&self) -> usize {
-        self.first_visible_sample.map_or(self.image.lower, |sample| {
-            if sample > self.half_req_sample_window {
-                sample - self.half_req_sample_window
-            } else {
-                sample
-            }
-        })
+        self.first_visible_sample
+            .map_or(self.image.lower, |sample| {
+                if sample > self.half_req_sample_window {
+                    sample - self.half_req_sample_window
+                } else {
+                    sample
+                }
+            })
     }
 
     fn get_requested_sample_window(&self) -> usize {
@@ -833,7 +838,10 @@ impl SampleExtractor for WaveformBuffer {
     }
 
     fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64) {
-        debug!("{}_set_sample_duration per_sample {}", self.image.id, per_sample);
+        debug!(
+            "{}_set_sample_duration per_sample {}",
+            self.image.id, per_sample
+        );
         self.reset_sample_conditions();
 
         self.state.sample_duration = per_sample;
@@ -917,12 +925,18 @@ impl SampleExtractor for WaveformBuffer {
         self.playback_needs_refresh = if audio_buffer.eos && !self.image.contains_eos {
             // there won't be any refresh on behalf of audio_buffer
             // and image will still need more sample if playback continues
-            debug!("{}_extract_samples setting playback_needs_refresh", self.image.id);
+            debug!(
+                "{}_extract_samples setting playback_needs_refresh",
+                self.image.id
+            );
 
             true
         } else {
             if self.playback_needs_refresh {
-                debug!("{}_extract_samples resetting playback_needs_refresh", self.image.id);
+                debug!(
+                    "{}_extract_samples resetting playback_needs_refresh",
+                    self.image.id
+                );
             }
             false
         };

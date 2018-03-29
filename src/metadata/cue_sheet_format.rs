@@ -55,7 +55,12 @@ impl Writer for CueSheetFormat {
             }
             None => "WAVE",
         };
-        write_fmt!(destination, "FILE \"{}\" {}\n", info.get_file_name(), audio_codec);
+        write_fmt!(
+            destination,
+            "FILE \"{}\" {}\n",
+            info.get_file_name(),
+            audio_codec
+        );
 
         let mut index = 0;
         let mut toc_visitor = TocVisitor::new(info.toc.as_ref().unwrap());
@@ -64,27 +69,31 @@ impl Writer for CueSheetFormat {
             // FIXME: are there other TRACK types than AUDIO?
             write_fmt!(destination, "  TRACK{:02} AUDIO\n", index);
 
-            let title = chapter.get_tags().map_or(None, |tags| {
-                tags.get::<gst::tags::Title>().map(|tag| {
-                    tag.get().unwrap().to_owned()
+            let title = chapter
+                .get_tags()
+                .map_or(None, |tags| {
+                    tags.get::<gst::tags::Title>()
+                        .map(|tag| tag.get().unwrap().to_owned())
                 })
-            })
                 .map_or(media_title.clone(), |track_title| Some(track_title))
                 .unwrap_or(super::DEFAULT_TITLE.to_owned());
             write_fmt!(destination, "    TITLE \"{}\"\n", &title);
 
-            let artist = chapter.get_tags().map_or(None, |tags| {
-                tags.get::<gst::tags::Artist>().map(|tag| {
-                    tag.get().unwrap().to_owned()
+            let artist = chapter
+                .get_tags()
+                .map_or(None, |tags| {
+                    tags.get::<gst::tags::Artist>()
+                        .map(|tag| tag.get().unwrap().to_owned())
                 })
-            })
                 .map_or(media_artist.clone(), |track_artist| Some(track_artist))
                 .unwrap_or(super::DEFAULT_TITLE.to_owned());
             write_fmt!(destination, "    PERFORMER \"{}\"\n", &artist);
 
             if let Some((start, _end)) = chapter.get_start_stop_times() {
                 let start_ts = Timestamp::from_nano(start as u64);
-                write_fmt!(destination, "    INDEX 01 {:02}:{:02}:{:02}\n",
+                write_fmt!(
+                    destination,
+                    "    INDEX 01 {:02}:{:02}:{:02}\n",
                     start_ts.h * 60 + start_ts.m,
                     start_ts.s,
                     (((start_ts.ms * 1_000 + start_ts.us) * 1_000 + start_ts.nano) as f64

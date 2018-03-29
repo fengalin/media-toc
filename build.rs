@@ -1,4 +1,4 @@
-use std::fs::{File, create_dir_all};
+use std::fs::{create_dir_all, File};
 use std::io::{ErrorKind, Read};
 use std::path::PathBuf;
 use std::process::Command;
@@ -18,28 +18,28 @@ fn main() {
             create_dir_all(&mo_path).unwrap();
 
             let mut msgfmt = Command::new("msgfmt");
-            msgfmt.arg(format!("--output-file={}",
-                    mo_path.join("media-toc.mo")
-                        .to_str()
-                        .unwrap()
+            msgfmt
+                .arg(format!(
+                    "--output-file={}",
+                    mo_path.join("media-toc.mo").to_str().unwrap()
                 ))
                 .arg("--directory=po")
                 .arg(format!("{}.po", lingua));
 
             match msgfmt.status() {
                 Ok(status) => if !status.success() {
-                    panic!(format!("Failed to generate mo file for lingua {}\n{:?}",
-                        lingua,
-                        msgfmt,
+                    panic!(format!(
+                        "Failed to generate mo file for lingua {}\n{:?}",
+                        lingua, msgfmt,
                     ));
-                }
+                },
                 Err(ref error) => match error.kind() {
                     ErrorKind::NotFound => {
                         eprintln!("Can't generate translations: command `msgfmt` not available");
                         return;
                     }
                     _ => panic!("Error invoking `msgfmt`: {}", error),
-                }
+                },
             }
         }
     }

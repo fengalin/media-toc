@@ -21,9 +21,9 @@ extern crate lazy_static;
 #[cfg(feature = "dump-waveform")]
 extern crate chrono;
 
-use clap::{Arg, App};
+use clap::{App, Arg};
 
-use gettextrs::{TextDomain, TextDomainError, gettext};
+use gettextrs::{gettext, TextDomain, TextDomainError};
 
 use gtk::Builder;
 
@@ -36,23 +36,18 @@ fn main() {
     env_logger::init();
 
     match TextDomain::new("media-toc").prepend("target").init() {
-        Ok(locale) => {
-            info!("Translation found, `setlocale` returned {:?}", locale)
-        }
+        Ok(locale) => info!("Translation found, `setlocale` returned {:?}", locale),
         Err(TextDomainError::TranslationNotFound(lang)) => {
             warn!("Translation not found for language {}", lang)
         }
-        Err(TextDomainError::InvalidLocale(locale)) => {
-            error!("Invalid locale {}", locale)
-        }
+        Err(TextDomainError::InvalidLocale(locale)) => error!("Invalid locale {}", locale),
     }
 
     // Messages are not translated unless gtk (glib) is initialized
     let is_gtk_ok = gtk::init().is_ok();
 
-    let about_msg = gettext(
-        "Build a table of contents from a media file\nor split a media file into chapters",
-    );
+    let about_msg =
+        gettext("Build a table of contents from a media file\nor split a media file into chapters");
     let help_msg = gettext("Display this message");
     let version_msg = gettext("Print version information");
 
@@ -64,11 +59,12 @@ fn main() {
         .about(about_msg.as_str())
         .help_message(help_msg.as_str())
         .version_message(version_msg.as_str())
-        .arg(Arg::with_name(input_arg.as_str())
-            .help(&gettext("Path to the input media file"))
-            .last(false))
+        .arg(
+            Arg::with_name(input_arg.as_str())
+                .help(&gettext("Path to the input media file"))
+                .last(false),
+        )
         .get_matches();
-
 
     if !is_gtk_ok {
         error!("{}", gettext("Failed to initialize GTK"));
@@ -87,9 +83,7 @@ fn main() {
 
     if is_gst_ok {
         if let Some(input_file) = matches.value_of(input_arg.as_str()) {
-            main_ctrl
-                .borrow_mut()
-                .open_media(input_file.into());
+            main_ctrl.borrow_mut().open_media(input_file.into());
         }
     }
 
@@ -98,7 +92,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use gettextrs::{TextDomain, TextDomainError, gettext};
+    use gettextrs::{gettext, TextDomain, TextDomainError};
 
     #[test]
     fn i18n() {

@@ -112,7 +112,9 @@ impl MainController {
                 Inhibit(false)
             });
 
-            this_mut.info_bar.connect_response(|info_bar, _| info_bar.hide());
+            this_mut
+                .info_bar
+                .connect_response(|info_bar, _| info_bar.hide());
 
             if is_gst_ok {
                 this_mut.video_ctrl.register_callbacks(&this);
@@ -128,7 +130,9 @@ impl MainController {
                     error!("{}", err);
                     let this_rc = Rc::clone(&this);
                     gtk::idle_add(move || {
-                        this_rc.borrow().show_message(gtk::MessageType::Warning, &err);
+                        this_rc
+                            .borrow()
+                            .show_message(gtk::MessageType::Warning, &err);
                         glib::Continue(false)
                     });
                 }
@@ -153,9 +157,8 @@ impl MainController {
                 });
                 this_mut.play_pause_btn.set_sensitive(true);
 
-                // TODO: add key bindings to seek by steps
-                // play/pause, etc.
-
+            // TODO: add key bindings to seek by steps
+            // play/pause, etc.
             } else {
                 // GStreamer initialization failed
                 this_mut.info_bar.connect_response(|_, _| gtk::main_quit());
@@ -219,14 +222,16 @@ impl MainController {
     }
 
     pub fn move_chapter_boundary(&mut self, boundary: u64, to_position: u64) -> bool {
-        self.info_ctrl.borrow_mut().move_chapter_boundary(boundary, to_position)
+        self.info_ctrl
+            .borrow_mut()
+            .move_chapter_boundary(boundary, to_position)
     }
 
     pub fn seek(&mut self, position: u64, accurate: bool) {
         let mut must_sync_ctrl = false;
         let mut seek_pos = position;
         let mut accurate = accurate;
-        self.state  = match self.state {
+        self.state = match self.state {
             ControllerState::Seeking {
                 seek_pos: _seek_pos,
                 switch_to_play,
@@ -251,13 +256,11 @@ impl MainController {
                         seek_pos = seek_1st_step;
                         ControllerState::TwoStepsSeek(position)
                     }
-                    None => {
-                        ControllerState::Seeking {
-                            seek_pos: position,
-                            switch_to_play: false,
-                            keep_paused: true,
-                        }
-                    }
+                    None => ControllerState::Seeking {
+                        seek_pos: position,
+                        switch_to_play: false,
+                        keep_paused: true,
+                    },
                 }
             }
             ControllerState::TwoStepsSeek(target) => {
@@ -472,8 +475,7 @@ impl MainController {
                         this.keep_going = false;
                         keep_going = false;
 
-                        let error = gettext("Error opening file. {}")
-                            .replacen("{}", &error, 1);
+                        let error = gettext("Error opening file. {}").replacen("{}", &error, 1);
                         this.show_message(gtk::MessageType::Error, &error);
                         error!("{}", error);
                     }
@@ -568,8 +570,7 @@ impl MainController {
             }
             Err(error) => {
                 self.switch_to_default();
-                let error = gettext("Error opening file. {}")
-                    .replace("{}", &error);
+                let error = gettext("Error opening file. {}").replace("{}", &error);
                 self.show_message(gtk::MessageType::Error, &error);
                 error!("{}", error);
             }

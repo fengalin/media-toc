@@ -16,7 +16,7 @@ use media::PlaybackContext;
 use metadata;
 use metadata::{MediaInfo, Timestamp};
 
-use super::{ChaptersBoundaries, ChapterTreeManager, ControllerState, ImageSurface, MainController};
+use super::{ChapterTreeManager, ChaptersBoundaries, ControllerState, ImageSurface, MainController};
 
 lazy_static! {
     static ref EMPTY_REPLACEMENT: String = "-".to_owned();
@@ -57,8 +57,10 @@ impl InfoController {
         builder: &gtk::Builder,
         boundaries: Rc<RefCell<ChaptersBoundaries>>,
     ) -> Rc<RefCell<Self>> {
-        let mut chapter_manager =
-            ChapterTreeManager::new(builder.get_object("chapters-tree-store").unwrap(), boundaries);
+        let mut chapter_manager = ChapterTreeManager::new(
+            builder.get_object("chapters-tree-store").unwrap(),
+            boundaries,
+        );
         let chapter_treeview: gtk::TreeView = builder.get_object("chapter-treeview").unwrap();
         chapter_manager.init_treeview(&chapter_treeview);
 
@@ -167,12 +169,14 @@ impl InfoController {
         if let Some(ref title_renderer) = this.chapter_manager.title_renderer {
             let this_clone = Rc::clone(this_rc);
             let main_ctrl_clone = Rc::clone(main_ctrl);
-            title_renderer
-                .connect_edited(move |_, _tree_path, new_title| {
-                    this_clone.borrow_mut().chapter_manager.rename_selected_chapter(new_title);
-                    // reflect title modification in the UI (audio waveform)
-                    main_ctrl_clone.borrow_mut().refresh();
-                });
+            title_renderer.connect_edited(move |_, _tree_path, new_title| {
+                this_clone
+                    .borrow_mut()
+                    .chapter_manager
+                    .rename_selected_chapter(new_title);
+                // reflect title modification in the UI (audio waveform)
+                main_ctrl_clone.borrow_mut().refresh();
+            });
         }
 
         // add chapter
@@ -226,18 +230,16 @@ impl InfoController {
         let main_ctrl_weak = Weak::clone(self.main_ctrl.as_ref().unwrap());
         gtk::idle_add(move || {
             let main_ctrl_rc = main_ctrl_weak.upgrade().unwrap();
-            main_ctrl_rc.borrow().show_message(gtk::MessageType::Error, &message);
+            main_ctrl_rc
+                .borrow()
+                .show_message(gtk::MessageType::Error, &message);
             glib::Continue(false)
         });
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
         let media_path = context.path.clone();
-        let file_stem = media_path
-            .file_stem()
-            .unwrap()
-            .to_str()
-            .unwrap();
+        let file_stem = media_path.file_stem().unwrap().to_str().unwrap();
 
         // check the presence of toc files
         let toc_extensions = metadata::Factory::get_extensions();
@@ -256,10 +258,7 @@ impl InfoController {
             });
 
         {
-            let info = context
-                .info
-                .lock()
-                .unwrap();
+            let info = context.info.lock().unwrap();
 
             self.duration = info.duration;
             self.timeline_scale.set_range(0f64, info.duration as f64);
@@ -286,7 +285,7 @@ impl InfoController {
 
             let extern_toc = toc_candidates.next().map_or(None, |(toc_path, format)| {
                 match File::open(toc_path) {
-                    Ok(mut toc_file) =>  {
+                    Ok(mut toc_file) => {
                         match metadata::Factory::get_reader(&format).read(&info, &mut toc_file) {
                             Ok(toc) => Some(toc),
                             Err(err) => {
@@ -423,7 +422,8 @@ impl InfoController {
     }
 
     pub fn move_chapter_boundary(&mut self, boundary: u64, to_position: u64) -> bool {
-        self.chapter_manager.move_chapter_boundary(boundary, to_position)
+        self.chapter_manager
+            .move_chapter_boundary(boundary, to_position)
     }
 
     pub fn seek(&mut self, position: u64, state: &ControllerState) {
@@ -440,11 +440,7 @@ impl InfoController {
     }
 
     fn get_position(&self) -> u64 {
-        let main_ctrl_rc = self.main_ctrl
-            .as_ref()
-            .unwrap()
-            .upgrade()
-            .unwrap();
+        let main_ctrl_rc = self.main_ctrl.as_ref().unwrap().upgrade().unwrap();
         let mut main_ctrl = main_ctrl_rc.borrow_mut();
         main_ctrl.get_position()
     }

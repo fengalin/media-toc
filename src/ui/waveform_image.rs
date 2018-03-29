@@ -181,14 +181,16 @@ impl WaveformImage {
             self.shareable_state_changed = true;
             self.is_ready = self.sample_step != 0;
 
-            debug!("{}_upd.dim prev. f.redraw {}, w {}, h {}, sample_step_f. {}",
+            debug!(
+                "{}_upd.dim prev. f.redraw {}, w {}, h {}, sample_step_f. {}",
                 self.id, self.force_redraw, self.req_width, self.req_height, self.sample_step_f
             );
 
             self.req_width = width;
             self.req_height = height;
 
-            debug!("{}_new f.redraw {}, w {}, h {}, sample_step_f. {}",
+            debug!(
+                "{}_new f.redraw {}, w {}, h {}, sample_step_f. {}",
                 self.id, self.force_redraw, self.req_width, self.req_height, self.sample_step_f
             );
         }
@@ -259,7 +261,9 @@ impl WaveformImage {
         {
             // reached eos or image already contains eos and won't change
             if !self.contains_eos {
-                debug!(concat!("{}_render setting contains_eos. ",
+                debug!(
+                    concat!(
+                        "{}_render setting contains_eos. ",
                         "Requested [{}, {}], current [{}, {}], force_redraw: {}",
                     ),
                     self.id,
@@ -275,7 +279,9 @@ impl WaveformImage {
         } else if self.contains_eos {
             self.contains_eos = false;
 
-            debug!(concat!("{}_render clearing contains_eos. ",
+            debug!(
+                concat!(
+                    "{}_render clearing contains_eos. ",
                     "Requested [{}, {}], current [{}, {}], force_redraw {} ",
                     "audio_buffer.eos {}",
                 ),
@@ -292,7 +298,8 @@ impl WaveformImage {
         if lower < audio_buffer.lower {
             // first sample might be smaller than audio_buffer.lower
             // due to alignement on sample_step
-            debug!("{}_render lower {} is less than buffer.lower {}",
+            debug!(
+                "{}_render lower {} is less than buffer.lower {}",
                 self.id, lower, audio_buffer.lower,
             );
             lower += self.sample_step;
@@ -301,7 +308,10 @@ impl WaveformImage {
         if lower >= upper {
             // can't draw current range
             // reset WaveformImage state
-            debug!("{}_render lower {} greater or equal upper {}", self.id, lower, upper);
+            debug!(
+                "{}_render lower {} greater or equal upper {}",
+                self.id, lower, upper
+            );
 
             self.lower = 0;
             self.upper = 0;
@@ -313,7 +323,8 @@ impl WaveformImage {
         }
 
         if upper < lower + 2 * self.sample_step {
-            debug!("{}_render range [{}, {}] too small for sample_step: {}",
+            debug!(
+                "{}_render range [{}, {}] too small for sample_step: {}",
                 self.id, lower, upper, self.sample_step,
             );
             return;
@@ -328,10 +339,16 @@ impl WaveformImage {
             // current samples extraction doesn't overlap with samples in previous image
             self.force_redraw = true;
 
-            debug!(concat!("{}_render no overlap self.lower {}, ",
+            debug!(
+                concat!(
+                    "{}_render no overlap self.lower {}, ",
                     "self.upper {}, lower {}, upper {}",
                 ),
-                self.id, self.lower, self.upper, lower, upper,
+                self.id,
+                self.lower,
+                self.upper,
+                lower,
+                upper,
             );
         }
 
@@ -359,7 +376,10 @@ impl WaveformImage {
                 self.image_height = self.req_height;
                 self.image_height_f = f64::from(self.req_height);
 
-                debug!("{}_render new images w {}, h {}", self.id, target_width, self.req_height);
+                debug!(
+                    "{}_render new images w {}, h {}",
+                    self.id, target_width, self.req_height
+                );
 
                 (
                     cairo::ImageSurface::create(
@@ -486,7 +506,8 @@ impl WaveformImage {
             }
         };
 
-        debug!("{}_redraw smpl_stp {}, lower {}, upper {}",
+        debug!(
+            "{}_redraw smpl_stp {}, lower {}, upper {}",
             self.id, self.sample_step, self.lower, self.upper
         );
     }
@@ -502,7 +523,8 @@ impl WaveformImage {
         let x_offset = (sample_offset / self.sample_step * self.x_step) as f64;
 
         #[cfg(test)]
-        debug!("append_left x_offset {}, lower {}, self.lower {}, buffer.lower {}",
+        debug!(
+            "append_left x_offset {}, lower {}, self.lower {}, buffer.lower {}",
             x_offset, lower, self.lower, audio_buffer.lower
         );
 
@@ -566,13 +588,17 @@ impl WaveformImage {
             self.first = Some(first_added);
             self.lower = lower;
         } else {
-            info!("{}_appd_left iter ({}, {}) out of range or too small",
+            info!(
+                "{}_appd_left iter ({}, {}) out of range or too small",
                 self.id, lower, self.lower
             );
         }
 
         #[cfg(test)]
-        debug!("exiting append_left self.lower {}, self.upper {}", self.lower, self.upper);
+        debug!(
+            "exiting append_left self.lower {}, self.upper {}",
+            self.lower, self.upper
+        );
     }
 
     fn append_right(
@@ -586,7 +612,9 @@ impl WaveformImage {
         let x_offset = ((lower - self.lower) / self.sample_step * self.x_step) as f64;
 
         #[cfg(test)]
-        debug!(concat!("append_right x_offset {}, (lower {} upper {}), ",
+        debug!(
+            concat!(
+                "append_right x_offset {}, (lower {} upper {}), ",
                 "self: (lower {} upper {}), buffer: (lower {}, upper {})",
             ),
             x_offset,
@@ -660,13 +688,17 @@ impl WaveformImage {
             self.last = Some(last_added);
             self.upper = upper;
         } else {
-            info!("{}_appd_right iter ({}, {}) out of range or too small",
+            info!(
+                "{}_appd_right iter ({}, {}) out of range or too small",
                 self.id, first_sample_to_draw, upper
             );
         }
 
         #[cfg(test)]
-        debug!("exiting append_right self.lower {}, self.upper {}", self.lower, self.upper);
+        debug!(
+            "exiting append_right self.lower {}, self.upper {}",
+            self.lower, self.upper
+        );
 
         true
     }
@@ -684,7 +716,9 @@ impl WaveformImage {
                 Some(values) => format!("{:?}", values.to_vec()),
                 None => "-".to_owned(),
             };
-            debug!(concat!("WaveformImage{}_smpl_val_at {}, smpl {}, val {}, ",
+            debug!(
+                concat!(
+                    "WaveformImage{}_smpl_val_at {}, smpl {}, val {}, ",
                     "x step: {}, smpl step: {}, audiobuf. [{}, {}]",
                 ),
                 self.id,
@@ -722,7 +756,10 @@ impl WaveformImage {
         if let Some(&(red, green, blue)) = self.channel_colors.get(channel) {
             cr.set_source_rgba(red, green, blue, 0.68f64);
         } else {
-            warn!("{}_set_channel_color no color for channel {}", self.id, channel);
+            warn!(
+                "{}_set_channel_color no color for channel {}",
+                self.id, channel
+            );
         }
     }
 
@@ -773,7 +810,9 @@ impl WaveformImage {
 
         let sample_iter = audio_buffer.iter(lower, upper, self.sample_step);
         if sample_iter.is_none() {
-            warn!(concat!("{}_draw_samples invalid iter for ",
+            warn!(
+                concat!(
+                    "{}_draw_samples invalid iter for ",
                     "[{}, {}] sample_step {}, buffer: [{}, {}]",
                 ),
                 self.id,
@@ -789,7 +828,9 @@ impl WaveformImage {
 
         let mut sample_iter = sample_iter.unwrap();
         if sample_iter.size_hint().0 < 2 {
-            debug!(concat!("{}_draw_samples too small to render for ",
+            debug!(
+                concat!(
+                    "{}_draw_samples too small to render for ",
                     "[{}, {}] sample_step {}, buffer: [{}, {}]",
                 ),
                 self.id,
@@ -947,7 +988,9 @@ mod tests {
         // AudioBuffer
         let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
         audio_buffer.init(
-            gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, 2).build().unwrap()
+            gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, 2)
+                .build()
+                .unwrap(),
         );
 
         // WaveformImage
@@ -1042,14 +1085,16 @@ mod tests {
             )
         };
 
-        info!("rendering: [{}, {}] incoming [{}, {}]",
+        info!(
+            "rendering: [{}, {}] incoming [{}, {}]",
             lower_to_extract, upper_to_extract, incoming_lower, incoming_upper
         );
         waveform.render(&audio_buffer, lower_to_extract, upper_to_extract);
 
         let image = waveform.get_image();
 
-        let mut output_file = File::create(format!("{}/waveform_image_{}_{:03}_{:03}.png",
+        let mut output_file = File::create(format!(
+            "{}/waveform_image_{}_{:03}_{:03}.png",
             OUT_DIR, prefix, waveform.lower, waveform.upper
         )).unwrap();
         image.write_to_png(&mut output_file).unwrap();

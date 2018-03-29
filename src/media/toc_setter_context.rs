@@ -24,13 +24,17 @@ impl TocSetterContext {
         // Exporting to Mastroska containers is only
         // available from gst-plugins-good 1.13.1
         let (major, minor, micro, _nano) = gst::version();
-        if major >=1 && minor >=13 && micro >= 1 {
+        if major >= 1 && minor >= 13 && micro >= 1 {
             gst::ElementFactory::make("matroskamux", None).map_or(
-                Err(gettext("Missing `matroskamux`\ncheck your gst-plugins-good install")),
-                |_| Ok(())
+                Err(gettext(
+                    "Missing `matroskamux`\ncheck your gst-plugins-good install",
+                )),
+                |_| Ok(()),
             )
         } else {
-            Err(gettext("Matroska export requires\ngst-plugins-good >= 1.14"))
+            Err(gettext(
+                "Matroska export requires\ngst-plugins-good >= 1.14",
+            ))
         }
     }
 
@@ -39,7 +43,10 @@ impl TocSetterContext {
         output_path: &Path,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<TocSetterContext, String> {
-        info!("{}", gettext("Exporting to {}...").replacen("{}", output_path.to_str().unwrap(), 1));
+        info!(
+            "{}",
+            gettext("Exporting to {}...").replacen("{}", output_path.to_str().unwrap(), 1)
+        );
 
         let mut this = TocSetterContext {
             pipeline: gst::Pipeline::new("pipeline"),
@@ -141,15 +148,13 @@ impl TocSetterContext {
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
-                    ctx_tx
-                        .send(ContextMessage::Eos)
-                        .unwrap();
+                    ctx_tx.send(ContextMessage::Eos).unwrap();
                     return glib::Continue(false);
                 }
                 gst::MessageView::Error(err) => {
                     ctx_tx
                         .send(ContextMessage::FailedToExport(
-                            err.get_error().description().to_owned()
+                            err.get_error().description().to_owned(),
                         ))
                         .unwrap();
                     return glib::Continue(false);
@@ -157,13 +162,9 @@ impl TocSetterContext {
                 gst::MessageView::AsyncDone(_) => {
                     if !init_done {
                         init_done = true;
-                        ctx_tx
-                            .send(ContextMessage::InitDone)
-                            .unwrap();
+                        ctx_tx.send(ContextMessage::InitDone).unwrap();
                     } else {
-                        ctx_tx
-                            .send(ContextMessage::AsyncDone)
-                            .unwrap();
+                        ctx_tx.send(ContextMessage::AsyncDone).unwrap();
                     }
                 }
                 _ => (),

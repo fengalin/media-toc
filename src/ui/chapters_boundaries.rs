@@ -41,7 +41,7 @@ impl ChaptersBoundaries {
             Some(chapters_at_start) => {
                 // a boundary already exists at start
                 let next_chapter = chapters_at_start.next.take();
-                chapters_at_start.next = Some(Chapter{
+                chapters_at_start.next = Some(Chapter {
                     title: title.to_owned(),
                     iter: iter.clone(),
                 });
@@ -53,8 +53,11 @@ impl ChaptersBoundaries {
         if start_exists {
             self.0.insert(
                 end,
-                SuccessiveChapters{
-                    prev: Some(Chapter{title: title.to_owned(), iter: iter.clone()}),
+                SuccessiveChapters {
+                    prev: Some(Chapter {
+                        title: title.to_owned(),
+                        iter: iter.clone(),
+                    }),
                     next: next_chapter,
                 },
             );
@@ -64,7 +67,7 @@ impl ChaptersBoundaries {
                 Some(chapters_at_end) => {
                     // a boundary already exists at end
                     let prev_chapter = chapters_at_end.prev.take();
-                    chapters_at_end.prev = Some(Chapter{
+                    chapters_at_end.prev = Some(Chapter {
                         title: title.to_owned(),
                         iter: iter.clone(),
                     });
@@ -75,17 +78,23 @@ impl ChaptersBoundaries {
 
             self.0.insert(
                 start,
-                SuccessiveChapters{
+                SuccessiveChapters {
                     prev: prev_chapter,
-                    next: Some(Chapter{title: title.to_owned(), iter: iter.clone()}),
+                    next: Some(Chapter {
+                        title: title.to_owned(),
+                        iter: iter.clone(),
+                    }),
                 },
             );
 
             if !end_exists {
                 self.0.insert(
                     end,
-                    SuccessiveChapters{
-                        prev: Some(Chapter{title: title.to_owned(), iter: iter.clone()}),
+                    SuccessiveChapters {
+                        prev: Some(Chapter {
+                            title: title.to_owned(),
+                            iter: iter.clone(),
+                        }),
                         next: None,
                     },
                 );
@@ -96,14 +105,11 @@ impl ChaptersBoundaries {
     pub fn remove_chapter(&mut self, start: u64, end: u64) {
         debug!("remove_chapter {}, {}", start, end);
 
-        let prev_chapter = self.0.get_mut(&start)
-            .unwrap()
-            .prev.take();
+        let prev_chapter = self.0.get_mut(&start).unwrap().prev.take();
         self.0.remove(&start);
 
         let can_remove_end = {
-            let chapters_at_end = self.0.get_mut(&end)
-                .unwrap();
+            let chapters_at_end = self.0.get_mut(&end).unwrap();
             if prev_chapter.is_none() && chapters_at_end.next.is_none() {
                 true
             } else {
@@ -119,28 +125,17 @@ impl ChaptersBoundaries {
     pub fn rename_chapter(&mut self, start: u64, end: u64, new_title: &str) {
         debug!("rename_chapter {}, {}, {}", start, end, new_title);
 
-        self.0
-            .get_mut(&start)
-            .unwrap()
-            .next
-            .as_mut()
-            .unwrap()
-            .title = new_title.to_owned();
-        self.0
-            .get_mut(&end)
-            .unwrap()
-            .prev
-            .as_mut()
-            .unwrap()
-            .title = new_title.to_owned();
+        self.0.get_mut(&start).unwrap().next.as_mut().unwrap().title = new_title.to_owned();
+        self.0.get_mut(&end).unwrap().prev.as_mut().unwrap().title = new_title.to_owned();
     }
 
     pub fn move_boundary(&mut self, boundary: u64, to_position: u64) {
-        let chapters = self.0
-            .remove(&boundary)
-            .unwrap();
+        let chapters = self.0.remove(&boundary).unwrap();
         if let Some(_) = self.0.insert(to_position, chapters) {
-            panic!("ChaptersBoundaries::move_boundary attempt to replace entry at {}", to_position);
+            panic!(
+                "ChaptersBoundaries::move_boundary attempt to replace entry at {}",
+                to_position
+            );
         }
     }
 }

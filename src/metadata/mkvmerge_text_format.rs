@@ -29,11 +29,7 @@ impl MKVMergeTextFormat {
 
 #[cfg_attr(feature = "cargo-clippy", allow(match_wild_err_arm))]
 impl Reader for MKVMergeTextFormat {
-    fn read(
-        &self,
-        info: &MediaInfo,
-        source: &mut Read,
-    ) -> Result<gst::Toc, String> {
+    fn read(&self, info: &MediaInfo, source: &mut Read) -> Result<gst::Toc, String> {
         fn add_chapter(
             parent: &mut gst::TocEntry,
             mut nb: Option<usize>,
@@ -51,13 +47,13 @@ impl Reader for MKVMergeTextFormat {
                 .set_start_stop_times(start as i64, end as i64);
 
             let mut tag_list = gst::TagList::new();
-            tag_list.get_mut().unwrap().add::<gst::tags::Title>(&title, gst::TagMergeMode::Replace);
-            chapter.get_mut().unwrap().set_tags(tag_list);
-
-            parent
+            tag_list
                 .get_mut()
                 .unwrap()
-                .append_sub_entry(chapter);
+                .add::<gst::tags::Title>(&title, gst::TagMergeMode::Replace);
+            chapter.get_mut().unwrap().set_tags(tag_list);
+
+            parent.get_mut().unwrap().append_sub_entry(chapter);
         }
 
         let error_msg = gettext("Failed to read mkvmerge text file.");
@@ -79,13 +75,14 @@ impl Reader for MKVMergeTextFormat {
                 let tag = parts[0];
                 let value = parts[1];
                 if tag.starts_with(CHAPTER_TAG) && tag.len() >= *CHAPTER_TAG_LEN + CHAPTER_NB_LEN {
-                    let cur_nb = match tag[*CHAPTER_TAG_LEN..*CHAPTER_TAG_LEN+CHAPTER_NB_LEN]
+                    let cur_nb = match tag[*CHAPTER_TAG_LEN..*CHAPTER_TAG_LEN + CHAPTER_NB_LEN]
                         .parse::<usize>()
                     {
                         Ok(chapter_nb) => chapter_nb,
                         Err(_) => {
-                            error!("{}", gettext("couldn't find chapter nb for: {}")
-                                .replacen("{}", line, 1)
+                            error!(
+                                "{}",
+                                gettext("couldn't find chapter nb for: {}").replacen("{}", line, 1)
                             );
                             return Err(error_msg);
                         }
@@ -99,8 +96,9 @@ impl Reader for MKVMergeTextFormat {
                         let cur_start = match Timestamp::from_string(value) {
                             Ok(timestamp) => timestamp.nano_total,
                             Err(()) => {
-                                error!("{}", gettext("unexpected timestamp: {}")
-                                    .replacen("{}", value, 1)
+                                error!(
+                                    "{}",
+                                    gettext("unexpected timestamp: {}").replacen("{}", value, 1)
                                 );
                                 return Err(error_msg);
                             }
@@ -121,7 +119,10 @@ impl Reader for MKVMergeTextFormat {
                         last_nb = Some(cur_nb);
                     }
                 } else {
-                    error!("{}", gettext("unexpected format for: {}").replacen("{}", line, 1));
+                    error!(
+                        "{}",
+                        gettext("unexpected format for: {}").replacen("{}", line, 1)
+                    );
                     return Err(error_msg);
                 }
             } else {
@@ -146,7 +147,7 @@ impl Reader for MKVMergeTextFormat {
                 let mut toc = gst::Toc::new(gst::TocScope::Global);
                 toc.get_mut().unwrap().append_entry(toc_edition);
                 Ok(toc)
-            }
+            },
         )
     }
 }
@@ -171,17 +172,21 @@ impl Writer for MKVMergeTextFormat {
             if let Some((start, _end)) = chapter.get_start_stop_times() {
                 index += 1;
                 let prefix = format!("{}{:02}", CHAPTER_TAG, index);
-                write_fmt!(destination, "{}={}\n",
+                write_fmt!(
+                    destination,
+                    "{}={}\n",
                     prefix,
                     Timestamp::from_nano(start as u64).format_with_hours()
                 );
 
-                let title = chapter.get_tags().map_or(None, |tags| {
-                    tags.get::<gst::tags::Title>().map(|tag| {
-                        tag.get().unwrap().to_owned()
+                let title = chapter
+                    .get_tags()
+                    .map_or(None, |tags| {
+                        tags.get::<gst::tags::Title>()
+                            .map(|tag| tag.get().unwrap().to_owned())
                     })
-                }).unwrap_or(super::DEFAULT_TITLE.to_owned());
-                write_fmt!(destination, "{}{}={}\n", prefix, NAME_TAG ,&title);
+                    .unwrap_or(super::DEFAULT_TITLE.to_owned());
+                write_fmt!(destination, "{}{}={}\n", prefix, NAME_TAG, &title);
             }
         }
 

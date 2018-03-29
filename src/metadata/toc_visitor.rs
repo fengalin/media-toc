@@ -13,19 +13,15 @@ impl PartialEq for TocVisit {
             &TocVisit::EnteringChildren => match other {
                 &TocVisit::EnteringChildren => true,
                 _ => false,
-            }
+            },
             &TocVisit::LeavingChildren => match other {
                 &TocVisit::LeavingChildren => true,
                 _ => false,
-            }
-            &TocVisit::Node(ref entry) => {
-                match other {
-                    &TocVisit::Node(ref other_entry) => {
-                        (entry.get_uid() == other_entry.get_uid())
-                    }
-                    _ => false,
-                }
-            }
+            },
+            &TocVisit::Node(ref entry) => match other {
+                &TocVisit::Node(ref other_entry) => (entry.get_uid() == other_entry.get_uid()),
+                _ => false,
+            },
         }
     }
 }
@@ -37,10 +33,7 @@ struct TocEntryIter {
 
 impl TocEntryIter {
     fn from(entries: Vec<gst::TocEntry>) -> Self {
-        Self {
-            entries,
-            index: 0,
-        }
+        Self { entries, index: 0 }
     }
 
     fn next(&mut self) -> Option<(gst::TocEntry, usize)> {
@@ -78,9 +71,7 @@ impl TocVisitor {
         // Skip edition entry and enter chapters
         assert_eq!(Some(TocVisit::EnteringChildren), self.next());
         let found_edition = match self.next() {
-            Some(TocVisit::Node(entry)) => {
-                gst::TocEntryType::Edition == entry.get_entry_type()
-            }
+            Some(TocVisit::Node(entry)) => gst::TocEntryType::Edition == entry.get_entry_type(),
             _ => false,
         };
 
@@ -130,7 +121,7 @@ impl TocVisitor {
                         _ => (),
                     },
                     _ => (),
-                }
+                },
                 None => return None,
             }
         }
@@ -172,7 +163,10 @@ mod tests {
         let mut toc_visitor = TocVisitor::new(&toc);
         assert_eq!(Some(TocVisit::EnteringChildren), toc_visitor.next());
         assert_eq!(
-            Some(TocVisit::Node(TocEntry::new(TocEntryType::Edition, "edition"))),
+            Some(TocVisit::Node(TocEntry::new(
+                TocEntryType::Edition,
+                "edition"
+            ))),
             toc_visitor.next(),
         );
 

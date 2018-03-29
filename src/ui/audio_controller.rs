@@ -15,7 +15,7 @@ use std::cell::RefCell;
 
 use std::sync::{Arc, Mutex};
 
-use media::{DoubleAudioBuffer, PlaybackContext, QUEUE_SIZE_NS, SampleExtractor};
+use media::{DoubleAudioBuffer, PlaybackContext, SampleExtractor, QUEUE_SIZE_NS};
 
 use metadata::Timestamp;
 
@@ -99,10 +99,7 @@ impl AudioController {
         boundaries: Rc<RefCell<ChaptersBoundaries>>,
     ) -> Rc<RefCell<Self>> {
         let dbl_buffer_mtx = DoubleWaveformBuffer::new_mutex(BUFFER_DURATION);
-        let waveform_mtx = dbl_buffer_mtx
-            .lock()
-            .unwrap()
-            .get_exposed_buffer_mtx();
+        let waveform_mtx = dbl_buffer_mtx.lock().unwrap().get_exposed_buffer_mtx();
 
         let this = Rc::new(RefCell::new(AudioController {
             window: builder.get_object("application-window").unwrap(),
@@ -269,10 +266,7 @@ impl AudioController {
         self.reset_cursor();
         self.playback_needs_refresh = false;
         {
-            self.dbl_buffer_mtx
-                .lock()
-                .unwrap()
-                .cleanup();
+            self.dbl_buffer_mtx.lock().unwrap().cleanup();
         }
         self.requested_duration = INIT_REQ_DURATION;
         self.base_time = None;
@@ -314,20 +308,18 @@ impl AudioController {
                 let requested_duration = this.requested_duration;
                 let area_width = this.area_width;
                 let area_height = this.area_height;
-                debug!("new_media(async) conditions {}, {}x{}",
-                    requested_duration,
-                    area_width,
-                    area_height,
+                debug!(
+                    "new_media(async) conditions {}, {}x{}",
+                    requested_duration, area_width, area_height,
                 );
 
-                this.dbl_buffer_mtx
-                    .lock()
-                    .unwrap()
-                    .set_conditions(Box::new(WaveformConditions::new(
+                this.dbl_buffer_mtx.lock().unwrap().set_conditions(Box::new(
+                    WaveformConditions::new(
                         requested_duration,
                         area_width as i32,
                         area_height as i32,
-                    )));
+                    ),
+                ));
 
                 this.state = ControllerState::Paused;
                 this.refresh();
@@ -341,27 +333,19 @@ impl AudioController {
 
     pub fn get_seek_back_1st_position(&self, target: u64) -> Option<u64> {
         let (lower_pos, upper_pos, half_window_duration) = {
-            let waveform_grd = self.waveform_mtx
-                .lock()
-                .unwrap();
+            let waveform_grd = self.waveform_mtx.lock().unwrap();
             let waveform_buf = waveform_grd
                 .as_any()
                 .downcast_ref::<WaveformBuffer>()
                 .unwrap();
             let limits = waveform_buf.get_limits_as_pos();
-            (
-                limits.0,
-                limits.1,
-                waveform_buf.get_half_window_duration(),
-            )
+            (limits.0, limits.1, waveform_buf.get_half_window_duration())
         };
 
         // don't step back more than the pipeline queues can handle
         let target_step_back = half_window_duration.min(QUEUE_SIZE_NS);
         if target > target_step_back {
-            if target < lower_pos + target_step_back
-                || target > upper_pos
-            {
+            if target < lower_pos + target_step_back || target > upper_pos {
                 Some(target - target_step_back)
             } else {
                 // 1st position already available => don't need 2 steps seek back
@@ -387,10 +371,7 @@ impl AudioController {
         if !is_playing {
             // refresh the buffer in order to render the waveform
             // with samples that might not be rendered in current WaveformImage yet
-            self.dbl_buffer_mtx
-                .lock()
-                .unwrap()
-                .refresh(false); // not playing
+            self.dbl_buffer_mtx.lock().unwrap().refresh(false); // not playing
         }
         self.redraw();
     }
@@ -450,10 +431,7 @@ impl AudioController {
                     if this.playback_needs_refresh {
                         trace!("tick forcing refresh");
 
-                        this.dbl_buffer_mtx
-                            .lock()
-                            .unwrap()
-                            .refresh(true); // is playing
+                        this.dbl_buffer_mtx.lock().unwrap().refresh(true); // is playing
                     }
 
                     this.redraw();
@@ -507,10 +485,7 @@ impl AudioController {
         } else {
             0
         };
-        let mut range = boundaries.range((
-            Included(&lower_bound),
-            Included(&(position + delta)),
-        ));
+        let mut range = boundaries.range((Included(&lower_bound), Included(&(position + delta))));
         range.next().map(|(boundary, _chapters)| *boundary)
     }
 
@@ -551,16 +526,13 @@ impl AudioController {
 
     fn update_conditions(&mut self) {
         if self.state != ControllerState::Disabled {
-            debug!("update_conditions {}, {}x{}",
-                self.requested_duration,
-                self.area_width,
-                self.area_height,
+            debug!(
+                "update_conditions {}, {}x{}",
+                self.requested_duration, self.area_width, self.area_height,
             );
 
             {
-                let waveform_grd = &mut *self.waveform_mtx
-                    .lock()
-                    .unwrap();
+                let waveform_grd = &mut *self.waveform_mtx.lock().unwrap();
                 let waveform_buffer = waveform_grd
                     .as_mut_any()
                     .downcast_mut::<WaveformBuffer>()
@@ -598,9 +570,7 @@ impl AudioController {
         }
 
         let (current_position, image_positions) = {
-            let waveform_grd = &mut *self.waveform_mtx
-                .lock()
-                .unwrap();
+            let waveform_grd = &mut *self.waveform_mtx.lock().unwrap();
             let waveform_buffer = waveform_grd
                 .as_mut_any()
                 .downcast_mut::<WaveformBuffer>()
@@ -608,9 +578,8 @@ impl AudioController {
 
             self.playback_needs_refresh = waveform_buffer.playback_needs_refresh;
 
-            let (current_position, image_opt) = waveform_buffer.get_image(
-                da.get_frame_clock().unwrap().get_frame_time() as u64
-            );
+            let (current_position, image_opt) =
+                waveform_buffer.get_image(da.get_frame_clock().unwrap().get_frame_time() as u64);
             match image_opt {
                 Some((image, image_positions)) => {
                     cr.set_source_surface(image, -image_positions.first.x, 0f64);
@@ -662,8 +631,7 @@ impl AudioController {
             self.last_visible_pos = last_pos.timestamp;
 
             // Draw in-range chapters boundaries
-            let boundaries = self.boundaries
-                .borrow();
+            let boundaries = self.boundaries.borrow();
 
             let chapter_range = boundaries.range((
                 Included(&self.first_visible_pos),
@@ -677,10 +645,8 @@ impl AudioController {
 
             for (boundary, ref chapters) in chapter_range {
                 if boundary >= &self.first_visible_pos {
-                    let x = (
-                        (boundary - self.first_visible_pos)
-                        / image_positions.sample_duration
-                    ) as f64 / image_positions.sample_step;
+                    let x = ((boundary - self.first_visible_pos) / image_positions.sample_duration)
+                        as f64 / image_positions.sample_step;
                     cr.move_to(x, boundary_y0);
                     cr.line_to(x, self.area_height);
                     cr.stroke();
@@ -741,7 +707,7 @@ impl AudioController {
                 }
                 ControllerState::Paused => true,
                 ControllerState::MovingBoundary(_boundary) => true,
-                _  => false,
+                _ => false,
             }
         };
 
@@ -791,7 +757,10 @@ impl AudioController {
                     None => return,
                 };
 
-                if main_ctrl.borrow_mut().move_chapter_boundary(boundary, position) {
+                if main_ctrl
+                    .borrow_mut()
+                    .move_chapter_boundary(boundary, position)
+                {
                     // boundary has moved
                     let mut this = this_rc.borrow_mut();
                     this.state = ControllerState::MovingBoundary(position);
@@ -822,12 +791,13 @@ impl AudioController {
                         ControllerState::Paused => {
                             let must_seek = {
                                 let mut this = this_rc.borrow_mut();
-                                this
-                                    .get_boundary_at(event_button.get_position().0)
-                                    .map_or(true, |boundary| {
+                                this.get_boundary_at(event_button.get_position().0).map_or(
+                                    true,
+                                    |boundary| {
                                         this.state = ControllerState::MovingBoundary(boundary);
                                         false
-                                    })
+                                    },
+                                )
                             };
                             must_seek
                         }
@@ -853,11 +823,9 @@ impl AudioController {
                     // get a reasonable range so that we can still hear
                     // something even when there are few samples in current window
                     let end_pos = start_pos + MIN_RANGE_DURATION.max(last_pos - start_pos);
-                    main_ctrl.borrow_mut().play_range(
-                        start_pos,
-                        end_pos,
-                        current_position,
-                    );
+                    main_ctrl
+                        .borrow_mut()
+                        .play_range(start_pos, end_pos, current_position);
                 }
             }
             _ => (),

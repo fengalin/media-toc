@@ -152,17 +152,19 @@ impl ExportController {
         let main_ctrl_clone = Rc::clone(main_ctrl);
         this.export_btn.connect_clicked(move |_| {
             let this_clone = Rc::clone(&this_clone);
-            main_ctrl_clone.borrow_mut().request_context(Box::new(move |context| {
-                {
-                    this_clone.borrow_mut().playback_ctx = Some(context);
-                }
-                // launch export asynchronoulsy so that main_ctrl is no longer borrowed
-                let this_clone = Rc::clone(&this_clone);
-                gtk::idle_add(move || {
-                    this_clone.borrow_mut().export();
-                    glib::Continue(false)
-                });
-            }));
+            main_ctrl_clone
+                .borrow_mut()
+                .request_context(Box::new(move |context| {
+                    {
+                        this_clone.borrow_mut().playback_ctx = Some(context);
+                    }
+                    // launch export asynchronoulsy so that main_ctrl is no longer borrowed
+                    let this_clone = Rc::clone(&this_clone);
+                    gtk::idle_add(move || {
+                        this_clone.borrow_mut().export();
+                        glib::Continue(false)
+                    });
+                }));
         });
 
         // Split
@@ -170,17 +172,19 @@ impl ExportController {
         let main_ctrl_clone = Rc::clone(main_ctrl);
         this.split_btn.connect_clicked(move |_| {
             let this_clone = Rc::clone(&this_clone);
-            main_ctrl_clone.borrow_mut().request_context(Box::new(move |context| {
-                {
-                    this_clone.borrow_mut().playback_ctx = Some(context);
-                }
-                // launch export asynchronoulsy so that main_ctrl is no longer borrowed
-                let this_clone = Rc::clone(&this_clone);
-                gtk::idle_add(move || {
-                    this_clone.borrow_mut().split();
-                    glib::Continue(false)
-                });
-            }));
+            main_ctrl_clone
+                .borrow_mut()
+                .request_context(Box::new(move |context| {
+                    {
+                        this_clone.borrow_mut().playback_ctx = Some(context);
+                    }
+                    // launch export asynchronoulsy so that main_ctrl is no longer borrowed
+                    let this_clone = Rc::clone(&this_clone);
+                    gtk::idle_add(move || {
+                        this_clone.borrow_mut().split();
+                        glib::Continue(false)
+                    });
+                }));
         });
     }
 
@@ -234,16 +238,15 @@ impl ExportController {
     fn prepare_process(&mut self, format: &metadata::Format) {
         self.switch_to_busy();
 
-        self.toc_visitor = self.playback_ctx.as_ref()
+        self.toc_visitor = self.playback_ctx
+            .as_ref()
             .unwrap()
             .info
             .lock()
             .unwrap()
             .toc
-                .as_ref()
-                .map(|toc| {
-                    TocVisitor::new(toc)
-                });
+            .as_ref()
+            .map(|toc| TocVisitor::new(toc));
 
         let is_audio_only = {
             self.playback_ctx
@@ -256,8 +259,7 @@ impl ExportController {
                 .video_selected
                 .is_none()
         };
-        self.extension =
-            metadata::Factory::get_extension(format, is_audio_only).to_owned();
+        self.extension = metadata::Factory::get_extension(format, is_audio_only).to_owned();
 
         self.media_path = self.playback_ctx.as_ref().unwrap().path.clone();
         self.target_path = self.media_path.with_extension(&self.extension);
@@ -271,7 +273,8 @@ impl ExportController {
         let duration = self.playback_ctx
             .as_ref()
             .unwrap()
-            .info.lock()
+            .info
+            .lock()
             .unwrap()
             .duration;
         self.duration = duration;
@@ -288,20 +291,18 @@ impl ExportController {
                 let (msg_type, msg) = match File::create(&self.target_path) {
                     Ok(mut output_file) => {
                         let info = self.playback_ctx.as_ref().unwrap().info.lock().unwrap();
-                        match metadata::Factory::get_writer(&format).write(
-                            &info,
-                            &mut output_file,
-                        ) {
+                        match metadata::Factory::get_writer(&format).write(&info, &mut output_file)
+                        {
                             Ok(_) => (
                                 gtk::MessageType::Info,
-                                gettext("Table of contents exported succesfully")
+                                gettext("Table of contents exported succesfully"),
                             ),
                             Err(err) => (gtk::MessageType::Error, err),
                         }
                     }
                     Err(_) => (
                         gtk::MessageType::Error,
-                        gettext("Failed to create the file for the table of contents")
+                        gettext("Failed to create the file for the table of contents"),
                     ),
                 };
 
@@ -333,11 +334,7 @@ impl ExportController {
     }
 
     fn show_message(&self, type_: gtk::MessageType, message: &str) {
-        let main_ctrl_rc = self.main_ctrl
-            .as_ref()
-            .unwrap()
-            .upgrade()
-            .unwrap();
+        let main_ctrl_rc = self.main_ctrl.as_ref().unwrap().upgrade().unwrap();
         main_ctrl_rc.borrow().show_message(type_, message);
     }
 
@@ -350,22 +347,12 @@ impl ExportController {
     }
 
     fn restore_context(&mut self) {
-        let context = self.playback_ctx.take()
-            .unwrap();
-        let main_ctrl_rc = self.main_ctrl
-            .as_ref()
-            .unwrap()
-            .upgrade()
-            .unwrap();
-        main_ctrl_rc
-            .borrow_mut()
-            .set_context(context);
+        let context = self.playback_ctx.take().unwrap();
+        let main_ctrl_rc = self.main_ctrl.as_ref().unwrap().upgrade().unwrap();
+        main_ctrl_rc.borrow_mut().set_context(context);
     }
 
-    fn build_toc_setter_context(
-        &mut self,
-        export_path: &Path,
-    ) {
+    fn build_toc_setter_context(&mut self, export_path: &Path) {
         let (ctx_tx, ui_rx) = channel();
 
         self.register_toc_setter_listener(LISTENER_PERIOD, ui_rx);
@@ -380,8 +367,7 @@ impl ExportController {
                 self.remove_listener();
                 self.switch_to_available();
                 self.restore_context();
-                let msg = gettext("Failed to prepare for export. {}")
-                    .replacen("{}", &error, 1);
+                let msg = gettext("Failed to prepare for export. {}").replacen("{}", &error, 1);
                 self.show_error(&msg);
                 error!("{}", msg);
             }
@@ -403,13 +389,7 @@ impl ExportController {
 
         let (ctx_tx, ui_rx) = channel();
         self.register_splitter_listener(format, LISTENER_PERIOD, ui_rx);
-        match SplitterContext::new(
-            &media_path,
-            &output_path,
-            format,
-            chapter,
-            ctx_tx,
-        ) {
+        match SplitterContext::new(&media_path, &output_path, format, chapter, ctx_tx) {
             Ok(splitter_ctx) => {
                 self.switch_to_busy();
                 self.splitter_ctx = Some(splitter_ctx);
@@ -419,8 +399,7 @@ impl ExportController {
                 self.remove_listener();
                 self.switch_to_available();
                 self.restore_context();
-                let msg = gettext("Failed to prepare for split. {}")
-                    .replacen("{}", &error, 1);
+                let msg = gettext("Failed to prepare for split. {}").replacen("{}", &error, 1);
                 error!("{}", msg);
                 Err(msg)
             }
@@ -428,10 +407,7 @@ impl ExportController {
     }
 
     fn next_chapter(&mut self) -> Option<gst::TocEntry> {
-        let chapter = self.toc_visitor
-            .as_mut()
-            .unwrap()
-            .next_chapter();
+        let chapter = self.toc_visitor.as_mut().unwrap().next_chapter();
 
         if chapter.is_some() {
             self.idx += 1;
@@ -443,12 +419,7 @@ impl ExportController {
     fn get_split_path(&self, chapter: &gst::TocEntry) -> PathBuf {
         let mut split_name = String::new();
 
-        let info = self.playback_ctx
-            .as_ref()
-            .unwrap()
-            .info
-            .lock()
-            .unwrap();
+        let info = self.playback_ctx.as_ref().unwrap().info.lock().unwrap();
 
         // TODO: make format customisable
         if let Some(artist) = info.get_artist() {
@@ -458,18 +429,15 @@ impl ExportController {
             split_name += &format!("{} - ", album_title);
         }
 
-        let track_title = chapter.get_tags().map_or(None, |tags| {
-            tags.get::<gst::tags::Title>().map(|tag| {
-                tag.get().unwrap().to_owned()
+        let track_title = chapter
+            .get_tags()
+            .map_or(None, |tags| {
+                tags.get::<gst::tags::Title>()
+                    .map(|tag| tag.get().unwrap().to_owned())
             })
-        }).unwrap_or(DEFAULT_TITLE.to_owned());
+            .unwrap_or(DEFAULT_TITLE.to_owned());
 
-        split_name += &format!(
-            "{:02}. {}.{}",
-            self.idx,
-            &track_title,
-            self.extension,
-        );
+        split_name += &format!("{:02}. {}.{}", self.idx, &track_title, self.extension,);
 
         self.target_path.with_file_name(split_name)
     }
@@ -480,12 +448,7 @@ impl ExportController {
         {
             let tags = tags.get_mut().unwrap();
             let chapter_count = {
-                let info = self.playback_ctx
-                    .as_ref()
-                    .unwrap()
-                    .info
-                    .lock()
-                    .unwrap();
+                let info = self.playback_ctx.as_ref().unwrap().info.lock().unwrap();
 
                 // Select tags suitable for a track
                 add_tag_from!(tags, info.tags, gst::tags::Artist);
@@ -554,11 +517,13 @@ impl ExportController {
             };
 
             // Add track specific tags
-            let title = chapter.get_tags().map_or(None, |tags| {
-                tags.get::<gst::tags::Title>().map(|tag| {
-                    tag.get().unwrap().to_owned()
+            let title = chapter
+                .get_tags()
+                .map_or(None, |tags| {
+                    tags.get::<gst::tags::Title>()
+                        .map(|tag| tag.get().unwrap().to_owned())
                 })
-            }).unwrap_or(DEFAULT_TITLE.to_owned());
+                .unwrap_or(DEFAULT_TITLE.to_owned());
             tags.add::<gst::tags::Title>(&title.as_str(), gst::TagMergeMode::Replace);
 
             let (start, end) = chapter.get_start_stop_times().unwrap();
@@ -607,11 +572,7 @@ impl ExportController {
 
     fn switch_to_busy(&self) {
         // TODO: allow cancelling export / split
-        if let Some(main_ctrl) = self.main_ctrl
-            .as_ref()
-            .unwrap()
-            .upgrade()
-        {
+        if let Some(main_ctrl) = self.main_ctrl.as_ref().unwrap().upgrade() {
             main_ctrl.borrow().set_cursor_waiting();
         }
 
@@ -626,11 +587,7 @@ impl ExportController {
     }
 
     fn switch_to_available(&self) {
-        if let Some(main_ctrl) = self.main_ctrl
-            .as_ref()
-            .unwrap()
-            .upgrade()
-        {
+        if let Some(main_ctrl) = self.main_ctrl.as_ref().unwrap().upgrade() {
             main_ctrl.borrow().reset_cursor();
         }
 
@@ -653,11 +610,7 @@ impl ExportController {
         }
     }
 
-    fn register_toc_setter_listener(
-        &mut self,
-        timeout: u32,
-        ui_rx: Receiver<ContextMessage>,
-    ) {
+    fn register_toc_setter_listener(&mut self, timeout: u32, ui_rx: Receiver<ContextMessage>) {
         let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
 
         self.listener_src = Some(gtk::timeout_add(timeout, move || {
@@ -690,8 +643,8 @@ impl ExportController {
                             Ok(_) => (),
                             Err(err) => {
                                 keep_going = false;
-                                let message = gettext("Failed to export media. {}")
-                                    .replacen("{}", &err, 1);
+                                let message =
+                                    gettext("Failed to export media. {}").replacen("{}", &err, 1);
                                 this.show_error(&message);
                                 error!("{}", message);
                             }
@@ -705,8 +658,8 @@ impl ExportController {
                     }
                     FailedToExport(error) => {
                         keep_going = false;
-                        let message = gettext("Failed to export media. {}")
-                            .replacen("{}", &error, 1);
+                        let message =
+                            gettext("Failed to export media. {}").replacen("{}", &error, 1);
                         this.show_error(&message);
                         error!("{}", message);
                     }
@@ -773,8 +726,8 @@ impl ExportController {
                         this.listener_src = None;
                         keep_going = false;
                         process_done = true;
-                        let message = gettext("Failed to split media. {}")
-                            .replacen("{}", &error, 1);
+                        let message =
+                            gettext("Failed to split media. {}").replacen("{}", &error, 1);
                         error!("{}", message);
                         this.show_error(&message);
                     }

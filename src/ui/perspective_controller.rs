@@ -56,12 +56,14 @@ impl PerspectiveController {
 
     pub fn register_callbacks(
         this_rc: &Rc<RefCell<Self>>,
-        _main_ctrl: &Rc<RefCell<MainController>>
+        _main_ctrl: &Rc<RefCell<MainController>>,
     ) {
         let this = this_rc.borrow();
 
         let menu_btn_box = gtk_downcast!(
-            this.menu_button.get_child().expect("PerspectiveController no box for menu button"),
+            this.menu_button
+                .get_child()
+                .expect("PerspectiveController no box for menu button"),
             gtk::Box,
             "menu button"
         );
@@ -71,26 +73,33 @@ impl PerspectiveController {
         let mut index = 0;
         let stack_children = this.stack.get_children();
         for perspective_box_child in popover_box.get_children() {
-            let stack_child = stack_children.get(index)
-                .expect(&format!("PerspectiveController no stack child for index {:?}", index));
+            let stack_child = stack_children.get(index).expect(&format!(
+                "PerspectiveController no stack child for index {:?}",
+                index
+            ));
 
             let button = gtk_downcast!(perspective_box_child, gtk::Button, "popover box");
             let button_name = button.get_name();
             let button_box = gtk_downcast!(
-                button.get_child()
-                    .expect(&format!("PerspectiveController no box for button {:?}", button_name)),
+                button.get_child().expect(&format!(
+                    "PerspectiveController no box for button {:?}",
+                    button_name
+                )),
                 gtk::Box,
                 button_name
             );
 
             let perspective_icon_name = gtk_downcast!(button_box, 0, gtk::Image, button_name)
                 .get_property_icon_name()
-                .expect(&format!("PerspectiveController no icon name for button {:?}",
+                .expect(&format!(
+                    "PerspectiveController no icon name for button {:?}",
                     button_name,
                 ));
 
-            let stack_child_name = this.stack.get_child_name(stack_child)
-                .expect(&format!("PerspectiveController no name for stack page matching {:?}",
+            let stack_child_name = this.stack
+                .get_child_name(stack_child)
+                .expect(&format!(
+                    "PerspectiveController no name for stack page matching {:?}",
                     button_name,
                 ))
                 .to_owned();

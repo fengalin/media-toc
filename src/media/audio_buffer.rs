@@ -198,7 +198,9 @@ impl AudioBuffer {
                     )
                 } else if incoming_lower >= self.lower && incoming_upper <= self.upper {
                     // 2. incoming buffer included in current container
-                    debug!(concat!("case 2. contained in current container ",
+                    debug!(
+                        concat!(
+                            "case 2. contained in current container ",
                             "self [{}, {}], incoming [{}, {}]",
                         ),
                         self.lower,
@@ -215,11 +217,9 @@ impl AudioBuffer {
                     )
                 } else if incoming_lower > self.lower && incoming_lower < self.upper {
                     // 3. can append [self.upper, upper] to the end
-                    debug!("case 3. append to the end (partial) [{}, {}], incoming [{}, {}]",
-                        self.upper,
-                        incoming_upper,
-                        incoming_lower,
-                        incoming_upper
+                    debug!(
+                        "case 3. append to the end (partial) [{}, {}], incoming [{}, {}]",
+                        self.upper, incoming_upper, incoming_lower, incoming_upper
                     );
                     // self.lower unchanged
                     let previous_upper = self.upper;
@@ -235,7 +235,8 @@ impl AudioBuffer {
                     )
                 } else if incoming_upper < self.upper && incoming_upper >= self.lower {
                     // 4. can insert [lower, self.lower] at the begining
-                    debug!("case 4. insert at the begining [{}, {}], incoming [{}, {}]",
+                    debug!(
+                        "case 4. insert at the begining [{}, {}], incoming [{}, {}]",
                         incoming_lower, self.lower, incoming_lower, incoming_upper
                     );
                     let upper_to_add = self.lower;
@@ -250,7 +251,8 @@ impl AudioBuffer {
                     )
                 } else {
                     // 5. can't merge with previous buffer
-                    debug!("case 5. can't merge self [{}, {}], incoming [{}, {}]",
+                    debug!(
+                        "case 5. can't merge self [{}, {}], incoming [{}, {}]",
                         self.lower, self.upper, incoming_lower, incoming_upper
                     );
                     self.samples.clear();
@@ -298,9 +300,7 @@ impl AudioBuffer {
         }
 
         if upper_to_add_rel > 0 {
-            let map = buffer.map_readable()
-                .take()
-                .unwrap();
+            let map = buffer.map_readable().take().unwrap();
             let converter_iter = SampleConverterIter::new(
                 map.as_slice(),
                 self.audio_info.as_ref().unwrap(),
@@ -477,7 +477,8 @@ impl<'a> DoubleEndedIterator for SampleConverterIter<'a> {
         }
 
         self.last -= 1;
-        self.cursor.set_position((self.last * self.bytes_per_sample) as u64);
+        self.cursor
+            .set_position((self.last * self.bytes_per_sample) as u64);
         Some((self.convert)(&mut self.cursor))
     }
 }
@@ -513,8 +514,12 @@ impl<'a> Iter<'a> {
             })
         } else {
             // out of bound TODO: return an error
-            trace!("Iter::new [{}, {}] out of bounds [{}, {}]",
-                lower, upper, buffer.lower, buffer.upper
+            trace!(
+                "Iter::new [{}, {}] out of bounds [{}, {}]",
+                lower,
+                upper,
+                buffer.lower,
+                buffer.upper
             );
             None
         }
@@ -582,7 +587,9 @@ mod tests {
 
         let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
         audio_buffer.init(
-            gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, 2).build().unwrap()
+            gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, 2)
+                .build()
+                .unwrap(),
         );
 
         info!("samples [100:200] init");
@@ -687,7 +694,9 @@ mod tests {
 
         let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
         audio_buffer.init(
-            gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, 2).build().unwrap()
+            gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, 2)
+                .build()
+                .unwrap(),
         );
 
         info!("* samples [100:200] init");
