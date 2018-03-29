@@ -30,7 +30,7 @@ at the starting position in paused mode.
 - Export the table of contents to:
 	* A Matroska container. Currently, this is possible only if the input streams are compatible
 	with Matroska containers. I'll add an UI to allow converting streams later. This requires
-	[`gst-plugins-good` 1.14](https://gstreamer.freedesktop.org/) or above.
+	[`gst-plugins-good` 1.14](https://gstreamer.freedesktop.org/releases/1.14/) or above.
 	* [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
 	* [Cue Sheet](http://wiki.hydrogenaud.io/index.php?title=Cue_sheet).
 - Split the media file's first audio stream into `flac`, `wave`, `opus`, `vorbis` or `mp3` files:
@@ -78,7 +78,7 @@ with a `txt` extension will be created in the media's folder.
 ## Export the resulting media with its table of contents in a Matroska container
 
 Currently, this is possible only for media with streams compatible with Matroska containers.
-Warning: this also requires [`gst-plugins-good` 1.14](https://gstreamer.freedesktop.org/)
+Warning: this also requires [`gst-plugins-good` 1.14](https://gstreamer.freedesktop.org/releases/1.14/)
 or above.
 
 1. Open a media with a table of contents, define the chapters as explained in [this how-to](#how-to-create-the-toc)
@@ -101,7 +101,7 @@ The files are named after the artist, media title, chapter number and chapter ti
 
 ## Use `mkvmerge` to add the toc to an existing Matrsoka media
 
-Exporting the table of contents to a Matroska container requires [`gst-plugins-good` 1.14](https://gstreamer.freedesktop.org/)
+Exporting the table of contents to a Matroska container requires [`gst-plugins-good` 1.14](https://gstreamer.freedesktop.org/releases/1.14/)
 or above. If you use an ealier version, follow these instructions:
 
 1. Install `mkvtoolnix` using your package manager.
