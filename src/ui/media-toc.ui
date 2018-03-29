@@ -898,7 +898,7 @@ Author: François Laignel
                                     <property name="halign">start</property>
                                     <property name="label" translatable="yes">mkvmerge compliant text format.
 Flat table of contents.
-Time precision: 1 ms.</property>
+Time resolution: 1 ms.</property>
                                     <attributes>
                                       <attribute name="scale" value="0.90000000000000002"/>
                                     </attributes>
@@ -950,7 +950,7 @@ Time precision: 1 ms.</property>
                                     <property name="halign">start</property>
                                     <property name="label" translatable="yes">Cue Sheet compliant text format.
 Hierachical table of contents.
-Time precision: 1 frame (1/75 s).</property>
+Time resolution: 1 frame (1/75 s).</property>
                                     <attributes>
                                       <attribute name="scale" value="0.90000000000000002"/>
                                     </attributes>
@@ -1002,7 +1002,7 @@ Time precision: 1 frame (1/75 s).</property>
                                     <property name="halign">start</property>
                                     <property name="label" translatable="yes">Binary audio, video &amp; text media container.
 Hierachical table of contents.
-Time precision: 1 ns.</property>
+Time resolution: 1 ns.</property>
                                     <attributes>
                                       <attribute name="scale" value="0.90000000000000002"/>
                                     </attributes>

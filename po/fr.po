@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-27 19:51+0200\n"
-"PO-Revision-Date: 2018-03-27 19:52+0200\n"
+"POT-Creation-Date: 2018-03-29 14:04+0200\n"
+"PO-Revision-Date: 2018-03-29 14:05+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -55,15 +55,15 @@ msgstr "ceci est un test"
 msgid "Failed to get Video Widget."
 msgstr "Impossible de créer l'afficheur vidéo."
 
-#: src/media/playback_context.rs:74 src/media/playback_context.rs:184
+#: src/media/playback_context.rs:74 src/media/playback_context.rs:182
 msgid "Couldn't find GStreamer GTK video sink."
 msgstr "Impossible de trouver l'élément « GTK video sink »."
 
-#: src/media/playback_context.rs:124
+#: src/media/playback_context.rs:123
 msgid "Opening {}..."
 msgstr "Ouverture de {}…"
 
-#: src/media/playback_context.rs:165
+#: src/media/playback_context.rs:163
 msgid ""
 "Missing `decodebin3`\n"
 "check your gst-plugins-base install"
@@ -71,23 +71,23 @@ msgstr ""
 "`decodebin3` manquant\n"
 "Vérifiez l'installation de gst-plugin-base"
 
-#: src/media/playback_context.rs:185
+#: src/media/playback_context.rs:183
 msgid "Video playback will be disabled."
 msgstr "L'affichage vidéo sera désactivé."
 
-#: src/media/playback_context.rs:186
+#: src/media/playback_context.rs:184
 msgid "Please install {} or {}, depending on your distribution."
 msgstr "Veuillez installer {} ou {}, selon votre distribution."
 
-#: src/media/playback_context.rs:228
+#: src/media/playback_context.rs:215
 msgid "Could not set media in playing state."
 msgstr "Impossible de passer le média en mode lecture."
 
-#: src/media/playback_context.rs:235
+#: src/media/playback_context.rs:222
 msgid "Could not set media in paused state."
 msgstr "Impossible de passer le média en mode pause."
 
-#: src/media/splitter_context.rs:32
+#: src/media/splitter_context.rs:31
 msgid ""
 "Missing `flacenc`\n"
 "check your gst-plugins-good install"
@@ -95,7 +95,7 @@ msgstr ""
 "`flacenc` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: src/media/splitter_context.rs:38
+#: src/media/splitter_context.rs:37
 msgid ""
 "Missing `wavenc`\n"
 "check your gst-plugins-good install"
@@ -103,7 +103,7 @@ msgstr ""
 "`wavenc` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: src/media/splitter_context.rs:44 src/media/splitter_context.rs:56
+#: src/media/splitter_context.rs:43 src/media/splitter_context.rs:55
 msgid ""
 "Missing `opusenc`\n"
 "check your gst-plugins-good install"
@@ -111,7 +111,7 @@ msgstr ""
 "`opusenc` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: src/media/splitter_context.rs:49 src/media/splitter_context.rs:61
+#: src/media/splitter_context.rs:48 src/media/splitter_context.rs:60
 msgid ""
 "Missing `oggmux`\n"
 "check your gst-plugins-good install"
@@ -119,7 +119,7 @@ msgstr ""
 "`oggmux` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: src/media/splitter_context.rs:68
+#: src/media/splitter_context.rs:67
 msgid ""
 "Missing `lamemp3enc`\n"
 "check your gst-plugins-good install"
@@ -127,7 +127,7 @@ msgstr ""
 "`lamemp3enc` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: src/media/splitter_context.rs:73
+#: src/media/splitter_context.rs:72
 msgid ""
 "Missing `id3v2mux`\n"
 "check your gst-plugins-good install"
@@ -135,20 +135,20 @@ msgstr ""
 "`id3v2mux` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: src/media/splitter_context.rs:91
+#: src/media/splitter_context.rs:90
 msgid "Splitting {}..."
 msgstr "Découpage de {}…"
 
-#: src/media/splitter_context.rs:215
+#: src/media/splitter_context.rs:208
 msgid "Failed to intialize the split"
 msgstr "Impossible d'initialiser le découpage"
 
-#: src/media/splitter_context.rs:310
+#: src/media/splitter_context.rs:303
 msgid "Failed to terminate properly. Check the resulting file."
 msgstr ""
 "Impossible de terminer correctement. Veuillez vérifiez le fichier généré."
 
-#: src/media/splitter_context.rs:330
+#: src/media/splitter_context.rs:323
 msgid "Failed to start splitting."
 msgstr "Impossible de démarrer le découpage."
 
@@ -256,19 +256,19 @@ msgstr "Échec lors du découpage du média. {}"
 msgid "Failed to open toc file."
 msgstr "Impossible d'ouvrir le fichier de table des matières."
 
-#: src/ui/main_controller.rs:162
+#: src/ui/main_controller.rs:163
 msgid "Failed to initialize GStreamer, the application can't be used."
 msgstr "Échec à l'initialisation de GStreamer, l'application est inutilisable."
 
-#: src/ui/main_controller.rs:496 src/ui/main_controller.rs:592
+#: src/ui/main_controller.rs:475 src/ui/main_controller.rs:571
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
 
-#: src/ui/main_controller.rs:546
+#: src/ui/main_controller.rs:525
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:551
+#: src/ui/main_controller.rs:530
 msgid "Open"
 msgstr "Ouvrir"
 
@@ -348,11 +348,11 @@ msgstr "Format textuel de mkvmerge"
 msgid ""
 "mkvmerge compliant text format.\n"
 "Flat table of contents.\n"
-"Time precision: 1 ms."
+"Time resolution: 1 ms."
 msgstr ""
 "Format textuel compatible avec mkvmerge.\n"
 "Table des matières à plat.\n"
-"Précision temporelle : 1 ms."
+"Résolution temporelle : 1 ms."
 
 #: src/ui/media-toc.ui:935
 msgid "Cue Sheet format"
@@ -362,11 +362,11 @@ msgstr "Format Cue Sheet"
 msgid ""
 "Cue Sheet compliant text format.\n"
 "Hierachical table of contents.\n"
-"Time precision: 1 frame (1/75 s)."
+"Time resolution: 1 frame (1/75 s)."
 msgstr ""
 "Format textuel Cue Sheet.\n"
 "Table des matières hiérarchique.\n"
-"Précision temporelle : 1 trame (1/75 s)."
+"Résolution temporelle : 1 trame (1/75 s)."
 
 #: src/ui/media-toc.ui:987
 msgid "Matroska Container"
@@ -376,11 +376,11 @@ msgstr "Conteneur Matroska"
 msgid ""
 "Binary audio, video & text media container.\n"
 "Hierachical table of contents.\n"
-"Time precision: 1 ns."
+"Time resolution: 1 ns."
 msgstr ""
 "Conteneur binaire audio, vidéo et textuel.\n"
 "Table des matières hiérarchique.\n"
-"Précision temporelle : 1 ns."
+"Résolution temporelle : 1 ns."
 
 #: src/ui/media-toc.ui:1047
 msgid "Export"
