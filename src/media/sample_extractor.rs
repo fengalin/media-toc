@@ -46,13 +46,14 @@ pub trait SampleExtractor: Send {
 
     fn cleanup(&mut self);
 
-    fn set_state(&mut self, state: gst::State) {
-        self.get_extraction_state_mut().state = state;
+    fn set_state(&mut self, new_state: gst::State) {
+        let state = self.get_extraction_state_mut();
+        state.state = new_state;
+        state.time_ref = None;
     }
 
     fn set_time_ref(&mut self, audio_ref: &gst::Element) {
-        let state = self.get_extraction_state_mut();
-        state.audio_ref = Some(audio_ref.clone());
+        self.get_extraction_state_mut().audio_ref = Some(audio_ref.clone());
     }
 
     fn new_segment(&mut self) {
@@ -87,7 +88,6 @@ pub trait SampleExtractor: Send {
                 } else {
                     let mut query = gst::Query::new_position(gst::Format::Time);
                     if state.audio_ref.as_ref().unwrap().query(&mut query) {
-                        state.time_ref = None;
                         let base_time = query.get_result().get_value() as u64;
                         state.time_ref = Some((base_time, frame_time));
                         base_time
@@ -97,7 +97,6 @@ pub trait SampleExtractor: Send {
                 }
             }
             gst::State::Paused => {
-                state.time_ref = None;
                 let mut query = gst::Query::new_position(gst::Format::Time);
                 if state.audio_ref.as_ref().unwrap().query(&mut query) {
                     query.get_result().get_value() as u64
