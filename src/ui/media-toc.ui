@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Generated with glade 3.20.4 
+<!-- Generated with glade 3.22.0 
 
 The MIT License (MIT)
 
@@ -143,7 +143,7 @@ Author: François Laignel <fengalin@free.fr>
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="halign">end</property>
-                    <property name="label" translatable="yes">Title:</property>
+                    <property name="label" translatable="yes" comments="Label">Title:</property>
                   </object>
                   <packing>
                     <property name="left_attach">0</property>
@@ -155,7 +155,7 @@ Author: François Laignel <fengalin@free.fr>
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="halign">end</property>
-                    <property name="label" translatable="yes">Artist:</property>
+                    <property name="label" translatable="yes" comments="Label">Artist:</property>
                   </object>
                   <packing>
                     <property name="left_attach">0</property>
@@ -167,7 +167,7 @@ Author: François Laignel <fengalin@free.fr>
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="halign">end</property>
-                    <property name="label" translatable="yes">Container:</property>
+                    <property name="label" translatable="yes" comments="Label">Container:</property>
                   </object>
                   <packing>
                     <property name="left_attach">0</property>
@@ -179,7 +179,7 @@ Author: François Laignel <fengalin@free.fr>
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="halign">end</property>
-                    <property name="label" translatable="yes">Video Codec:</property>
+                    <property name="label" translatable="yes" comments="Label">Video Codec:</property>
                   </object>
                   <packing>
                     <property name="left_attach">0</property>
@@ -191,7 +191,7 @@ Author: François Laignel <fengalin@free.fr>
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="halign">end</property>
-                    <property name="label" translatable="yes">Audio Codec:</property>
+                    <property name="label" translatable="yes" comments="Label">Audio Codec:</property>
                   </object>
                   <packing>
                     <property name="left_attach">0</property>
@@ -203,7 +203,7 @@ Author: François Laignel <fengalin@free.fr>
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="halign">end</property>
-                    <property name="label" translatable="yes">Duration:</property>
+                    <property name="label" translatable="yes" comments="Label">Duration:</property>
                   </object>
                   <packing>
                     <property name="left_attach">0</property>
@@ -370,8 +370,8 @@ Author: François Laignel <fengalin@free.fr>
                     <property name="visible">True</property>
                     <property name="sensitive">False</property>
                     <property name="can_focus">False</property>
+                    <property name="tooltip_text" translatable="yes" comments="Button tooltip">Repeat current chapter</property>
                     <property name="halign">start</property>
-                    <property name="label" translatable="yes">Repeat Chapter</property>
                     <property name="use_underline">True</property>
                     <property name="icon_widget">repeat-image</property>
                   </object>
@@ -396,8 +396,8 @@ Author: François Laignel <fengalin@free.fr>
                     <property name="visible">True</property>
                     <property name="sensitive">False</property>
                     <property name="can_focus">False</property>
+                    <property name="tooltip_text" translatable="yes" comments="Button tooltip">Remove current chapter</property>
                     <property name="halign">end</property>
-                    <property name="label" translatable="yes">Remove Chapter</property>
                     <property name="use_underline">True</property>
                     <property name="icon_name">list-remove-symbolic</property>
                   </object>
@@ -411,8 +411,8 @@ Author: François Laignel <fengalin@free.fr>
                     <property name="visible">True</property>
                     <property name="sensitive">False</property>
                     <property name="can_focus">False</property>
+                    <property name="tooltip_text" translatable="yes" comments="Button tooltip">Add a new chapter</property>
                     <property name="halign">end</property>
-                    <property name="label" translatable="yes">Add Chapter</property>
                     <property name="use_underline">True</property>
                     <property name="icon_name">list-add-symbolic</property>
                   </object>
@@ -472,7 +472,6 @@ Author: François Laignel <fengalin@free.fr>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="hexpand">True</property>
-                        <property name="label" translatable="yes">Info text</property>
                         <property name="selectable">True</property>
                       </object>
                       <packing>
@@ -602,8 +601,8 @@ Author: François Laignel <fengalin@free.fr>
                                     <property name="visible">True</property>
                                     <property name="sensitive">False</property>
                                     <property name="can_focus">False</property>
+                                    <property name="tooltip_text" translatable="yes" comments="Button tooltip">Zoom in</property>
                                     <property name="halign">center</property>
-                                    <property name="label" translatable="yes">Zoom In</property>
                                     <property name="use_underline">True</property>
                                     <property name="icon_name">zoom-in-symbolic</property>
                                   </object>
@@ -617,8 +616,8 @@ Author: François Laignel <fengalin@free.fr>
                                     <property name="visible">True</property>
                                     <property name="sensitive">False</property>
                                     <property name="can_focus">False</property>
+                                    <property name="tooltip_text" translatable="yes" comments="Button tooltip">Zoom out</property>
                                     <property name="halign">center</property>
-                                    <property name="label" translatable="yes">Zoom Out</property>
                                     <property name="use_underline">True</property>
                                     <property name="icon_name">zoom-out-symbolic</property>
                                   </object>
@@ -682,6 +681,7 @@ Author: François Laignel <fengalin@free.fr>
                                 <property name="visible">True</property>
                                 <property name="sensitive">False</property>
                                 <property name="can_focus">False</property>
+                                <property name="tooltip_text" translatable="yes" comments="Button tooltip">Play / Pause</property>
                                 <property name="halign">end</property>
                                 <property name="valign">end</property>
                                 <property name="visible_vertical">False</property>
@@ -709,8 +709,7 @@ Author: François Laignel <fengalin@free.fr>
                     </child>
                   </object>
                   <packing>
-                    <property name="name">Display</property>
-                    <property name="title" translatable="yes">Display</property>
+                    <property name="name">display</property>
                     <property name="icon_name">applications-multimedia-symbolic</property>
                   </packing>
                 </child>
@@ -827,8 +826,7 @@ Author: François Laignel <fengalin@free.fr>
                     </child>
                   </object>
                   <packing>
-                    <property name="name">Streams</property>
-                    <property name="title" translatable="yes">Streams</property>
+                    <property name="name">streams</property>
                     <property name="position">1</property>
                   </packing>
                 </child>
@@ -1044,10 +1042,11 @@ Time resolution: 1 ns.</property>
                     </child>
                     <child>
                       <object class="GtkButton" id="export-btn">
-                        <property name="label" translatable="yes">Export</property>
+                        <property name="label" translatable="yes" comments="Button label">Export</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="receives_default">True</property>
+                        <property name="tooltip_text" translatable="yes" comments="Button tooltip">Export media to selected format</property>
                         <property name="halign">center</property>
                         <property name="valign">center</property>
                         <property name="margin_left">20</property>
@@ -1125,8 +1124,7 @@ Time resolution: 1 ns.</property>
                     </child>
                   </object>
                   <packing>
-                    <property name="name">page0</property>
-                    <property name="title" translatable="yes">page0</property>
+                    <property name="name">export</property>
                     <property name="position">2</property>
                   </packing>
                 </child>
@@ -1528,10 +1526,11 @@ Tags support.</property>
                     </child>
                     <child>
                       <object class="GtkButton" id="split-btn">
-                        <property name="label" translatable="yes">Split</property>
+                        <property name="label" translatable="yes" comments="Button label">Split</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="receives_default">True</property>
+                        <property name="tooltip_text" translatable="yes" comments="Button tooltip">Split audio stream and encode to selected format</property>
                         <property name="halign">center</property>
                         <property name="valign">end</property>
                         <property name="margin_left">20</property>
@@ -1596,8 +1595,7 @@ Tags support.</property>
                     </child>
                   </object>
                   <packing>
-                    <property name="name">page1</property>
-                    <property name="title" translatable="yes">page1</property>
+                    <property name="name">split</property>
                     <property name="position">3</property>
                   </packing>
                 </child>
@@ -1652,6 +1650,7 @@ Tags support.</property>
                   <object class="GtkImage" id="perspective-menu-btn-arrow-image">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
+                    <property name="tooltip_text" translatable="yes">Perspective selector</property>
                     <property name="icon_name">pan-down-symbolic</property>
                   </object>
                   <packing>
@@ -1670,6 +1669,7 @@ Tags support.</property>
             <property name="sensitive">False</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
+            <property name="tooltip_text" translatable="yes" comments="Button tooltip">Open media</property>
             <child>
               <object class="GtkImage">
                 <property name="visible">True</property>
@@ -1691,6 +1691,7 @@ Tags support.</property>
             <property name="sensitive">False</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
+            <property name="tooltip_text" translatable="yes" comments="Button tooltip">Show / hide chapters list</property>
             <property name="image">show_chapters-image</property>
             <property name="always_show_image">True</property>
             <property name="active">True</property>
@@ -1743,7 +1744,7 @@ Tags support.</property>
                   <object class="GtkLabel" id="perspective-display-lb">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="label" translatable="yes">Display</property>
+                    <property name="label" translatable="yes" comments="Name of the perspective">Display</property>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -1788,7 +1789,7 @@ Tags support.</property>
                   <object class="GtkLabel" id="perspective-streams-lbl">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="label" translatable="yes">Streams</property>
+                    <property name="label" translatable="yes" comments="Name of the perspective">Streams</property>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -1833,7 +1834,7 @@ Tags support.</property>
                   <object class="GtkLabel" id="perspective-export-lbl">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="label" translatable="yes">Export	</property>
+                    <property name="label" translatable="yes" comments="Name of the perspective">Export	</property>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -1878,7 +1879,7 @@ Tags support.</property>
                   <object class="GtkLabel" id="perspective-split-lbl">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="label" translatable="yes">Split</property>
+                    <property name="label" translatable="yes" comments="Name of the perspective">Split</property>
                   </object>
                   <packing>
                     <property name="expand">False</property>
