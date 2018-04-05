@@ -23,8 +23,8 @@ impl TocSetterContext {
     pub fn check_requirements() -> Result<(), String> {
         // Exporting to Mastroska containers is only
         // available from gst-plugins-good 1.13.1
-        let (major, minor, micro, _nano) = gst::version();
-        if major >= 1 && minor >= 13 && micro >= 1 {
+        let (major, minor, _micro, _nano) = gst::version();
+        if major >= 1 && minor >= 14 {
             gst::ElementFactory::make("matroskamux", None).map_or(
                 Err(gettext(
                     "Missing `matroskamux`\ncheck your gst-plugins-good install",
