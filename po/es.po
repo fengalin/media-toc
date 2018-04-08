@@ -1,0 +1,498 @@
+# Spanish translations for media-toc package
+# Traducción en español para el paquete media-toc.
+# Copyright (C) 2018 François Laignel
+# This file is distributed under the same license as the media-toc package.
+# Esther <xther81@hotmail.com>, 2018.
+# Xther <xther81@hotmail.com>, 2018.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: media-toc\n"
+"Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
+"POT-Creation-Date: 2018-04-08 14:13+0200\n"
+"PO-Revision-Date: 2018-04-08 14:24+0200\n"
+"Last-Translator: Xther <xther81@hotmail.com>\n"
+"Language-Team: castillan <>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Gtranslator 2.91.7\n"
+
+#: src/main.rs:50
+msgid ""
+"Build a table of contents from a media file\n"
+"or split a media file into chapters"
+msgstr ""
+
+#: src/main.rs:51
+msgid "Display this message"
+msgstr ""
+
+#: src/main.rs:52
+msgid "Print version information"
+msgstr ""
+
+#: src/main.rs:54
+msgid "MEDIA"
+msgstr ""
+
+#: src/main.rs:64
+msgid "Path to the input media file"
+msgstr ""
+
+#: src/main.rs:70
+msgid "Failed to initialize GTK"
+msgstr ""
+
+#: src/main.rs:116
+msgid "test-msg"
+msgstr ""
+
+#: src/media/playback_context.rs:64 src/media/playback_context.rs:70
+msgid "Failed to get Video Widget."
+msgstr ""
+
+#: src/media/playback_context.rs:74 src/media/playback_context.rs:188
+msgid "Couldn't find GStreamer GTK video sink."
+msgstr ""
+
+#: src/media/playback_context.rs:125
+msgid "Opening {}..."
+msgstr ""
+
+#: src/media/playback_context.rs:170
+msgid ""
+"Missing `decodebin3`\n"
+"check your gst-plugins-base install"
+msgstr ""
+
+#: src/media/playback_context.rs:189
+msgid "Video playback will be disabled."
+msgstr ""
+
+#: src/media/playback_context.rs:190
+msgid "Please install {} or {}, depending on your distribution."
+msgstr ""
+
+#: src/media/playback_context.rs:223
+msgid "Could not set media in playing state."
+msgstr ""
+
+#: src/media/playback_context.rs:230
+msgid "Could not set media in paused state."
+msgstr ""
+
+#: src/media/splitter_context.rs:31
+msgid ""
+"Missing `flacenc`\n"
+"check your gst-plugins-good install"
+msgstr ""
+
+#: src/media/splitter_context.rs:37
+msgid ""
+"Missing `wavenc`\n"
+"check your gst-plugins-good install"
+msgstr ""
+
+#: src/media/splitter_context.rs:44 src/media/splitter_context.rs:59
+msgid ""
+"Missing `opusenc`\n"
+"check your gst-plugins-good install"
+msgstr ""
+
+#: src/media/splitter_context.rs:51 src/media/splitter_context.rs:66
+msgid ""
+"Missing `oggmux`\n"
+"check your gst-plugins-good install"
+msgstr ""
+
+#: src/media/splitter_context.rs:74
+msgid ""
+"Missing `lamemp3enc`\n"
+"check your gst-plugins-good install"
+msgstr ""
+
+#: src/media/splitter_context.rs:81
+msgid ""
+"Missing `id3v2mux`\n"
+"check your gst-plugins-good install"
+msgstr ""
+
+#: src/media/splitter_context.rs:102
+msgid "Splitting {}..."
+msgstr ""
+
+#: src/media/splitter_context.rs:220
+msgid "Failed to intialize the split"
+msgstr ""
+
+#: src/media/splitter_context.rs:313
+msgid "Failed to terminate properly. Check the resulting file."
+msgstr ""
+
+#: src/media/splitter_context.rs:333
+msgid "Failed to start splitting."
+msgstr ""
+
+#: src/media/toc_setter_context.rs:30
+msgid ""
+"Missing `matroskamux`\n"
+"check your gst-plugins-good install"
+msgstr ""
+
+#: src/media/toc_setter_context.rs:36
+msgid ""
+"Matroska export requires\n"
+"gst-plugins-good >= 1.14"
+msgstr ""
+
+#: src/media/toc_setter_context.rs:48
+msgid "Exporting to {}..."
+msgstr ""
+
+#: src/metadata/cue_sheet_format.rs:25
+msgid "Failed to write Cue Sheet file"
+msgstr ""
+
+#: src/metadata/cue_sheet_format.rs:33 src/metadata/mkvmerge_text_format.rs:166
+msgid "The table of contents is empty"
+msgstr ""
+
+#: src/metadata/media_info.rs:5
+msgid "untitled"
+msgstr ""
+
+#: src/metadata/mkvmerge_text_format.rs:59
+msgid "Failed to read mkvmerge text file."
+msgstr ""
+
+#: src/metadata/mkvmerge_text_format.rs:85
+msgid "couldn't find chapter nb for: {}"
+msgstr ""
+
+#: src/metadata/mkvmerge_text_format.rs:101
+msgid "unexpected timestamp: {}"
+msgstr ""
+
+#: src/metadata/mkvmerge_text_format.rs:124
+msgid "unexpected format for: {}"
+msgstr ""
+
+#: src/metadata/mkvmerge_text_format.rs:129
+msgid "expected '=' in: {}"
+msgstr ""
+
+#: src/metadata/mkvmerge_text_format.rs:136
+msgid "couldn't update last start position"
+msgstr ""
+
+#: src/metadata/mkvmerge_text_format.rs:158
+msgid "Failed to write mkvmerge text file"
+msgstr ""
+
+#: src/ui/chapter_tree_manager.rs:134
+msgid "Title"
+msgstr ""
+
+#: src/ui/chapter_tree_manager.rs:135
+msgid "Start"
+msgstr ""
+
+#: src/ui/chapter_tree_manager.rs:136
+msgid "End"
+msgstr ""
+
+#: src/ui/export_controller.rs:298
+msgid "Table of contents exported succesfully"
+msgstr ""
+
+#: src/ui/export_controller.rs:305
+msgid "Failed to create the file for the table of contents"
+msgstr ""
+
+#: src/ui/export_controller.rs:370
+msgid "Failed to prepare for export. {}"
+msgstr ""
+
+#: src/ui/export_controller.rs:402
+msgid "Failed to prepare for split. {}"
+msgstr ""
+
+#: src/ui/export_controller.rs:647 src/ui/export_controller.rs:662
+msgid "Failed to export media. {}"
+msgstr ""
+
+#: src/ui/export_controller.rs:656
+msgid "Media exported succesfully"
+msgstr ""
+
+#: src/ui/export_controller.rs:713
+msgid "Media split succesfully"
+msgstr ""
+
+#: src/ui/export_controller.rs:729
+msgid "Failed to split media. {}"
+msgstr ""
+
+#: src/ui/info_controller.rs:299
+msgid "Failed to open toc file."
+msgstr ""
+
+#: src/ui/main_controller.rs:166
+msgid "Failed to initialize GStreamer, the application can't be used."
+msgstr ""
+
+#: src/ui/main_controller.rs:478 src/ui/main_controller.rs:573
+msgid "Error opening file. {}"
+msgstr ""
+
+#: src/ui/main_controller.rs:527
+msgid "Open a media file"
+msgstr ""
+
+#: src/ui/main_controller.rs:532
+msgid "Open"
+msgstr ""
+
+#. Label
+#: src/ui/media-toc.ui:146
+msgid "Title:"
+msgstr ""
+
+#. Label
+#: src/ui/media-toc.ui:158
+msgid "Artist:"
+msgstr ""
+
+#. Label
+#: src/ui/media-toc.ui:170
+msgid "Container:"
+msgstr ""
+
+#. Label
+#: src/ui/media-toc.ui:182
+msgid "Video Codec:"
+msgstr ""
+
+#. Label
+#: src/ui/media-toc.ui:194
+msgid "Audio Codec:"
+msgstr ""
+
+#. Label
+#: src/ui/media-toc.ui:206
+msgid "Duration:"
+msgstr ""
+
+#. Button tooltip
+#: src/ui/media-toc.ui:373
+msgid "Repeat current chapter"
+msgstr ""
+
+#. Button tooltip
+#: src/ui/media-toc.ui:399
+msgid "Remove current chapter"
+msgstr ""
+
+#. Button tooltip
+#: src/ui/media-toc.ui:414
+msgid "Add a new chapter"
+msgstr ""
+
+#. Button tooltip
+#: src/ui/media-toc.ui:604
+msgid "Zoom in"
+msgstr ""
+
+#. Button tooltip
+#: src/ui/media-toc.ui:619
+msgid "Zoom out"
+msgstr ""
+
+#. Button tooltip
+#: src/ui/media-toc.ui:684
+msgid "Play / Pause"
+msgstr ""
+
+#: src/ui/media-toc.ui:732
+msgid "Video Streams"
+msgstr ""
+
+#: src/ui/media-toc.ui:766
+msgid "Audio Streams"
+msgstr ""
+
+#: src/ui/media-toc.ui:800
+msgid "Text Streams"
+msgstr ""
+
+#: src/ui/media-toc.ui:881
+msgid "mkvmerge text format"
+msgstr ""
+
+#: src/ui/media-toc.ui:897
+msgid ""
+"mkvmerge compliant text format.\n"
+"Flat table of contents.\n"
+"Time resolution: 1 ms."
+msgstr ""
+
+#: src/ui/media-toc.ui:933
+msgid "Cue Sheet format"
+msgstr ""
+
+#: src/ui/media-toc.ui:949
+msgid ""
+"Cue Sheet compliant text format.\n"
+"Hierachical table of contents.\n"
+"Time resolution: 1 frame (1/75 s)."
+msgstr ""
+
+#: src/ui/media-toc.ui:985
+msgid "Matroska Container"
+msgstr ""
+
+#: src/ui/media-toc.ui:1001
+msgid ""
+"Binary audio, video & text media container.\n"
+"Hierachical table of contents.\n"
+"Time resolution: 1 ns."
+msgstr ""
+
+#. Button label
+#: src/ui/media-toc.ui:1045
+msgid "Export"
+msgstr ""
+
+#. Button tooltip
+#: src/ui/media-toc.ui:1049
+msgid "Export media to selected format"
+msgstr ""
+
+#: src/ui/media-toc.ui:1068
+msgid "Export Formats"
+msgstr ""
+
+#: src/ui/media-toc.ui:1190
+msgid "Flac"
+msgstr ""
+
+#: src/ui/media-toc.ui:1206
+msgid ""
+"Audio lossless compression.\n"
+"Tags support."
+msgstr ""
+
+#: src/ui/media-toc.ui:1260
+msgid "Wave / PCM"
+msgstr ""
+
+#: src/ui/media-toc.ui:1276
+msgid ""
+"No compression.\n"
+"Tags support."
+msgstr ""
+
+#: src/ui/media-toc.ui:1330
+msgid "Opus"
+msgstr ""
+
+#: src/ui/media-toc.ui:1346 src/ui/media-toc.ui:1416 src/ui/media-toc.ui:1486
+msgid ""
+"Audio lossy compression.\n"
+"Tags support."
+msgstr ""
+
+#: src/ui/media-toc.ui:1400
+msgid "Vorbis"
+msgstr ""
+
+#: src/ui/media-toc.ui:1470
+msgid "MP3"
+msgstr ""
+
+#. Button label
+#. Name of the perspective
+#: src/ui/media-toc.ui:1529 src/ui/media-toc.ui:1882
+msgid "Split"
+msgstr ""
+
+#. Button tooltip
+#: src/ui/media-toc.ui:1533
+msgid "Split audio stream and encode to selected format"
+msgstr ""
+
+#: src/ui/media-toc.ui:1552
+msgid "Split Formats"
+msgstr ""
+
+#: src/ui/media-toc.ui:1653
+msgid "Perspective selector"
+msgstr ""
+
+#. Button tooltip
+#: src/ui/media-toc.ui:1672
+msgid "Open media"
+msgstr ""
+
+#. Button tooltip
+#: src/ui/media-toc.ui:1694
+msgid "Show / hide chapters list"
+msgstr ""
+
+#. Name of the perspective
+#: src/ui/media-toc.ui:1747
+msgid "Display"
+msgstr ""
+
+#. Name of the perspective
+#: src/ui/media-toc.ui:1792
+msgid "Streams"
+msgstr ""
+
+#. Name of the perspective
+#: src/ui/media-toc.ui:1837
+msgid "Export\t"
+msgstr ""
+
+#: src/ui/streams_controller.rs:234
+msgid "unknown"
+msgstr ""
+
+#: src/ui/streams_controller.rs:277
+msgid "Stream id"
+msgstr ""
+
+#: src/ui/streams_controller.rs:278
+msgid "Language"
+msgstr ""
+
+#: src/ui/streams_controller.rs:279
+msgid "Codec"
+msgstr ""
+
+#: src/ui/streams_controller.rs:280
+msgid "Comment"
+msgstr ""
+
+#: src/ui/streams_controller.rs:305
+msgid "Width"
+msgstr ""
+
+#: src/ui/streams_controller.rs:312
+msgid "Height"
+msgstr ""
+
+#: src/ui/streams_controller.rs:349
+msgid "Rate"
+msgstr ""
+
+#: src/ui/streams_controller.rs:356
+msgid "Channels"
+msgstr ""
+
+#: src/ui/streams_controller.rs:387
+msgid "Format"
+msgstr ""
