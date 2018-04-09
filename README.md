@@ -148,7 +148,7 @@ sudo dnf install gcc gtk3-devel glib2-devel gstreamer1-devel \
 	gstreamer1-libav
 ```
 
-### Debian & Unbuntu
+### Debian & Ubuntu
 ```
 sudo apt-get install gcc libgtk-3-dev libgstreamer1.0-dev \
 	libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-{good,bad,ugly} \
