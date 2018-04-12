@@ -25,6 +25,7 @@ pub enum ContextMessage {
     FailedToOpenMedia(String),
     FailedToExport(String),
     InitDone,
+    MissingPlugin(String),
     ReadyForRefresh,
     StreamsSelected,
 }

@@ -584,6 +584,16 @@ impl PlaybackContext {
                         .unwrap();
                     return glib::Continue(false);
                 }
+                gst::MessageView::Element(element_msg) => {
+                    let structure = element_msg.get_structure().unwrap();
+                    if structure.get_name() == "missing-plugin" {
+                        ctx_tx
+                            .send(ContextMessage::MissingPlugin(
+                                structure.get_value("name").unwrap().get::<String>().unwrap(),
+                            ))
+                            .unwrap();
+                    }
+                }
                 gst::MessageView::AsyncDone(_) => match pipeline_state {
                     PipelineState::StreamsSelected => {
                         pipeline_state = PipelineState::Initialized(InitializedState::Paused);
