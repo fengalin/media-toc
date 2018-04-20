@@ -174,8 +174,8 @@ impl PlaybackContext {
             .and_then(|_| {
                 gst::ElementFactory::make("gtksink", None).map_or_else(
                     || {
-                        let (major, minor, micro, _nano) = gst::version();
-                        let (variant1, variant2) = if major >= 1 && minor >= 13 && micro >= 1 {
+                        let (major, minor, _micro, _nano) = gst::version();
+                        let (variant1, variant2) = if major >= 1 && minor >= 14 {
                             ("gstreamer1-plugins-base", "gstreamer1.0-plugins-base")
                         } else {
                             (

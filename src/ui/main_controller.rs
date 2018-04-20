@@ -128,18 +128,19 @@ impl MainController {
                 ExportController::register_callbacks(&this_mut.export_ctrl, &this);
                 StreamsController::register_callbacks(&this_mut.streams_ctrl, &this);
 
-                let mut req_err = PlaybackContext::check_requirements().err();
-                if req_err.is_some() {
-                    let err = req_err.take().unwrap();
-                    error!("{}", err);
-                    let this_rc = Rc::clone(&this);
-                    gtk::idle_add(move || {
-                        this_rc
-                            .borrow()
-                            .show_message(gtk::MessageType::Warning, &err);
-                        glib::Continue(false)
+                PlaybackContext::check_requirements()
+                    .err()
+                    .take()
+                    .map(|err| {
+                        error!("{}", err);
+                        let this_rc = Rc::clone(&this);
+                        gtk::idle_add(move || {
+                            this_rc
+                                .borrow()
+                                .show_message(gtk::MessageType::Warning, &err);
+                            glib::Continue(false)
+                        });
                     });
-                }
 
                 let this_rc = Rc::clone(&this);
                 this_mut.open_btn.connect_clicked(move |_| {
