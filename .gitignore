@@ -13,3 +13,6 @@
 
 # Editors' backup
 *~
+
+# gnome-builder build config file
+.buildconfig
