@@ -33,7 +33,7 @@ pub struct AudioBuffer {
     last_buffer_upper: usize,
     pub lower: usize,
     pub upper: usize,
-    pub samples: VecDeque<i16>,
+    pub samples: VecDeque<f64>,
 }
 
 impl AudioBuffer {
@@ -337,7 +337,7 @@ impl AudioBuffer {
         Iter::new(self, lower, upper, sample_step)
     }
 
-    pub fn get(&self, sample: usize) -> Option<&[i16]> {
+    pub fn get(&self, sample: usize) -> Option<&[f64]> {
         if sample >= self.lower && sample < self.upper {
             let slices = self.samples.as_slices();
             let slice0_len = slices.0.len();
@@ -397,10 +397,10 @@ impl AudioBuffer {
 }
 
 // Convert sample buffer to i16 on the fly
-type ConvertFn = fn(&mut Read) -> i16;
-macro_rules! to_i16(
+type ConvertFn = fn(&mut Read) -> f64;
+macro_rules! to_positive_f64(
     ($read:expr) => {
-        $read.unwrap().to_sample::<i16>()
+        1f64 - $read.unwrap().to_sample::<f64>()
     }
 );
 pub struct SampleConverterIter<'a> {
@@ -435,20 +435,20 @@ impl<'a> SampleConverterIter<'a> {
 
     fn get_convert(audio_info: &gst_audio::AudioInfo) -> ConvertFn {
         let convert: ConvertFn = match audio_info.format() {
-            AudioFormat::S8 => |rdr| to_i16!(rdr.read_i8()),
-            AudioFormat::U8 => |rdr| to_i16!(rdr.read_u8()),
-            AudioFormat::S16le => |rdr| to_i16!(rdr.read_i16::<LittleEndian>()),
-            AudioFormat::S16be => |rdr| to_i16!(rdr.read_i16::<BigEndian>()),
-            AudioFormat::U16le => |rdr| to_i16!(rdr.read_u16::<LittleEndian>()),
-            AudioFormat::U16be => |rdr| to_i16!(rdr.read_u16::<BigEndian>()),
-            AudioFormat::S32le => |rdr| to_i16!(rdr.read_i32::<LittleEndian>()),
-            AudioFormat::S32be => |rdr| to_i16!(rdr.read_i32::<BigEndian>()),
-            AudioFormat::U32le => |rdr| to_i16!(rdr.read_u32::<LittleEndian>()),
-            AudioFormat::U32be => |rdr| to_i16!(rdr.read_u32::<BigEndian>()),
-            AudioFormat::F32le => |rdr| to_i16!(rdr.read_f32::<LittleEndian>()),
-            AudioFormat::F32be => |rdr| to_i16!(rdr.read_f32::<BigEndian>()),
-            AudioFormat::F64le => |rdr| to_i16!(rdr.read_f64::<LittleEndian>()),
-            AudioFormat::F64be => |rdr| to_i16!(rdr.read_f64::<BigEndian>()),
+            AudioFormat::S8 => |rdr| to_positive_f64!(rdr.read_i8()),
+            AudioFormat::U8 => |rdr| to_positive_f64!(rdr.read_u8()),
+            AudioFormat::S16le => |rdr| to_positive_f64!(rdr.read_i16::<LittleEndian>()),
+            AudioFormat::S16be => |rdr| to_positive_f64!(rdr.read_i16::<BigEndian>()),
+            AudioFormat::U16le => |rdr| to_positive_f64!(rdr.read_u16::<LittleEndian>()),
+            AudioFormat::U16be => |rdr| to_positive_f64!(rdr.read_u16::<BigEndian>()),
+            AudioFormat::S32le => |rdr| to_positive_f64!(rdr.read_i32::<LittleEndian>()),
+            AudioFormat::S32be => |rdr| to_positive_f64!(rdr.read_i32::<BigEndian>()),
+            AudioFormat::U32le => |rdr| to_positive_f64!(rdr.read_u32::<LittleEndian>()),
+            AudioFormat::U32be => |rdr| to_positive_f64!(rdr.read_u32::<BigEndian>()),
+            AudioFormat::F32le => |rdr| to_positive_f64!(rdr.read_f32::<LittleEndian>()),
+            AudioFormat::F32be => |rdr| to_positive_f64!(rdr.read_f32::<BigEndian>()),
+            AudioFormat::F64le => |rdr| to_positive_f64!(rdr.read_f64::<LittleEndian>()),
+            AudioFormat::F64be => |rdr| to_positive_f64!(rdr.read_f64::<BigEndian>()),
             _ => unimplemented!("Converting to {:?}", audio_info.format()),
         };
 
@@ -457,7 +457,7 @@ impl<'a> SampleConverterIter<'a> {
 }
 
 impl<'a> Iterator for SampleConverterIter<'a> {
-    type Item = i16;
+    type Item = f64;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.first >= self.last {
@@ -484,9 +484,9 @@ impl<'a> DoubleEndedIterator for SampleConverterIter<'a> {
 }
 
 pub struct Iter<'a> {
-    slice0: &'a [i16],
+    slice0: &'a [f64],
     slice0_len: usize,
-    slice1: &'a [i16],
+    slice1: &'a [f64],
     channels: usize,
     idx: usize,
     upper: usize,
@@ -527,7 +527,7 @@ impl<'a> Iter<'a> {
 }
 
 impl<'a> Iterator for Iter<'a> {
-    type Item = &'a [i16];
+    type Item = &'a [f64];
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.idx >= self.upper {
@@ -558,7 +558,9 @@ impl<'a> Iterator for Iter<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::i16;
     //use env_logger;
+
     use gstreamer as gst;
     use gstreamer_audio as gst_audio;
     use gstreamer_audio::AUDIO_FORMAT_S16;
@@ -580,6 +582,12 @@ mod tests {
         buffer
     }
 
+    macro_rules! i16_to_f64(
+        ($value:expr) => {
+            1f64 + f64::from($value) / f64::from(i16::MIN)
+        };
+    );
+
     #[test]
     fn multiple_gst_buffers() {
         //env_logger::try_init();
@@ -596,70 +604,90 @@ mod tests {
         audio_buffer.push_samples(&build_buffer(100, 200), 100, true);
         assert_eq!(audio_buffer.lower, 100);
         assert_eq!(audio_buffer.upper, 200);
-        assert_eq!(audio_buffer.get(audio_buffer.lower), Some(&[100, -100][..]));
+        assert_eq!(
+            audio_buffer.get(audio_buffer.lower),
+            Some(&[i16_to_f64!(100), i16_to_f64!(-100)][..])
+        );
         assert_eq!(
             audio_buffer.get(audio_buffer.upper - 1),
-            Some(&[199, -199][..])
+            Some(&[i16_to_f64!(199), i16_to_f64!(-199)][..])
         );
 
         info!("samples [50:100]: appending to the begining");
         audio_buffer.push_samples(&build_buffer(50, 100), 50, true);
         assert_eq!(audio_buffer.lower, 50);
         assert_eq!(audio_buffer.upper, 200);
-        assert_eq!(audio_buffer.get(audio_buffer.lower), Some(&[50, -50][..]));
+        assert_eq!(
+            audio_buffer.get(audio_buffer.lower),
+            Some(&[i16_to_f64!(50), i16_to_f64!(-50)][..])
+        );
         assert_eq!(
             audio_buffer.get(audio_buffer.upper - 1),
-            Some(&[199, -199][..])
+            Some(&[i16_to_f64!(199), i16_to_f64!(-199)][..])
         );
 
         info!("samples [0:75]: overlaping on the begining");
         audio_buffer.push_samples(&build_buffer(0, 75), 0, true);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 200);
-        assert_eq!(audio_buffer.get(audio_buffer.lower), Some(&[0, 0][..]));
+        assert_eq!(
+            audio_buffer.get(audio_buffer.lower),
+            Some(&[i16_to_f64!(0), i16_to_f64!(0)][..])
+        );
         assert_eq!(
             audio_buffer.get(audio_buffer.upper - 1),
-            Some(&[199, -199][..])
+            Some(&[i16_to_f64!(199), i16_to_f64!(-199)][..])
         );
 
         info!("samples [200:300]: appending to the end - different segment");
         audio_buffer.push_samples(&build_buffer(200, 300), 200, true);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 300);
-        assert_eq!(audio_buffer.get(audio_buffer.lower), Some(&[0, 0][..]));
+        assert_eq!(
+            audio_buffer.get(audio_buffer.lower),
+            Some(&[i16_to_f64!(0), i16_to_f64!(0)][..])
+        );
         assert_eq!(
             audio_buffer.get(audio_buffer.upper - 1),
-            Some(&[299, -299][..])
+            Some(&[i16_to_f64!(299), i16_to_f64!(-299)][..])
         );
 
         info!("samples [250:275]: contained in current - different segment");
         audio_buffer.push_samples(&build_buffer(250, 275), 250, true);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 300);
-        assert_eq!(audio_buffer.get(audio_buffer.lower), Some(&[0, 0][..]));
+        assert_eq!(
+            audio_buffer.get(audio_buffer.lower),
+            Some(&[i16_to_f64!(0), i16_to_f64!(0)][..])
+        );
         assert_eq!(
             audio_buffer.get(audio_buffer.upper - 1),
-            Some(&[299, -299][..])
+            Some(&[i16_to_f64!(299), i16_to_f64!(-299)][..])
         );
 
         info!("samples [275:400]: overlaping on the end");
         audio_buffer.push_samples(&build_buffer(275, 400), 275, false);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 400);
-        assert_eq!(audio_buffer.get(audio_buffer.lower), Some(&[0, 0][..]));
+        assert_eq!(
+            audio_buffer.get(audio_buffer.lower),
+            Some(&[i16_to_f64!(0), i16_to_f64!(0)][..]));
         assert_eq!(
             audio_buffer.get(audio_buffer.upper - 1),
-            Some(&[399, -399][..])
+            Some(&[i16_to_f64!(399), i16_to_f64!(-399)][..])
         );
 
         info!("samples [400:450]: appending to the end");
         audio_buffer.push_samples(&build_buffer(400, 450), 400, false);
         assert_eq!(audio_buffer.lower, 0);
         assert_eq!(audio_buffer.upper, 450);
-        assert_eq!(audio_buffer.get(audio_buffer.lower), Some(&[0, 0][..]));
+        assert_eq!(
+            audio_buffer.get(audio_buffer.lower),
+            Some(&[i16_to_f64!(0), i16_to_f64!(0)][..])
+        );
         assert_eq!(
             audio_buffer.get(audio_buffer.upper - 1),
-            Some(&[449, -449][..])
+            Some(&[i16_to_f64!(449), i16_to_f64!(-449)][..])
         );
     }
 
@@ -678,9 +706,9 @@ mod tests {
             let channel_values = iter_next.unwrap();
             for (channel_id, channel_value) in channel_values.iter().enumerate() {
                 if channel_id == 0 {
-                    assert_eq!(expected_value, channel_value);
+                    assert_eq!(*channel_value, i16_to_f64!(*expected_value));
                 } else {
-                    assert_eq!(*expected_value, -1 * channel_value);
+                    assert_eq!(*channel_value, i16_to_f64!(-1 * expected_value));
                 }
             }
         }

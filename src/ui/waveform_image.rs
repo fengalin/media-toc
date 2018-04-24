@@ -1,7 +1,5 @@
 use cairo;
 
-use std::i16;
-
 #[cfg(feature = "dump-waveform")]
 use chrono::Utc;
 
@@ -19,13 +17,6 @@ pub const AMPLITUDE_0_COLOR: (f64, f64, f64) = (0.5f64, 0.5f64, 0f64);
 // will dynamically adapt if needed
 const INIT_WIDTH: i32 = 2000;
 const INIT_HEIGHT: i32 = 500;
-
-// Samples normalization factores
-lazy_static! {
-    static ref SAMPLES_RANGE: f64 = f64::from(INIT_HEIGHT);
-    static ref SAMPLES_OFFSET: f64 = *SAMPLES_RANGE / 2f64;
-    static ref SAMPLES_SCALE_FACTOR: f64 = *SAMPLES_OFFSET / f64::from(i16::MAX);
-}
 
 #[cfg(feature = "dump-waveform")]
 const WAVEFORM_DUMP_DIR: &str = "target/waveforms";
@@ -48,7 +39,8 @@ pub struct WaveformImage {
     image_width: i32,
     image_width_f: f64,
     image_height: i32,
-    image_height_f: f64,
+    half_range: f64,
+    full_range: f64,
 
     req_width: i32,
     req_height: i32,
@@ -98,7 +90,8 @@ impl WaveformImage {
             image_width: 0,
             image_width_f: 0f64,
             image_height: 0,
-            image_height_f: 0f64,
+            half_range: 0f64,
+            full_range: 0f64,
 
             req_width: 0,
             req_height: 0,
@@ -128,7 +121,8 @@ impl WaveformImage {
         self.image_width = 0;
         self.image_width_f = 0f64;
         self.image_height = 0;
-        self.image_height_f = 0f64;
+        self.half_range = 0f64;
+        self.full_range = 0f64;
 
         self.req_width = 0;
         self.req_height = 0;
@@ -374,7 +368,8 @@ impl WaveformImage {
                 self.image_width = target_width;
                 self.image_width_f = f64::from(target_width);
                 self.image_height = self.req_height;
-                self.image_height_f = f64::from(self.req_height);
+                self.half_range = f64::from(self.req_height / 2);
+                self.full_range = f64::from(self.req_height);
 
                 debug!(
                     "{}_render new images w {}, h {}",
@@ -650,7 +645,7 @@ impl WaveformImage {
             self.lower = lower;
             self.first = audio_buffer.get(self.lower).map(|values| WaveformSample {
                 x: 0f64,
-                values: WaveformImage::convert_sample_values(values),
+                values: self.convert_sample_values(values),
             });
 
             self.last = self.last.take().map(|last| {
@@ -734,7 +729,7 @@ impl WaveformImage {
 
         audio_buffer
             .get(sample)
-            .map(|values| (sample, WaveformImage::convert_sample_values(values)))
+            .map(|values| (sample, self.convert_sample_values(values)))
     }
 
     fn translate_previous(
@@ -749,7 +744,7 @@ impl WaveformImage {
     }
 
     fn set_scale(&self, cr: &cairo::Context) {
-        cr.scale(1f64, self.image_height_f / *SAMPLES_RANGE);
+        cr.scale(1f64, 1f64);
     }
 
     fn set_channel_color(&self, cr: &cairo::Context, channel: usize) {
@@ -777,14 +772,14 @@ impl WaveformImage {
         }
     }
 
-    fn convert_sample(value: &i16) -> f64 {
-        *SAMPLES_OFFSET - f64::from(*value) * *SAMPLES_SCALE_FACTOR
+    fn convert_sample(&self, value: &f64) -> f64 {
+        value * self.half_range
     }
 
-    fn convert_sample_values(values: &[i16]) -> Vec<f64> {
+    fn convert_sample_values(&self, values: &[f64]) -> Vec<f64> {
         let mut result: Vec<f64> = Vec::with_capacity(values.len());
         for value in values {
-            result.push(WaveformImage::convert_sample(value));
+            result.push(self.convert_sample(value));
         }
         result
     }
@@ -850,7 +845,7 @@ impl WaveformImage {
             // the start and end of each chunk
             cr.set_source_rgb(0f64, 0f64, 1f64);
             cr.move_to(first_x, 0f64);
-            cr.line_to(first_x, *SAMPLES_OFFSET / 2f64);
+            cr.line_to(first_x, 0.5f64 * self.half_range);
             cr.stroke();
         }
 
@@ -859,7 +854,7 @@ impl WaveformImage {
 
         let sample = sample_iter.next();
         for channel_value in sample.unwrap() {
-            let y = WaveformImage::convert_sample(channel_value);
+            let y = self.convert_sample(channel_value);
             first_values.push(y);
             last_values.push(y);
         }
@@ -890,7 +885,7 @@ impl WaveformImage {
                 self.set_channel_color(cr, channel);
                 cr.move_to(prev_x, last_values[channel]);
 
-                last_values[channel] = WaveformImage::convert_sample(value);
+                last_values[channel] = self.convert_sample(value);
                 cr.line_to(x, last_values[channel]);
                 cr.stroke();
             }
@@ -920,8 +915,8 @@ impl WaveformImage {
             // in test mode, draw marks at
             // the start and end of each chunk
             cr.set_source_rgb(1f64, 0f64, 1f64);
-            cr.move_to(x, 1.5f64 * *SAMPLES_OFFSET);
-            cr.line_to(x, *SAMPLES_RANGE);
+            cr.move_to(x, 1.5f64 * self.half_range);
+            cr.line_to(x, self.full_range);
             cr.stroke();
         }
 
@@ -937,15 +932,15 @@ impl WaveformImage {
             AMPLITUDE_0_COLOR.2,
         );
 
-        cr.move_to(first_x, *SAMPLES_OFFSET);
-        cr.line_to(last_x, *SAMPLES_OFFSET);
+        cr.move_to(first_x, self.half_range);
+        cr.line_to(last_x, self.half_range);
         cr.stroke();
     }
 
     // clear samples previously rendered
     fn clear_area(&self, cr: &cairo::Context, first_x: f64, limit_x: f64) {
         cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
-        cr.rectangle(first_x, 0f64, limit_x - first_x, *SAMPLES_RANGE);
+        cr.rectangle(first_x, 0f64, limit_x - first_x, self.full_range);
         cr.fill();
     }
 }
