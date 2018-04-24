@@ -63,16 +63,14 @@ pub struct WaveformImage {
 impl WaveformImage {
     pub fn new(id: usize) -> Self {
         #[cfg(feature = "dump-waveform")]
-        match create_dir(&WAVEFORM_DUMP_DIR) {
-            Ok(_) => (),
-            Err(error) => match error.kind() {
+        let _ = create_dir(&WAVEFORM_DUMP_DIR)
+            .map_err(|err| match err.kind() {
                 ErrorKind::AlreadyExists => (),
                 _ => panic!(
                     "WaveformImage::new couldn't create directory {}",
                     WAVEFORM_DUMP_DIR
                 ),
-            },
-        }
+            });
 
         WaveformImage {
             id,
@@ -965,13 +963,11 @@ mod tests {
     const SAMPLE_DYN: i32 = 300;
 
     fn prepare_tests() {
-        match create_dir(&OUT_DIR) {
-            Ok(_) => (),
-            Err(error) => match error.kind() {
+        let _ = create_dir(&OUT_DIR)
+            .map_err(|err| match err.kind() {
                 ErrorKind::AlreadyExists => (),
                 _ => panic!("WaveformImage test: couldn't create directory {}", OUT_DIR),
-            },
-        }
+            });
     }
 
     fn init(sample_step_f: f64, width: i32) -> (AudioBuffer, WaveformImage) {

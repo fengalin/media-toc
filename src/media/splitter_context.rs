@@ -206,20 +206,17 @@ impl SplitterContext {
                         if !*seek_done_grp {
                             // First buffer before seek
                             // let's seek and drop buffers until seek start sending new segment
-                            match pipeline.seek(
+                            let _res = pipeline.seek(
                                 1f64,
                                 gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
                                 gst::SeekType::Set,
                                 ClockTime::from(start as u64),
                                 gst::SeekType::Set,
                                 ClockTime::from(end as u64),
-                            ) {
-                                Ok(_) => (),
-                                Err(_) => {
-                                    // FIXME: feedback to the user using the UI channel
-                                    error!("{}", gettext("Failed to intialize the split"));
-                                }
-                            };
+                            ).map_err(|_| {
+                                // FIXME: feedback to the user using the UI channel
+                                error!("{}", gettext("Failed to intialize the split"));
+                            });
                             *seek_done_grp = true;
                         } else {
                             // First Discont buffer after seek => stop dropping buffers

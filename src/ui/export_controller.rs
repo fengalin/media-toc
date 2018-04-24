@@ -201,38 +201,42 @@ impl ExportController {
     }
 
     fn check_requirements(&self) {
-        if let Err(err) = TocSetterContext::check_requirements() {
-            warn!("{}", err);
-            self.mkvmerge_txt_warning_lbl.set_label(&err);
-            self.mkv_row.set_sensitive(false)
-        }
-
-        if let Err(err) = SplitterContext::check_requirements(Format::Flac) {
-            warn!("{}", err);
-            self.flac_warning_lbl.set_label(&err);
-            self.split_to_flac_row.set_sensitive(false)
-        }
-
-        if let Err(err) = SplitterContext::check_requirements(Format::Wave) {
-            warn!("{}", err);
-            self.wave_warning_lbl.set_label(&err);
-            self.split_to_wave_row.set_sensitive(false)
-        }
-        if let Err(err) = SplitterContext::check_requirements(Format::Opus) {
-            warn!("{}", err);
-            self.opus_warning_lbl.set_label(&err);
-            self.split_to_opus_row.set_sensitive(false)
-        }
-        if let Err(err) = SplitterContext::check_requirements(Format::Vorbis) {
-            warn!("{}", err);
-            self.vorbis_warning_lbl.set_label(&err);
-            self.split_to_vorbis_row.set_sensitive(false)
-        }
-        if let Err(err) = SplitterContext::check_requirements(Format::MP3) {
-            warn!("{}", err);
-            self.mp3_warning_lbl.set_label(&err);
-            self.split_to_mp3_row.set_sensitive(false)
-        }
+        let _ = TocSetterContext::check_requirements()
+            .map_err(|err| {
+                warn!("{}", err);
+                self.mkvmerge_txt_warning_lbl.set_label(&err);
+                self.mkv_row.set_sensitive(false);
+            });
+        let _ = SplitterContext::check_requirements(Format::Flac)
+            .map_err(|err| {
+                warn!("{}", err);
+                self.flac_warning_lbl.set_label(&err);
+                self.split_to_flac_row.set_sensitive(false);
+            });
+        let _ = SplitterContext::check_requirements(Format::Wave)
+            .map_err(|err| {
+                warn!("{}", err);
+                self.wave_warning_lbl.set_label(&err);
+                self.split_to_wave_row.set_sensitive(false);
+            });
+        let _ = SplitterContext::check_requirements(Format::Opus)
+            .map_err(|err| {
+                warn!("{}", err);
+                self.opus_warning_lbl.set_label(&err);
+                self.split_to_opus_row.set_sensitive(false);
+            });
+        let _ = SplitterContext::check_requirements(Format::Vorbis)
+            .map_err(|err| {
+                warn!("{}", err);
+                self.vorbis_warning_lbl.set_label(&err);
+                self.split_to_vorbis_row.set_sensitive(false);
+            });
+        let _ = SplitterContext::check_requirements(Format::MP3)
+            .map_err(|err| {
+                warn!("{}", err);
+                self.mp3_warning_lbl.set_label(&err);
+                self.split_to_mp3_row.set_sensitive(false);
+            });
     }
 
     fn prepare_process(&mut self, format: &metadata::Format) {
@@ -297,13 +301,17 @@ impl ExportController {
                                 gtk::MessageType::Info,
                                 gettext("Table of contents exported succesfully"),
                             ),
-                            Err(err) => (gtk::MessageType::Error, err),
+                            Err(err) => {
+                                error!("{}", err);
+                                (gtk::MessageType::Error, err)
+                            }
                         }
                     }
-                    Err(_) => (
-                        gtk::MessageType::Error,
-                        gettext("Failed to create the file for the table of contents"),
-                    ),
+                    Err(_) => {
+                        let msg = gettext("Failed to create the file for the table of contents");
+                        error!("{}", msg);
+                        (gtk::MessageType::Error, msg)
+                    }
                 };
 
                 self.restore_context();
@@ -639,16 +647,14 @@ impl ExportController {
                             exporter.export(&info, muxer);
                         }
 
-                        match toc_setter_ctx.export() {
-                            Ok(_) => (),
-                            Err(err) => {
-                                keep_going = false;
-                                let message =
+                        let _ = toc_setter_ctx.export()
+                            .map_err(|err| {
+                                *&mut keep_going = false;
+                                let msg =
                                     gettext("Failed to export media. {}").replacen("{}", &err, 1);
-                                this.show_error(&message);
-                                error!("{}", message);
-                            }
-                        }
+                                this.show_error(&msg);
+                                error!("{}", msg);
+                            });
 
                         this.toc_setter_ctx = Some(toc_setter_ctx);
                     }

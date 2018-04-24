@@ -59,10 +59,10 @@ impl Reader for MKVMergeTextFormat {
         let error_msg = gettext("Failed to read mkvmerge text file.");
 
         let mut content = String::new();
-        if source.read_to_string(&mut content).is_err() {
+        source.read_to_string(&mut content).map_err(|_| {
             error!("{}", error_msg);
-            return Err(error_msg);
-        }
+            error_msg.clone()
+        })?;
 
         let mut toc_edition = gst::TocEntry::new(gst::TocEntryType::Edition, "");
         let mut last_nb = None;
@@ -75,34 +75,30 @@ impl Reader for MKVMergeTextFormat {
                 let tag = parts[0];
                 let value = parts[1];
                 if tag.starts_with(CHAPTER_TAG) && tag.len() >= *CHAPTER_TAG_LEN + CHAPTER_NB_LEN {
-                    let cur_nb = match tag[*CHAPTER_TAG_LEN..*CHAPTER_TAG_LEN + CHAPTER_NB_LEN]
+                    let cur_nb = tag[*CHAPTER_TAG_LEN..*CHAPTER_TAG_LEN + CHAPTER_NB_LEN]
                         .parse::<usize>()
-                    {
-                        Ok(chapter_nb) => chapter_nb,
-                        Err(_) => {
+                        .map_err(|_| {
                             error!(
                                 "{}",
                                 gettext("couldn't find chapter nb for: {}").replacen("{}", line, 1)
                             );
-                            return Err(error_msg);
-                        }
-                    };
+                            error_msg.clone()
+                        })?;
 
                     if tag.ends_with(NAME_TAG) {
                         last_title = Some(value);
                     } else {
                         // New chapter start
                         // First add previous if any, now that we know its end
-                        let cur_start = match Timestamp::from_string(value) {
-                            Ok(timestamp) => timestamp.nano_total,
-                            Err(()) => {
+                        let cur_start = Timestamp::from_string(value)
+                            .map_err(|_| {
                                 error!(
                                     "{}",
                                     gettext("unexpected timestamp: {}").replacen("{}", value, 1)
                                 );
-                                return Err(error_msg);
-                            }
-                        };
+                                error_msg.clone()
+                            })?
+                            .nano_total;
 
                         if let Some(last_start) = last_start.take() {
                             // update previous chapter's end
@@ -154,16 +150,20 @@ impl Reader for MKVMergeTextFormat {
 
 macro_rules! write_fmt(
     ($dest:ident, $fmt:expr, $( $item:expr ),*) => {
-        if $dest.write_fmt(format_args!($fmt, $( $item ),*)).is_err() {
-            return Err(gettext("Failed to write mkvmerge text file"));
-        }
+        $dest.write_fmt(format_args!($fmt, $( $item ),*)).map_err(|_| {
+            let msg = gettext("Failed to write mkvmerge text file");
+            error!("{}", msg);
+            msg
+        })?;
     };
 );
 
 impl Writer for MKVMergeTextFormat {
     fn write(&self, info: &MediaInfo, destination: &mut Write) -> Result<(), String> {
         if info.toc.is_none() {
-            return Err(gettext("The table of contents is empty"));
+            let msg = gettext("The table of contents is empty");
+            error!("{}", msg);
+            return Err(msg);
         }
 
         let mut index = 0;

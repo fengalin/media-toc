@@ -14,12 +14,12 @@ pub struct Timestamp {
 macro_rules! pop_and_parse(
     ($source:expr) => {
         match $source.pop() {
-            Some(part) => match part.parse::<u64>() {
-                Ok(value) => value,
-                Err(_) => {
-                    warn!("from_string can't parse {}", part);
-                    return Err(());
-                }
+            Some(part) => {
+                part.parse::<u64>()
+                    .map_err(|_| {
+                        warn!("from_string can't parse {}", part);
+                        ()
+                    })?
             },
             None => {
                 warn!("from_string couldn't pop part");

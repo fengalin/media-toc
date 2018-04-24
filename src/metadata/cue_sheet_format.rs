@@ -21,16 +21,20 @@ impl CueSheetFormat {
 
 macro_rules! write_fmt(
     ($dest:ident, $fmt:expr, $( $item:expr ),*) => {
-        if $dest.write_fmt(format_args!($fmt, $( $item ),*)).is_err() {
-            return Err(gettext("Failed to write Cue Sheet file"));
-        }
+        $dest.write_fmt(format_args!($fmt, $( $item ),*)).map_err(|_| {
+            let msg = gettext("Failed to write Cue Sheet file");
+            error!("{}", msg);
+            msg
+        })?;
     };
 );
 
 impl Writer for CueSheetFormat {
     fn write(&self, info: &MediaInfo, destination: &mut Write) -> Result<(), String> {
         if info.toc.is_none() {
-            return Err(gettext("The table of contents is empty"));
+            let msg = gettext("The table of contents is empty");
+            error!("{}", msg);
+            return Err(msg);
         }
 
         let media_title = info.get_title().map(|title| title.to_owned());

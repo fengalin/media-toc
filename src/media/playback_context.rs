@@ -157,10 +157,8 @@ impl PlaybackContext {
         );
         this.register_bus_inspector(ctx_tx);
 
-        match this.pause() {
-            Ok(_) => Ok(this),
-            Err(error) => Err(error),
-        }
+        this.pause()
+            .map(|_| this)
     }
 
     pub fn check_requirements() -> Result<(), String> {

@@ -128,10 +128,8 @@ impl MainController {
                 ExportController::register_callbacks(&this_mut.export_ctrl, &this);
                 StreamsController::register_callbacks(&this_mut.streams_ctrl, &this);
 
-                PlaybackContext::check_requirements()
-                    .err()
-                    .take()
-                    .map(|err| {
+                let _ = PlaybackContext::check_requirements()
+                    .map_err(|err| {
                         error!("{}", err);
                         let this_rc = Rc::clone(&this);
                         gtk::idle_add(move || {

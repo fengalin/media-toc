@@ -25,24 +25,21 @@ impl ImageSurface {
                             aligned_buffer.push(0);
                         }
 
-                        match cairo::ImageSurface::create_for_data(
+                        cairo::ImageSurface::create_for_data(
                             aligned_buffer.into_boxed_slice(),
                             |_| {},
                             cairo::Format::Rgb24,
                             width,
                             height,
                             stride,
-                        ) {
-                            Ok(surface) => Ok(surface),
-                            Err(error) => {
-                                let msg = format!(
-                                    "Error creating ImageSurface from aligned image: {:?}",
-                                    error,
-                                );
-                                warn!("{}", msg);
-                                Err(msg)
-                            }
-                        }
+                        ).map_err(|err| {
+                            let msg = format!(
+                                "Error creating ImageSurface from aligned image: {:?}",
+                                err,
+                            );
+                            warn!("{}", msg);
+                            msg
+                        })
                     }
                     None => {
                         let msg = "Error converting image to raw RGB".to_owned();
@@ -51,8 +48,8 @@ impl ImageSurface {
                     }
                 }
             }
-            Err(error) => {
-                let msg = format!("Error loading image: {:?}", error);
+            Err(err) => {
+                let msg = format!("Error loading image: {:?}", err);
                 warn!("{}", msg);
                 Err(msg)
             }
