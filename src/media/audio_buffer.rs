@@ -80,13 +80,26 @@ impl AudioBuffer {
         debug!("init rate {}, channels {}", self.rate, self.channels);
     }
 
-    // Clean everytihng so that the AudioBuffer
+    // Clean everything so that the AudioBuffer
     // can be reused for a different media
     pub fn cleanup(&mut self) {
         debug!("cleaning up");
 
         self.reset();
         self.segment_start = None;
+    }
+
+    // Clean the sample buffer
+    // Other characteristics (rate, sample_duration, channels) remain unchanged.
+    pub fn clean_samples(&mut self) {
+        self.eos = false;
+        self.is_new_segment = true;
+        // don't cleanup self.segment_start in order to maintain continuity
+        self.last_buffer_upper = 0;
+        self.segment_lower = 0;
+        self.lower = 0;
+        self.upper = 0;
+        self.samples.clear();
     }
 
     // Reset the AudioBuffer keeping continuity
@@ -104,14 +117,7 @@ impl AudioBuffer {
         self.sample_duration = 0;
         self.channels = 0;
         self.drain_size = 0;
-        self.eos = false;
-        self.is_new_segment = true;
-        // don't cleanup self.segment_start in order to maintain continuity
-        self.last_buffer_upper = 0;
-        self.segment_lower = 0;
-        self.lower = 0;
-        self.upper = 0;
-        self.samples.clear();
+        self.clean_samples();
     }
 
     pub fn have_gst_segment(&mut self, segment: &gst::Segment) {

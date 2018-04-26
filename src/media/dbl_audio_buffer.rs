@@ -92,7 +92,12 @@ impl DoubleAudioBuffer {
         self.working_buffer.as_mut().unwrap().set_state(state);
     }
 
+    pub fn clean_samples(&mut self) {
+        self.audio_buffer.clean_samples();
+    }
+
     pub fn set_caps(&mut self, caps: &gst::CapsRef) {
+        info!("Changing caps");
         let audio_info = gst_audio::AudioInfo::from_caps(caps).unwrap();
 
         self.reset();

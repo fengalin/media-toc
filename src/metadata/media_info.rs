@@ -116,7 +116,9 @@ impl Streams {
         }
     }
 
-    pub fn select_streams(&mut self, ids: &[&str]) {
+    // Returns the streams which changed
+    pub fn select_streams(&mut self, ids: &[String]) {
+        // FIXME: handle unselected stream types (e.g. for subtitles)
         self.reset_selected();
 
         for id in ids {

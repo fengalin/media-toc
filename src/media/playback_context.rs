@@ -277,11 +277,6 @@ impl PlaybackContext {
         let stream_ids: Vec<&str> = stream_ids.iter().map(|id| id.as_str()).collect();
         let select_streams_evt = gst::Event::new_select_streams(&stream_ids).build();
         self.decodebin.send_event(select_streams_evt);
-
-        {
-            let mut info = self.info.lock().unwrap();
-            info.streams.select_streams(&stream_ids);
-        }
     }
 
     fn setup_queue(queue: &gst::Element) {
@@ -641,6 +636,7 @@ impl PlaybackContext {
                                     }
                                     pipeline_state =
                                         PipelineState::Initialized(InitializedState::Paused);
+                                    // TODO: force UI refresh to fix current position
                                 }
                                 _ => {
                                     {
@@ -679,12 +675,44 @@ impl PlaybackContext {
                         }
                     }
                 }
-                gst::MessageView::StreamsSelected(_) => match pipeline_state {
-                    PipelineState::Initialized(_) => {
-                        ctx_tx.send(ContextMessage::StreamsSelected).unwrap();
+                gst::MessageView::StreamsSelected(msg_stream_sel) => {
+                    match pipeline_state {
+                        PipelineState::Initialized(_) => {
+                            let stream_ids: Vec<String> = msg_stream_sel
+                                .get_streams()
+                                .iter()
+                                .map(|stream| stream.get_stream_id().unwrap())
+                                .collect();
+
+                            let audio_has_changed = {
+                                let info = &mut info_arc_mtx
+                                    .lock()
+                                    .expect("Failed to lock media info while comparing streams");
+                                let audio_stream_cur = info
+                                    .streams
+                                    .audio_selected
+                                    .as_ref()
+                                    .map(|ref stream| stream.id.clone());
+                                info.streams.select_streams(&stream_ids);
+                                audio_stream_cur != info
+                                    .streams
+                                    .audio_selected
+                                    .as_ref()
+                                    .map(|ref stream| stream.id.clone())
+                            };
+
+                            if audio_has_changed {
+                                debug!("Changing audio stream");
+                                let dbl_audio_buffer =
+                                    &mut dbl_audio_buffer_mtx.lock().unwrap();
+                                dbl_audio_buffer.clean_samples();
+                            }
+
+                            ctx_tx.send(ContextMessage::StreamsSelected).unwrap();
+                        }
+                        _ => pipeline_state = PipelineState::StreamsSelected,
                     }
-                    _ => pipeline_state = PipelineState::StreamsSelected,
-                },
+                }
                 gst::MessageView::StreamCollection(msg_stream_collection) => {
                     let stream_collection = msg_stream_collection.get_stream_collection();
                     let info = &mut info_arc_mtx.lock().unwrap();
