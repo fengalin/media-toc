@@ -899,7 +899,7 @@ impl SampleExtractor for WaveformBuffer {
             other.conditions_changed = false;
         } // else: other has nothing new
 
-        self.state.time_ref = other.state.time_ref;
+        self.state.basetime = other.state.basetime;
         self.state.last_pos = other.state.last_pos;
 
         self.image.update_from_other(&mut other.image);

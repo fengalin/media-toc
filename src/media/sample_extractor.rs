@@ -11,7 +11,7 @@ pub struct SampleExtractionState {
     pub duration_per_1000_samples: f64,
     state: gst::State,
     audio_ref: Option<gst::Element>,
-    pub time_ref: Option<(u64, u64)>, // (base_time, base_frame_time)
+    pub basetime: Option<(u64, u64)>, // (base_time, base_frame_time)
     pub last_pos: u64,
 }
 
@@ -22,7 +22,7 @@ impl SampleExtractionState {
             duration_per_1000_samples: 0f64,
             state: gst::State::Null,
             audio_ref: None,
-            time_ref: None,
+            basetime: None,
             last_pos: 0,
         }
     }
@@ -33,7 +33,7 @@ impl SampleExtractionState {
         self.duration_per_1000_samples = 0f64;
         self.state = gst::State::Null;
         self.audio_ref = None;
-        self.time_ref = None;
+        self.basetime = None;
         self.last_pos = 0;
     }
 }
@@ -49,15 +49,19 @@ pub trait SampleExtractor: Send {
     fn set_state(&mut self, new_state: gst::State) {
         let state = self.get_extraction_state_mut();
         state.state = new_state;
-        state.time_ref = None;
+        state.basetime = None;
     }
 
     fn set_time_ref(&mut self, audio_ref: &gst::Element) {
         self.get_extraction_state_mut().audio_ref = Some(audio_ref.clone());
     }
 
+    fn reset_basetime(&mut self) {
+        self.get_extraction_state_mut().basetime = None;
+    }
+
     fn new_segment(&mut self) {
-        self.get_extraction_state_mut().time_ref = None;
+        self.get_extraction_state_mut().basetime = None;
     }
 
     fn set_channels(&mut self, channels: &[AudioChannel]);
@@ -83,13 +87,13 @@ pub trait SampleExtractor: Send {
         let state = &mut self.get_extraction_state_mut();
         let position = match state.state {
             gst::State::Playing => {
-                if let Some(&(base_time, base_frame_time)) = state.time_ref.as_ref() {
+                if let Some(&(base_time, base_frame_time)) = state.basetime.as_ref() {
                     (frame_time - base_frame_time) * 1_000 + base_time
                 } else {
                     let mut query = gst::Query::new_position(gst::Format::Time);
                     if state.audio_ref.as_ref().unwrap().query(&mut query) {
                         let base_time = query.get_result().get_value() as u64;
-                        state.time_ref = Some((base_time, frame_time));
+                        state.basetime = Some((base_time, frame_time));
                         base_time
                     } else {
                         state.last_pos
