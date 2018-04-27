@@ -7,8 +7,9 @@ use gtk::prelude::*;
 
 use std::cell::RefCell;
 use std::fs::File;
+use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
 
 use media::{ContextMessage, PlaybackContext, SplitterContext, TocSetterContext};
@@ -17,7 +18,7 @@ use media::ContextMessage::*;
 use metadata;
 use metadata::{get_default_chapter_title, Exporter, Format, MatroskaTocFormat, TocVisitor};
 
-use super::MainController;
+use super::{MainController, OutputBaseController};
 
 const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
 
@@ -36,9 +37,7 @@ enum ExportType {
 }
 
 pub struct ExportController {
-    perspective_selector: gtk::MenuButton,
-    open_btn: gtk::Button,
-    chapter_grid: gtk::Grid,
+    base: OutputBaseController,
 
     export_list: gtk::ListBox,
     mkvmerge_txt_row: gtk::ListBoxRow,
@@ -48,6 +47,8 @@ pub struct ExportController {
     export_progress_bar: gtk::ProgressBar,
     export_btn: gtk::Button,
 
+    toc_visitor: Option<TocVisitor>,
+    idx: usize,
     split_list: gtk::ListBox,
     split_to_flac_row: gtk::ListBoxRow,
     flac_warning_lbl: gtk::Label,
@@ -62,28 +63,16 @@ pub struct ExportController {
     split_progress_bar: gtk::ProgressBar,
     split_btn: gtk::Button,
 
-    pub playback_ctx: Option<PlaybackContext>,
     toc_setter_ctx: Option<TocSetterContext>,
     splitter_ctx: Option<SplitterContext>,
-    media_path: PathBuf,
-    target_path: PathBuf,
-    extension: String,
-    idx: usize,
-    toc_visitor: Option<TocVisitor>,
-    duration: u64,
 
     this_opt: Option<Rc<RefCell<ExportController>>>,
-    listener_src: Option<glib::SourceId>,
-
-    main_ctrl: Option<Weak<RefCell<MainController>>>,
 }
 
 impl ExportController {
     pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
         let this = Rc::new(RefCell::new(ExportController {
-            perspective_selector: builder.get_object("perspective-menu-btn").unwrap(),
-            open_btn: builder.get_object("open-btn").unwrap(),
-            chapter_grid: builder.get_object("info-chapter_list-grid").unwrap(),
+            base: OutputBaseController::new(builder),
 
             export_list: builder.get_object("export-list-box").unwrap(),
             mkvmerge_txt_row: builder.get_object("mkvmerge_text_export-row").unwrap(),
@@ -93,6 +82,8 @@ impl ExportController {
             export_progress_bar: builder.get_object("export-progress").unwrap(),
             export_btn: builder.get_object("export-btn").unwrap(),
 
+            toc_visitor: None,
+            idx: 0,
             split_list: builder.get_object("split-list-box").unwrap(),
             split_to_flac_row: builder.get_object("flac_split-row").unwrap(),
             flac_warning_lbl: builder.get_object("flac_warning-lbl").unwrap(),
@@ -107,20 +98,10 @@ impl ExportController {
             split_progress_bar: builder.get_object("split-progress").unwrap(),
             split_btn: builder.get_object("split-btn").unwrap(),
 
-            playback_ctx: None,
             toc_setter_ctx: None,
             splitter_ctx: None,
-            media_path: PathBuf::new(),
-            target_path: PathBuf::new(),
-            extension: String::new(),
-            idx: 0,
-            toc_visitor: None,
-            duration: 0,
 
             this_opt: None,
-            listener_src: None,
-
-            main_ctrl: None,
         }));
 
         {
@@ -142,10 +123,9 @@ impl ExportController {
         main_ctrl: &Rc<RefCell<MainController>>,
     ) {
         let mut this = this_rc.borrow_mut();
+        this.have_main_ctrl(main_ctrl);
 
         this.check_requirements();
-
-        this.main_ctrl = Some(Rc::downgrade(main_ctrl));
 
         // Export
         let this_clone = Rc::clone(this_rc);
@@ -239,51 +219,6 @@ impl ExportController {
             });
     }
 
-    fn prepare_process(&mut self, format: &metadata::Format) {
-        self.switch_to_busy();
-
-        self.toc_visitor = self.playback_ctx
-            .as_ref()
-            .unwrap()
-            .info
-            .lock()
-            .unwrap()
-            .toc
-            .as_ref()
-            .map(|toc| TocVisitor::new(toc));
-
-        let is_audio_only = {
-            self.playback_ctx
-                .as_ref()
-                .unwrap()
-                .info
-                .lock()
-                .unwrap()
-                .streams
-                .video_selected
-                .is_none()
-        };
-        self.extension = metadata::Factory::get_extension(format, is_audio_only).to_owned();
-
-        self.media_path = self.playback_ctx.as_ref().unwrap().path.clone();
-        self.target_path = self.media_path.with_extension(&self.extension);
-
-        self.idx = 0;
-
-        if self.listener_src.is_some() {
-            self.remove_listener();
-        }
-
-        let duration = self.playback_ctx
-            .as_ref()
-            .unwrap()
-            .info
-            .lock()
-            .unwrap()
-            .duration;
-        self.duration = duration;
-    }
-
     fn export(&mut self) {
         let (format, export_type) = self.get_export_selection();
 
@@ -327,8 +262,18 @@ impl ExportController {
 
     fn split(&mut self) {
         let format = self.get_split_selection();
-
         self.prepare_process(&format);
+
+        self.toc_visitor = self.base.playback_ctx
+            .as_ref()
+            .unwrap()
+            .info
+            .lock()
+            .unwrap()
+            .toc
+            .as_ref()
+            .map(|toc| TocVisitor::new(toc));
+        self.idx = 0;
 
         if self.toc_visitor.is_some() {
             if let Err(err) = self.build_splitter_context(format) {
@@ -339,25 +284,6 @@ impl ExportController {
             let target_path = self.target_path.clone();
             self.build_toc_setter_context(&target_path);
         }
-    }
-
-    fn show_message(&self, type_: gtk::MessageType, message: &str) {
-        let main_ctrl_rc = self.main_ctrl.as_ref().unwrap().upgrade().unwrap();
-        main_ctrl_rc.borrow().show_message(type_, message);
-    }
-
-    fn show_info(&self, info: &str) {
-        self.show_message(gtk::MessageType::Info, info);
-    }
-
-    fn show_error(&self, error: &str) {
-        self.show_message(gtk::MessageType::Error, error);
-    }
-
-    fn restore_context(&mut self) {
-        let context = self.playback_ctx.take().unwrap();
-        let main_ctrl_rc = self.main_ctrl.as_ref().unwrap().upgrade().unwrap();
-        main_ctrl_rc.borrow_mut().set_context(context);
     }
 
     fn build_toc_setter_context(&mut self, export_path: &Path) {
@@ -445,7 +371,7 @@ impl ExportController {
             })
             .unwrap_or_else(|| get_default_chapter_title());
 
-        split_name += &format!("{:02}. {}.{}", self.idx, &track_title, self.extension,);
+        split_name += &format!("{:02}. {}.{}", self.idx, &track_title, self.extension);
 
         self.target_path.with_file_name(split_name)
     }
@@ -580,13 +506,7 @@ impl ExportController {
 
     fn switch_to_busy(&self) {
         // TODO: allow cancelling export / split
-        if let Some(main_ctrl) = self.main_ctrl.as_ref().unwrap().upgrade() {
-            main_ctrl.borrow().set_cursor_waiting();
-        }
-
-        self.perspective_selector.set_sensitive(false);
-        self.open_btn.set_sensitive(false);
-        self.chapter_grid.set_sensitive(false);
+        self.base.switch_to_busy();
 
         self.export_list.set_sensitive(false);
         self.export_btn.set_sensitive(false);
@@ -595,27 +515,15 @@ impl ExportController {
     }
 
     fn switch_to_available(&self) {
-        if let Some(main_ctrl) = self.main_ctrl.as_ref().unwrap().upgrade() {
-            main_ctrl.borrow().reset_cursor();
-        }
+        self.base.switch_to_available();
 
         self.export_progress_bar.set_fraction(0f64);
         self.split_progress_bar.set_fraction(0f64);
-
-        self.perspective_selector.set_sensitive(true);
-        self.open_btn.set_sensitive(true);
-        self.chapter_grid.set_sensitive(true);
 
         self.export_list.set_sensitive(true);
         self.export_btn.set_sensitive(true);
         self.split_btn.set_sensitive(true);
         self.split_list.set_sensitive(true);
-    }
-
-    fn remove_listener(&mut self) {
-        if let Some(source_id) = self.listener_src.take() {
-            glib::source_remove(source_id);
-        }
     }
 
     fn register_toc_setter_listener(&mut self, period: u32, ui_rx: Receiver<ContextMessage>) {
@@ -751,5 +659,19 @@ impl ExportController {
 
             glib::Continue(keep_going)
         }));
+    }
+}
+
+impl Deref for ExportController {
+    type Target = OutputBaseController;
+
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
+impl DerefMut for ExportController {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.base
     }
 }

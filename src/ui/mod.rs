@@ -19,6 +19,9 @@ use self::image_surface::ImageSurface;
 pub mod main_controller;
 pub use self::main_controller::{ControllerState, MainController};
 
+mod output_base_controller;
+use self::output_base_controller::OutputBaseController;
+
 mod perspective_controller;
 use self::perspective_controller::PerspectiveController;
 
