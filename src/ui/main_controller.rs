@@ -20,7 +20,7 @@ use media::{ContextMessage, PlaybackContext};
 use media::ContextMessage::*;
 
 use super::{AudioController, ChaptersBoundaries, ExportController, InfoController,
-            PerspectiveController, StreamsController, VideoController};
+            PerspectiveController, StreamsController, SplitController, VideoController};
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
 const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
@@ -58,6 +58,7 @@ pub struct MainController {
     info_ctrl: Rc<RefCell<InfoController>>,
     audio_ctrl: Rc<RefCell<AudioController>>,
     export_ctrl: Rc<RefCell<ExportController>>,
+    split_ctrl: Rc<RefCell<SplitController>>,
     streams_ctrl: Rc<RefCell<StreamsController>>,
 
     context: Option<PlaybackContext>,
@@ -91,6 +92,7 @@ impl MainController {
             info_ctrl: InfoController::new(builder, Rc::clone(&chapters_boundaries)),
             audio_ctrl: AudioController::new(builder, chapters_boundaries),
             export_ctrl: ExportController::new(builder),
+            split_ctrl: SplitController::new(builder),
             streams_ctrl: StreamsController::new(builder),
 
             context: None,
@@ -126,6 +128,7 @@ impl MainController {
                 InfoController::register_callbacks(&this_mut.info_ctrl, &this);
                 AudioController::register_callbacks(&this_mut.audio_ctrl, &this);
                 ExportController::register_callbacks(&this_mut.export_ctrl, &this);
+                SplitController::register_callbacks(&this_mut.split_ctrl, &this);
                 StreamsController::register_callbacks(&this_mut.streams_ctrl, &this);
 
                 let _ = PlaybackContext::check_requirements()
@@ -459,6 +462,7 @@ impl MainController {
                         this.video_ctrl.new_media(&context);
                         this.audio_ctrl.borrow_mut().new_media(&context);
                         this.export_ctrl.borrow_mut().new_media(&context);
+                        this.split_ctrl.borrow_mut().new_media(&context);
 
                         this.set_context(context);
 
@@ -596,6 +600,7 @@ impl MainController {
         self.audio_ctrl.borrow_mut().cleanup();
         self.video_ctrl.cleanup();
         self.export_ctrl.borrow_mut().cleanup();
+        self.split_ctrl.borrow_mut().cleanup();
         self.streams_ctrl.borrow_mut().cleanup();
         self.perspective_ctrl.borrow().cleanup();
         self.header_bar.set_subtitle("");

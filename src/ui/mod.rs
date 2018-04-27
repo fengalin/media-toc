@@ -28,6 +28,9 @@ use self::perspective_controller::PerspectiveController;
 mod streams_controller;
 use self::streams_controller::StreamsController;
 
+mod split_controller;
+use self::split_controller::SplitController;
+
 mod video_controller;
 use self::video_controller::VideoController;
 
