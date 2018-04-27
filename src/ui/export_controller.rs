@@ -618,10 +618,10 @@ impl ExportController {
         }
     }
 
-    fn register_toc_setter_listener(&mut self, timeout: u32, ui_rx: Receiver<ContextMessage>) {
+    fn register_toc_setter_listener(&mut self, period: u32, ui_rx: Receiver<ContextMessage>) {
         let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
 
-        self.listener_src = Some(gtk::timeout_add(timeout, move || {
+        self.listener_src = Some(gtk::timeout_add(period, move || {
             let mut keep_going = true;
 
             let mut this = this_rc.borrow_mut();
@@ -690,12 +690,12 @@ impl ExportController {
     fn register_splitter_listener(
         &mut self,
         format: metadata::Format,
-        timeout: u32,
+        period: u32,
         ui_rx: Receiver<ContextMessage>,
     ) {
         let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
 
-        self.listener_src = Some(gtk::timeout_add(timeout, move || {
+        self.listener_src = Some(gtk::timeout_add(period, move || {
             let mut keep_going = true;
             let mut process_done = false;
 

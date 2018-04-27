@@ -636,7 +636,9 @@ impl PlaybackContext {
                                     }
                                     pipeline_state =
                                         PipelineState::Initialized(InitializedState::Paused);
-                                    // TODO: force UI refresh to fix current position
+                                    ctx_tx
+                                        .send(ContextMessage::ReadyForRefresh)
+                                        .unwrap();
                                 }
                                 _ => {
                                     {

@@ -43,7 +43,7 @@ pub enum ControllerState {
     TwoStepsSeek(u64),
 }
 
-const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
+const LISTENER_PERIOD: u32 = 100; // 100 ms (10 Hz)
 
 pub struct MainController {
     window: gtk::ApplicationWindow,
@@ -401,14 +401,14 @@ impl MainController {
         }
     }
 
-    fn register_listener(&mut self, timeout: u32, ui_rx: Receiver<ContextMessage>) {
+    fn register_listener(&mut self, period: u32, ui_rx: Receiver<ContextMessage>) {
         if self.listener_src.is_some() {
             return;
         }
 
         let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
 
-        self.listener_src = Some(gtk::timeout_add(timeout, move || {
+        self.listener_src = Some(gtk::timeout_add(period, move || {
             let mut keep_going = true;
 
             for message in ui_rx.try_iter() {
