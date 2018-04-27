@@ -12,4 +12,5 @@ src/ui/export_controller.rs
 src/ui/info_controller.rs
 src/ui/main_controller.rs
 src/ui/media-toc.ui
+src/ui/split_controller.rs
 src/ui/streams_controller.rs
