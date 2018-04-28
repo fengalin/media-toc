@@ -13,10 +13,11 @@ extern crate pango;
 extern crate sample;
 
 #[macro_use]
-extern crate log;
-
-#[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate log;
+#[macro_use]
+extern crate nom;
 
 #[cfg(feature = "dump-waveform")]
 extern crate chrono;

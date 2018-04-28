@@ -142,6 +142,12 @@ impl fmt::Display for Timestamp {
     }
 }
 
+impl fmt::Debug for Timestamp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Timestamp").field(&self.to_string()).finish()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     //use env_logger;
