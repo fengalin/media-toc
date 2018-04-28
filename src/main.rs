@@ -89,30 +89,3 @@ fn main() {
 
     gtk::main();
 }
-
-#[cfg(test)]
-mod tests {
-    use gettextrs::{gettext, TextDomain, TextDomainError};
-
-    #[test]
-    fn i18n() {
-        match TextDomain::new("media-toc-test")
-            .skip_system_data_paths()
-            .locale("en_US.UTF-8")
-            .push("test")
-            .init()
-        {
-            Ok(locale) => {
-                println!("translation found, `setlocale` returned {:?}", locale);
-            }
-            Err(TextDomainError::TranslationNotFound(lang)) => {
-                panic!("translation not found for language {}", lang);
-            }
-            Err(TextDomainError::InvalidLocale(locale)) => {
-                panic!("Invalid locale {}", locale);
-            }
-        }
-
-        assert_eq!("this is a test", gettext("test-msg"));
-    }
-}
