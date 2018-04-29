@@ -49,17 +49,71 @@ named!(chapter<nom::types::CompleteStr, gst::TocEntry>,
         nb1: flat_map!(nom::digit, parse_to!(usize)) >>
         tag!("=") >>
         start: map!(
-            take_until_and_consume1!("\n"),
+            take_until_either!("\r\n"),
             |start_str| Timestamp::from_string(start_str.trim())
         ) >>
+        eat_separator!("\r\n") >>
         tag!(CHAPTER_TAG) >>
         nb: verify!(flat_map!(nom::digit, parse_to!(usize)), |nb2:usize| nb1 == nb2) >>
         tag!(NAME_TAG) >>
         tag!("=") >>
-        title: take_until_and_consume!("\n") >>
+        title: take_until_either!("\r\n") >>
+        eat_separator!("\r\n") >>
         (new_chapter(nb, start, &title))
     )
 );
+
+#[test]
+fn parse_chapter() {
+    use nom::InputLength;
+    gst::init().unwrap();
+
+    let res = chapter(nom::types::CompleteStr("CHAPTER01=00:00:01.000\nCHAPTER01NAME=test\n"));
+    let (i, toc_entry) = res.unwrap();
+    assert_eq!(0, i.input_len());
+    assert_eq!(1_000_000_000, toc_entry.get_start_stop_times().unwrap().0);
+    assert_eq!(
+        Some("test".to_owned()),
+        toc_entry
+            .get_tags()
+            .and_then(|tags| {
+                tags.get::<gst::tags::Title>()
+                    .map(|tag| tag.get().unwrap().to_owned())
+            }),
+    );
+
+    let res = chapter(nom::types::CompleteStr("CHAPTER01=00:00:01.000\r\nCHAPTER01NAME=test\r\n"));
+    let (i, toc_entry) = res.unwrap();
+    assert_eq!(0, i.input_len());
+    assert_eq!(1_000_000_000, toc_entry.get_start_stop_times().unwrap().0);
+    assert_eq!(
+        Some("test".to_owned()),
+        toc_entry
+            .get_tags()
+            .and_then(|tags| {
+                tags.get::<gst::tags::Title>()
+                    .map(|tag| tag.get().unwrap().to_owned())
+            }),
+    );
+
+    let res = chapter(nom::types::CompleteStr("CHAPTERxx=00:00:01.000"));
+    let err = res.unwrap_err();
+    if let nom::Err::Error(nom::Context::Code(i, code)) = err {
+        assert_eq!(nom::types::CompleteStr("xx=00:00:01.000"), i);
+        assert_eq!(nom::ErrorKind::Digit, code);
+    } else {
+        panic!("unexpected error type returned");
+    }
+
+    let res = chapter(nom::types::CompleteStr("CHAPTER01=00:00:01.000\nCHAPTER02NAME=test\n"));
+    let err = res.unwrap_err();
+    if let nom::Err::Error(nom::Context::Code(i, code)) = err {
+        assert_eq!(nom::types::CompleteStr("02NAME=test\n"), i);
+        assert_eq!(nom::ErrorKind::Verify, code);
+    } else {
+        panic!("unexpected error type returned");
+    }
+}
 
 named!(chapters<nom::types::CompleteStr, (gst::TocEntry, Option<gst::TocEntry>) >,
     fold_many0!(

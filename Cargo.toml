@@ -29,7 +29,9 @@ sample = "^0.9.1"
 gettext-rs = { git = "https://github.com/Koka/gettext-rs", features = ["gettext-system"] }
 #gettext-rs = { git = "https://github.com/fengalin/gettext-rs", features = ["gettext-system"] }
 #gettext-rs = { path = "../gettext-rs", features = ["gettext-system"] }
-nom = { git = "https://github.com/Geal/nom" }
+
+#nom = { git = "https://github.com/Geal/nom" }
+nom = { git = "https://github.com/fengalin/nom" }
 
 [features]
 dump-waveform = ["cairo-rs/png"]
