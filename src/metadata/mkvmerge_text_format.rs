@@ -2,6 +2,7 @@ use gettextrs::gettext;
 use gstreamer as gst;
 
 use nom;
+use nom::{AtEof, InputLength};
 
 use std::io::{Read, Write};
 
@@ -46,7 +47,7 @@ fn new_chapter(nb: usize, start: Result<Timestamp, ()>, title: &str) -> gst::Toc
 named!(chapter<nom::types::CompleteStr, gst::TocEntry>,
     do_parse!(
         tag!(CHAPTER_TAG) >>
-        nb1: flat_map!(nom::digit, parse_to!(usize)) >>
+        nb1: flat_map!(take!(2), parse_to!(usize)) >>
         tag!("=") >>
         start: map!(
             take_until_either!("\r\n"),
@@ -54,7 +55,7 @@ named!(chapter<nom::types::CompleteStr, gst::TocEntry>,
         ) >>
         eat_separator!("\r\n") >>
         tag!(CHAPTER_TAG) >>
-        nb: verify!(flat_map!(nom::digit, parse_to!(usize)), |nb2:usize| nb1 == nb2) >>
+        nb: verify!(flat_map!(take!(2), parse_to!(usize)), |nb2:usize| nb1 == nb2) >>
         tag!(NAME_TAG) >>
         tag!("=") >>
         title: take_until_either!("\r\n") >>
@@ -96,11 +97,11 @@ fn parse_chapter() {
             }),
     );
 
-    let res = chapter(nom::types::CompleteStr("CHAPTERxx=00:00:01.000"));
+    let res = chapter(nom::types::CompleteStr("CHAPTER0x=00:00:01.000"));
     let err = res.unwrap_err();
     if let nom::Err::Error(nom::Context::Code(i, code)) = err {
-        assert_eq!(nom::types::CompleteStr("xx=00:00:01.000"), i);
-        assert_eq!(nom::ErrorKind::Digit, code);
+        assert_eq!(nom::types::CompleteStr("0x"), i);
+        assert_eq!(nom::ErrorKind::ParseTo, code);
     } else {
         panic!("unexpected error type returned");
     }
@@ -115,62 +116,103 @@ fn parse_chapter() {
     }
 }
 
-named!(chapters<nom::types::CompleteStr, (gst::TocEntry, Option<gst::TocEntry>) >,
-    fold_many0!(
-        chapter,
-        (gst::TocEntry::new(gst::TocEntryType::Edition, ""), None),
-        |mut acc: (gst::TocEntry, Option<gst::TocEntry>), cur_chapter: gst::TocEntry| {
-            if let Some(mut prev_chapter) = acc.1.take() {
-                // Update previous chapter's end
-                let prev_start = prev_chapter.get_start_stop_times().unwrap().0;
-                let cur_start = cur_chapter.get_start_stop_times().unwrap().0;
-                prev_chapter
-                    .get_mut()
-                    .unwrap()
-                    .set_start_stop_times(prev_start, cur_start);
-                // Add previous chapter to the Edition entry
-                acc.0.get_mut().unwrap().append_sub_entry(prev_chapter);
-            }
-            // Queue current chapter (will be added when next chapter start is known
-            // or with the media's duration when the parsing is done)
-            acc.1 = Some(cur_chapter);
-            acc
-        }
-    )
-);
-
 #[cfg_attr(feature = "cargo-clippy", allow(match_wild_err_arm))]
 impl Reader for MKVMergeTextFormat {
-    fn read(&self, info: &MediaInfo, source: &mut Read) -> Result<gst::Toc, String> {
-        let error_msg = gettext("Failed to read mkvmerge text file.");
-
+    fn read(&self, info: &MediaInfo, source: &mut Read) -> Result<Option<gst::Toc>, String> {
+        let error_msg = gettext("unexpected error reading mkvmerge text file.");
         let mut content = String::new();
         source.read_to_string(&mut content).map_err(|_| {
             error!("{}", error_msg);
             error_msg.clone()
         })?;
 
-        match chapters(nom::types::CompleteStr(&content[..])) {
-            Ok((_, (mut toc_edition, Some(mut last_chapter)))) => {
-                let last_start = last_chapter.get_start_stop_times().unwrap().0;
-                last_chapter
-                    .get_mut()
-                    .unwrap()
-                    .set_start_stop_times(last_start, info.duration as i64);
-                toc_edition.get_mut().unwrap().append_sub_entry(last_chapter);
+        if !content.is_empty() {
+            let mut toc_edition = gst::TocEntry::new(gst::TocEntryType::Edition, "");
+            let mut last_chapter: Option<gst::TocEntry> = None;
+            let mut input = nom::types::CompleteStr(&content[..]);
 
-                let mut toc = gst::Toc::new(gst::TocScope::Global);
-                toc.get_mut().unwrap().append_entry(toc_edition);
-                Ok(toc)
+            loop {
+                let cur_chapter = match chapter(input) {
+                    Ok((i, cur_chapter)) => {
+                        if i.input_len() == input.input_len() {
+                            // No progress
+                            if !i.at_eof() {
+                                let msg = gettext("unexpected sequence starting with: {}")
+                                    .replacen("{}", &i[..i.len().min(10)], 1);
+                                error!("{}", msg);
+                                return Err(msg);
+                            }
+                            break;
+                        }
+                        input = i;
+                        cur_chapter
+                    }
+                    Err(err) => {
+                        let msg = if let nom::Err::Error(nom::Context::Code(i, code)) = err {
+                            match code {
+                                nom::ErrorKind::ParseTo => {
+                                    gettext("expecting a number, found: {}")
+                                        .replacen("{}", &i[..i.len().min(2)], 1)
+                                }
+                                nom::ErrorKind::Tag => {
+                                    gettext("unexpected sequence starting with: {}")
+                                        .replacen("{}", &i[..i.len().min(10)], 1)
+                                }
+                                nom::ErrorKind::Verify => {
+                                    gettext("chapter numbers don't match for: {}")
+                                        .replacen("{}", &i[..i.len().min(2)], 1)
+                                }
+                                nom::ErrorKind::Eof => break,
+                                _ => { println!("other code {:?}", code); error_msg }
+                            }
+                        } else {
+                            println!("other error");
+                            error_msg
+                        };
+                        error!("{}", msg);
+                        return Err(msg);
+                    }
+                };
+
+                if let Some(mut prev_chapter) = last_chapter.take() {
+                    // Update previous chapter's end
+                    let prev_start = prev_chapter.get_start_stop_times().unwrap().0;
+                    let cur_start = cur_chapter.get_start_stop_times().unwrap().0;
+                    prev_chapter
+                        .get_mut()
+                        .unwrap()
+                        .set_start_stop_times(prev_start, cur_start);
+                    // Add previous chapter to the Edition entry
+                    toc_edition.get_mut().unwrap().append_sub_entry(prev_chapter);
+                }
+
+                // Queue current chapter (will be added when next chapter start is known
+                // or with the media's duration when the parsing is done)
+                last_chapter = Some(cur_chapter);
             }
-            Ok((_, (_, None))) => {
-                // file is empty FIXME: return None instead of the toc
-                unimplemented!("Empty mkvmerge text file");
-            }
-            Err(_) => {
-                error!("{}", error_msg);
-                Err(error_msg.clone())
-            }
+
+            // Update last_chapter
+            last_chapter.take().map_or_else(
+                || {
+                    error!("{}", gettext("couldn't update last start position"));
+                    Err(error_msg)
+                },
+                |mut last_chapter| {
+                    let last_start = last_chapter.get_start_stop_times().unwrap().0;
+                    last_chapter
+                        .get_mut()
+                        .unwrap()
+                        .set_start_stop_times(last_start, info.duration as i64);
+                    toc_edition.get_mut().unwrap().append_sub_entry(last_chapter);
+
+                    let mut toc = gst::Toc::new(gst::TocScope::Global);
+                    toc.get_mut().unwrap().append_entry(toc_edition);
+                    Ok(Some(toc))
+                },
+            )
+        } else {
+            // file is empty
+            Ok(None)
         }
     }
 }

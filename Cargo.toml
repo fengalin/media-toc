@@ -31,7 +31,8 @@ gettext-rs = { git = "https://github.com/Koka/gettext-rs", features = ["gettext-
 #gettext-rs = { path = "../gettext-rs", features = ["gettext-system"] }
 
 #nom = { git = "https://github.com/Geal/nom" }
-nom = { git = "https://github.com/fengalin/nom" }
+nom = { git = "https://github.com/fengalin/nom", branch = "parse_to_error_kind", features = ["verbose-errors"] }
+#nom = { path = "../nom" }
 
 [features]
 dump-waveform = ["cairo-rs/png"]

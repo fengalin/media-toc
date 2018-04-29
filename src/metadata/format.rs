@@ -5,7 +5,7 @@ use std::io::{Read, Write};
 use super::MediaInfo;
 
 pub trait Reader {
-    fn read(&self, info: &MediaInfo, source: &mut Read) -> Result<gst::Toc, String>;
+    fn read(&self, info: &MediaInfo, source: &mut Read) -> Result<Option<gst::Toc>, String>;
 }
 
 pub trait Writer {

@@ -577,7 +577,7 @@ dependencies = [
  "image 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "nom 4.0.0-beta3 (git+https://github.com/fengalin/nom)",
+ "nom 4.0.0-beta3 (git+https://github.com/fengalin/nom?branch=parse_to_error_kind)",
  "pango 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sample 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -608,7 +608,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "nom"
 version = "4.0.0-beta3"
-source = "git+https://github.com/fengalin/nom#167593515a8fee9287e6c886f2a0a4dd326fbeaa"
+source = "git+https://github.com/fengalin/nom?branch=parse_to_error_kind#0e4ee5ed0c69cbde47b3129b9d0192a2b07593e1"
 dependencies = [
  "memchr 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -966,7 +966,7 @@ dependencies = [
 "checksum memoffset 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "0f9dc261e2b62d7a622bf416ea3c5245cdd5d9a7fcc428c0d06804dfce1775b3"
 "checksum muldiv 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "1cbef5aa2e8cd82a18cc20e26434cc9843e1ef46e55bfabe5bddb022236c5b3e"
 "checksum nodrop 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)" = "9a2228dca57108069a5262f2ed8bd2e82496d2e074a06d1ccc7ce1687b6ae0a2"
-"checksum nom 4.0.0-beta3 (git+https://github.com/fengalin/nom)" = "<none>"
+"checksum nom 4.0.0-beta3 (git+https://github.com/fengalin/nom?branch=parse_to_error_kind)" = "<none>"
 "checksum num-integer 0.1.36 (registry+https://github.com/rust-lang/crates.io-index)" = "f8d26da319fb45674985c78f1d1caf99aa4941f785d384a2ae36d0740bc3e2fe"
 "checksum num-iter 0.1.35 (registry+https://github.com/rust-lang/crates.io-index)" = "4b226df12c5a59b63569dd57fafb926d91b385dfce33d8074a412411b689d593"
 "checksum num-rational 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)" = "ee314c74bd753fc86b4780aa9475da469155f3848473a261d2d18e35245a784e"
