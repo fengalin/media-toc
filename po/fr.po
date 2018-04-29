@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-04-27 14:12+0200\n"
-"PO-Revision-Date: 2018-04-27 14:12+0200\n"
+"POT-Creation-Date: 2018-04-29 17:06+0200\n"
+"PO-Revision-Date: 2018-04-29 17:08+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -19,7 +19,7 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "X-Generator: Gtranslator 2.91.7\n"
 
-#: src/main.rs:50
+#: src/main.rs:51
 msgid ""
 "Build a table of contents from a media file\n"
 "or split a media file into chapters"
@@ -27,29 +27,25 @@ msgstr ""
 "Construit une table des matières à partir d'un fichier multimédia\n"
 "ou découpe un fichier multimédia en chapitres"
 
-#: src/main.rs:51
+#: src/main.rs:52
 msgid "Display this message"
 msgstr "Affiche ce message"
 
-#: src/main.rs:52
+#: src/main.rs:53
 msgid "Print version information"
 msgstr "Affiche la version"
 
-#: src/main.rs:54
+#: src/main.rs:55
 msgid "MEDIA"
 msgstr "MÉDIA"
 
-#: src/main.rs:64
+#: src/main.rs:65
 msgid "Path to the input media file"
 msgstr "Chemin du fichier multimédia"
 
-#: src/main.rs:70
+#: src/main.rs:71
 msgid "Failed to initialize GTK"
 msgstr "Impossible d'initialiser GTK"
-
-#: src/main.rs:116
-msgid "test-msg"
-msgstr "ceci est un test"
 
 #: src/media/playback_context.rs:64 src/media/playback_context.rs:70
 msgid "Failed to get Video Widget."
@@ -176,7 +172,7 @@ msgstr "Export vers {}…"
 msgid "Failed to write Cue Sheet file"
 msgstr "Échec à l'écriture du fichier Cue Sheet."
 
-#: src/metadata/cue_sheet_format.rs:35 src/metadata/mkvmerge_text_format.rs:164
+#: src/metadata/cue_sheet_format.rs:35 src/metadata/mkvmerge_text_format.rs:233
 msgid "The table of contents is empty"
 msgstr "La table des matières est vide"
 
@@ -184,31 +180,28 @@ msgstr "La table des matières est vide"
 msgid "untitled"
 msgstr "sans titre"
 
-#: src/metadata/mkvmerge_text_format.rs:59
-msgid "Failed to read mkvmerge text file."
-msgstr "Échec à la lecture du fichier texte mkvmerge"
+#: src/metadata/mkvmerge_text_format.rs:122
+msgid "unexpected error reading mkvmerge text file."
+msgstr "erreur inattendue à la lecture du fichier texte mkvmerge"
 
-#: src/metadata/mkvmerge_text_format.rs:83
-msgid "couldn't find chapter nb for: {}"
-msgstr "impossible de trouver le n° de chapitre : {}"
+#: src/metadata/mkvmerge_text_format.rs:140
+#: src/metadata/mkvmerge_text_format.rs:158
+msgid "unexpected sequence starting with: {}"
+msgstr "séquence inattendue commençant par : {}"
 
-#: src/metadata/mkvmerge_text_format.rs:97
-msgid "unexpected timestamp: {}"
-msgstr "marqueur temporel non reconnu : {}"
+#: src/metadata/mkvmerge_text_format.rs:154
+msgid "expecting a number, found: {}"
+msgstr "un nombre est attendu au lieu de : {}"
 
-#: src/metadata/mkvmerge_text_format.rs:120
-msgid "unexpected format for: {}"
-msgstr "format non reconnu pour : {}"
+#: src/metadata/mkvmerge_text_format.rs:162
+msgid "chapter numbers don't match for: {}"
+msgstr "les numéros de chapitre ne correspondent pas pour : {}"
 
-#: src/metadata/mkvmerge_text_format.rs:125
-msgid "expected '=' in: {}"
-msgstr "'=' attendu dans : {}"
-
-#: src/metadata/mkvmerge_text_format.rs:132
+#: src/metadata/mkvmerge_text_format.rs:197
 msgid "couldn't update last start position"
 msgstr "impossible de mettre à jour la dernière position de départ"
 
-#: src/metadata/mkvmerge_text_format.rs:154
+#: src/metadata/mkvmerge_text_format.rs:223
 msgid "Failed to write mkvmerge text file"
 msgstr "Échec à l'écriture du fichier texte mkvmerge"
 
@@ -244,7 +237,19 @@ msgstr "Échec à l'export du média. {}"
 msgid "Media exported succesfully"
 msgstr "Table des matières exportée avec succès"
 
-#: src/ui/info_controller.rs:299
+#: src/ui/info_controller.rs:301
+msgid "No toc in file \"{}\""
+msgstr "Aucune table des matières dans le fichier «{}»"
+
+#: src/ui/info_controller.rs:313
+msgid ""
+"Error opening toc file \"{}\":\n"
+"{}"
+msgstr ""
+"Erreur à l'ouverture du fichier «{}» :\n"
+"{}"
+
+#: src/ui/info_controller.rs:326
 msgid "Failed to open toc file."
 msgstr "Impossible d'ouvrir le fichier de table des matières."
 
