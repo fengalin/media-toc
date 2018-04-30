@@ -629,16 +629,18 @@ impl PlaybackContext {
                                         PipelineState::Initialized(InitializedState::Playing);
                                 }
                                 gst::State::Paused => {
-                                    {
-                                        let dbl_audio_buffer =
-                                            &mut dbl_audio_buffer_mtx.lock().unwrap();
-                                        dbl_audio_buffer.set_state(gst::State::Paused);
+                                    if gst::State::Paused != msg_state_changed.get_old() {
+                                        {
+                                            let dbl_audio_buffer =
+                                                &mut dbl_audio_buffer_mtx.lock().unwrap();
+                                            dbl_audio_buffer.set_state(gst::State::Paused);
+                                        }
+                                        pipeline_state =
+                                            PipelineState::Initialized(InitializedState::Paused);
+                                        ctx_tx
+                                            .send(ContextMessage::ReadyForRefresh)
+                                            .unwrap();
                                     }
-                                    pipeline_state =
-                                        PipelineState::Initialized(InitializedState::Paused);
-                                    ctx_tx
-                                        .send(ContextMessage::ReadyForRefresh)
-                                        .unwrap();
                                 }
                                 _ => {
                                     {
