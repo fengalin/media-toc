@@ -17,7 +17,7 @@ pub mod mkvmerge_text_format;
 pub use self::mkvmerge_text_format::MKVMergeTextFormat;
 
 pub mod timestamp;
-pub use self::timestamp::Timestamp;
+pub use self::timestamp::{Timestamp, parse_timestamp};
 
 pub mod toc_visitor;
 pub use self::toc_visitor::{TocVisit, TocVisitor};

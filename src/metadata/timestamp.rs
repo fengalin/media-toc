@@ -1,4 +1,124 @@
+use nom::types::CompleteStr;
+
 use std::fmt;
+
+named!(parse_digits<CompleteStr, u64>,
+    flat_map!(
+        take_while1!(|c| c >= '0' && c <= '9'),
+        parse_to!(u64)
+    )
+);
+
+named!(parse_opt_dot_digits<CompleteStr, Option<u64>>,
+    opt!(do_parse!(
+        tag!(".") >>
+        nb: parse_digits >>
+        (nb)
+    ))
+);
+
+named!(pub parse_timestamp<CompleteStr, Timestamp>,
+    do_parse!(
+        nb1: parse_digits >>
+        tag!(":") >>
+        nb2: parse_digits >>
+        nb1_is_hours: opt!(alt!(
+            tag!(":") => { |_| true } |
+            tag!(".") => { |_| false }
+        )) >>
+        nb3: opt!(parse_digits) >>
+        nb4: parse_opt_dot_digits >>
+        nb5: parse_opt_dot_digits >>
+        eof!() >>
+        ({
+            let mut ts = {
+                if nb1_is_hours.unwrap_or(false) {
+                    Timestamp {
+                        h: nb1,
+                        m: nb2,
+                        s: nb3.unwrap_or(0),
+                        ms: nb4.unwrap_or(0),
+                        us: nb5.unwrap_or(0),
+                        .. Timestamp::default()
+                    }
+                } else {
+                    Timestamp {
+                        h: 0,
+                        m: nb1,
+                        s: nb2,
+                        ms: nb3.unwrap_or(0),
+                        us: nb4.unwrap_or(0),
+                        nano: nb5.unwrap_or(0),
+                        .. Timestamp::default()
+                    }
+                }
+            };
+            ts.nano_total =
+                ((((ts.h * 60 + ts.m) * 60 + ts.s) * 1_000 + ts.ms) * 1_000 + ts.us) * 1_000
+                + ts.nano;
+            ts
+        })
+    )
+);
+
+#[test]
+fn parse_string() {
+    use nom;
+
+    let ts_res = parse_timestamp(CompleteStr("11:42:20.010"));
+    assert!(ts_res.is_ok());
+    let ts = ts_res.unwrap().1;
+    assert_eq!(ts.h, 11);
+    assert_eq!(ts.m, 42);
+    assert_eq!(ts.s, 20);
+    assert_eq!(ts.ms, 10);
+    assert_eq!(ts.us, 0);
+    assert_eq!(ts.nano, 0);
+    assert_eq!(
+        ts.nano_total,
+        ((((11 * 60 + 42) * 60 + 20) * 1_000) + 10) * 1_000 * 1_000
+    );
+
+    let ts_res = parse_timestamp(CompleteStr("42:20.010"));
+    assert!(ts_res.is_ok());
+    let ts = ts_res.unwrap().1;
+    assert_eq!(ts.h, 0);
+    assert_eq!(ts.m, 42);
+    assert_eq!(ts.s, 20);
+    assert_eq!(ts.ms, 10);
+    assert_eq!(ts.us, 0);
+    assert_eq!(ts.nano, 0);
+    assert_eq!(
+        ts.nano_total,
+        (((42 * 60 + 20) * 1_000) + 10) * 1_000 * 1_000
+    );
+
+    let ts_res = parse_timestamp(CompleteStr("42:20.010.015"));
+    assert!(ts_res.is_ok());
+    let ts = ts_res.unwrap().1;
+    assert_eq!(ts.h, 0);
+    assert_eq!(ts.m, 42);
+    assert_eq!(ts.s, 20);
+    assert_eq!(ts.ms, 10);
+    assert_eq!(ts.us, 15);
+    assert_eq!(ts.nano, 0);
+    assert_eq!(
+        ts.nano_total,
+        ((((42 * 60 + 20) * 1_000) + 10) * 1_000 + 15) * 1_000
+    );
+
+    assert!(parse_timestamp(CompleteStr("abc:15")).is_err());
+    assert!(parse_timestamp(CompleteStr("42:aa.015")).is_err());
+
+    let ts_res = parse_timestamp(CompleteStr("42:20a"));
+    let err = ts_res.unwrap_err();
+    if let nom::Err::Error(nom::Context::Code(i, code)) = err {
+        assert_eq!(CompleteStr("a"), i);
+        assert_eq!(nom::ErrorKind::Eof, code);
+    } else {
+        panic!("unexpected error type returned");
+    }
+}
 
 #[derive(Clone, Copy, Default)]
 pub struct Timestamp {
@@ -11,29 +131,7 @@ pub struct Timestamp {
     pub h: u64,
 }
 
-macro_rules! pop_and_parse(
-    ($source:expr) => {
-        match $source.pop() {
-            Some(part) => {
-                part.parse::<u64>()
-                    .map_err(|_| {
-                        warn!("from_string can't parse {}", part);
-                        ()
-                    })?
-            },
-            None => {
-                warn!("from_string couldn't pop part");
-                return Err(());
-            }
-        }
-    };
-);
-
 impl Timestamp {
-    pub fn new() -> Self {
-        Timestamp::default()
-    }
-
     pub fn from_nano(nano_total: u64) -> Self {
         let us_total = nano_total / 1_000;
         let ms_total = us_total / 1_000;
@@ -49,48 +147,6 @@ impl Timestamp {
             m: m_total % 60,
             h: m_total / 60,
         }
-    }
-
-    pub fn from_string(input: &str) -> Result<Self, ()> {
-        let mut parts: Vec<&str> = input.trim().split(':').collect();
-        if parts.len() < 2 {
-            warn!("from_string can't parse {}", input);
-            return Err(());
-        }
-
-        let mut ts = Timestamp::new();
-
-        // parse last part, expecting 000.000 or 000.000.000
-        let last = parts.pop().unwrap();
-        let mut dot_parts: Vec<&str> = last.split('.').collect();
-        ts.us = if dot_parts.len() == 3 {
-            pop_and_parse!(dot_parts)
-        } else {
-            0
-        };
-
-        ts.ms = if dot_parts.len() == 2 {
-            pop_and_parse!(dot_parts)
-        } else {
-            0
-        };
-
-        ts.s = pop_and_parse!(dot_parts);
-        ts.m = pop_and_parse!(parts);
-
-        if parts.is_empty() {
-            ts.h = 0;
-        } else if parts.len() == 1 {
-            ts.h = pop_and_parse!(parts);
-        } else {
-            warn!("from_string too many parts in {}", input);
-            return Err(());
-        }
-
-        ts.nano_total =
-            ((((ts.h * 60 + ts.m) * 60 + ts.s) * 1_000 + ts.ms) * 1_000 + ts.us) * 1_000;
-
-        Ok(ts)
     }
 
     pub fn format_with_hours(&self) -> String {
@@ -145,62 +201,5 @@ impl fmt::Display for Timestamp {
 impl fmt::Debug for Timestamp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("Timestamp").field(&self.to_string()).finish()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    //use env_logger;
-    use metadata::Timestamp;
-
-    #[test]
-    fn parse_string() {
-        //env_logger::try_init();
-
-        let ts = Timestamp::from_string("11:42:20.010");
-        assert!(ts.is_ok());
-        let ts = ts.unwrap();
-        assert_eq!(ts.h, 11);
-        assert_eq!(ts.m, 42);
-        assert_eq!(ts.s, 20);
-        assert_eq!(ts.ms, 10);
-        assert_eq!(ts.us, 0);
-        assert_eq!(ts.nano, 0);
-        assert_eq!(
-            ts.nano_total,
-            ((((11 * 60 + 42) * 60 + 20) * 1_000) + 10) * 1_000 * 1_000
-        );
-
-        let ts = Timestamp::from_string("42:20.010");
-        assert!(ts.is_ok());
-        let ts = ts.unwrap();
-        assert_eq!(ts.h, 0);
-        assert_eq!(ts.m, 42);
-        assert_eq!(ts.s, 20);
-        assert_eq!(ts.ms, 10);
-        assert_eq!(ts.us, 0);
-        assert_eq!(ts.nano, 0);
-        assert_eq!(
-            ts.nano_total,
-            (((42 * 60 + 20) * 1_000) + 10) * 1_000 * 1_000
-        );
-
-        let ts = Timestamp::from_string("42:20.010.015");
-        assert!(ts.is_ok());
-        let ts = ts.unwrap();
-        assert_eq!(ts.h, 0);
-        assert_eq!(ts.m, 42);
-        assert_eq!(ts.s, 20);
-        assert_eq!(ts.ms, 10);
-        assert_eq!(ts.us, 15);
-        assert_eq!(ts.nano, 0);
-        assert_eq!(
-            ts.nano_total,
-            ((((42 * 60 + 20) * 1_000) + 10) * 1_000 + 15) * 1_000
-        );
-
-        assert!(Timestamp::from_string("abc.015").is_err());
-        assert!(Timestamp::from_string("42:aa.015").is_err());
-        assert!(Timestamp::from_string("20:11:42:010.015").is_err());
     }
 }

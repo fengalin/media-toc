@@ -2,11 +2,13 @@ use gettextrs::gettext;
 use gstreamer as gst;
 
 use nom;
+use nom::types::CompleteStr;
 use nom::{AtEof, InputLength};
 
 use std::io::{Read, Write};
 
-use super::{get_default_chapter_title, MediaInfo, Reader, Timestamp, TocVisitor, Writer};
+use super::{get_default_chapter_title, MediaInfo, Reader, Timestamp, parse_timestamp, TocVisitor,
+            Writer};
 
 static EXTENSION: &'static str = "txt";
 
@@ -25,15 +27,13 @@ impl MKVMergeTextFormat {
     }
 }
 
-fn new_chapter(nb: usize, start: Result<Timestamp, ()>, title: &str) -> gst::TocEntry {
-    // FIXME: handle Timestamp conversion error in place
-    let start = start.unwrap().nano_total;
-
+fn new_chapter(nb: usize, start_ts: Timestamp, title: &str) -> gst::TocEntry {
     let mut chapter = gst::TocEntry::new(gst::TocEntryType::Chapter, &format!("{:02}", nb));
+    let start = start_ts.nano_total as i64;
     chapter
         .get_mut()
         .unwrap()
-        .set_start_stop_times(start as i64, start as i64);
+        .set_start_stop_times(start, start);
 
     let mut tag_list = gst::TagList::new();
     tag_list
@@ -44,32 +44,29 @@ fn new_chapter(nb: usize, start: Result<Timestamp, ()>, title: &str) -> gst::Toc
     chapter
 }
 
-named!(chapter<nom::types::CompleteStr, gst::TocEntry>,
+named!(parse_chapter<CompleteStr, gst::TocEntry>,
     do_parse!(
         tag!(CHAPTER_TAG) >>
         nb1: flat_map!(take!(2), parse_to!(usize)) >>
         tag!("=") >>
-        start: map!(
-            take_until_either!("\r\n"),
-            |start_str| Timestamp::from_string(start_str.trim())
-        ) >>
+        start: flat_map!(take_until_either!("\r\n"), parse_timestamp) >>
         eat_separator!("\r\n") >>
         tag!(CHAPTER_TAG) >>
         nb: verify!(flat_map!(take!(2), parse_to!(usize)), |nb2:usize| nb1 == nb2) >>
         tag!(NAME_TAG) >>
         tag!("=") >>
         title: take_until_either!("\r\n") >>
-        eat_separator!("\r\n") >>
+        opt!(eat_separator!("\r\n")) >>
         (new_chapter(nb, start, &title))
     )
 );
 
 #[test]
-fn parse_chapter() {
+fn parse_chapter_test() {
     use nom::InputLength;
     gst::init().unwrap();
 
-    let res = chapter(nom::types::CompleteStr("CHAPTER01=00:00:01.000\nCHAPTER01NAME=test\n"));
+    let res = parse_chapter(CompleteStr("CHAPTER01=00:00:01.000\nCHAPTER01NAME=test\n"));
     let (i, toc_entry) = res.unwrap();
     assert_eq!(0, i.input_len());
     assert_eq!(1_000_000_000, toc_entry.get_start_stop_times().unwrap().0);
@@ -83,7 +80,7 @@ fn parse_chapter() {
             }),
     );
 
-    let res = chapter(nom::types::CompleteStr("CHAPTER01=00:00:01.000\r\nCHAPTER01NAME=test\r\n"));
+    let res = parse_chapter(CompleteStr("CHAPTER01=00:00:01.000\r\nCHAPTER01NAME=test\r\n"));
     let (i, toc_entry) = res.unwrap();
     assert_eq!(0, i.input_len());
     assert_eq!(1_000_000_000, toc_entry.get_start_stop_times().unwrap().0);
@@ -97,19 +94,19 @@ fn parse_chapter() {
             }),
     );
 
-    let res = chapter(nom::types::CompleteStr("CHAPTER0x=00:00:01.000"));
+    let res = parse_chapter(CompleteStr("CHAPTER0x=00:00:01.000"));
     let err = res.unwrap_err();
     if let nom::Err::Error(nom::Context::Code(i, code)) = err {
-        assert_eq!(nom::types::CompleteStr("0x"), i);
+        assert_eq!(CompleteStr("0x"), i);
         assert_eq!(nom::ErrorKind::ParseTo, code);
     } else {
         panic!("unexpected error type returned");
     }
 
-    let res = chapter(nom::types::CompleteStr("CHAPTER01=00:00:01.000\nCHAPTER02NAME=test\n"));
+    let res = parse_chapter(CompleteStr("CHAPTER01=00:00:01.000\nCHAPTER02NAME=test\n"));
     let err = res.unwrap_err();
     if let nom::Err::Error(nom::Context::Code(i, code)) = err {
-        assert_eq!(nom::types::CompleteStr("02NAME=test\n"), i);
+        assert_eq!(CompleteStr("02NAME=test\n"), i);
         assert_eq!(nom::ErrorKind::Verify, code);
     } else {
         panic!("unexpected error type returned");
@@ -129,10 +126,10 @@ impl Reader for MKVMergeTextFormat {
         if !content.is_empty() {
             let mut toc_edition = gst::TocEntry::new(gst::TocEntryType::Edition, "");
             let mut last_chapter: Option<gst::TocEntry> = None;
-            let mut input = nom::types::CompleteStr(&content[..]);
+            let mut input = CompleteStr(&content[..]);
 
-            loop {
-                let cur_chapter = match chapter(input) {
+            while input.input_len() > 0 {
+                let cur_chapter = match parse_chapter(input) {
                     Ok((i, cur_chapter)) => {
                         if i.input_len() == input.input_len() {
                             // No progress
@@ -154,19 +151,17 @@ impl Reader for MKVMergeTextFormat {
                                     gettext("expecting a number, found: {}")
                                         .replacen("{}", &i[..i.len().min(2)], 1)
                                 }
-                                nom::ErrorKind::Tag => {
-                                    gettext("unexpected sequence starting with: {}")
-                                        .replacen("{}", &i[..i.len().min(10)], 1)
-                                }
                                 nom::ErrorKind::Verify => {
                                     gettext("chapter numbers don't match for: {}")
                                         .replacen("{}", &i[..i.len().min(2)], 1)
                                 }
-                                nom::ErrorKind::Eof => break,
-                                _ => { println!("other code {:?}", code); error_msg }
+                                _ => {
+                                    gettext("unexpected sequence starting with: {}")
+                                        .replacen("{}", &i[..i.len().min(10)], 1)
+                                }
                             }
                         } else {
-                            println!("other error");
+                            error!("unknown error {:?}", err);
                             error_msg
                         };
                         error!("{}", msg);
