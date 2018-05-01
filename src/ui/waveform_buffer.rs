@@ -247,7 +247,7 @@ impl WaveformBuffer {
 
     // Update to current position and compute the first sample to display.
     fn update_first_visible_sample(&mut self, frame_time: u64) {
-        self.first_visible_sample = if self.image.is_ready() {
+        self.first_visible_sample = if self.image.is_ready {
             self.refresh_position(frame_time);
 
             if self.cursor_sample >= self.image.lower {
@@ -920,7 +920,7 @@ impl SampleExtractor for WaveformBuffer {
     }
 
     fn refresh(&mut self, audio_buffer: &AudioBuffer) {
-        if self.image.is_ready {
+        if self.image.is_initialized {
             // Note: current state is up to date (updated from DoubleAudioBuffer)
 
             let (lower, upper) = self.get_sample_range(audio_buffer);

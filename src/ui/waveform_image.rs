@@ -29,6 +29,7 @@ pub struct WaveformSample {
 
 pub struct WaveformImage {
     pub id: usize,
+    pub is_initialized: bool,
     pub is_ready: bool,
     pub shareable_state_changed: bool,
 
@@ -74,6 +75,7 @@ impl WaveformImage {
 
         WaveformImage {
             id,
+            is_initialized: false,
             is_ready: false,
             shareable_state_changed: false,
 
@@ -116,6 +118,7 @@ impl WaveformImage {
 
         // self.exposed_image & self.secondary_image
         // will be cleaned on next with draw
+        self.is_initialized = false;
         self.image_width = 0;
         self.image_width_f = 0f64;
         self.image_height = 0;
@@ -171,7 +174,7 @@ impl WaveformImage {
 
         if self.force_redraw {
             self.shareable_state_changed = true;
-            self.is_ready = self.sample_step != 0;
+            self.is_initialized = self.sample_step != 0;
 
             debug!(
                 "{}_upd.dim prev. f.redraw {}, w {}, h {}, sample_step_f. {}",
@@ -190,7 +193,7 @@ impl WaveformImage {
 
     pub fn update_sample_step(&mut self, sample_step_f: f64) {
         self.force_redraw |= (self.sample_step_f - sample_step_f).abs() > 0.01f64;
-        self.is_ready = self.force_redraw && (self.req_width != 0);
+        self.is_initialized = self.force_redraw && (self.req_width != 0);
 
         self.sample_step_f = sample_step_f;
         self.sample_step = (sample_step_f as usize).max(1);
@@ -202,10 +205,6 @@ impl WaveformImage {
         self.x_step = self.x_step_f as usize;
 
         self.shareable_state_changed = true;
-    }
-
-    pub fn is_ready(&self) -> bool {
-        self.is_ready
     }
 
     pub fn get_image(&self) -> &cairo::ImageSurface {
@@ -220,7 +219,7 @@ impl WaveformImage {
                 self.sample_step = other.sample_step;
                 self.x_step_f = other.x_step_f;
                 self.x_step = other.x_step;
-                self.is_ready = other.is_ready;
+                self.is_initialized = other.is_initialized;
                 self.force_redraw = true;
             }
 
