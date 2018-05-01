@@ -21,6 +21,7 @@ const EXTRACTION_THRESHOLD: usize = 1024;
 // the exposed_buffer during that time. When the extration is done, the buffers
 // are swapped.
 pub struct DoubleAudioBuffer {
+    state: gst::State,
     audio_buffer: AudioBuffer,
     samples_since_last_extract: usize,
     exposed_buffer_mtx: Arc<Mutex<Box<SampleExtractor>>>,
@@ -42,6 +43,7 @@ impl DoubleAudioBuffer {
         working_buffer: Box<SampleExtractor>,
     ) -> DoubleAudioBuffer {
         DoubleAudioBuffer {
+            state: gst::State::Null,
             audio_buffer: AudioBuffer::new(buffer_duration),
             samples_since_last_extract: 0,
             exposed_buffer_mtx: Arc::new(Mutex::new(exposed_buffer)),
@@ -73,6 +75,7 @@ impl DoubleAudioBuffer {
     }
 
     fn reset(&mut self) {
+        self.state = gst::State::Null;
         self.samples_since_last_extract = 0;
         self.lower_to_keep = 0;
         self.sample_gauge = None;
@@ -83,6 +86,7 @@ impl DoubleAudioBuffer {
     }
 
     pub fn set_state(&mut self, state: gst::State) {
+        self.state = state;
         {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
             exposed_buffer_box.set_state(state);
@@ -184,10 +188,14 @@ impl DoubleAudioBuffer {
         self.samples_since_last_extract += sample_nb;
 
         let sample_window = self.sample_window;
-        let must_notify = self.sample_gauge.as_mut().map_or(false, |gauge| {
-            *gauge += sample_nb;
-            *gauge > sample_window
-        });
+        let must_notify = if self.state != gst::State::Playing {
+            self.sample_gauge.as_mut().map_or(false, |gauge| {
+                *gauge += sample_nb;
+                *gauge > sample_window
+            })
+        } else {
+            false
+        };
 
         if must_notify || self.samples_since_last_extract >= EXTRACTION_THRESHOLD {
             // extract new samples and swap
@@ -226,13 +234,13 @@ impl DoubleAudioBuffer {
         // self.exposed_buffer_mtx
     }
 
-    pub fn refresh(&mut self, is_playing: bool) {
+    pub fn refresh(&mut self) {
         // refresh with current conditions
         let mut working_buffer = self.working_buffer.take().unwrap();
         {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
 
-            if !is_playing {
+            if self.state != gst::State::Playing {
                 exposed_buffer_box.switch_to_paused();
             }
 

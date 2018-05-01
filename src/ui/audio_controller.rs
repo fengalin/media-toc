@@ -346,7 +346,7 @@ impl AudioController {
         if !is_playing {
             // refresh the buffer in order to render the waveform
             // with samples that might not be rendered in current WaveformImage yet
-            self.dbl_buffer_mtx.lock().unwrap().refresh(false); // not playing
+            self.dbl_buffer_mtx.lock().unwrap().refresh();
         }
         self.redraw();
     }
@@ -406,7 +406,7 @@ impl AudioController {
                     if this.playback_needs_refresh {
                         trace!("tick forcing refresh");
 
-                        this.dbl_buffer_mtx.lock().unwrap().refresh(true); // is playing
+                        this.dbl_buffer_mtx.lock().unwrap().refresh();
                     }
 
                     this.redraw();
@@ -523,11 +523,7 @@ impl AudioController {
     }
 
     pub fn refresh(&mut self) {
-        self.dbl_buffer_mtx
-            .lock()
-            .unwrap()
-            .refresh(self.state == ControllerState::Playing);
-
+        self.dbl_buffer_mtx.lock().unwrap().refresh();
         self.redraw();
     }
 
