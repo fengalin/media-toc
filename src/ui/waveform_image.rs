@@ -214,11 +214,13 @@ impl WaveformImage {
 
     pub fn update_from_other(&mut self, other: &mut WaveformImage) {
         if other.shareable_state_changed {
+            debug!("{}_update_from_other shareable_state_changed", self.id);
             if self.sample_step != other.sample_step || self.x_step != other.x_step {
                 self.sample_step_f = other.sample_step_f;
                 self.sample_step = other.sample_step;
                 self.x_step_f = other.x_step_f;
                 self.x_step = other.x_step;
+                self.is_ready = other.is_ready;
                 self.force_redraw = true;
             }
 

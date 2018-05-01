@@ -1,8 +1,6 @@
 use gstreamer as gst;
 use gstreamer_audio as gst_audio;
 
-use std::any::Any;
-
 use std::mem;
 
 use std::sync::{Arc, Mutex};
@@ -146,20 +144,6 @@ impl DoubleAudioBuffer {
             .as_mut()
             .unwrap()
             .set_time_ref(audio_ref);
-    }
-
-    // Init the buffers with the provided conditions.
-    // Conditions concrete type must conform to a struct expected
-    // by the concrete implementation of the SampleExtractor.
-    pub fn set_conditions<T: Any + Clone>(&mut self, conditions: Box<T>) {
-        {
-            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
-            exposed_buffer_box.set_conditions(conditions.clone());
-            exposed_buffer_box.refresh(&self.audio_buffer);
-        }
-        let working_buffer = self.working_buffer.as_mut().unwrap();
-        working_buffer.set_conditions(conditions);
-        working_buffer.refresh(&self.audio_buffer);
     }
 
     pub fn ignore_eos(&mut self) {

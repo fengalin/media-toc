@@ -10,6 +10,8 @@ use std::cell::RefCell;
 
 use media::PlaybackContext;
 
+use metadata::MediaInfo;
+
 use super::MainController;
 
 pub struct VideoController {
@@ -74,22 +76,21 @@ impl VideoController {
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
+        let info = context.info.lock().unwrap();
+        self.streams_changed(&info);
+    }
+
+    pub fn streams_changed(&mut self, info: &MediaInfo) {
         if self.is_available {
             if let Some(cleaner_id) = self.cleaner_id.take() {
                 self.container.get_children()[0].disconnect(cleaner_id);
             }
 
-            let has_video = context
-                .info
-                .lock()
-                .unwrap()
-                .streams
-                .video_selected
-                .is_some();
-
-            if has_video {
+            if info.streams.video_selected.is_some() {
+                info!("streams_changed video selected");
                 self.container.show();
             } else {
+                info!("streams_changed video not selected");
                 self.container.hide();
             }
         }

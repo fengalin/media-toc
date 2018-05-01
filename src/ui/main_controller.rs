@@ -457,12 +457,13 @@ impl MainController {
                         this.header_bar
                             .set_subtitle(Some(context.file_name.as_str()));
                         this.perspective_ctrl.borrow().new_media();
+                        this.export_ctrl.borrow_mut().new_media();
+                        this.split_ctrl.borrow_mut().new_media();
+
                         this.streams_ctrl.borrow_mut().new_media(&context);
-                        this.info_ctrl.borrow_mut().new_media(&context);
-                        this.video_ctrl.new_media(&context);
                         this.audio_ctrl.borrow_mut().new_media(&context);
-                        this.export_ctrl.borrow_mut().new_media(&context);
-                        this.split_ctrl.borrow_mut().new_media(&context);
+                        this.video_ctrl.new_media(&context);
+                        this.info_ctrl.borrow_mut().new_media(&context);
 
                         this.set_context(context);
 
@@ -486,6 +487,8 @@ impl MainController {
                         let mut context = this.context.take().unwrap();
                         {
                             let info = context.info.lock().unwrap();
+                            this.audio_ctrl.borrow_mut().streams_changed(&info);
+                            this.video_ctrl.streams_changed(&info);
                             this.info_ctrl.borrow().streams_changed(&info);
                         }
                         this.set_context(context);

@@ -17,10 +17,10 @@ use std::sync::{Arc, Mutex};
 
 use media::{DoubleAudioBuffer, PlaybackContext, SampleExtractor, QUEUE_SIZE_NS};
 
-use metadata::Timestamp;
+use metadata::{MediaInfo, Timestamp};
 
 use super::{ChaptersBoundaries, DoubleWaveformBuffer, MainController, WaveformBuffer,
-            WaveformConditions, BACKGROUND_COLOR};
+            BACKGROUND_COLOR};
 
 const BUFFER_DURATION: u64 = 60_000_000_000; // 60 s
 const MIN_REQ_DURATION: f64 = 1_953_125f64; // 2 ms / 1000 px
@@ -278,46 +278,30 @@ impl AudioController {
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
-        let has_audio = context
-            .info
-            .lock()
-            .unwrap()
-            .streams
-            .audio_selected
-            .is_some();
+        {
+            let info = context.info.lock().unwrap();
+            self.streams_changed(&info);
+        }
 
-        if has_audio {
+        // Refresh conditions asynchronously so that
+        // all widget are arranged to their target positions
+        let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
+        gtk::idle_add(move || {
+            let mut this = this_rc.borrow_mut();
+            this.state = ControllerState::Paused;
+            this.update_conditions();
+            glib::Continue(false)
+        });
+    }
+
+    pub fn streams_changed(&mut self, info: &MediaInfo) {
+        if info.streams.audio_selected.is_some() {
+            info!("streams_changed audio selected");
             self.zoom_in_btn.set_sensitive(true);
             self.zoom_out_btn.set_sensitive(true);
             self.container.show();
-
-            // Refresh conditions asynchronously so that
-            // all widget are arranged to their target positions
-            let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
-            gtk::idle_add(move || {
-                let mut this = this_rc.borrow_mut();
-                let requested_duration = this.requested_duration;
-                let area_width = this.area_width;
-                let area_height = this.area_height;
-                debug!(
-                    "new_media(async) conditions {}, {}x{}",
-                    requested_duration, area_width, area_height,
-                );
-
-                this.dbl_buffer_mtx.lock().unwrap().set_conditions(Box::new(
-                    WaveformConditions::new(
-                        requested_duration,
-                        area_width as i32,
-                        area_height as i32,
-                    ),
-                ));
-
-                this.state = ControllerState::Paused;
-                this.refresh();
-
-                glib::Continue(false)
-            });
         } else {
+            info!("streams_changed audio not selected");
             self.container.hide();
         }
     }

@@ -11,7 +11,7 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
 
-use media::{ContextMessage, PlaybackContext, TocSetterContext};
+use media::{ContextMessage, TocSetterContext};
 use media::ContextMessage::*;
 
 use metadata;
@@ -100,7 +100,7 @@ impl ExportController {
         });
     }
 
-    pub fn new_media(&mut self, _context: &PlaybackContext) {
+    pub fn new_media(&mut self) {
         self.export_btn.set_sensitive(true);
     }
 

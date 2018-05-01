@@ -2,7 +2,6 @@ use gstreamer as gst;
 use gstreamer::ElementExtManual;
 
 use std::any::Any;
-use std::boxed::Box;
 
 use super::{AudioBuffer, AudioChannel};
 
@@ -67,8 +66,6 @@ pub trait SampleExtractor: Send {
     fn set_channels(&mut self, channels: &[AudioChannel]);
 
     fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64);
-
-    fn set_conditions(&mut self, conditions: Box<Any>);
 
     fn get_lower(&self) -> usize;
 

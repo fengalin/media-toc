@@ -455,6 +455,7 @@ impl PlaybackContext {
         }
 
         // FIXME: build a dedicated plugin?
+
         // get samples as fast as possible
         waveform_sink
             .set_property("sync", &gst::Value::from(&false))

@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
 
-use media::{ContextMessage, PlaybackContext, SplitterContext};
+use media::{ContextMessage, SplitterContext};
 use media::ContextMessage::*;
 
 use metadata;
@@ -118,7 +118,7 @@ impl SplitController {
         });
     }
 
-    pub fn new_media(&mut self, _context: &PlaybackContext) {
+    pub fn new_media(&mut self) {
         self.split_btn.set_sensitive(true);
     }
 

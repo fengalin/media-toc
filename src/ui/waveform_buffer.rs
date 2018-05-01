@@ -778,25 +778,6 @@ impl WaveformBuffer {
     }
 }
 
-// This is a container to pass conditions via the refresh
-// function of the SampleExtractor trait
-#[derive(Clone)]
-pub struct WaveformConditions {
-    pub duration_per_1000px: f64,
-    pub width: i32,
-    pub height: i32,
-}
-
-impl WaveformConditions {
-    pub fn new(duration_per_1000px: f64, width: i32, height: i32) -> Self {
-        WaveformConditions {
-            duration_per_1000px,
-            width,
-            height,
-        }
-    }
-}
-
 impl SampleExtractor for WaveformBuffer {
     fn as_mut_any(&mut self) -> &mut Any {
         self
@@ -838,12 +819,12 @@ impl SampleExtractor for WaveformBuffer {
     }
 
     fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64) {
+        self.reset_sample_conditions();
+
         debug!(
             "{}_set_sample_duration per_sample {}",
             self.image.id, per_sample
         );
-        self.reset_sample_conditions();
-
         self.state.sample_duration = per_sample;
         self.state.duration_per_1000_samples = per_1000_samples;
         self.update_sample_step();
@@ -852,11 +833,6 @@ impl SampleExtractor for WaveformBuffer {
 
     fn set_channels(&mut self, channels: &[AudioChannel]) {
         self.image.set_channels(channels);
-    }
-
-    fn set_conditions(&mut self, conditions: Box<Any>) {
-        let cndt = conditions.downcast::<WaveformConditions>().unwrap();
-        self.update_conditions(cndt.duration_per_1000px, cndt.width, cndt.height);
     }
 
     fn switch_to_paused(&mut self) {
@@ -888,6 +864,7 @@ impl SampleExtractor for WaveformBuffer {
         other.playback_needs_refresh = self.playback_needs_refresh;
 
         if other.conditions_changed {
+            debug!("{}_update_concrete_state conditions_changed", self.image.id);
             self.req_duration_per_1000px = other.req_duration_per_1000px;
             self.width = other.width;
             self.width_f = other.width_f;
