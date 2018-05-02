@@ -11,11 +11,11 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
 
-use media::{ContextMessage, SplitterContext};
+use media::{ContextMessage, PlaybackContext, SplitterContext};
 use media::ContextMessage::*;
 
 use metadata;
-use metadata::{get_default_chapter_title, Format, TocVisitor};
+use metadata::{get_default_chapter_title, Format, MediaInfo, TocVisitor};
 
 use super::{MainController, OutputBaseController};
 
@@ -32,8 +32,10 @@ macro_rules! add_tag_from(
 pub struct SplitController {
     base: OutputBaseController,
 
+    audio_selected: Option<String>,
     toc_visitor: Option<TocVisitor>,
     idx: usize,
+
     split_list: gtk::ListBox,
     split_to_flac_row: gtk::ListBoxRow,
     flac_warning_lbl: gtk::Label,
@@ -57,8 +59,10 @@ impl SplitController {
         let this = Rc::new(RefCell::new(SplitController {
             base: OutputBaseController::new(builder),
 
+            audio_selected: None,
             toc_visitor: None,
             idx: 0,
+
             split_list: builder.get_object("split-list-box").unwrap(),
             split_to_flac_row: builder.get_object("flac_split-row").unwrap(),
             flac_warning_lbl: builder.get_object("flac_warning-lbl").unwrap(),
@@ -118,8 +122,17 @@ impl SplitController {
         });
     }
 
-    pub fn new_media(&mut self) {
-        self.split_btn.set_sensitive(true);
+    pub fn new_media(&mut self, context: &PlaybackContext) {
+        let info = context.info.lock().unwrap();
+        self.streams_changed(&info);
+    }
+
+    pub fn streams_changed(&mut self, info: &MediaInfo) {
+        self.audio_selected = info.streams
+            .audio_selected
+            .as_ref()
+            .map(|stream| stream.id.clone());
+        self.split_btn.set_sensitive(self.audio_selected.is_some());
     }
 
     pub fn cleanup(&mut self) {

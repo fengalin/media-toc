@@ -123,7 +123,6 @@ impl SplitterContext {
         self.position_query.get_result().get_value() as u64
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(mutex_atomic))]
     fn build_pipeline(&mut self, input_path: &Path, output_path: &Path) {
         /* There are multiple showstoppers to implementing something ideal
          * to export splitted chapters with audio and video (and subtitles):
@@ -190,12 +189,14 @@ impl SplitterContext {
         // paused mode. When the seek is performed buffers from the new segments are appended
         // to the ones from the preroll. Moreover, flacenc doesn't handle discontinuities.
         // As a workaround, we will drop buffers before the seek. The first buffer with the Discont
-        // flag show that it is possible to seek. The next buffer with the Discont flag corresponds
+        // flag shows that it is possible to seek. The next buffer with the Discont flag corresponds
         // to the first buffer from the target segment
+
+        let (start, end) = self.chapter.get_start_stop_times().unwrap();
 
         // Note: can't use AtomicBool here as pad probes are multithreaded so the function is Fn
         // not FnMut. See: https://github.com/sdroege/gstreamer-rs/pull/71
-        let (start, end) = self.chapter.get_start_stop_times().unwrap();
+        #[cfg_attr(feature = "cargo-clippy", allow(mutex_atomic))]
         let seek_done = Arc::new(Mutex::new(false));
         let pipeline = self.pipeline.clone();
         audio_enc_sink_pad.add_probe(gst::PadProbeType::BUFFER, move |_pad, probe_info| {

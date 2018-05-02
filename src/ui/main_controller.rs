@@ -456,14 +456,14 @@ impl MainController {
 
                         this.header_bar
                             .set_subtitle(Some(context.file_name.as_str()));
-                        this.perspective_ctrl.borrow().new_media();
-                        this.export_ctrl.borrow_mut().new_media();
-                        this.split_ctrl.borrow_mut().new_media();
 
-                        this.streams_ctrl.borrow_mut().new_media(&context);
                         this.audio_ctrl.borrow_mut().new_media(&context);
-                        this.video_ctrl.new_media(&context);
+                        this.export_ctrl.borrow_mut().new_media();
                         this.info_ctrl.borrow_mut().new_media(&context);
+                        this.perspective_ctrl.borrow().new_media(&context);
+                        this.split_ctrl.borrow_mut().new_media(&context);
+                        this.streams_ctrl.borrow_mut().new_media(&context);
+                        this.video_ctrl.new_media(&context);
 
                         this.set_context(context);
 
@@ -485,11 +485,21 @@ impl MainController {
                     StreamsSelected => {
                         let mut this = this_rc.borrow_mut();
                         let mut context = this.context.take().unwrap();
+                        this.requires_async_dialog = context
+                            .info
+                            .lock()
+                            .unwrap()
+                            .streams
+                            .video_selected
+                            .is_some();
+
                         {
                             let info = context.info.lock().unwrap();
                             this.audio_ctrl.borrow_mut().streams_changed(&info);
-                            this.video_ctrl.streams_changed(&info);
                             this.info_ctrl.borrow().streams_changed(&info);
+                            this.perspective_ctrl.borrow().streams_changed(&info);
+                            this.split_ctrl.borrow_mut().streams_changed(&info);
+                            this.video_ctrl.streams_changed(&info);
                         }
                         this.set_context(context);
                     }

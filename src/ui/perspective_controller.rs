@@ -6,6 +6,9 @@ use gtk::{BinExt, ButtonExt, ContainerExt, ImageExt, StackExt, WidgetExt};
 use std::rc::Rc;
 use std::cell::RefCell;
 
+use media::PlaybackContext;
+use metadata::MediaInfo;
+
 use super::MainController;
 
 macro_rules! gtk_downcast(
@@ -39,6 +42,7 @@ pub struct PerspectiveController {
     menu_button: gtk::MenuButton,
     popover: gtk::PopoverMenu,
     stack: gtk::Stack,
+    split_btn: gtk::Button,
 }
 
 impl PerspectiveController {
@@ -47,6 +51,7 @@ impl PerspectiveController {
             menu_button: builder.get_object("perspective-menu-btn").unwrap(),
             popover: builder.get_object("perspective-popovermenu").unwrap(),
             stack: builder.get_object("perspective-stack").unwrap(),
+            split_btn: builder.get_object("perspective-split-btn").unwrap(),
         }));
 
         this_rc.borrow().cleanup();
@@ -130,7 +135,17 @@ impl PerspectiveController {
         self.menu_button.set_sensitive(false);
     }
 
-    pub fn new_media(&self) {
+    pub fn new_media(&self, context: &PlaybackContext) {
         self.menu_button.set_sensitive(true);
+        let info = context.info.lock().unwrap();
+        self.streams_changed(&info);
+    }
+
+    pub fn streams_changed(&self, info: &MediaInfo) {
+        self.split_btn.set_sensitive(info
+            .streams
+            .audio_selected
+            .is_some()
+        );
     }
 }
