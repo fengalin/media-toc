@@ -93,6 +93,7 @@ impl SplitterContext {
     pub fn new(
         input_path: &Path,
         output_path: &Path,
+        stream_id: String,
         format: Format,
         chapter: gst::TocEntry,
         ctx_tx: Sender<ContextMessage>,
@@ -109,7 +110,7 @@ impl SplitterContext {
             chapter,
         };
 
-        this.build_pipeline(input_path, output_path);
+        this.build_pipeline(input_path, output_path, stream_id);
         this.register_bus_inspector(ctx_tx);
 
         match this.pipeline.set_state(gst::State::Paused) {
@@ -123,7 +124,7 @@ impl SplitterContext {
         self.position_query.get_result().get_value() as u64
     }
 
-    fn build_pipeline(&mut self, input_path: &Path, output_path: &Path) {
+    fn build_pipeline(&mut self, input_path: &Path, output_path: &Path, stream_id: String) {
         /* There are multiple showstoppers to implementing something ideal
          * to export splitted chapters with audio and video (and subtitles):
          * 1. matroska-mux drops seek events explicitely (a message states: "discard for now").
@@ -280,7 +281,9 @@ impl SplitterContext {
             queue.sync_state_with_parent().unwrap();
             let queue_src_pad = queue.get_static_pad("src").unwrap();
 
-            if name.starts_with("audio/") && pipeline_cb.get_by_name("audioconvert").is_none() {
+            if name.starts_with("audio/") && pipeline_cb.get_by_name("audioconvert").is_none()
+                && stream_id == pad.get_stream_id().expect("Split: no stream_id for audio src pad")
+            {
                 let audio_conv = gst::ElementFactory::make("audioconvert", "audioconvert").unwrap();
                 pipeline_cb.add(&audio_conv).unwrap();
                 gst::Element::link_many(&[&queue, &audio_conv, &audio_enc]).unwrap();

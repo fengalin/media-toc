@@ -174,6 +174,10 @@ impl SplitController {
     }
 
     fn split(&mut self) {
+        // Split button is not sensible when no audio
+        // stream is selected (see `streams_changed`)
+        debug_assert!(self.audio_selected.is_some());
+
         let format = self.get_selection();
         self.prepare_process(&format);
 
@@ -231,10 +235,18 @@ impl SplitController {
 
         let output_path = self.get_split_path(&chapter);
         let media_path = self.media_path.clone();
+        let stream_id = self.audio_selected.as_ref().unwrap().to_owned();
 
         let (ctx_tx, ui_rx) = channel();
         self.register_listener(format, LISTENER_PERIOD, ui_rx);
-        match SplitterContext::new(&media_path, &output_path, format, chapter, ctx_tx) {
+        match SplitterContext::new(
+            &media_path,
+            &output_path,
+            stream_id,
+            format,
+            chapter,
+            ctx_tx,
+        ) {
             Ok(splitter_ctx) => {
                 self.switch_to_busy();
                 self.splitter_ctx = Some(splitter_ctx);
