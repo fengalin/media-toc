@@ -15,7 +15,7 @@ use media::{ContextMessage, PlaybackContext, SplitterContext};
 use media::ContextMessage::*;
 
 use metadata;
-use metadata::{get_default_chapter_title, Format, MediaInfo, TocVisitor};
+use metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor};
 
 use super::{MainController, OutputBaseController};
 
@@ -32,7 +32,7 @@ macro_rules! add_tag_from(
 pub struct SplitController {
     base: OutputBaseController,
 
-    audio_selected: Option<String>,
+    audio_selected: Option<Stream>,
     toc_visitor: Option<TocVisitor>,
     idx: usize,
 
@@ -131,7 +131,7 @@ impl SplitController {
         self.audio_selected = info.streams
             .audio_selected
             .as_ref()
-            .map(|stream| stream.id.clone());
+            .map(|stream| stream.clone());
         self.split_btn.set_sensitive(self.audio_selected.is_some());
     }
 
@@ -235,7 +235,7 @@ impl SplitController {
 
         let output_path = self.get_split_path(&chapter);
         let media_path = self.media_path.clone();
-        let stream_id = self.audio_selected.as_ref().unwrap().to_owned();
+        let stream_id = self.audio_selected.as_ref().unwrap().id.to_owned();
 
         let (ctx_tx, ui_rx) = channel();
         self.register_listener(format, LISTENER_PERIOD, ui_rx);
@@ -300,10 +300,25 @@ impl SplitController {
             .unwrap_or_else(|| get_default_chapter_title());
 
         if self.toc_visitor.is_some() {
-            split_name += &format!("{:02}. {}.{}", self.idx, &track_title, self.extension);
-        } else {
-            split_name += &format!("{}.{}", &track_title, self.extension);
+            split_name += &format!("{:02}. ", self.idx);
         }
+
+        split_name += &track_title;
+
+        if let Some(ref stream) = self.audio_selected {
+            if let Some(ref tags) = stream.tags {
+                match tags.get_index::<gst::tags::LanguageName>(0) {
+                    Some(ref language) => split_name += &format!(" ({})", language.get().unwrap()),
+                    None => {
+                        if let Some(ref code) = tags.get_index::<gst::tags::LanguageCode>(0) {
+                            split_name += &format!(" ({})", code.get().unwrap());
+                        }
+                    }
+                }
+            }
+        }
+
+        split_name += &format!(".{}", self.extension);
 
         self.target_path.with_file_name(split_name)
     }

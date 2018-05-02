@@ -36,8 +36,8 @@ macro_rules! on_stream_selected(
     ($this:expr, $store:expr, $tree_path:expr, $selected:expr) => {
         if let Some(iter) = $store.get_iter($tree_path) {
             let stream = $this.get_stream_at(&$store, &iter);
-            let stream_to_select = match $selected.as_ref() {
-                Some(stream_id) => {
+            let stream_to_select = match $selected {
+                Some(ref stream_id) => {
                     if stream_id != &stream {
                         // Stream has changed
                         Some(stream)
@@ -240,17 +240,17 @@ impl StreamsController {
             &[&stream.id, &stream_id_display],
         );
 
-        if let Some(tags) = stream.tags.as_ref() {
-            let language = match tags.get_index::<gst::tags::LanguageName>(0).as_ref() {
-                Some(language) => language.get().unwrap(),
-                None => match tags.get_index::<gst::tags::LanguageCode>(0).as_ref() {
-                    Some(language) => language.get().unwrap(),
+        if let Some(ref tags) = stream.tags {
+            let language = match tags.get_index::<gst::tags::LanguageName>(0) {
+                Some(ref language) => language.get().unwrap(),
+                None => match tags.get_index::<gst::tags::LanguageCode>(0) {
+                    Some(ref language) => language.get().unwrap(),
                     None => "-",
                 },
             };
             store.set_value(&iter, LANGUAGE_COL, &gtk::Value::from(language));
 
-            if let Some(comment) = tags.get_index::<gst::tags::Comment>(0).as_ref() {
+            if let Some(ref comment) = tags.get_index::<gst::tags::Comment>(0) {
                 store.set_value(
                     &iter,
                     COMMENT_COL,
