@@ -33,8 +33,8 @@ at the starting position in paused mode.
 	[`gst-plugins-good` 1.14](https://gstreamer.freedesktop.org/releases/1.14/) or above.
 	* [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
 	* [Cue Sheet](http://wiki.hydrogenaud.io/index.php?title=Cue_sheet).
-- Split the media file's first audio stream into `flac`, `wave`, `opus`, `vorbis` or `mp3` files:
-one file per chapter. I'll add an option to select the streams to split later.
+- Split the currently selected audio stream into `flac`, `wave`, `opus`, `vorbis` or `mp3`
+files: one file per chapter.
 - Import the table of contents from:
 	* A Matroska container.
 	* [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
@@ -70,7 +70,7 @@ This file will be stored in the same folder as the original media and will be au
 next time you open this media.
 
 1. Define the chapters as explained in [this how-to](#how-to-create-the-toc).
-2. Switch to the Export perspective using selector on the left side of the header bar.
+2. Switch to the Export perspective using the selector on the left side of the header bar.
 3. Select `mkvmerge text format`.
 4. Click on `Export`. When the export is complete, a new file with the same name as your media and
 with a `txt` extension will be created in the media's folder.
@@ -83,20 +83,20 @@ or above.
 
 1. Open a media with a table of contents, define the chapters as explained in [this how-to](#how-to-create-the-toc)
 or open a media for which you already defined a table of contents (see [this how-to](#how-to-save-the-toc)).
-2. Switch to the Export perspective using selector on the left side of the header bar.
+2. Switch to the Export perspective using the selector on the left side of the header bar.
 3. Select `Matroska Container`.
 4. Click on `Export`. When the export is complete, a new file with the same name as your media and
 ending with `.toc.mkv` will be created in the media's folder.
 
 ## Split the audio stream into one file per chapter
 
-Currently, `media-toc` can only export the first audio stream.
-
 1. Open a media with a table of contents, define the chapters as explained in [this how-to](#how-to-create-the-toc)
 or open a media for which you already defined a table of contents (see [this how-to](#how-to-save-the-toc)).
-2. Switch to the Split perspective using selector on the left side of the header bar.
-3. Select to desired output format: `flac`, `wave`, `opus`, `vorbis` or `mp3`.
-4. Click on `Split`. When the split is complete, audio files will be created in the media's folder.
+2. Switch to the Streams perspective using the selector on the left side of the header bar.
+3. Select the audio stream to split.
+4. Switch to the Split perspective using the selector on the left side of the header bar.
+5. Select to desired output format: `flac`, `wave`, `opus`, `vorbis` or `mp3`.
+6. Click on `Split`. When the split is complete, audio files will be created in the media's folder.
 The files are named after the artist, media title, chapter number and chapter title.
 
 ## Use `mkvmerge` to add the toc to an existing Matrsoka media
