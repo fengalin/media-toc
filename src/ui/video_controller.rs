@@ -87,10 +87,10 @@ impl VideoController {
             }
 
             if info.streams.video_selected.is_some() {
-                info!("streams_changed video selected");
+                debug!("streams_changed video selected");
                 self.container.show();
             } else {
-                info!("streams_changed video not selected");
+                debug!("streams_changed video not selected");
                 self.container.hide();
             }
         }

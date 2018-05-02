@@ -102,6 +102,7 @@ impl SplitterContext {
             "{}",
             gettext("Splitting {}...").replacen("{}", output_path.to_str().unwrap(), 1)
         );
+        debug!("stream id {}", &stream_id);
 
         let mut this = SplitterContext {
             pipeline: gst::Pipeline::new("pipeline"),

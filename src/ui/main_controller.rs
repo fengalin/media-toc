@@ -324,6 +324,32 @@ impl MainController {
 
     pub fn select_streams(&mut self, stream_ids: &[String]) {
         self.context.as_ref().unwrap().select_streams(stream_ids);
+        // In Playing state, wait for the notification from the Context
+        // Otherwise, update immediately
+        if self.state != ControllerState::Playing {
+            self.streams_selected();
+        }
+    }
+
+    pub fn streams_selected(&mut self) {
+        let context = self.context.take().unwrap();
+        self.requires_async_dialog = context
+            .info
+            .lock()
+            .unwrap()
+            .streams
+            .video_selected
+            .is_some();
+
+        {
+            let info = context.info.lock().unwrap();
+            self.audio_ctrl.borrow_mut().streams_changed(&info);
+            self.info_ctrl.borrow().streams_changed(&info);
+            self.perspective_ctrl.borrow().streams_changed(&info);
+            self.split_ctrl.borrow_mut().streams_changed(&info);
+            self.video_ctrl.streams_changed(&info);
+        }
+        self.set_context(context);
     }
 
     fn hold(&mut self) {
@@ -482,27 +508,7 @@ impl MainController {
                             _ => (),
                         }
                     }
-                    StreamsSelected => {
-                        let mut this = this_rc.borrow_mut();
-                        let mut context = this.context.take().unwrap();
-                        this.requires_async_dialog = context
-                            .info
-                            .lock()
-                            .unwrap()
-                            .streams
-                            .video_selected
-                            .is_some();
-
-                        {
-                            let info = context.info.lock().unwrap();
-                            this.audio_ctrl.borrow_mut().streams_changed(&info);
-                            this.info_ctrl.borrow().streams_changed(&info);
-                            this.perspective_ctrl.borrow().streams_changed(&info);
-                            this.split_ctrl.borrow_mut().streams_changed(&info);
-                            this.video_ctrl.streams_changed(&info);
-                        }
-                        this.set_context(context);
-                    }
+                    StreamsSelected => this_rc.borrow_mut().streams_selected(),
                     Eos => {
                         let mut this = this_rc.borrow_mut();
                         match this.state {

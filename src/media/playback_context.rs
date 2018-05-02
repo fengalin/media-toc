@@ -277,6 +277,11 @@ impl PlaybackContext {
         let stream_ids: Vec<&str> = stream_ids.iter().map(|id| id.as_str()).collect();
         let select_streams_evt = gst::Event::new_select_streams(&stream_ids).build();
         self.decodebin.send_event(select_streams_evt);
+
+        {
+            let mut info = self.info.lock().unwrap();
+            info.streams.select_streams(&stream_ids[..]);
+        }
     }
 
     fn setup_queue(queue: &gst::Element) {
@@ -680,34 +685,17 @@ impl PlaybackContext {
                         }
                     }
                 }
-                gst::MessageView::StreamsSelected(msg_stream_sel) => {
+                gst::MessageView::StreamsSelected(_) => {
                     match pipeline_state {
                         PipelineState::Initialized(_) => {
-                            let stream_ids: Vec<String> = msg_stream_sel
-                                .get_streams()
-                                .iter()
-                                .map(|stream| stream.get_stream_id().unwrap())
-                                .collect();
-
-                            let audio_has_changed = {
-                                let info = &mut info_arc_mtx
-                                    .lock()
-                                    .expect("Failed to lock media info while comparing streams");
-                                let audio_stream_cur = info
-                                    .streams
-                                    .audio_selected
-                                    .as_ref()
-                                    .map(|ref stream| stream.id.clone());
-                                info.streams.select_streams(&stream_ids);
-                                audio_stream_cur != info
-                                    .streams
-                                    .audio_selected
-                                    .as_ref()
-                                    .map(|ref stream| stream.id.clone())
-                            };
+                            let audio_has_changed = info_arc_mtx
+                                .lock()
+                                .expect("Failed to lock media info while comparing streams")
+                                .streams
+                                .audio_changed;
 
                             if audio_has_changed {
-                                debug!("Changing audio stream");
+                                debug!("changing audio stream");
                                 let dbl_audio_buffer =
                                     &mut dbl_audio_buffer_mtx.lock().unwrap();
                                 dbl_audio_buffer.clean_samples();
