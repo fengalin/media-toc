@@ -168,31 +168,29 @@ impl PlaybackContext {
                     "Missing `decodebin3`\ncheck your gst-plugins-base install",
                 )),
                 |_| Ok(()),
-            )
-            .and_then(|_| {
-                gst::ElementFactory::make("gtksink", None).map_or_else(
-                    || {
-                        let (major, minor, _micro, _nano) = gst::version();
-                        let (variant1, variant2) = if major >= 1 && minor >= 14 {
-                            ("gstreamer1-plugins-base", "gstreamer1.0-plugins-base")
-                        } else {
-                            (
-                                "gstreamer1-plugins-bad-free-gtk",
-                                "gstreamer1.0-plugins-bad",
-                            )
-                        };
-                        Err(format!(
-                            "{} {}\n{}",
-                            gettext("Couldn't find GStreamer GTK video sink."),
-                            gettext("Video playback will be disabled."),
-                            gettext("Please install {} or {}, depending on your distribution.")
-                                .replacen("{}", variant1, 1)
-                                .replacen("{}", variant2, 1),
-                        ))
-                    },
-                    |_| Ok(()),
-                )
-            })
+            )?;
+        gst::ElementFactory::make("gtksink", None).map_or_else(
+            || {
+                let (major, minor, _micro, _nano) = gst::version();
+                let (variant1, variant2) = if major >= 1 && minor >= 14 {
+                    ("gstreamer1-plugins-base", "gstreamer1.0-plugins-base")
+                } else {
+                    (
+                        "gstreamer1-plugins-bad-free-gtk",
+                        "gstreamer1.0-plugins-bad",
+                    )
+                };
+                Err(format!(
+                    "{} {}\n{}",
+                    gettext("Couldn't find GStreamer GTK video sink."),
+                    gettext("Video playback will be disabled."),
+                    gettext("Please install {} or {}, depending on your distribution.")
+                        .replacen("{}", variant1, 1)
+                        .replacen("{}", variant2, 1),
+                ))
+            },
+            |_| Ok(()),
+        )
     }
 
     pub fn get_video_widget() -> Option<gtk::Widget> {
@@ -217,17 +215,17 @@ impl PlaybackContext {
             .expect("PlaybackContext::play: couldn't lock dbl_audio_buffer_mtx")
             .accept_eos();
 
-        if self.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
-            return Err(gettext("Could not set media in playing state."));
+        match self.pipeline.set_state(gst::State::Playing) {
+            gst::StateChangeReturn::Failure => Err("Could not set media in Playing state".into()),
+            _ => Ok(()),
         }
-        Ok(())
     }
 
     pub fn pause(&self) -> Result<(), String> {
-        if self.pipeline.set_state(gst::State::Paused) == gst::StateChangeReturn::Failure {
-            return Err(gettext("Could not set media in paused state."));
+        match self.pipeline.set_state(gst::State::Paused) {
+            gst::StateChangeReturn::Failure => Err("Could not set media in Paused state".into()),
+            _ => Ok(()),
         }
-        Ok(())
     }
 
     pub fn stop(&self) {

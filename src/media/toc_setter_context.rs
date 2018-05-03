@@ -69,7 +69,7 @@ impl TocSetterContext {
 
     pub fn export(&mut self) -> Result<(), String> {
         match self.pipeline.set_state(gst::State::Playing) {
-            gst::StateChangeReturn::Failure => Err("Could not set media in palying state".into()),
+            gst::StateChangeReturn::Failure => Err("Could not set media in Playing state".into()),
             _ => Ok(()),
         }
     }
