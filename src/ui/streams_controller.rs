@@ -133,32 +133,45 @@ impl StreamsController {
             });
     }
 
-    fn toggle_export(store: &gtk::ListStore, tree_path: gtk::TreePath) -> Option<bool> {
+    fn toggle_export(store: &gtk::ListStore, tree_path: gtk::TreePath) -> Option<(String, bool)> {
         store.get_iter(&tree_path).map(|iter| {
+            let stream_id = store.get_value(&iter, STREAM_ID_COL as i32).get::<String>().unwrap();
             let value = !store.get_value(&iter, EXPORT_FLAG_COL as i32).get::<bool>().unwrap();
             store.set_value(&iter, EXPORT_FLAG_COL, &gtk::Value::from(&value));
-            value
+            (stream_id, value)
         })
     }
 
     fn video_export_toggled(&self, tree_path: gtk::TreePath) {
-        if let Some(value) = Self::toggle_export(&self.video_store, tree_path) {
-            // TODO: update MediaInfo
-            println!("video export: {}", value);
+        if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
+            if let Some(mut context) = main_ctrl_rc.borrow_mut().context.as_mut() {
+                if let Some((stream_id, value)) = Self::toggle_export(&self.video_store, tree_path) {
+                    let mut info = context.info.lock().unwrap();
+                    info.streams.video.get_mut(&stream_id).as_mut().unwrap().must_export = value;
+                }
+            }
         }
     }
 
     fn audio_export_toggled(&self, tree_path: gtk::TreePath) {
-        if let Some(value) = Self::toggle_export(&self.audio_store, tree_path) {
-            // TODO: update MediaInfo
-            println!("audio export: {}", value);
+        if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
+            if let Some(mut context) = main_ctrl_rc.borrow_mut().context.as_mut() {
+                if let Some((stream_id, value)) = Self::toggle_export(&self.audio_store, tree_path) {
+                    let mut info = context.info.lock().unwrap();
+                    info.streams.audio.get_mut(&stream_id).as_mut().unwrap().must_export = value;
+                }
+            }
         }
     }
 
     fn text_export_toggled(&self, tree_path: gtk::TreePath) {
-        if let Some(value) = Self::toggle_export(&self.text_store, tree_path) {
-            // TODO: update MediaInfo
-            println!("text export: {}", value);
+        if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
+            if let Some(mut context) = main_ctrl_rc.borrow_mut().context.as_mut() {
+                if let Some((stream_id, value)) = Self::toggle_export(&self.text_store, tree_path) {
+                    let mut info = context.info.lock().unwrap();
+                    info.streams.text.get_mut(&stream_id).as_mut().unwrap().must_export = value;
+                }
+            }
         }
     }
 
@@ -179,7 +192,7 @@ impl StreamsController {
             let mut sorted_ids = info.streams.video.keys().collect::<Vec<&String>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let ref stream = info.streams.video.get(stream_id).unwrap();
+                let stream = info.streams.video.get(stream_id).unwrap();
                 let iter = self.add_stream(&self.video_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
                 if let Some(width) = caps_structure.get::<i32>("width") {
@@ -203,7 +216,7 @@ impl StreamsController {
             let mut sorted_ids = info.streams.audio.keys().collect::<Vec<&String>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let ref stream = info.streams.audio.get(stream_id).unwrap();
+                let stream = info.streams.audio.get(stream_id).unwrap();
                 let iter = self.add_stream(&self.audio_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
                 if let Some(rate) = caps_structure.get::<i32>("rate") {
@@ -227,7 +240,7 @@ impl StreamsController {
             let mut sorted_ids = info.streams.text.keys().collect::<Vec<&String>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let ref stream = info.streams.text.get(stream_id).unwrap();
+                let stream = info.streams.text.get(stream_id).unwrap();
                 let iter = self.add_stream(&self.text_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
                 if let Some(format) = caps_structure.get::<&str>("format") {

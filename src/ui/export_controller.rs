@@ -157,19 +157,23 @@ impl ExportController {
             ExportType::SingleFileWithToc => {
                 let target_path = self.target_path.clone();
                 let streams = {
-                    // FIXME: temporary: use selected streams for now
-                    // Need a UI modification and fields in media_info to get the export selection
                     let mut streams = HashSet::<String>::new();
                     let playback_ctx = self.playback_ctx.as_ref().unwrap();
                     let info = playback_ctx.info.lock().unwrap();
-                    if let Some(ref video_selected) = info.streams.selected_video() {
-                        streams.insert(video_selected.id.clone());
+                    for (ref stream_id, ref stream) in &info.streams.video {
+                        if stream.must_export {
+                            streams.insert(stream_id.to_string());
+                        }
                     }
-                    if let Some(ref audio_selected) = info.streams.selected_audio() {
-                        streams.insert(audio_selected.id.clone());
+                    for (ref stream_id, ref stream) in &info.streams.audio {
+                        if stream.must_export {
+                            streams.insert(stream_id.to_string());
+                        }
                     }
-                    if let Some(ref text_selected) = info.streams.selected_text() {
-                        streams.insert(text_selected.id.clone());
+                    for (ref stream_id, ref stream) in &info.streams.text {
+                        if stream.must_export {
+                            streams.insert(stream_id.to_string());
+                        }
                     }
                     streams
                 };

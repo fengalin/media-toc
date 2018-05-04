@@ -61,7 +61,7 @@ pub struct MainController {
     split_ctrl: Rc<RefCell<SplitController>>,
     streams_ctrl: Rc<RefCell<StreamsController>>,
 
-    context: Option<PlaybackContext>,
+    pub context: Option<PlaybackContext>,
     take_context_cb: Option<Box<FnMut(PlaybackContext)>>,
     missing_plugins: HashSet<String>,
     state: ControllerState,

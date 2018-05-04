@@ -14,6 +14,7 @@ pub struct Stream {
     pub caps: gst::Caps,
     pub tags: Option<gst::TagList>,
     pub type_: gst::StreamType,
+    pub must_export: bool,
 }
 
 impl Stream {
@@ -83,6 +84,7 @@ impl Stream {
             caps,
             tags,
             type_,
+            must_export: true,
         }
     }
 }
