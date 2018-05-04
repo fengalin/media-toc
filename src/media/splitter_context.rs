@@ -283,7 +283,10 @@ impl SplitterContext {
             let queue_src_pad = queue.get_static_pad("src").unwrap();
 
             if name.starts_with("audio/") && pipeline_cb.get_by_name("audioconvert").is_none()
-                && stream_id == pad.get_stream_id().expect("Split: no stream_id for audio src pad")
+                && stream_id ==
+                    pad.get_stream_id().expect(
+                        "SplitterContext::build_pipeline no stream_id for audio src pad"
+                    )
             {
                 let audio_conv = gst::ElementFactory::make("audioconvert", "audioconvert").unwrap();
                 pipeline_cb.add(&audio_conv).unwrap();

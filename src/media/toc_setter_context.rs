@@ -7,6 +7,7 @@ use gstreamer::PadExt;
 use glib;
 use glib::ObjectExt;
 
+use std::collections::hash_set::HashSet;
 use std::error::Error;
 use std::path::Path;
 use std::sync::mpsc::Sender;
@@ -41,6 +42,7 @@ impl TocSetterContext {
     pub fn new(
         input_path: &Path,
         output_path: &Path,
+        streams: HashSet<String>,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<TocSetterContext, String> {
         info!(
@@ -54,7 +56,7 @@ impl TocSetterContext {
             position_query: gst::Query::new_position(gst::Format::Time),
         };
 
-        this.build_pipeline(input_path, output_path);
+        this.build_pipeline(input_path, output_path, streams);
         this.register_bus_inspector(ctx_tx);
 
         match this.pipeline.set_state(gst::State::Paused) {
@@ -79,7 +81,7 @@ impl TocSetterContext {
         self.position_query.get_result().get_value() as u64
     }
 
-    fn build_pipeline(&mut self, input_path: &Path, output_path: &Path) {
+    fn build_pipeline(&mut self, input_path: &Path, output_path: &Path, streams: HashSet<String>) {
         // Input
         let filesrc = gst::ElementFactory::make("filesrc", None).unwrap();
         filesrc
@@ -119,25 +121,39 @@ impl TocSetterContext {
             pipeline_cb.add(&queue).unwrap();
             let queue_sink_pad = queue.get_static_pad("sink").unwrap();
             assert_eq!(pad.link(&queue_sink_pad), gst::PadLinkReturn::Ok);
+            queue.sync_state_with_parent().unwrap();
 
             let queue_src_pad = queue.get_static_pad("src").unwrap();
-            let muxer_sink_pad = muxer.get_compatible_pad(&queue_src_pad, None).unwrap();
-            assert_eq!(queue_src_pad.link(&muxer_sink_pad), gst::PadLinkReturn::Ok);
 
-            // Listen to incoming events and drop Upstream TOCs
-            muxer_sink_pad.add_probe(gst::PadProbeType::EVENT_DOWNSTREAM, |_pad, probe_info| {
-                if let Some(ref data) = probe_info.data {
-                    if let gst::PadProbeData::Event(ref event) = *data {
-                        if let gst::EventView::Toc(ref _toc) = event.view() {
-                            return gst::PadProbeReturn::Drop;
+            if streams.contains(&pad
+                .get_stream_id()
+                .expect("TocSetterContext::build_pipeline no stream_id for src pad")
+            )
+            {
+                let muxer_sink_pad = muxer.get_compatible_pad(&queue_src_pad, None).unwrap();
+                assert_eq!(queue_src_pad.link(&muxer_sink_pad), gst::PadLinkReturn::Ok);
+                muxer.sync_state_with_parent().unwrap();
+
+                // Listen to incoming events and drop Upstream TOCs
+                muxer_sink_pad.add_probe(gst::PadProbeType::EVENT_DOWNSTREAM, |_pad, probe_info| {
+                    if let Some(ref data) = probe_info.data {
+                        if let gst::PadProbeData::Event(ref event) = *data {
+                            if let gst::EventView::Toc(ref _toc) = event.view() {
+                                return gst::PadProbeReturn::Drop;
+                            }
                         }
                     }
-                }
-                gst::PadProbeReturn::Ok
-            });
-
-            for element in &[&queue, &muxer] {
-                element.sync_state_with_parent().unwrap();
+                    gst::PadProbeReturn::Ok
+                });
+            } else {
+                let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
+                pipeline_cb.add(&fakesink).unwrap();
+                let fakesink_sink_pad = fakesink.get_static_pad("sink").unwrap();
+                assert_eq!(
+                    queue_src_pad.link(&fakesink_sink_pad),
+                    gst::PadLinkReturn::Ok
+                );
+                fakesink.sync_state_with_parent().unwrap();
             }
         });
     }

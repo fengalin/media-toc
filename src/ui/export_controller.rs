@@ -5,6 +5,7 @@ use gtk;
 use gtk::prelude::*;
 
 use std::cell::RefCell;
+use std::collections::hash_set::HashSet;
 use std::fs::File;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
@@ -122,6 +123,7 @@ impl ExportController {
         let (format, export_type) = self.get_selection();
 
         self.prepare_process(&format);
+        debug_assert!(self.playback_ctx.is_some());
 
         match export_type {
             ExportType::ExternalToc => {
@@ -154,18 +156,36 @@ impl ExportController {
             }
             ExportType::SingleFileWithToc => {
                 let target_path = self.target_path.clone();
-                self.build_context(&target_path);
+                let streams = {
+                    // FIXME: temporary: use selected streams for now
+                    // Need a UI modification and fields in media_info to get the export selection
+                    let mut streams = HashSet::<String>::new();
+                    let playback_ctx = self.playback_ctx.as_ref().unwrap();
+                    let info = playback_ctx.info.lock().unwrap();
+                    if let Some(ref video_selected) = info.streams.video_selected {
+                        streams.insert(video_selected.id.clone());
+                    }
+                    if let Some(ref audio_selected) = info.streams.audio_selected {
+                        streams.insert(audio_selected.id.clone());
+                    }
+                    if let Some(ref text_selected) = info.streams.text_selected {
+                        streams.insert(text_selected.id.clone());
+                    }
+                    streams
+                };
+
+                self.build_context(&target_path, streams);
             }
         }
     }
 
-    fn build_context(&mut self, export_path: &Path) {
+    fn build_context(&mut self, export_path: &Path, streams: HashSet<String>) {
         let (ctx_tx, ui_rx) = channel();
 
         self.register_listener(LISTENER_PERIOD, ui_rx);
 
         let media_path = self.media_path.clone();
-        match TocSetterContext::new(&media_path, export_path, ctx_tx) {
+        match TocSetterContext::new(&media_path, export_path, streams, ctx_tx) {
             Ok(toc_setter_ctx) => {
                 self.switch_to_busy();
                 self.toc_setter_ctx = Some(toc_setter_ctx);
