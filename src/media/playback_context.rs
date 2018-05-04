@@ -216,14 +216,14 @@ impl PlaybackContext {
             .accept_eos();
 
         match self.pipeline.set_state(gst::State::Playing) {
-            gst::StateChangeReturn::Failure => Err("Could not set media in Playing state".into()),
+            gst::StateChangeReturn::Failure => Err(gettext("Could not set media in Playing mode")),
             _ => Ok(()),
         }
     }
 
     pub fn pause(&self) -> Result<(), String> {
         match self.pipeline.set_state(gst::State::Paused) {
-            gst::StateChangeReturn::Failure => Err("Could not set media in Paused state".into()),
+            gst::StateChangeReturn::Failure => Err(gettext("Could not set media in Paused mode")),
             _ => Ok(()),
         }
     }

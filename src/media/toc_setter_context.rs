@@ -60,7 +60,7 @@ impl TocSetterContext {
         this.register_bus_inspector(ctx_tx);
 
         match this.pipeline.set_state(gst::State::Paused) {
-            gst::StateChangeReturn::Failure => Err("Could not set media in Paused state".into()),
+            gst::StateChangeReturn::Failure => Err(gettext("Could not set media in Paused mode")),
             _ => Ok(this),
         }
     }
@@ -71,7 +71,7 @@ impl TocSetterContext {
 
     pub fn export(&mut self) -> Result<(), String> {
         match self.pipeline.set_state(gst::State::Playing) {
-            gst::StateChangeReturn::Failure => Err("Could not set media in Playing state".into()),
+            gst::StateChangeReturn::Failure => Err(gettext("Could not set media in Playing mode")),
             _ => Ok(()),
         }
     }
