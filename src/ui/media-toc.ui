@@ -35,6 +35,8 @@ Author: François Laignel <fengalin@free.fr>
   <!-- interface-authors Fran\303\247ois Laignel <fengalin@free.fr> -->
   <object class="GtkListStore" id="audio_streams-liststore">
     <columns>
+      <!-- column-name export_flag -->
+      <column type="gboolean"/>
       <!-- column-name stream_id_full -->
       <column type="gchararray"/>
       <!-- column-name stream_id_display -->
@@ -77,6 +79,8 @@ Author: François Laignel <fengalin@free.fr>
   </object>
   <object class="GtkListStore" id="text_streams-liststore">
     <columns>
+      <!-- column-name export_flag -->
+      <column type="gboolean"/>
       <!-- column-name stream_id_full -->
       <column type="gchararray"/>
       <!-- column-name stream_id_display -->
@@ -93,6 +97,8 @@ Author: François Laignel <fengalin@free.fr>
   </object>
   <object class="GtkListStore" id="video_streams-liststore">
     <columns>
+      <!-- column-name export_flag -->
+      <column type="gboolean"/>
       <!-- column-name stream_id_full -->
       <column type="gchararray"/>
       <!-- column-name stream_id_display -->

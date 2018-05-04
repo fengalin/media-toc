@@ -18,19 +18,20 @@ const ALIGN_LEFT: f32 = 0f32;
 const ALIGN_CENTER: f32 = 0.5f32;
 const ALIGN_RIGHT: f32 = 1f32;
 
-const STREAM_ID_COL: u32 = 0;
-const STREAM_ID_DISPLAY_COL: u32 = 1;
-const LANGUAGE_COL: u32 = 2;
-const CODEC_COL: u32 = 3;
-const COMMENT_COL: u32 = 4;
+const EXPORT_FLAG_COL: u32 = 0;
+const STREAM_ID_COL: u32 = 1;
+const STREAM_ID_DISPLAY_COL: u32 = 2;
+const LANGUAGE_COL: u32 = 3;
+const CODEC_COL: u32 = 4;
+const COMMENT_COL: u32 = 5;
 
-const VIDEO_WIDTH_COL: u32 = 5;
-const VIDEO_HEIGHT_COL: u32 = 6;
+const VIDEO_WIDTH_COL: u32 = 6;
+const VIDEO_HEIGHT_COL: u32 = 7;
 
-const AUDIO_RATE_COL: u32 = 5;
-const AUDIO_CHANNELS_COL: u32 = 6;
+const AUDIO_RATE_COL: u32 = 6;
+const AUDIO_CHANNELS_COL: u32 = 7;
 
-const TEXT_FORMAT_COL: u32 = 5;
+const TEXT_FORMAT_COL: u32 = 6;
 
 macro_rules! on_stream_selected(
     ($this:expr, $store:expr, $tree_path:expr, $selected:expr) => {
@@ -90,9 +91,10 @@ impl StreamsController {
         }));
 
         {
+            let this_clone = Rc::clone(&this_rc);
             let mut this = this_rc.borrow_mut();
             this.cleanup();
-            this.init_treeviews();
+            this.init_treeviews(this_clone);
         }
 
         this_rc
@@ -129,6 +131,35 @@ impl StreamsController {
                 let mut this = this_clone.borrow_mut();
                 on_stream_selected!(this, this.text_store, tree_path, this.text_selected);
             });
+    }
+
+    fn toggle_export(store: &gtk::ListStore, tree_path: gtk::TreePath) -> Option<bool> {
+        store.get_iter(&tree_path).map(|iter| {
+            let value = !store.get_value(&iter, EXPORT_FLAG_COL as i32).get::<bool>().unwrap();
+            store.set_value(&iter, EXPORT_FLAG_COL, &gtk::Value::from(&value));
+            value
+        })
+    }
+
+    fn video_export_toggled(&self, tree_path: gtk::TreePath) {
+        if let Some(value) = Self::toggle_export(&self.video_store, tree_path) {
+            // TODO: update MediaInfo
+            println!("video export: {}", value);
+        }
+    }
+
+    fn audio_export_toggled(&self, tree_path: gtk::TreePath) {
+        if let Some(value) = Self::toggle_export(&self.audio_store, tree_path) {
+            // TODO: update MediaInfo
+            println!("audio export: {}", value);
+        }
+    }
+
+    fn text_export_toggled(&self, tree_path: gtk::TreePath) {
+        if let Some(value) = Self::toggle_export(&self.text_store, tree_path) {
+            // TODO: update MediaInfo
+            println!("text export: {}", value);
+        }
     }
 
     pub fn cleanup(&mut self) {
@@ -236,8 +267,8 @@ impl StreamsController {
 
         let iter = store.insert_with_values(
             None,
-            &[STREAM_ID_COL, STREAM_ID_DISPLAY_COL],
-            &[&stream.id, &stream_id_display],
+            &[EXPORT_FLAG_COL, STREAM_ID_COL, STREAM_ID_DISPLAY_COL],
+            &[&true, &stream.id, &stream_id_display],
         );
 
         if let Some(ref tags) = stream.tags {
@@ -271,50 +302,61 @@ impl StreamsController {
             .unwrap()
     }
 
-    fn init_treeviews(&self) {
+    fn init_treeviews(&self, this_rc: Rc<RefCell<Self>>) {
         self.video_treeview.set_model(Some(&self.video_store));
 
+        let export_flag_lbl = gettext("Export?");
         let stream_id_lbl = gettext("Stream id");
         let language_lbl = gettext("Language");
         let codec_lbl = gettext("Codec");
         let comment_lbl = gettext("Comment");
 
-        self.add_column(
+        // Video
+        let renderer = self.add_check_column(
+            &self.video_treeview,
+            &export_flag_lbl,
+            EXPORT_FLAG_COL,
+        );
+        let this_clone = Rc::clone(&this_rc);
+        renderer.connect_toggled(move |_, tree_path| {
+            this_clone.borrow().video_export_toggled(tree_path);
+        });
+        self.add_text_column(
             &self.video_treeview,
             &stream_id_lbl,
             ALIGN_LEFT,
             STREAM_ID_DISPLAY_COL,
             Some(200),
         );
-        self.add_column(
+        self.add_text_column(
             &self.video_treeview,
             &language_lbl,
             ALIGN_CENTER,
             LANGUAGE_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.video_treeview,
             &codec_lbl,
             ALIGN_LEFT,
             CODEC_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.video_treeview,
             &gettext("Width"),
             ALIGN_RIGHT,
             VIDEO_WIDTH_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.video_treeview,
             &gettext("Height"),
             ALIGN_RIGHT,
             VIDEO_HEIGHT_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.video_treeview,
             &comment_lbl,
             ALIGN_LEFT,
@@ -322,43 +364,53 @@ impl StreamsController {
             None,
         );
 
+        // Audio
         self.audio_treeview.set_model(Some(&self.audio_store));
-        self.add_column(
+        let renderer = self.add_check_column(
+            &self.audio_treeview,
+            &export_flag_lbl,
+            EXPORT_FLAG_COL,
+        );
+        let this_clone = Rc::clone(&this_rc);
+        renderer.connect_toggled(move |_, tree_path| {
+            this_clone.borrow().audio_export_toggled(tree_path);
+        });
+        self.add_text_column(
             &self.audio_treeview,
             &stream_id_lbl,
             ALIGN_LEFT,
             STREAM_ID_DISPLAY_COL,
             Some(200),
         );
-        self.add_column(
+        self.add_text_column(
             &self.audio_treeview,
             &language_lbl,
             ALIGN_CENTER,
             LANGUAGE_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.audio_treeview,
             &codec_lbl,
             ALIGN_LEFT,
             CODEC_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.audio_treeview,
             &gettext("Rate"),
             ALIGN_RIGHT,
             AUDIO_RATE_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.audio_treeview,
             &gettext("Channels"),
             ALIGN_RIGHT,
             AUDIO_CHANNELS_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.audio_treeview,
             &comment_lbl,
             ALIGN_LEFT,
@@ -366,30 +418,40 @@ impl StreamsController {
             None,
         );
 
+        // Text
         self.text_treeview.set_model(Some(&self.text_store));
-        self.add_column(
+        let renderer = self.add_check_column(
+            &self.text_treeview,
+            &export_flag_lbl,
+            EXPORT_FLAG_COL,
+        );
+        let this_clone = Rc::clone(&this_rc);
+        renderer.connect_toggled(move |_, tree_path| {
+            this_clone.borrow().text_export_toggled(tree_path);
+        });
+        self.add_text_column(
             &self.text_treeview,
             &stream_id_lbl,
             ALIGN_LEFT,
             STREAM_ID_DISPLAY_COL,
             Some(200),
         );
-        self.add_column(
+        self.add_text_column(
             &self.text_treeview,
             &language_lbl,
             ALIGN_CENTER,
             LANGUAGE_COL,
             None,
         );
-        self.add_column(&self.text_treeview, &codec_lbl, ALIGN_LEFT, CODEC_COL, None);
-        self.add_column(
+        self.add_text_column(&self.text_treeview, &codec_lbl, ALIGN_LEFT, CODEC_COL, None);
+        self.add_text_column(
             &self.text_treeview,
             &gettext("Format"),
             ALIGN_LEFT,
             TEXT_FORMAT_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.text_treeview,
             &comment_lbl,
             ALIGN_LEFT,
@@ -398,7 +460,7 @@ impl StreamsController {
         );
     }
 
-    fn add_column(
+    fn add_text_column(
         &self,
         treeview: &gtk::TreeView,
         title: &str,
@@ -419,5 +481,25 @@ impl StreamsController {
         }
 
         treeview.append_column(&col);
+    }
+
+    fn add_check_column(
+        &self,
+        treeview: &gtk::TreeView,
+        title: &str,
+        col_id: u32,
+    ) -> gtk::CellRendererToggle
+    {
+        let col = gtk::TreeViewColumn::new();
+        col.set_title(title);
+
+        let renderer = gtk::CellRendererToggle::new();
+        renderer.set_radio(false);
+        renderer.set_activatable(true);
+        col.pack_start(&renderer, true);
+        col.add_attribute(&renderer, "active", col_id as i32);
+
+        treeview.append_column(&col);
+        renderer
     }
 }
