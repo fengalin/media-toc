@@ -83,9 +83,11 @@ or above.
 
 1. Open a media with a table of contents, define the chapters as explained in [this how-to](#how-to-create-the-toc)
 or open a media for which you already defined a table of contents (see [this how-to](#how-to-save-the-toc)).
-2. Switch to the Export perspective using the selector on the left side of the header bar.
-3. Select `Matroska Container`.
-4. Click on `Export`. When the export is complete, a new file with the same name as your media and
+2. Switch to the Streams perspective using the selector on the left side of the header bar.
+3. Tick the streams to export (all streams are ticked by default).
+4. Switch to the Export perspective using the selector on the left side of the header bar.
+5. Select `Matroska Container`.
+6. Click on `Export`. When the export is complete, a new file with the same name as your media and
 ending with `.toc.mkv` will be created in the media's folder.
 
 ## Split the audio stream into one file per chapter
