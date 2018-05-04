@@ -32,7 +32,7 @@ macro_rules! add_tag_from(
 pub struct SplitController {
     base: OutputBaseController,
 
-    audio_selected: Option<Stream>,
+    selected_audio: Option<Stream>,
     toc_visitor: Option<TocVisitor>,
     idx: usize,
 
@@ -59,7 +59,7 @@ impl SplitController {
         let this = Rc::new(RefCell::new(SplitController {
             base: OutputBaseController::new(builder),
 
-            audio_selected: None,
+            selected_audio: None,
             toc_visitor: None,
             idx: 0,
 
@@ -128,11 +128,10 @@ impl SplitController {
     }
 
     pub fn streams_changed(&mut self, info: &MediaInfo) {
-        self.audio_selected = info.streams
-            .audio_selected
-            .as_ref()
+        self.selected_audio = info.streams
+            .selected_audio()
             .map(|stream| stream.clone());
-        self.split_btn.set_sensitive(self.audio_selected.is_some());
+        self.split_btn.set_sensitive(self.selected_audio.is_some());
     }
 
     pub fn cleanup(&mut self) {
@@ -176,7 +175,7 @@ impl SplitController {
     fn split(&mut self) {
         // Split button is not sensible when no audio
         // stream is selected (see `streams_changed`)
-        debug_assert!(self.audio_selected.is_some());
+        debug_assert!(self.selected_audio.is_some());
 
         let format = self.get_selection();
         self.prepare_process(&format);
@@ -235,7 +234,7 @@ impl SplitController {
 
         let output_path = self.get_split_path(&chapter);
         let media_path = self.media_path.clone();
-        let stream_id = self.audio_selected.as_ref().unwrap().id.to_owned();
+        let stream_id = self.selected_audio.as_ref().unwrap().id.to_owned();
 
         let (ctx_tx, ui_rx) = channel();
         self.register_listener(format, LISTENER_PERIOD, ui_rx);
@@ -305,7 +304,7 @@ impl SplitController {
 
         split_name += &track_title;
 
-        if let Some(ref stream) = self.audio_selected {
+        if let Some(ref stream) = self.selected_audio {
             if let Some(ref tags) = stream.tags {
                 match tags.get_index::<gst::tags::LanguageName>(0) {
                     Some(ref language) => split_name += &format!(" ({})", language.get().unwrap()),

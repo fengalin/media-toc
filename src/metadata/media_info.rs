@@ -1,6 +1,8 @@
 use gettextrs::gettext;
 use gstreamer as gst;
 
+use std::collections::HashMap;
+
 pub fn get_default_chapter_title() -> String {
     gettext("untitled")
 }
@@ -87,15 +89,16 @@ impl Stream {
 
 #[derive(Default)]
 pub struct Streams {
-    pub audio: Vec<Stream>,
-    pub video: Vec<Stream>,
-    pub text: Vec<Stream>,
+    pub audio: HashMap<String, Stream>,
+    pub video: HashMap<String, Stream>,
+    pub text: HashMap<String, Stream>,
 
-    pub audio_selected: Option<Stream>,
+    // FIXME: see if a self ref Stream could be used instead
+    cur_audio_id: Option<String>,
     pub audio_changed: bool,
-    pub video_selected: Option<Stream>,
+    cur_video_id: Option<String>,
     pub video_changed: bool,
-    pub text_selected: Option<Stream>,
+    cur_text_id: Option<String>,
     pub text_changed: bool,
 }
 
@@ -104,71 +107,86 @@ impl Streams {
         let stream = Stream::new(gst_stream);
         match stream.type_ {
             gst::StreamType::AUDIO => {
-                self.audio_selected.get_or_insert(stream.clone());
-                self.audio.push(stream);
+                self.cur_audio_id.get_or_insert(stream.id.clone());
+                self.audio.insert(stream.id.clone(), stream);
             }
             gst::StreamType::VIDEO => {
-                self.video_selected.get_or_insert(stream.clone());
-                self.video.push(stream);
+                self.cur_video_id.get_or_insert(stream.id.clone());
+                self.video.insert(stream.id.clone(), stream);
             }
             gst::StreamType::TEXT => {
-                self.text_selected.get_or_insert(stream.clone());
-                self.text.push(stream);
+                self.cur_text_id.get_or_insert(stream.id.clone());
+                self.text.insert(stream.id.clone(), stream);
             }
             _ => panic!("MediaInfo::add_stream can't handle {:?}", stream.type_),
         }
     }
 
+    pub fn is_audio_selected(&self) -> bool {
+        self.cur_audio_id.is_some()
+    }
+
+    pub fn is_video_selected(&self) -> bool {
+        self.cur_video_id.is_some()
+    }
+
+    pub fn selected_audio(&self) -> Option<&Stream> {
+        self.cur_audio_id.as_ref().map(|stream_id| {
+            self.audio.get(stream_id).unwrap()
+        })
+    }
+
+    pub fn selected_video(&self) -> Option<&Stream> {
+        self.cur_video_id.as_ref().map(|stream_id| {
+            self.video.get(stream_id).unwrap()
+        })
+    }
+
+    pub fn selected_text(&self) -> Option<&Stream> {
+        self.cur_text_id.as_ref().map(|stream_id| {
+            self.text.get(stream_id).unwrap()
+        })
+    }
+
     // Returns the streams which changed
-    pub fn select_streams(&mut self, ids: &[&str]) {
-        let mut audio_selected = false;
-        let mut text_selected = false;
-        let mut video_selected = false;
+    pub fn select_streams(&mut self, ids: &[String]) {
+        let mut is_audio_selected = false;
+        let mut is_text_selected = false;
+        let mut is_video_selected = false;
 
         for id in ids {
-            match self.audio.iter().find(|s| &s.id == id) {
-                Some(stream) => {
-                    audio_selected = true;
-                    self.audio_changed = self.audio_selected
-                        .take()
-                        .map_or(true, |prev_stream| *id != prev_stream.id.as_str());
-                    self.audio_selected = Some(stream.clone());
-                }
-                None => match self.text.iter().find(|s| &s.id == id) {
-                    Some(stream) => {
-                        text_selected = true;
-                        self.text_changed = self.text_selected
-                            .take()
-                            .map_or(true, |prev_stream| *id != prev_stream.id.as_str());
-                        self.text_selected = Some(stream.clone());
-                    }
-                    None => match self.video.iter().find(|s| &s.id == id) {
-                        Some(stream) => {
-                            video_selected = true;
-                            self.video_changed = self.video_selected
-                                .take()
-                                .map_or(true, |prev_stream| *id != prev_stream.id.as_str());
-                            self.video_selected = Some(stream.clone());
-                        }
-                        None => panic!("MediaInfo::select_streams unknown stream id {}", id),
-                    },
-                },
+            if self.audio.contains_key(id) {
+                is_audio_selected = true;
+                self.audio_changed = self.selected_audio()
+                    .map_or(true, |prev_stream| *id != prev_stream.id.as_str());
+                self.cur_audio_id = Some(id.to_string());
+            } else if self.text.contains_key(id) {
+                is_text_selected = true;
+                self.text_changed = self.selected_text()
+                    .map_or(true, |prev_stream| *id != prev_stream.id.as_str());
+                self.cur_text_id = Some(id.to_string());
+            } else if self.video.contains_key(id) {
+                is_video_selected = true;
+                self.video_changed = self.selected_video()
+                    .map_or(true, |prev_stream| *id != prev_stream.id.as_str());
+                self.cur_video_id = Some(id.to_string());
+            } else {
+                panic!("MediaInfo::select_streams unknown stream id {}", id);
             }
         }
 
-
-        if !audio_selected {
-            self.audio_changed = self.audio_selected
+        if !is_audio_selected {
+            self.audio_changed = self.cur_audio_id
                 .take()
                 .map_or(false, |_| true);
         }
-        if !text_selected {
-            self.text_changed = self.text_selected
+        if !is_text_selected {
+            self.text_changed = self.cur_text_id
                 .take()
                 .map_or(false, |_| true);
         }
-        if !video_selected {
-            self.video_changed = self.video_selected
+        if !is_video_selected {
+            self.video_changed = self.cur_video_id
                 .take()
                 .map_or(false, |_| true);
         }
@@ -232,15 +250,13 @@ impl MediaInfo {
 
     pub fn get_audio_codec(&self) -> Option<&str> {
         self.streams
-            .audio_selected
-            .as_ref()
+            .selected_audio()
             .map(|stream| stream.codec_printable.as_str())
     }
 
     pub fn get_video_codec(&self) -> Option<&str> {
         self.streams
-            .video_selected
-            .as_ref()
+            .selected_video()
             .map(|stream| stream.codec_printable.as_str())
     }
 

@@ -142,10 +142,6 @@ impl PerspectiveController {
     }
 
     pub fn streams_changed(&self, info: &MediaInfo) {
-        self.split_btn.set_sensitive(info
-            .streams
-            .audio_selected
-            .is_some()
-        );
+        self.split_btn.set_sensitive(info.streams.is_audio_selected());
     }
 }

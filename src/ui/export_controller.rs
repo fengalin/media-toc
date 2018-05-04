@@ -5,7 +5,7 @@ use gtk;
 use gtk::prelude::*;
 
 use std::cell::RefCell;
-use std::collections::hash_set::HashSet;
+use std::collections::HashSet;
 use std::fs::File;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
@@ -162,13 +162,13 @@ impl ExportController {
                     let mut streams = HashSet::<String>::new();
                     let playback_ctx = self.playback_ctx.as_ref().unwrap();
                     let info = playback_ctx.info.lock().unwrap();
-                    if let Some(ref video_selected) = info.streams.video_selected {
+                    if let Some(ref video_selected) = info.streams.selected_video() {
                         streams.insert(video_selected.id.clone());
                     }
-                    if let Some(ref audio_selected) = info.streams.audio_selected {
+                    if let Some(ref audio_selected) = info.streams.selected_audio() {
                         streams.insert(audio_selected.id.clone());
                     }
-                    if let Some(ref text_selected) = info.streams.text_selected {
+                    if let Some(ref text_selected) = info.streams.selected_text() {
                         streams.insert(text_selected.id.clone());
                     }
                     streams

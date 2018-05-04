@@ -61,8 +61,7 @@ impl OutputBaseController {
                 .lock()
                 .unwrap()
                 .streams
-                .video_selected
-                .is_none()
+                .is_video_selected()
         };
         self.extension = metadata::Factory::get_extension(format, is_audio_only).to_owned();
 

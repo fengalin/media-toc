@@ -7,7 +7,7 @@ use gstreamer::PadExt;
 use glib;
 use glib::ObjectExt;
 
-use std::collections::hash_set::HashSet;
+use std::collections::HashSet;
 use std::error::Error;
 use std::path::Path;
 use std::sync::mpsc::Sender;

@@ -175,66 +175,72 @@ impl StreamsController {
         let info = context.info.lock().unwrap();
 
         // Video streams
-        for stream in &info.streams.video {
-            let iter = self.add_stream(&self.video_store, stream);
-            let caps_structure = stream.caps.get_structure(0).unwrap();
-            if let Some(width) = caps_structure.get::<i32>("width") {
-                self.video_store
-                    .set_value(&iter, VIDEO_WIDTH_COL, &gtk::Value::from(&width));
-            }
-            if let Some(height) = caps_structure.get::<i32>("height") {
-                self.video_store
-                    .set_value(&iter, VIDEO_HEIGHT_COL, &gtk::Value::from(&height));
+        {
+            let mut sorted_ids = info.streams.video.keys().collect::<Vec<&String>>();
+            sorted_ids.sort();
+            for stream_id in sorted_ids {
+                let ref stream = info.streams.video.get(stream_id).unwrap();
+                let iter = self.add_stream(&self.video_store, stream);
+                let caps_structure = stream.caps.get_structure(0).unwrap();
+                if let Some(width) = caps_structure.get::<i32>("width") {
+                    self.video_store
+                        .set_value(&iter, VIDEO_WIDTH_COL, &gtk::Value::from(&width));
+                }
+                if let Some(height) = caps_structure.get::<i32>("height") {
+                    self.video_store
+                        .set_value(&iter, VIDEO_HEIGHT_COL, &gtk::Value::from(&height));
+                }
             }
         }
 
-        self.video_selected = match self.video_store.get_iter_first() {
-            Some(ref iter) => {
-                self.video_treeview.get_selection().select_iter(iter);
-                Some(self.get_stream_at(&self.video_store, iter))
-            }
-            None => None,
-        };
+        self.video_selected = self.video_store.get_iter_first().map(|ref iter| {
+            self.video_treeview.get_selection().select_iter(iter);
+            self.get_stream_at(&self.video_store, iter)
+        });
 
         // Audio streams
-        for stream in &info.streams.audio {
-            let iter = self.add_stream(&self.audio_store, stream);
-            let caps_structure = stream.caps.get_structure(0).unwrap();
-            if let Some(rate) = caps_structure.get::<i32>("rate") {
-                self.audio_store
-                    .set_value(&iter, AUDIO_RATE_COL, &gtk::Value::from(&rate));
-            }
-            if let Some(channels) = caps_structure.get::<i32>("channels") {
-                self.audio_store
-                    .set_value(&iter, AUDIO_CHANNELS_COL, &gtk::Value::from(&channels));
+        {
+            let mut sorted_ids = info.streams.audio.keys().collect::<Vec<&String>>();
+            sorted_ids.sort();
+            for stream_id in sorted_ids {
+                let ref stream = info.streams.audio.get(stream_id).unwrap();
+                let iter = self.add_stream(&self.audio_store, stream);
+                let caps_structure = stream.caps.get_structure(0).unwrap();
+                if let Some(rate) = caps_structure.get::<i32>("rate") {
+                    self.audio_store
+                        .set_value(&iter, AUDIO_RATE_COL, &gtk::Value::from(&rate));
+                }
+                if let Some(channels) = caps_structure.get::<i32>("channels") {
+                    self.audio_store
+                        .set_value(&iter, AUDIO_CHANNELS_COL, &gtk::Value::from(&channels));
+                }
             }
         }
 
-        self.audio_selected = match self.audio_store.get_iter_first() {
-            Some(ref iter) => {
-                self.audio_treeview.get_selection().select_iter(iter);
-                Some(self.get_stream_at(&self.audio_store, iter))
-            }
-            None => None,
-        };
+        self.audio_selected = self.audio_store.get_iter_first().map(|ref iter| {
+            self.audio_treeview.get_selection().select_iter(iter);
+            self.get_stream_at(&self.audio_store, iter)
+        });
 
         // Text streams
-        for stream in &info.streams.text {
-            let iter = self.add_stream(&self.text_store, stream);
-            let caps_structure = stream.caps.get_structure(0).unwrap();
-            if let Some(format) = caps_structure.get::<&str>("format") {
-                self.text_store
-                    .set_value(&iter, TEXT_FORMAT_COL, &gtk::Value::from(&format));
+        {
+            let mut sorted_ids = info.streams.text.keys().collect::<Vec<&String>>();
+            sorted_ids.sort();
+            for stream_id in sorted_ids {
+                let ref stream = info.streams.text.get(stream_id).unwrap();
+                let iter = self.add_stream(&self.text_store, stream);
+                let caps_structure = stream.caps.get_structure(0).unwrap();
+                if let Some(format) = caps_structure.get::<&str>("format") {
+                    self.text_store
+                        .set_value(&iter, TEXT_FORMAT_COL, &gtk::Value::from(&format));
+                }
             }
         }
 
-        self.text_selected = match self.text_store.get_iter_first() {
-            Some(ref iter) => {
-                self.text_treeview.get_selection().select_iter(iter);
-                Some(self.get_stream_at(&self.text_store, iter))
-            }
-            None => None,
-        };
+        self.text_selected = self.text_store.get_iter_first().map(|ref iter| {
+            self.text_treeview.get_selection().select_iter(iter);
+            self.get_stream_at(&self.text_store, iter)
+        });
     }
 
     pub fn trigger_stream_selection(&self) {

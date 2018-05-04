@@ -338,8 +338,7 @@ impl MainController {
             .lock()
             .unwrap()
             .streams
-            .video_selected
-            .is_some();
+            .is_video_selected();
 
         {
             let info = context.info.lock().unwrap();
@@ -477,8 +476,7 @@ impl MainController {
                             .lock()
                             .unwrap()
                             .streams
-                            .video_selected
-                            .is_some();
+                            .is_video_selected();
 
                         this.header_bar
                             .set_subtitle(Some(context.file_name.as_str()));

@@ -86,7 +86,7 @@ impl VideoController {
                 self.container.get_children()[0].disconnect(cleaner_id);
             }
 
-            if info.streams.video_selected.is_some() {
+            if info.streams.is_video_selected() {
                 debug!("streams_changed video selected");
                 self.container.show();
             } else {

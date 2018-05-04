@@ -295,7 +295,7 @@ impl AudioController {
     }
 
     pub fn streams_changed(&mut self, info: &MediaInfo) {
-        if info.streams.audio_selected.is_some() {
+        if info.streams.is_audio_selected() {
             debug!("streams_changed audio selected");
             self.zoom_in_btn.set_sensitive(true);
             self.zoom_out_btn.set_sensitive(true);
