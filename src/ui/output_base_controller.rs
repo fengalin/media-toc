@@ -54,14 +54,13 @@ impl OutputBaseController {
         self.switch_to_busy();
 
         let is_audio_only = {
-            self.playback_ctx
+            let info = self.playback_ctx
                 .as_ref()
                 .unwrap()
                 .info
                 .lock()
-                .unwrap()
-                .streams
-                .is_video_selected()
+                .unwrap();
+            info.streams.is_audio_selected() && !info.streams.is_video_selected()
         };
         self.extension = metadata::Factory::get_extension(format, is_audio_only).to_owned();
 
