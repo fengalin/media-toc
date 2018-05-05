@@ -84,7 +84,7 @@ impl Stream {
             caps,
             tags,
             type_,
-            must_export: true,
+            must_export: false,
         }
     }
 }

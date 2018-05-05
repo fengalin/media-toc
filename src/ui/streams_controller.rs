@@ -185,14 +185,20 @@ impl StreamsController {
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
-        let info = context.info.lock().unwrap();
+        let mut info = context.info.lock().unwrap();
 
         // Video streams
         {
-            let mut sorted_ids = info.streams.video.keys().collect::<Vec<&String>>();
+            let mut sorted_ids = info
+                .streams
+                .video
+                .keys()
+                .map(|key| key.to_string())
+                .collect::<Vec<String>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let stream = info.streams.video.get(stream_id).unwrap();
+                let mut stream = info.streams.video.get_mut(&stream_id).unwrap();
+                stream.must_export = true;
                 let iter = self.add_stream(&self.video_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
                 if let Some(width) = caps_structure.get::<i32>("width") {
@@ -213,10 +219,16 @@ impl StreamsController {
 
         // Audio streams
         {
-            let mut sorted_ids = info.streams.audio.keys().collect::<Vec<&String>>();
+            let mut sorted_ids = info
+                .streams
+                .audio
+                .keys()
+                .map(|key| key.to_string())
+                .collect::<Vec<String>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let stream = info.streams.audio.get(stream_id).unwrap();
+                let mut stream = info.streams.audio.get_mut(&stream_id).unwrap();
+                stream.must_export = true;
                 let iter = self.add_stream(&self.audio_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
                 if let Some(rate) = caps_structure.get::<i32>("rate") {
@@ -237,10 +249,16 @@ impl StreamsController {
 
         // Text streams
         {
-            let mut sorted_ids = info.streams.text.keys().collect::<Vec<&String>>();
+            let mut sorted_ids = info
+                .streams
+                .text
+                .keys()
+                .map(|key| key.to_string())
+                .collect::<Vec<String>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let stream = info.streams.text.get(stream_id).unwrap();
+                let mut stream = info.streams.text.get_mut(&stream_id).unwrap();
+                stream.must_export = true;
                 let iter = self.add_stream(&self.text_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
                 if let Some(format) = caps_structure.get::<&str>("format") {
