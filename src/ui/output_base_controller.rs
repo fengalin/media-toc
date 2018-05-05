@@ -50,20 +50,10 @@ impl OutputBaseController {
         self.main_ctrl = Some(Rc::downgrade(main_ctrl));
     }
 
-    pub fn prepare_process(&mut self, format: &metadata::Format) {
+    pub fn prepare_process(&mut self, format: &metadata::Format, is_audio_only: bool) {
         self.switch_to_busy();
 
-        let is_audio_only = {
-            let info = self.playback_ctx
-                .as_ref()
-                .unwrap()
-                .info
-                .lock()
-                .unwrap();
-            info.streams.is_audio_selected() && !info.streams.is_video_selected()
-        };
         self.extension = metadata::Factory::get_extension(format, is_audio_only).to_owned();
-
         self.media_path = self.playback_ctx.as_ref().unwrap().path.clone();
         self.target_path = self.media_path.with_extension(&self.extension);
 

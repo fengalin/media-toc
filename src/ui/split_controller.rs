@@ -178,7 +178,7 @@ impl SplitController {
         debug_assert!(self.selected_audio.is_some());
 
         let format = self.get_selection();
-        self.prepare_process(&format);
+        self.prepare_process(&format, true);
 
         self.toc_visitor = self.base.playback_ctx
             .as_ref()

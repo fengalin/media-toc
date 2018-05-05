@@ -120,13 +120,12 @@ impl ExportController {
     }
 
     fn export(&mut self) {
-        let (format, export_type) = self.get_selection();
-
-        self.prepare_process(&format);
         debug_assert!(self.playback_ctx.is_some());
+        let (format, export_type) = self.get_selection();
 
         match export_type {
             ExportType::ExternalToc => {
+                self.prepare_process(&format, false);
                 // export toc as a standalone file
                 let (msg_type, msg) = match File::create(&self.target_path) {
                     Ok(mut output_file) => {
@@ -155,29 +154,35 @@ impl ExportController {
                 self.show_message(msg_type, &msg);
             }
             ExportType::SingleFileWithToc => {
-                let target_path = self.target_path.clone();
-                let streams = {
+                let (streams, is_audio_only) = {
+                    let mut has_audio = false;
+                    let mut has_other = false;
                     let mut streams = HashSet::<String>::new();
                     let playback_ctx = self.playback_ctx.as_ref().unwrap();
                     let info = playback_ctx.info.lock().unwrap();
                     for (ref stream_id, ref stream) in &info.streams.video {
                         if stream.must_export {
                             streams.insert(stream_id.to_string());
+                            has_other = true;
                         }
                     }
                     for (ref stream_id, ref stream) in &info.streams.audio {
                         if stream.must_export {
                             streams.insert(stream_id.to_string());
+                            has_audio = true;
                         }
                     }
                     for (ref stream_id, ref stream) in &info.streams.text {
                         if stream.must_export {
                             streams.insert(stream_id.to_string());
+                            has_other = true;
                         }
                     }
-                    streams
+                    (streams, has_audio && !has_other)
                 };
 
+                self.prepare_process(&format, is_audio_only);
+                let target_path = self.target_path.clone();
                 self.build_context(&target_path, streams);
             }
         }
