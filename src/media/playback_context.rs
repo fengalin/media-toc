@@ -27,54 +27,37 @@ pub const QUEUE_SIZE_NS: u64 = 5_000_000_000u64; // 5s
 // as it contains a gtk::Widget
 struct VideoOutput {
     sink: gst::Element,
-    widget: gtk::Widget,
+    widget_provider: Option<gst::Element>,
 }
 
 unsafe impl Sync for VideoOutput {}
 
 lazy_static! {
     static ref VIDEO_OUTPUT: Option<VideoOutput> = {
-        let (video_sink, widget_val) =
-            // For some reasons, `gtkglsink` seems to interfer with waveform renderding
-            // by inducing more jerks than with `gtksink`.
-            // For some media, the CPU usage is lower, but at the cost of memory usage
+        let video_output =
+            // FIXME: make using gtkglsink an option on the command line
+            // in many cases it's suboptimal or even broken.
             /*if let Some(gtkglsink) = ElementFactory::make("gtkglsink", "video_sink") {
                 debug!("Using gtkglsink");
                 let glsinkbin = ElementFactory::make("glsinkbin", "video_sink_bin").unwrap();
                 glsinkbin.set_property("sink", &gtkglsink.to_value()).unwrap();
-                let widget_val = gtkglsink.get_property("widget");
-                (Some(glsinkbin), widget_val.ok())
+                Some(VideoOutput {
+                    sink: glsinkbin,
+                    widget_provider: Some(gtkglsink),
+                })
             } else*/ if let Some(sink) = ElementFactory::make("gtksink", "video_sink") {
                 debug!("Using gtksink");
-                let widget_val = sink.get_property("widget");
-                (Some(sink), widget_val.ok())
+                Some(VideoOutput {
+                    sink: sink.clone(),
+                    widget_provider: None,
+                })
             } else {
-                (None, None)
+                None
             };
-        match (video_sink, widget_val) {
-            (Some(sink), Some(widget_val)) => {
-                match widget_val.get::<gtk::Widget>() {
-                    Some(widget) => {
-                        Some(VideoOutput {
-                            sink,
-                            widget,
-                        })
-                    }
-                    None => {
-                        error!("{}", gettext("Failed to get Video Widget."));
-                        None
-                    }
-                }
-            }
-            (Some(_sink), None) => {
-                error!("{}", gettext("Failed to get Video Widget."));
-                None
-            }
-            (None, _) => {
-                error!("{}", gettext("Couldn't find GStreamer GTK video sink."));
-                None
-            }
+        if video_output.is_none() {
+            error!("{}", gettext("Couldn't find GStreamer GTK video sink."));
         }
+        video_output
     };
 }
 
@@ -196,7 +179,20 @@ impl PlaybackContext {
     pub fn get_video_widget() -> Option<gtk::Widget> {
         (*VIDEO_OUTPUT)
             .as_ref()
-            .map(|video_output| video_output.widget.clone())
+            .map_or(None, |video_output| {
+                let widget_provider = match video_output.widget_provider {
+                    Some(ref widget_provider) => widget_provider.clone(),
+                    None => video_output.sink.clone(),
+                };
+                let widget_opt = widget_provider
+                    .get_property("widget")
+                    .unwrap()
+                    .get::<gtk::Widget>();
+                if widget_opt.is_none() {
+                    error!("{}", gettext("Failed to get Video Widget."));
+                }
+                widget_opt
+            })
     }
 
     pub fn get_position(&mut self) -> u64 {

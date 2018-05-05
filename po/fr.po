@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-05-04 16:42+0200\n"
-"PO-Revision-Date: 2018-05-04 16:40+0200\n"
+"POT-Creation-Date: 2018-05-05 19:53+0200\n"
+"PO-Revision-Date: 2018-05-05 19:54+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -47,19 +47,15 @@ msgstr "Chemin du fichier multimédia"
 msgid "Failed to initialize GTK"
 msgstr "Impossible d'initialiser GTK"
 
-#: src/media/playback_context.rs:64 src/media/playback_context.rs:70
-msgid "Failed to get Video Widget."
-msgstr "Impossible de créer l'afficheur vidéo."
-
-#: src/media/playback_context.rs:74 src/media/playback_context.rs:185
+#: src/media/playback_context.rs:58 src/media/playback_context.rs:168
 msgid "Couldn't find GStreamer GTK video sink."
 msgstr "Impossible de trouver l'élément « GTK video sink »."
 
-#: src/media/playback_context.rs:125
+#: src/media/playback_context.rs:108
 msgid "Opening {}..."
 msgstr "Ouverture de {}…"
 
-#: src/media/playback_context.rs:168
+#: src/media/playback_context.rs:151
 msgid ""
 "Missing `decodebin3`\n"
 "check your gst-plugins-base install"
@@ -67,19 +63,23 @@ msgstr ""
 "`decodebin3` manquant\n"
 "Vérifiez l'installation de gst-plugin-base"
 
-#: src/media/playback_context.rs:186
+#: src/media/playback_context.rs:169
 msgid "Video playback will be disabled."
 msgstr "L'affichage vidéo sera désactivé."
 
-#: src/media/playback_context.rs:187
+#: src/media/playback_context.rs:170
 msgid "Please install {} or {}, depending on your distribution."
 msgstr "Veuillez installer {} ou {}, selon votre distribution."
 
-#: src/media/playback_context.rs:219 src/media/toc_setter_context.rs:74
+#: src/media/playback_context.rs:192
+msgid "Failed to get Video Widget."
+msgstr "Impossible de créer l'afficheur vidéo."
+
+#: src/media/playback_context.rs:215 src/media/toc_setter_context.rs:74
 msgid "Could not set media in Playing mode"
 msgstr "Impossible de passer le média en mode lecture."
 
-#: src/media/playback_context.rs:226 src/media/splitter_context.rs:118
+#: src/media/playback_context.rs:222 src/media/splitter_context.rs:118
 #: src/media/toc_setter_context.rs:63
 msgid "Could not set media in Paused mode"
 msgstr "Impossible de passer le média en mode pause."
@@ -218,23 +218,23 @@ msgstr "Début"
 msgid "End"
 msgstr "Fin"
 
-#: src/ui/export_controller.rs:138
+#: src/ui/export_controller.rs:137
 msgid "Table of contents exported succesfully"
 msgstr "Table des matières exportée avec succès"
 
-#: src/ui/export_controller.rs:147
+#: src/ui/export_controller.rs:146
 msgid "Failed to create the file for the table of contents"
 msgstr "Échec à la création du fichier de table des matières"
 
-#: src/ui/export_controller.rs:201
+#: src/ui/export_controller.rs:206
 msgid "Failed to prepare for export. {}"
 msgstr "Échec à la préparation de l'export : {}"
 
-#: src/ui/export_controller.rs:269 src/ui/export_controller.rs:283
+#: src/ui/export_controller.rs:274 src/ui/export_controller.rs:288
 msgid "Failed to export media. {}"
 msgstr "Échec à l'export du média. {}"
 
-#: src/ui/export_controller.rs:277
+#: src/ui/export_controller.rs:282
 msgid "Media exported succesfully"
 msgstr "Table des matières exportée avec succès"
 
@@ -504,46 +504,46 @@ msgstr "Média découpé avec succès"
 msgid "Failed to split media. {}"
 msgstr "Échec lors du découpage du média. {}"
 
-#: src/ui/streams_controller.rs:284
+#: src/ui/streams_controller.rs:302
 msgid "unknown"
 msgstr "inconnu"
 
-#: src/ui/streams_controller.rs:327
+#: src/ui/streams_controller.rs:345
 msgid "Export?"
 msgstr "Exporter ?"
 
-#: src/ui/streams_controller.rs:328
+#: src/ui/streams_controller.rs:346
 msgid "Stream id"
 msgstr "Id. du flux"
 
-#: src/ui/streams_controller.rs:329
+#: src/ui/streams_controller.rs:347
 msgid "Language"
 msgstr "Langue"
 
-#: src/ui/streams_controller.rs:330
+#: src/ui/streams_controller.rs:348
 msgid "Codec"
 msgstr "Codec"
 
-#: src/ui/streams_controller.rs:331
+#: src/ui/streams_controller.rs:349
 msgid "Comment"
 msgstr "Commentaire"
 
-#: src/ui/streams_controller.rs:366
+#: src/ui/streams_controller.rs:384
 msgid "Width"
 msgstr "Largeur"
 
-#: src/ui/streams_controller.rs:373
+#: src/ui/streams_controller.rs:391
 msgid "Height"
 msgstr "Hauteur"
 
-#: src/ui/streams_controller.rs:420
+#: src/ui/streams_controller.rs:438
 msgid "Rate"
 msgstr "Débit"
 
-#: src/ui/streams_controller.rs:427
+#: src/ui/streams_controller.rs:445
 msgid "Channels"
 msgstr "Canaux"
 
-#: src/ui/streams_controller.rs:468
+#: src/ui/streams_controller.rs:486
 msgid "Format"
 msgstr "Format"
