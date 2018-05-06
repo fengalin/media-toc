@@ -158,10 +158,13 @@ sudo apt-get install gcc libgtk-3-dev libgstreamer1.0-dev \
 ```
 
 ### macOS
-*Needs confirmation*
 ```
-brew install gtk+3 gstreamer gst-plugins-{base,good,bad,ugly} gst-libav
+brew install gtk+3 gstreamer gst-plugins-{base,bad,ugly} gst-libav
+brew install --build-from-source --with-gtk+3 gst-plugins-good
 ```
+
+The package `adwaita-icon-theme` might allow installing the missing icons, but
+I couldn't install it so far on the (very slow) mac I use.
 
 ### Windows
 - MSYS2: follow [this guide](http://www.msys2.org/).
