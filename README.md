@@ -159,12 +159,17 @@ sudo apt-get install gcc libgtk-3-dev libgstreamer1.0-dev \
 
 ### macOS
 ```
-brew install gtk+3 gstreamer gst-plugins-{base,bad,ugly} gst-libav
-brew install --build-from-source --with-gtk+3 gst-plugins-good
+brew install gtk+3 gstreamer
+brew install --with-libvorbis --with-opus --with-theora gst-plugins-base
+brew install --with-flac --with-gtk+3 --with-libpng --with-taglib gst-plugins-good
+brew install --with-srt gst-plugins-bad
+brew install --with-libmpeg2 --with-x264 gst-plugins-ugly
 ```
 
 The package `adwaita-icon-theme` might allow installing the missing icons, but
-I couldn't install it so far on the (very slow) mac I use.
+it fails while compiling the Rust compiler (which is used to compile `librsvg`).
+I'll try to configure the formula so that it uses the installed compiler when I
+get time.
 
 Use the following command to build and generate locales:
 ```
