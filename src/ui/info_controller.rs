@@ -266,7 +266,7 @@ impl InfoController {
             });
 
         {
-            let info = context.info.lock().unwrap();
+            let info = context.info.read().unwrap();
 
             self.duration = info.duration;
             self.timeline_scale.set_range(0f64, info.duration as f64);
@@ -500,7 +500,7 @@ impl InfoController {
 
     pub fn export_chapters(&self, context: &mut PlaybackContext) {
         if let Some((toc, count)) = self.chapter_manager.get_toc() {
-            let mut info = context.info.lock().unwrap();
+            let mut info = context.info.write().unwrap();
             info.toc = Some(toc);
             info.chapter_count = Some(count);
         }

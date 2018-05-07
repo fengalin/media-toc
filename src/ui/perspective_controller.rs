@@ -137,7 +137,7 @@ impl PerspectiveController {
 
     pub fn new_media(&self, context: &PlaybackContext) {
         self.menu_button.set_sensitive(true);
-        let info = context.info.lock().unwrap();
+        let info = context.info.read().unwrap();
         self.streams_changed(&info);
     }
 

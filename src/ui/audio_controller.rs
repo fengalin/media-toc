@@ -279,7 +279,7 @@ impl AudioController {
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
         {
-            let info = context.info.lock().unwrap();
+            let info = context.info.read().unwrap();
             self.streams_changed(&info);
         }
 

@@ -333,15 +333,9 @@ impl MainController {
 
     pub fn streams_selected(&mut self) {
         let context = self.context.take().unwrap();
-        self.requires_async_dialog = context
-            .info
-            .lock()
-            .unwrap()
-            .streams
-            .is_video_selected();
-
         {
-            let info = context.info.lock().unwrap();
+            let info = context.info.read().unwrap();
+            self.requires_async_dialog = info.streams.is_video_selected();
             self.audio_ctrl.borrow_mut().streams_changed(&info);
             self.info_ctrl.borrow().streams_changed(&info);
             self.perspective_ctrl.borrow().streams_changed(&info);
@@ -473,7 +467,7 @@ impl MainController {
 
                         this.requires_async_dialog = context
                             .info
-                            .lock()
+                            .read()
                             .unwrap()
                             .streams
                             .is_video_selected();

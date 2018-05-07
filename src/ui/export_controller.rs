@@ -129,7 +129,7 @@ impl ExportController {
                 // export toc as a standalone file
                 let (msg_type, msg) = match File::create(&self.target_path) {
                     Ok(mut output_file) => {
-                        let info = self.playback_ctx.as_ref().unwrap().info.lock().unwrap();
+                        let info = self.playback_ctx.as_ref().unwrap().info.read().unwrap();
                         match metadata::Factory::get_writer(&format).write(&info, &mut output_file)
                         {
                             Ok(_) => (
@@ -159,7 +159,7 @@ impl ExportController {
                     let mut has_other = false;
                     let mut streams = HashSet::<String>::new();
                     let playback_ctx = self.playback_ctx.as_ref().unwrap();
-                    let info = playback_ctx.info.lock().unwrap();
+                    let info = playback_ctx.info.read().unwrap();
                     for (ref stream_id, ref stream) in &info.streams.video {
                         if stream.must_export {
                             streams.insert(stream_id.to_string());
@@ -263,7 +263,7 @@ impl ExportController {
                         let exporter = MatroskaTocFormat::new();
                         {
                             let muxer = toc_setter_ctx.get_muxer().unwrap();
-                            let info = this.playback_ctx.as_ref().unwrap().info.lock().unwrap();
+                            let info = this.playback_ctx.as_ref().unwrap().info.read().unwrap();
                             exporter.export(&info, muxer);
                         }
 

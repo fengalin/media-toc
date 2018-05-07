@@ -123,7 +123,7 @@ impl SplitController {
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
-        let info = context.info.lock().unwrap();
+        let info = context.info.read().unwrap();
         self.streams_changed(&info);
     }
 
@@ -184,7 +184,7 @@ impl SplitController {
             .as_ref()
             .unwrap()
             .info
-            .lock()
+            .read()
             .unwrap()
             .toc
             .as_ref()
@@ -280,7 +280,7 @@ impl SplitController {
     fn get_split_path(&self, chapter: &gst::TocEntry) -> PathBuf {
         let mut split_name = String::new();
 
-        let info = self.playback_ctx.as_ref().unwrap().info.lock().unwrap();
+        let info = self.playback_ctx.as_ref().unwrap().info.read().unwrap();
 
         // TODO: make format customisable
         if let Some(artist) = info.get_artist() {
@@ -328,7 +328,7 @@ impl SplitController {
         {
             let tags = tags.get_mut().unwrap();
             let chapter_count = {
-                let info = self.playback_ctx.as_ref().unwrap().info.lock().unwrap();
+                let info = self.playback_ctx.as_ref().unwrap().info.read().unwrap();
 
                 // Select tags suitable for a track
                 add_tag_from!(tags, info.tags, gst::tags::Artist);

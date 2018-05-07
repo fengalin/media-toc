@@ -146,8 +146,16 @@ impl StreamsController {
         if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
             if let Some(mut context) = main_ctrl_rc.borrow_mut().context.as_mut() {
                 if let Some((stream_id, value)) = Self::toggle_export(&self.video_store, tree_path) {
-                    let mut info = context.info.lock().unwrap();
-                    info.streams.video.get_mut(&stream_id).as_mut().unwrap().must_export = value;
+                    context
+                        .info
+                        .write()
+                        .unwrap()
+                        .streams
+                        .video
+                        .get_mut(&stream_id)
+                        .as_mut()
+                        .unwrap()
+                        .must_export = value;
                 }
             }
         }
@@ -157,8 +165,16 @@ impl StreamsController {
         if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
             if let Some(mut context) = main_ctrl_rc.borrow_mut().context.as_mut() {
                 if let Some((stream_id, value)) = Self::toggle_export(&self.audio_store, tree_path) {
-                    let mut info = context.info.lock().unwrap();
-                    info.streams.audio.get_mut(&stream_id).as_mut().unwrap().must_export = value;
+                    context
+                        .info
+                        .write()
+                        .unwrap()
+                        .streams
+                        .audio
+                        .get_mut(&stream_id)
+                        .as_mut()
+                        .unwrap()
+                        .must_export = value;
                 }
             }
         }
@@ -168,8 +184,16 @@ impl StreamsController {
         if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
             if let Some(mut context) = main_ctrl_rc.borrow_mut().context.as_mut() {
                 if let Some((stream_id, value)) = Self::toggle_export(&self.text_store, tree_path) {
-                    let mut info = context.info.lock().unwrap();
-                    info.streams.text.get_mut(&stream_id).as_mut().unwrap().must_export = value;
+                    context
+                        .info
+                        .write()
+                        .unwrap()
+                        .streams
+                        .text
+                        .get_mut(&stream_id)
+                        .as_mut()
+                        .unwrap()
+                        .must_export = value;
                 }
             }
         }
@@ -185,10 +209,10 @@ impl StreamsController {
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
-        let mut info = context.info.lock().unwrap();
-
-        // Video streams
         {
+            let mut info = context.info.write().unwrap();
+
+            // Video streams
             let mut sorted_ids = info
                 .streams
                 .video
@@ -210,15 +234,8 @@ impl StreamsController {
                         .set_value(&iter, VIDEO_HEIGHT_COL, &gtk::Value::from(&height));
                 }
             }
-        }
 
-        self.video_selected = self.video_store.get_iter_first().map(|ref iter| {
-            self.video_treeview.get_selection().select_iter(iter);
-            self.get_stream_at(&self.video_store, iter)
-        });
-
-        // Audio streams
-        {
+            // Audio streams
             let mut sorted_ids = info
                 .streams
                 .audio
@@ -240,15 +257,8 @@ impl StreamsController {
                         .set_value(&iter, AUDIO_CHANNELS_COL, &gtk::Value::from(&channels));
                 }
             }
-        }
 
-        self.audio_selected = self.audio_store.get_iter_first().map(|ref iter| {
-            self.audio_treeview.get_selection().select_iter(iter);
-            self.get_stream_at(&self.audio_store, iter)
-        });
-
-        // Text streams
-        {
+            // Text streams
             let mut sorted_ids = info
                 .streams
                 .text
@@ -267,6 +277,16 @@ impl StreamsController {
                 }
             }
         }
+
+        self.video_selected = self.video_store.get_iter_first().map(|ref iter| {
+            self.video_treeview.get_selection().select_iter(iter);
+            self.get_stream_at(&self.video_store, iter)
+        });
+
+        self.audio_selected = self.audio_store.get_iter_first().map(|ref iter| {
+            self.audio_treeview.get_selection().select_iter(iter);
+            self.get_stream_at(&self.audio_store, iter)
+        });
 
         self.text_selected = self.text_store.get_iter_first().map(|ref iter| {
             self.text_treeview.get_selection().select_iter(iter);

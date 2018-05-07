@@ -65,7 +65,7 @@ impl OutputBaseController {
             .as_ref()
             .unwrap()
             .info
-            .lock()
+            .read()
             .unwrap()
             .duration;
         self.duration = duration;

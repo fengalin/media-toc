@@ -13,7 +13,7 @@ use gtk;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use metadata::MediaInfo;
 
@@ -85,7 +85,7 @@ pub struct PlaybackContext {
     pub file_name: String,
     pub name: String,
 
-    pub info: Arc<Mutex<MediaInfo>>,
+    pub info: Arc<RwLock<MediaInfo>>,
 }
 
 // FIXME: might need to `release_request_pad` on the tee
@@ -121,13 +121,13 @@ impl PlaybackContext {
             name: String::from(path.file_stem().unwrap().to_str().unwrap()),
             path,
 
-            info: Arc::new(Mutex::new(MediaInfo::new())),
+            info: Arc::new(RwLock::new(MediaInfo::new())),
         };
 
         this.pipeline.add(&this.decodebin).unwrap();
 
         this.info
-            .lock()
+            .write()
             .expect("PlaybackContext::new failed to lock media info")
             .file_name = file_name;
 
@@ -273,7 +273,7 @@ impl PlaybackContext {
         self.decodebin.send_event(select_streams_evt);
 
         {
-            let mut info = self.info.lock().unwrap();
+            let mut info = self.info.write().unwrap();
             info.streams.select_streams(stream_ids);
         }
     }
@@ -590,16 +590,16 @@ impl PlaybackContext {
                 gst::MessageView::AsyncDone(_) => match pipeline_state {
                     PipelineState::StreamsSelected => {
                         pipeline_state = PipelineState::Initialized(InitializedState::Paused);
-                        {
-                            let info = &mut info_arc_mtx
-                                .lock()
-                                .expect("Failed to lock media info while setting duration");
-                            info.duration = pipeline
-                                .query_duration::<gst::ClockTime>()
-                                .unwrap_or_else(|| 0.into())
-                                .nanoseconds()
-                                .unwrap();
-                        }
+                        let duration = pipeline
+                            .query_duration::<gst::ClockTime>()
+                            .unwrap_or_else(|| 0.into())
+                            .nanoseconds()
+                            .unwrap();
+                        info_arc_mtx
+                            .write()
+                            .expect("Failed to lock media info while setting duration")
+                            .duration = duration;
+
                         ctx_tx
                             .send(ContextMessage::InitDone)
                             .expect("Failed to notify UI");
@@ -657,10 +657,10 @@ impl PlaybackContext {
                 gst::MessageView::Tag(msg_tag) => match pipeline_state {
                     PipelineState::Initialized(_) => (),
                     _ => {
-                        let info = &mut info_arc_mtx
-                            .lock()
-                            .expect("Failed to lock media info while reading tags");
-                        info.tags = info.tags
+                        info_arc_mtx
+                            .write()
+                            .expect("Failed to lock media info while reading tags")
+                            .tags
                             .merge(&msg_tag.get_tags(), gst::TagMergeMode::Replace);
                     }
                 },
@@ -671,8 +671,7 @@ impl PlaybackContext {
                             // FIXME: use updated
                             let (toc, _updated) = msg_toc.get_toc();
                             if toc.get_scope() == gst::TocScope::Global {
-                                let info = &mut info_arc_mtx.lock().unwrap();
-                                info.toc = Some(toc);
+                                info_arc_mtx.write().unwrap().toc = Some(toc);
                             } else {
                                 warn!("skipping toc with scope: {:?}", toc.get_scope());
                             }
@@ -683,7 +682,7 @@ impl PlaybackContext {
                     match pipeline_state {
                         PipelineState::Initialized(_) => {
                             let audio_has_changed = info_arc_mtx
-                                .lock()
+                                .read()
                                 .expect("Failed to lock media info while comparing streams")
                                 .streams
                                 .audio_changed;
@@ -702,7 +701,7 @@ impl PlaybackContext {
                 }
                 gst::MessageView::StreamCollection(msg_stream_collection) => {
                     let stream_collection = msg_stream_collection.get_stream_collection();
-                    let info = &mut info_arc_mtx.lock().unwrap();
+                    let info = &mut info_arc_mtx.write().unwrap();
                     stream_collection
                         .iter()
                         .for_each(|stream| info.streams.add_stream(&stream));
