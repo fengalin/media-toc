@@ -166,6 +166,11 @@ brew install --build-from-source --with-gtk+3 gst-plugins-good
 The package `adwaita-icon-theme` might allow installing the missing icons, but
 I couldn't install it so far on the (very slow) mac I use.
 
+Use the following command to build and generate locales:
+```
+PATH="/usr/local/opt/gettext/bin:$PATH" cargo build --release
+```
+
 ### Windows
 - MSYS2: follow [this guide](http://www.msys2.org/).
 - Install the development toolchain, GTK and GStreamer<br>
