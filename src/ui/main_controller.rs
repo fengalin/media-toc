@@ -66,10 +66,6 @@ pub struct MainController {
     missing_plugins: HashSet<String>,
     state: ControllerState,
 
-    requires_async_dialog: bool, // when pipeline contains video, dialogs must wait for
-    // asyncdone before opening a dialog otherwise the listener
-    // may borrow the MainController while the dialog is already
-    // using it leading to a borrowing conflict
     this_opt: Option<Rc<RefCell<MainController>>>,
     keep_going: bool,
     listener_src: Option<glib::SourceId>,
@@ -99,8 +95,6 @@ impl MainController {
             take_context_cb: None,
             missing_plugins: HashSet::<String>::new(),
             state: ControllerState::Stopped,
-
-            requires_async_dialog: false,
 
             this_opt: None,
             keep_going: true,
@@ -147,7 +141,7 @@ impl MainController {
                 this_mut.open_btn.connect_clicked(move |_| {
                     let mut this = this_rc.borrow_mut();
 
-                    if this.requires_async_dialog && this.state == ControllerState::Playing {
+                    if this.state == ControllerState::Playing {
                         this.hold();
                         this.state = ControllerState::PendingSelectMedia;
                     } else {
@@ -335,7 +329,6 @@ impl MainController {
         let context = self.context.take().unwrap();
         {
             let info = context.info.read().unwrap();
-            self.requires_async_dialog = info.streams.is_video_selected();
             self.audio_ctrl.borrow_mut().streams_changed(&info);
             self.info_ctrl.borrow().streams_changed(&info);
             self.perspective_ctrl.borrow().streams_changed(&info);
@@ -363,9 +356,8 @@ impl MainController {
             context.pause().unwrap();
         };
 
-        let must_async = self.requires_async_dialog && self.state == ControllerState::Playing;
         self.take_context_cb = Some(callback);
-        if must_async {
+        if self.state == ControllerState::Playing {
             self.state = ControllerState::PendingTakeContext;
         } else {
             self.have_context();
@@ -438,8 +430,6 @@ impl MainController {
                     AsyncDone => {
                         let mut this = this_rc.borrow_mut();
                         match this.state {
-                            ControllerState::PendingSelectMedia => this.select_media(),
-                            ControllerState::PendingTakeContext => this.have_context(),
                             ControllerState::Seeking {
                                 seek_pos,
                                 switch_to_play,
@@ -464,13 +454,6 @@ impl MainController {
                     InitDone => {
                         let mut this = this_rc.borrow_mut();
                         let mut context = this.context.take().unwrap();
-
-                        this.requires_async_dialog = context
-                            .info
-                            .read()
-                            .unwrap()
-                            .streams
-                            .is_video_selected();
 
                         this.header_bar
                             .set_subtitle(Some(context.file_name.as_str()));
@@ -497,6 +480,8 @@ impl MainController {
                         match this.state {
                             ControllerState::Paused => this.refresh(),
                             ControllerState::TwoStepsSeek(target) => this.seek(target, true),
+                            ControllerState::PendingSelectMedia => this.select_media(),
+                            ControllerState::PendingTakeContext => this.have_context(),
                             _ => (),
                         }
                     }
