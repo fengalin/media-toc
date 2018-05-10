@@ -27,37 +27,41 @@ pub const QUEUE_SIZE_NS: u64 = 5_000_000_000u64; // 5s
 // as it contains a gtk::Widget
 struct VideoOutput {
     sink: gst::Element,
-    widget_provider: Option<gst::Element>,
+    widget: gtk::Widget,
 }
 
 unsafe impl Sync for VideoOutput {}
 
 lazy_static! {
     static ref VIDEO_OUTPUT: Option<VideoOutput> = {
-        let video_output =
-            // FIXME: make using gtkglsink an option on the command line
-            // in many cases it's suboptimal or even broken.
-            /*if let Some(gtkglsink) = ElementFactory::make("gtkglsink", "video_sink") {
-                debug!("Using gtkglsink");
-                let glsinkbin = ElementFactory::make("glsinkbin", "video_sink_bin").unwrap();
-                glsinkbin.set_property("sink", &gtkglsink.to_value()).unwrap();
-                Some(VideoOutput {
-                    sink: glsinkbin,
-                    widget_provider: Some(gtkglsink),
-                })
-            } else*/ if let Some(sink) = ElementFactory::make("gtksink", "video_sink") {
-                debug!("Using gtksink");
-                Some(VideoOutput {
-                    sink: sink.clone(),
-                    widget_provider: None,
-                })
-            } else {
-                None
-            };
-        if video_output.is_none() {
+        // FIXME: make using gtkglsink an option on the command line
+        // in many cases it's suboptimal or even broken.
+        /*if let Some(gtkglsink) = ElementFactory::make("gtkglsink", "video_sink") {
+            debug!("Using gtkglsink");
+            let glsinkbin = ElementFactory::make("glsinkbin", "video_sink_bin")
+                .expect("PlaybackContext: couldn't get `glsinkbin` from `gtkglsink`");
+            glsinkbin.set_property("sink", &gtkglsink.to_value())
+                .expect("PlaybackContext: couldn't set property `sink` for `glsinkbin`");
+            Some(VideoOutput {
+                sink: glsinkbin,
+                widget: gtkglsink.get_property("widget").ok()
+                    .expect("PlaybackContext: couldn't get property `widget` from `gtkglsink`")
+                    .get::<gtk::Widget>()
+                    .expect("PlaybackContext: unexpected type for property `widget` in `gtkglsink`"),
+            })
+        } else */if let Some(sink) = ElementFactory::make("gtksink", "video_sink") {
+            debug!("Using gtksink");
+            Some(VideoOutput {
+                sink: sink.clone(),
+                widget: sink.get_property("widget").ok()
+                    .expect("PlaybackContext: couldn't get property `widget` from `gtksink`")
+                    .get::<gtk::Widget>()
+                    .expect("PlaybackContext: unexpected type for property `widget` in `gtksink`"),
+            })
+        } else {
             error!("{}", gettext("Couldn't find GStreamer GTK video sink."));
+            None
         }
-        video_output
     };
 }
 
@@ -179,20 +183,7 @@ impl PlaybackContext {
     pub fn get_video_widget() -> Option<gtk::Widget> {
         (*VIDEO_OUTPUT)
             .as_ref()
-            .map_or(None, |video_output| {
-                let widget_provider = match video_output.widget_provider {
-                    Some(ref widget_provider) => widget_provider.clone(),
-                    None => video_output.sink.clone(),
-                };
-                let widget_opt = widget_provider
-                    .get_property("widget")
-                    .unwrap()
-                    .get::<gtk::Widget>();
-                if widget_opt.is_none() {
-                    error!("{}", gettext("Failed to get Video Widget."));
-                }
-                widget_opt
-            })
+            .map(|video_output| video_output.widget.clone())
     }
 
     pub fn get_position(&mut self) -> u64 {
