@@ -84,6 +84,7 @@ pub struct PlaybackContext {
     position_query: gst::query::Position<gst::Query>,
 
     dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
+    ctx_tx: Sender<ContextMessage>,
 
     pub path: PathBuf,
     pub file_name: String,
@@ -119,7 +120,8 @@ impl PlaybackContext {
             decodebin: gst::ElementFactory::make("decodebin3", "decodebin").unwrap(),
             position_query: gst::Query::new_position(gst::Format::Time),
 
-            dbl_audio_buffer_mtx: Arc::clone(&dbl_audio_buffer_mtx),
+            dbl_audio_buffer_mtx,
+            ctx_tx,
 
             file_name: file_name.clone(),
             name: String::from(path.file_stem().unwrap().to_str().unwrap()),
@@ -135,14 +137,8 @@ impl PlaybackContext {
             .expect("PlaybackContext::new failed to lock media info")
             .file_name = file_name;
 
-        this.build_pipeline(
-            ctx_tx.clone(),
-            dbl_audio_buffer_mtx,
-            (*VIDEO_OUTPUT)
-                .as_ref()
-                .map(|video_output| video_output.sink.clone()),
-        );
-        this.register_bus_inspector(ctx_tx);
+        this.build_pipeline();
+        this.register_bus_inspector();
 
         this.pause()
             .map(|_| this)
@@ -330,12 +326,7 @@ impl PlaybackContext {
             .unwrap();
     }
 
-    fn build_pipeline(
-        &mut self,
-        ctx_tx: Sender<ContextMessage>,
-        dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
-        video_sink: Option<gst::Element>,
-    ) {
+    fn build_pipeline(&mut self) {
         // From decodebin3's documentation: "Children: multiqueue0"
         let decodebin_as_bin = self.decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
         let decodebin_multiqueue = &decodebin_as_bin.get_children()[0];
@@ -356,7 +347,11 @@ impl PlaybackContext {
 
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
-        let ctx_tx_mtx = Arc::new(Mutex::new(ctx_tx));
+        let dbl_audio_buffer_mtx = Arc::clone(&self.dbl_audio_buffer_mtx);
+        let video_sink = (*VIDEO_OUTPUT)
+            .as_ref()
+            .map(|video_output| video_output.sink.clone());
+        let ctx_tx_mtx = Arc::new(Mutex::new(self.ctx_tx.clone()));
         self.decodebin
             .connect_pad_added(move |_decodebin, src_pad| {
                 let pipeline = &pipeline_clone;
@@ -543,10 +538,11 @@ impl PlaybackContext {
     }
 
     // Uses ctx_tx to notify the UI controllers about the inspection process
-    fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
+    fn register_bus_inspector(&self) {
         let mut pipeline_state = PipelineState::None;
         let info_arc_mtx = Arc::clone(&self.info);
         let dbl_audio_buffer_mtx = Arc::clone(&self.dbl_audio_buffer_mtx);
+        let ctx_tx = self.ctx_tx.clone();
         let pipeline = self.pipeline.clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
@@ -603,6 +599,11 @@ impl PlaybackContext {
                     _ => (),
                 },
                 gst::MessageView::StateChanged(msg_state_changed) => {
+                    println!("{:?}: {:?}, {:?}",
+                        msg_state_changed.get_src().map(|src| src.get_name()),
+                        msg_state_changed.get_current(),
+                        msg_state_changed.get_pending(),
+                    );
                     if let PipelineState::Initialized(_) = pipeline_state {
                         if let Some(source) = msg_state_changed.get_src() {
                             if "pipeline" != source.get_name() {
