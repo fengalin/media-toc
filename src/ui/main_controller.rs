@@ -575,7 +575,7 @@ impl MainController {
         file_dlg.add_button(&gettext("Open"), gtk::ResponseType::Ok.into());
 
         if file_dlg.run() == gtk::ResponseType::Ok.into() {
-            if let Some(ref context) = self.context {
+            if let Some(ref context) = self.context.take() {
                 context.stop();
             }
             self.open_media(file_dlg.get_filename().unwrap());

@@ -599,11 +599,6 @@ impl PlaybackContext {
                     _ => (),
                 },
                 gst::MessageView::StateChanged(msg_state_changed) => {
-                    println!("{:?}: {:?}, {:?}",
-                        msg_state_changed.get_src().map(|src| src.get_name()),
-                        msg_state_changed.get_current(),
-                        msg_state_changed.get_pending(),
-                    );
                     if let PipelineState::Initialized(_) = pipeline_state {
                         if let Some(source) = msg_state_changed.get_src() {
                             if "pipeline" != source.get_name() {
