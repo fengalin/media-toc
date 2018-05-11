@@ -385,7 +385,7 @@ impl MainController {
         }
     }
 
-    fn handle_missing_plugins(&self) -> bool {
+    fn check_missing_plugins(&self) -> Option<String> {
         if !self.missing_plugins.is_empty() {
             let mut missing_nb = 0;
             let mut missing_list = String::new();
@@ -406,12 +406,10 @@ impl MainController {
                     missing_nb
                 ).replacen("{}", &missing_list, 1),
             );
-            self.show_message(gtk::MessageType::Info, &message);
-            error!("{}", message);
 
-            true
+            Some(message)
         } else {
-            false
+            None
         }
     }
 
@@ -468,7 +466,10 @@ impl MainController {
 
                         this.set_context(context);
 
-                        this.handle_missing_plugins();
+                        if let Some(message) = this.check_missing_plugins() {
+                            this.show_message(gtk::MessageType::Info, &message);
+                            error!("{}", message);
+                        }
                         this.state = ControllerState::Ready;
                     }
                     MissingPlugin(plugin) => {
@@ -514,13 +515,13 @@ impl MainController {
                         this.keep_going = false;
                         keep_going = false;
 
-                        if !this.missing_plugins.is_empty() {
-                            this.handle_missing_plugins();
-                        } else {
-                            let error = gettext("Error opening file. {}").replacen("{}", &error, 1);
-                            this.show_message(gtk::MessageType::Error, &error);
-                            error!("{}", error);
+                        let mut error = gettext("Error opening file. {}").replacen("{}", &error, 1);
+                        if let Some(message) = this.check_missing_plugins() {
+                            error += "\n";
+                            error += &message;
                         }
+                        this.show_message(gtk::MessageType::Error, &error);
+                        error!("{}", error);
                     }
                     _ => (),
                 };
@@ -610,9 +611,7 @@ impl MainController {
 
         let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.borrow().get_dbl_buffer_mtx());
         match PlaybackContext::new(filepath, dbl_buffer_mtx, ctx_tx) {
-            Ok(context) => {
-                self.context = Some(context);
-            }
+            Ok(context) => self.context = Some(context),
             Err(error) => {
                 self.switch_to_default();
                 let error = gettext("Error opening file. {}").replace("{}", &error);

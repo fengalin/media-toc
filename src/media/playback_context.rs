@@ -683,7 +683,26 @@ impl PlaybackContext {
 
                             ctx_tx.send(ContextMessage::StreamsSelected).unwrap();
                         }
-                        _ => pipeline_state = PipelineState::StreamsSelected,
+                        _ => {
+                            let has_usable_streams = {
+                                let streams = &info_arc_mtx
+                                    .read()
+                                    .expect("Failed to lock media info while checking streams")
+                                    .streams;
+                                streams.is_audio_selected() || streams.is_video_selected()
+                            };
+
+                            if has_usable_streams {
+                                pipeline_state = PipelineState::StreamsSelected;
+                            } else {
+                                ctx_tx
+                                    .send(ContextMessage::FailedToOpenMedia(
+                                        gettext("No usable streams could be found."),
+                                    ))
+                                    .unwrap();
+                                return glib::Continue(false);
+                            }
+                        }
                     }
                 }
                 gst::MessageView::StreamCollection(msg_stream_collection) => {
