@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-05-05 19:53+0200\n"
-"PO-Revision-Date: 2018-05-05 19:54+0200\n"
+"POT-Creation-Date: 2018-05-11 20:14+0200\n"
+"PO-Revision-Date: 2018-05-11 20:14+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -47,11 +47,11 @@ msgstr "Chemin du fichier multimédia"
 msgid "Failed to initialize GTK"
 msgstr "Impossible d'initialiser GTK"
 
-#: src/media/playback_context.rs:58 src/media/playback_context.rs:168
+#: src/media/playback_context.rs:62 src/media/playback_context.rs:168
 msgid "Couldn't find GStreamer GTK video sink."
 msgstr "Impossible de trouver l'élément « GTK video sink »."
 
-#: src/media/playback_context.rs:108
+#: src/media/playback_context.rs:113
 msgid "Opening {}..."
 msgstr "Ouverture de {}…"
 
@@ -71,18 +71,18 @@ msgstr "L'affichage vidéo sera désactivé."
 msgid "Please install {} or {}, depending on your distribution."
 msgstr "Veuillez installer {} ou {}, selon votre distribution."
 
-#: src/media/playback_context.rs:192
-msgid "Failed to get Video Widget."
-msgstr "Impossible de créer l'afficheur vidéo."
-
-#: src/media/playback_context.rs:215 src/media/toc_setter_context.rs:74
+#: src/media/playback_context.rs:202 src/media/toc_setter_context.rs:74
 msgid "Could not set media in Playing mode"
 msgstr "Impossible de passer le média en mode lecture."
 
-#: src/media/playback_context.rs:222 src/media/splitter_context.rs:118
+#: src/media/playback_context.rs:209 src/media/splitter_context.rs:118
 #: src/media/toc_setter_context.rs:63
 msgid "Could not set media in Paused mode"
 msgstr "Impossible de passer le média en mode pause."
+
+#: src/media/playback_context.rs:700
+msgid "No usable streams could be found."
+msgstr "Aucun flux exploitable n'a été trouvé."
 
 #: src/media/splitter_context.rs:31
 msgid ""
@@ -254,25 +254,25 @@ msgstr ""
 msgid "Failed to open toc file."
 msgstr "Impossible d'ouvrir le fichier de table des matières."
 
-#: src/ui/main_controller.rs:172
+#: src/ui/main_controller.rs:166
 msgid "Failed to initialize GStreamer, the application can't be used."
 msgstr "Échec à l'initialisation de GStreamer, l'application est inutilisable."
 
-#: src/ui/main_controller.rs:418 src/ui/main_controller.rs:498
+#: src/ui/main_controller.rs:404 src/ui/main_controller.rs:476
 msgid "Missing plugin: {}"
 msgid_plural "Missing plugins: {}"
 msgstr[0] "Greffon manquant : {}"
 msgstr[1] "Greffons manquants : {}"
 
-#: src/ui/main_controller.rs:541 src/ui/main_controller.rs:639
+#: src/ui/main_controller.rs:518 src/ui/main_controller.rs:617
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
 
-#: src/ui/main_controller.rs:591
+#: src/ui/main_controller.rs:571
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:596
+#: src/ui/main_controller.rs:576
 msgid "Open"
 msgstr "Ouvrir"
 
@@ -504,46 +504,46 @@ msgstr "Média découpé avec succès"
 msgid "Failed to split media. {}"
 msgstr "Échec lors du découpage du média. {}"
 
-#: src/ui/streams_controller.rs:302
+#: src/ui/streams_controller.rs:322
 msgid "unknown"
 msgstr "inconnu"
 
-#: src/ui/streams_controller.rs:345
+#: src/ui/streams_controller.rs:365
 msgid "Export?"
 msgstr "Exporter ?"
 
-#: src/ui/streams_controller.rs:346
+#: src/ui/streams_controller.rs:366
 msgid "Stream id"
 msgstr "Id. du flux"
 
-#: src/ui/streams_controller.rs:347
+#: src/ui/streams_controller.rs:367
 msgid "Language"
 msgstr "Langue"
 
-#: src/ui/streams_controller.rs:348
+#: src/ui/streams_controller.rs:368
 msgid "Codec"
 msgstr "Codec"
 
-#: src/ui/streams_controller.rs:349
+#: src/ui/streams_controller.rs:369
 msgid "Comment"
 msgstr "Commentaire"
 
-#: src/ui/streams_controller.rs:384
+#: src/ui/streams_controller.rs:404
 msgid "Width"
 msgstr "Largeur"
 
-#: src/ui/streams_controller.rs:391
+#: src/ui/streams_controller.rs:411
 msgid "Height"
 msgstr "Hauteur"
 
-#: src/ui/streams_controller.rs:438
+#: src/ui/streams_controller.rs:458
 msgid "Rate"
 msgstr "Débit"
 
-#: src/ui/streams_controller.rs:445
+#: src/ui/streams_controller.rs:465
 msgid "Channels"
 msgstr "Canaux"
 
-#: src/ui/streams_controller.rs:486
+#: src/ui/streams_controller.rs:506
 msgid "Format"
 msgstr "Format"
