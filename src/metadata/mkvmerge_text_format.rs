@@ -7,7 +7,7 @@ use nom::{AtEof, InputLength};
 
 use std::io::{Read, Write};
 
-use super::{get_default_chapter_title, MediaInfo, Reader, Timestamp, parse_timestamp, TocVisitor,
+use super::{get_default_chapter_title, parse_timestamp, MediaInfo, Reader, Timestamp, TocVisitor,
             Writer};
 
 static EXTENSION: &'static str = "txt";
@@ -74,13 +74,13 @@ fn parse_chapter_test() {
         Some("test".to_owned()),
         toc_entry
             .get_tags()
-            .and_then(|tags| {
-                tags.get::<gst::tags::Title>()
-                    .map(|tag| tag.get().unwrap().to_owned())
-            }),
+            .and_then(|tags| tags.get::<gst::tags::Title>()
+                .map(|tag| tag.get().unwrap().to_owned())),
     );
 
-    let res = parse_chapter(CompleteStr("CHAPTER01=00:00:01.000\r\nCHAPTER01NAME=test\r\n"));
+    let res = parse_chapter(CompleteStr(
+        "CHAPTER01=00:00:01.000\r\nCHAPTER01NAME=test\r\n",
+    ));
     let (i, toc_entry) = res.unwrap();
     assert_eq!(0, i.input_len());
     assert_eq!(1_000_000_000, toc_entry.get_start_stop_times().unwrap().0);
@@ -88,10 +88,8 @@ fn parse_chapter_test() {
         Some("test".to_owned()),
         toc_entry
             .get_tags()
-            .and_then(|tags| {
-                tags.get::<gst::tags::Title>()
-                    .map(|tag| tag.get().unwrap().to_owned())
-            }),
+            .and_then(|tags| tags.get::<gst::tags::Title>()
+                .map(|tag| tag.get().unwrap().to_owned())),
     );
 
     let res = parse_chapter(CompleteStr("CHAPTER0x=00:00:01.000"));
@@ -146,18 +144,20 @@ impl Reader for MKVMergeTextFormat {
                     Err(err) => {
                         let msg = if let nom::Err::Error(nom::Context::Code(i, code)) = err {
                             match code {
-                                nom::ErrorKind::ParseTo => {
-                                    gettext("expecting a number, found: {}")
-                                        .replacen("{}", &i[..i.len().min(2)], 1)
-                                }
+                                nom::ErrorKind::ParseTo => gettext("expecting a number, found: {}")
+                                    .replacen("{}", &i[..i.len().min(2)], 1),
                                 nom::ErrorKind::Verify => {
-                                    gettext("chapter numbers don't match for: {}")
-                                        .replacen("{}", &i[..i.len().min(2)], 1)
+                                    gettext("chapter numbers don't match for: {}").replacen(
+                                        "{}",
+                                        &i[..i.len().min(2)],
+                                        1,
+                                    )
                                 }
-                                _ => {
-                                    gettext("unexpected sequence starting with: {}")
-                                        .replacen("{}", &i[..i.len().min(10)], 1)
-                                }
+                                _ => gettext("unexpected sequence starting with: {}").replacen(
+                                    "{}",
+                                    &i[..i.len().min(10)],
+                                    1,
+                                ),
                             }
                         } else {
                             error!("unknown error {:?}", err);
@@ -177,7 +177,10 @@ impl Reader for MKVMergeTextFormat {
                         .unwrap()
                         .set_start_stop_times(prev_start, cur_start);
                     // Add previous chapter to the Edition entry
-                    toc_edition.get_mut().unwrap().append_sub_entry(prev_chapter);
+                    toc_edition
+                        .get_mut()
+                        .unwrap()
+                        .append_sub_entry(prev_chapter);
                 }
 
                 // Queue current chapter (will be added when next chapter start is known
@@ -197,7 +200,10 @@ impl Reader for MKVMergeTextFormat {
                         .get_mut()
                         .unwrap()
                         .set_start_stop_times(last_start, info.duration as i64);
-                    toc_edition.get_mut().unwrap().append_sub_entry(last_chapter);
+                    toc_edition
+                        .get_mut()
+                        .unwrap()
+                        .append_sub_entry(last_chapter);
 
                     let mut toc = gst::Toc::new(gst::TocScope::Global);
                     toc.get_mut().unwrap().append_entry(toc_edition);

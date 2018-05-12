@@ -10,8 +10,8 @@ use pango::{ContextExt, LayoutExt};
 use std::boxed::Box;
 use std::collections::Bound::Included;
 
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use std::sync::{Arc, Mutex};
 

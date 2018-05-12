@@ -3,8 +3,8 @@ use glib::Cast;
 use gtk;
 use gtk::{BinExt, ButtonExt, ContainerExt, ImageExt, StackExt, WidgetExt};
 
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use media::PlaybackContext;
 use metadata::MediaInfo;
@@ -142,6 +142,7 @@ impl PerspectiveController {
     }
 
     pub fn streams_changed(&self, info: &MediaInfo) {
-        self.split_btn.set_sensitive(info.streams.is_audio_selected());
+        self.split_btn
+            .set_sensitive(info.streams.is_audio_selected());
     }
 }

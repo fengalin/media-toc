@@ -1,15 +1,15 @@
 use gettextrs::gettext;
 
 use gstreamer as gst;
-use gstreamer::prelude::*;
 use gstreamer::ClockTime;
+use gstreamer::prelude::*;
 
 use glib;
 
 use std::error::Error;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
 
 use metadata::Format;
 
@@ -209,17 +209,19 @@ impl SplitterContext {
                         if !*seek_done_grp {
                             // First buffer before seek
                             // let's seek and drop buffers until seek start sending new segment
-                            let _res = pipeline.seek(
-                                1f64,
-                                gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
-                                gst::SeekType::Set,
-                                ClockTime::from(start as u64),
-                                gst::SeekType::Set,
-                                ClockTime::from(end as u64),
-                            ).map_err(|_| {
-                                // FIXME: feedback to the user using the UI channel
-                                error!("{}", gettext("Failed to intialize the split"));
-                            });
+                            let _res = pipeline
+                                .seek(
+                                    1f64,
+                                    gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
+                                    gst::SeekType::Set,
+                                    ClockTime::from(start as u64),
+                                    gst::SeekType::Set,
+                                    ClockTime::from(end as u64),
+                                )
+                                .map_err(|_| {
+                                    // FIXME: feedback to the user using the UI channel
+                                    error!("{}", gettext("Failed to intialize the split"));
+                                });
                             *seek_done_grp = true;
                         } else {
                             // First Discont buffer after seek => stop dropping buffers
@@ -283,10 +285,9 @@ impl SplitterContext {
             let queue_src_pad = queue.get_static_pad("src").unwrap();
 
             if name.starts_with("audio/") && pipeline_cb.get_by_name("audioconvert").is_none()
-                && stream_id ==
-                    pad.get_stream_id().expect(
-                        "SplitterContext::build_pipeline no stream_id for audio src pad"
-                    )
+                && stream_id
+                    == pad.get_stream_id()
+                        .expect("SplitterContext::build_pipeline no stream_id for audio src pad")
             {
                 let audio_conv = gst::ElementFactory::make("audioconvert", "audioconvert").unwrap();
                 pipeline_cb.add(&audio_conv).unwrap();

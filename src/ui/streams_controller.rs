@@ -1,5 +1,5 @@
-use std::rc::{Rc, Weak};
 use std::cell::RefCell;
+use std::rc::{Rc, Weak};
 
 use gettextrs::gettext;
 use glib;
@@ -135,8 +135,14 @@ impl StreamsController {
 
     fn toggle_export(store: &gtk::ListStore, tree_path: &gtk::TreePath) -> Option<(String, bool)> {
         store.get_iter(&tree_path).map(|iter| {
-            let stream_id = store.get_value(&iter, STREAM_ID_COL as i32).get::<String>().unwrap();
-            let value = !store.get_value(&iter, EXPORT_FLAG_COL as i32).get::<bool>().unwrap();
+            let stream_id = store
+                .get_value(&iter, STREAM_ID_COL as i32)
+                .get::<String>()
+                .unwrap();
+            let value = !store
+                .get_value(&iter, EXPORT_FLAG_COL as i32)
+                .get::<bool>()
+                .unwrap();
             store.set_value(&iter, EXPORT_FLAG_COL, &gtk::Value::from(&value));
             (stream_id, value)
         })
@@ -145,7 +151,8 @@ impl StreamsController {
     fn video_export_toggled(&self, tree_path: &gtk::TreePath) {
         if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
             if let Some(mut context) = main_ctrl_rc.borrow_mut().context.as_mut() {
-                if let Some((stream_id, value)) = Self::toggle_export(&self.video_store, tree_path) {
+                if let Some((stream_id, value)) = Self::toggle_export(&self.video_store, tree_path)
+                {
                     context
                         .info
                         .write()
@@ -164,7 +171,8 @@ impl StreamsController {
     fn audio_export_toggled(&self, tree_path: &gtk::TreePath) {
         if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
             if let Some(mut context) = main_ctrl_rc.borrow_mut().context.as_mut() {
-                if let Some((stream_id, value)) = Self::toggle_export(&self.audio_store, tree_path) {
+                if let Some((stream_id, value)) = Self::toggle_export(&self.audio_store, tree_path)
+                {
                     context
                         .info
                         .write()
@@ -213,8 +221,7 @@ impl StreamsController {
             let mut info = context.info.write().unwrap();
 
             // Video streams
-            let mut sorted_ids = info
-                .streams
+            let mut sorted_ids = info.streams
                 .video
                 .keys()
                 .map(|key| key.to_string())
@@ -236,8 +243,7 @@ impl StreamsController {
             }
 
             // Audio streams
-            let mut sorted_ids = info
-                .streams
+            let mut sorted_ids = info.streams
                 .audio
                 .keys()
                 .map(|key| key.to_string())
@@ -253,14 +259,16 @@ impl StreamsController {
                         .set_value(&iter, AUDIO_RATE_COL, &gtk::Value::from(&rate));
                 }
                 if let Some(channels) = caps_structure.get::<i32>("channels") {
-                    self.audio_store
-                        .set_value(&iter, AUDIO_CHANNELS_COL, &gtk::Value::from(&channels));
+                    self.audio_store.set_value(
+                        &iter,
+                        AUDIO_CHANNELS_COL,
+                        &gtk::Value::from(&channels),
+                    );
                 }
             }
 
             // Text streams
-            let mut sorted_ids = info
-                .streams
+            let mut sorted_ids = info.streams
                 .text
                 .keys()
                 .map(|key| key.to_string())
@@ -369,11 +377,8 @@ impl StreamsController {
         let comment_lbl = gettext("Comment");
 
         // Video
-        let renderer = self.add_check_column(
-            &self.video_treeview,
-            &export_flag_lbl,
-            EXPORT_FLAG_COL,
-        );
+        let renderer =
+            self.add_check_column(&self.video_treeview, &export_flag_lbl, EXPORT_FLAG_COL);
         let this_clone = Rc::clone(&this_rc);
         renderer.connect_toggled(move |_, tree_path| {
             this_clone.borrow().video_export_toggled(&tree_path);
@@ -423,11 +428,8 @@ impl StreamsController {
 
         // Audio
         self.audio_treeview.set_model(Some(&self.audio_store));
-        let renderer = self.add_check_column(
-            &self.audio_treeview,
-            &export_flag_lbl,
-            EXPORT_FLAG_COL,
-        );
+        let renderer =
+            self.add_check_column(&self.audio_treeview, &export_flag_lbl, EXPORT_FLAG_COL);
         let this_clone = Rc::clone(&this_rc);
         renderer.connect_toggled(move |_, tree_path| {
             this_clone.borrow().audio_export_toggled(&tree_path);
@@ -477,11 +479,8 @@ impl StreamsController {
 
         // Text
         self.text_treeview.set_model(Some(&self.text_store));
-        let renderer = self.add_check_column(
-            &self.text_treeview,
-            &export_flag_lbl,
-            EXPORT_FLAG_COL,
-        );
+        let renderer =
+            self.add_check_column(&self.text_treeview, &export_flag_lbl, EXPORT_FLAG_COL);
         let this_clone = Rc::clone(&this_rc);
         renderer.connect_toggled(move |_, tree_path| {
             this_clone.borrow().text_export_toggled(&tree_path);
@@ -545,8 +544,7 @@ impl StreamsController {
         treeview: &gtk::TreeView,
         title: &str,
         col_id: u32,
-    ) -> gtk::CellRendererToggle
-    {
+    ) -> gtk::CellRendererToggle {
         let col = gtk::TreeViewColumn::new();
         col.set_title(title);
 

@@ -1,8 +1,8 @@
 use gettextrs::gettext;
 
 use gstreamer as gst;
-use gstreamer::prelude::*;
 use gstreamer::PadExt;
+use gstreamer::prelude::*;
 
 use glib;
 use glib::ObjectExt;
@@ -125,26 +125,27 @@ impl TocSetterContext {
 
             let queue_src_pad = queue.get_static_pad("src").unwrap();
 
-            if streams.contains(&pad
-                .get_stream_id()
-                .expect("TocSetterContext::build_pipeline no stream_id for src pad")
-            )
+            if streams.contains(&pad.get_stream_id()
+                .expect("TocSetterContext::build_pipeline no stream_id for src pad"))
             {
                 let muxer_sink_pad = muxer.get_compatible_pad(&queue_src_pad, None).unwrap();
                 assert_eq!(queue_src_pad.link(&muxer_sink_pad), gst::PadLinkReturn::Ok);
                 muxer.sync_state_with_parent().unwrap();
 
                 // Listen to incoming events and drop Upstream TOCs
-                muxer_sink_pad.add_probe(gst::PadProbeType::EVENT_DOWNSTREAM, |_pad, probe_info| {
-                    if let Some(ref data) = probe_info.data {
-                        if let gst::PadProbeData::Event(ref event) = *data {
-                            if let gst::EventView::Toc(ref _toc) = event.view() {
-                                return gst::PadProbeReturn::Drop;
+                muxer_sink_pad.add_probe(
+                    gst::PadProbeType::EVENT_DOWNSTREAM,
+                    |_pad, probe_info| {
+                        if let Some(ref data) = probe_info.data {
+                            if let gst::PadProbeData::Event(ref event) = *data {
+                                if let gst::EventView::Toc(ref _toc) = event.view() {
+                                    return gst::PadProbeReturn::Drop;
+                                }
                             }
                         }
-                    }
-                    gst::PadProbeReturn::Ok
-                });
+                        gst::PadProbeReturn::Ok
+                    },
+                );
             } else {
                 let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
                 pipeline_cb.add(&fakesink).unwrap();

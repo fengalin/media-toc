@@ -28,8 +28,8 @@ use gettextrs::{gettext, TextDomain, TextDomainError};
 
 use gtk::Builder;
 
-mod metadata;
 mod media;
+mod metadata;
 mod ui;
 use ui::MainController;
 

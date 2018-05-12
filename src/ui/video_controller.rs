@@ -5,8 +5,8 @@ use glib::ObjectExt;
 use glib::signal::SignalHandlerId;
 use gtk::{BoxExt, ContainerExt, Inhibit, WidgetExt};
 
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use media::PlaybackContext;
 

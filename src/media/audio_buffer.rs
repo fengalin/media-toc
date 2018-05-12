@@ -5,9 +5,9 @@ use gstreamer_audio::AudioFormat;
 
 use sample::Sample;
 
-use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 #[cfg(test)]
 use byteorder::ByteOrder;
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 
 use std::collections::vec_deque::VecDeque;
 use std::io::{Cursor, Read};
@@ -677,7 +677,8 @@ mod tests {
         assert_eq!(audio_buffer.upper, 400);
         assert_eq!(
             audio_buffer.get(audio_buffer.lower),
-            Some(&[i16_to_f64!(0), i16_to_f64!(0)][..]));
+            Some(&[i16_to_f64!(0), i16_to_f64!(0)][..])
+        );
         assert_eq!(
             audio_buffer.get(audio_buffer.upper - 1),
             Some(&[i16_to_f64!(399), i16_to_f64!(-399)][..])

@@ -11,8 +11,8 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
 
-use media::{ContextMessage, PlaybackContext, SplitterContext};
 use media::ContextMessage::*;
+use media::{ContextMessage, PlaybackContext, SplitterContext};
 
 use metadata;
 use metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor};
@@ -139,36 +139,31 @@ impl SplitController {
     }
 
     fn check_requirements(&self) {
-        let _ = SplitterContext::check_requirements(Format::Flac)
-            .map_err(|err| {
-                warn!("{}", err);
-                self.flac_warning_lbl.set_label(&err);
-                self.split_to_flac_row.set_sensitive(false);
-            });
-        let _ = SplitterContext::check_requirements(Format::Wave)
-            .map_err(|err| {
-                warn!("{}", err);
-                self.wave_warning_lbl.set_label(&err);
-                self.split_to_wave_row.set_sensitive(false);
-            });
-        let _ = SplitterContext::check_requirements(Format::Opus)
-            .map_err(|err| {
-                warn!("{}", err);
-                self.opus_warning_lbl.set_label(&err);
-                self.split_to_opus_row.set_sensitive(false);
-            });
-        let _ = SplitterContext::check_requirements(Format::Vorbis)
-            .map_err(|err| {
-                warn!("{}", err);
-                self.vorbis_warning_lbl.set_label(&err);
-                self.split_to_vorbis_row.set_sensitive(false);
-            });
-        let _ = SplitterContext::check_requirements(Format::MP3)
-            .map_err(|err| {
-                warn!("{}", err);
-                self.mp3_warning_lbl.set_label(&err);
-                self.split_to_mp3_row.set_sensitive(false);
-            });
+        let _ = SplitterContext::check_requirements(Format::Flac).map_err(|err| {
+            warn!("{}", err);
+            self.flac_warning_lbl.set_label(&err);
+            self.split_to_flac_row.set_sensitive(false);
+        });
+        let _ = SplitterContext::check_requirements(Format::Wave).map_err(|err| {
+            warn!("{}", err);
+            self.wave_warning_lbl.set_label(&err);
+            self.split_to_wave_row.set_sensitive(false);
+        });
+        let _ = SplitterContext::check_requirements(Format::Opus).map_err(|err| {
+            warn!("{}", err);
+            self.opus_warning_lbl.set_label(&err);
+            self.split_to_opus_row.set_sensitive(false);
+        });
+        let _ = SplitterContext::check_requirements(Format::Vorbis).map_err(|err| {
+            warn!("{}", err);
+            self.vorbis_warning_lbl.set_label(&err);
+            self.split_to_vorbis_row.set_sensitive(false);
+        });
+        let _ = SplitterContext::check_requirements(Format::MP3).map_err(|err| {
+            warn!("{}", err);
+            self.mp3_warning_lbl.set_label(&err);
+            self.split_to_mp3_row.set_sensitive(false);
+        });
     }
 
     fn split(&mut self) {
@@ -179,7 +174,8 @@ impl SplitController {
         let format = self.get_selection();
         self.prepare_process(&format, true);
 
-        self.toc_visitor = self.base.playback_ctx
+        self.toc_visitor = self.base
+            .playback_ctx
             .as_ref()
             .unwrap()
             .info
@@ -201,28 +197,23 @@ impl SplitController {
             None => {
                 if self.toc_visitor.is_none() && self.idx < 2 {
                     // No chapter => build a fake chapter corresponding to the whole file
-                    let mut toc_entry = gst::TocEntry::new(
-                        gst::TocEntryType::Chapter,
-                        &"".to_owned(),
-                    );
+                    let mut toc_entry =
+                        gst::TocEntry::new(gst::TocEntryType::Chapter, &"".to_owned());
                     toc_entry
                         .get_mut()
                         .unwrap()
                         .set_start_stop_times(0, self.duration as i64);
 
                     let mut tag_list = gst::TagList::new();
-                    tag_list
-                        .get_mut()
-                        .unwrap()
-                        .add::<gst::tags::Title>(
-                            &self.media_path.file_stem().unwrap().to_str().unwrap(),
-                            gst::TagMergeMode::Replace,
-                        );
+                    tag_list.get_mut().unwrap().add::<gst::tags::Title>(
+                        &self.media_path.file_stem().unwrap().to_str().unwrap(),
+                        gst::TagMergeMode::Replace,
+                    );
                     toc_entry.get_mut().unwrap().set_tags(tag_list);
 
                     toc_entry
                 } else {
-                    return Ok(false)
+                    return Ok(false);
                 }
             }
         };

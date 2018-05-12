@@ -12,8 +12,8 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
 
-use media::{ContextMessage, TocSetterContext};
 use media::ContextMessage::*;
+use media::{ContextMessage, TocSetterContext};
 
 use metadata;
 use metadata::{Exporter, Format, MatroskaTocFormat};
@@ -111,12 +111,11 @@ impl ExportController {
     }
 
     fn check_requirements(&self) {
-        let _ = TocSetterContext::check_requirements()
-            .map_err(|err| {
-                warn!("{}", err);
-                self.mkvmerge_txt_warning_lbl.set_label(&err);
-                self.mkv_row.set_sensitive(false);
-            });
+        let _ = TocSetterContext::check_requirements().map_err(|err| {
+            warn!("{}", err);
+            self.mkvmerge_txt_warning_lbl.set_label(&err);
+            self.mkv_row.set_sensitive(false);
+        });
     }
 
     fn export(&mut self) {
@@ -267,14 +266,12 @@ impl ExportController {
                             exporter.export(&info, muxer);
                         }
 
-                        let _ = toc_setter_ctx.export()
-                            .map_err(|err| {
-                                keep_going = false;
-                                let msg =
-                                    gettext("Failed to export media. {}").replacen("{}", &err, 1);
-                                this.show_error(&msg);
-                                error!("{}", msg);
-                            });
+                        let _ = toc_setter_ctx.export().map_err(|err| {
+                            keep_going = false;
+                            let msg = gettext("Failed to export media. {}").replacen("{}", &err, 1);
+                            this.show_error(&msg);
+                            error!("{}", msg);
+                        });
 
                         this.toc_setter_ctx = Some(toc_setter_ctx);
                     }

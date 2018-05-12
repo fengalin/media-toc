@@ -8,8 +8,8 @@ use glib;
 
 use std::fs::File;
 
-use std::rc::{Rc, Weak};
 use std::cell::RefCell;
+use std::rc::{Rc, Weak};
 
 use media::PlaybackContext;
 
@@ -230,9 +230,7 @@ impl InfoController {
         let main_ctrl_weak = Weak::clone(self.main_ctrl.as_ref().unwrap());
         gtk::idle_add(move || {
             let main_ctrl_rc = main_ctrl_weak.upgrade().unwrap();
-            main_ctrl_rc
-                .borrow()
-                .show_message(message_type, &message);
+            main_ctrl_rc.borrow().show_message(message_type, &message);
             glib::Continue(false)
         });
     }
@@ -298,12 +296,11 @@ impl InfoController {
                         match metadata::Factory::get_reader(&format).read(&info, &mut toc_file) {
                             Ok(Some(toc)) => Some(toc),
                             Ok(None) => {
-                                let msg = gettext("No toc in file \"{}\"")
-                                    .replacen(
-                                        "{}",
-                                        toc_path.file_name().unwrap().to_str().unwrap(),
-                                        1,
-                                    );
+                                let msg = gettext("No toc in file \"{}\"").replacen(
+                                    "{}",
+                                    toc_path.file_name().unwrap().to_str().unwrap(),
+                                    1,
+                                );
                                 info!("{}", msg);
                                 self.show_info(msg);
                                 None
@@ -316,7 +313,7 @@ impl InfoController {
                                             toc_path.file_name().unwrap().to_str().unwrap(),
                                             1,
                                         )
-                                        .replacen("{}", &err, 1)
+                                        .replacen("{}", &err, 1),
                                 );
                                 None
                             }

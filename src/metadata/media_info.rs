@@ -133,21 +133,21 @@ impl Streams {
     }
 
     pub fn selected_audio(&self) -> Option<&Stream> {
-        self.cur_audio_id.as_ref().map(|stream_id| {
-            &self.audio[stream_id]
-        })
+        self.cur_audio_id
+            .as_ref()
+            .map(|stream_id| &self.audio[stream_id])
     }
 
     pub fn selected_video(&self) -> Option<&Stream> {
-        self.cur_video_id.as_ref().map(|stream_id| {
-            &self.video[stream_id]
-        })
+        self.cur_video_id
+            .as_ref()
+            .map(|stream_id| &self.video[stream_id])
     }
 
     pub fn selected_text(&self) -> Option<&Stream> {
-        self.cur_text_id.as_ref().map(|stream_id| {
-            &self.text[stream_id]
-        })
+        self.cur_text_id
+            .as_ref()
+            .map(|stream_id| &self.text[stream_id])
     }
 
     // Returns the streams which changed
@@ -178,19 +178,13 @@ impl Streams {
         }
 
         if !is_audio_selected {
-            self.audio_changed = self.cur_audio_id
-                .take()
-                .map_or(false, |_| true);
+            self.audio_changed = self.cur_audio_id.take().map_or(false, |_| true);
         }
         if !is_text_selected {
-            self.text_changed = self.cur_text_id
-                .take()
-                .map_or(false, |_| true);
+            self.text_changed = self.cur_text_id.take().map_or(false, |_| true);
         }
         if !is_video_selected {
-            self.video_changed = self.cur_video_id
-                .take()
-                .map_or(false, |_| true);
+            self.video_changed = self.cur_video_id.take().map_or(false, |_| true);
         }
     }
 }

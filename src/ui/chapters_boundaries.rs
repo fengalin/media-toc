@@ -150,10 +150,10 @@ impl Deref for ChaptersBoundaries {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use glib;
     use gtk;
     use gtk::TreeStoreExt;
-    use super::*;
 
     fn new_chapter(store: &gtk::TreeStore, title: &str) -> Chapter {
         Chapter {
@@ -181,14 +181,14 @@ mod tests {
         boundaries.add_chapter(0, 1, &chapter_1.title, &chapter_1.iter);
         assert_eq!(2, boundaries.len());
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_1.clone()),
             }),
             boundaries.get(&0),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_1.clone()),
                 next: None,
             }),
@@ -199,21 +199,21 @@ mod tests {
         boundaries.add_chapter(1, 2, &chapter_2.title, &chapter_2.iter);
         assert_eq!(3, boundaries.len());
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_1.clone()),
             }),
             boundaries.get(&0),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_1.clone()),
                 next: Some(chapter_2.clone()),
             }),
             boundaries.get(&1),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_2.clone()),
                 next: None,
             }),
@@ -224,28 +224,28 @@ mod tests {
         boundaries.add_chapter(2, 4, &chapter_3.title, &chapter_3.iter);
         assert_eq!(4, boundaries.len());
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_1.clone()),
             }),
             boundaries.get(&0),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_1.clone()),
                 next: Some(chapter_2.clone()),
             }),
             boundaries.get(&1),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_2.clone()),
                 next: Some(chapter_3.clone()),
             }),
             boundaries.get(&2),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_3.clone()),
                 next: None,
             }),
@@ -257,28 +257,28 @@ mod tests {
         boundaries.rename_chapter(1, 2, &chapter_r2.title);
         assert_eq!(4, boundaries.len());
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_1.clone()),
             }),
             boundaries.get(&0),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_1.clone()),
                 next: Some(chapter_r2.clone()),
             }),
             boundaries.get(&1),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_r2.clone()),
                 next: Some(chapter_3.clone()),
             }),
             boundaries.get(&2),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_3.clone()),
                 next: None,
             }),
@@ -289,28 +289,28 @@ mod tests {
         boundaries.rename_chapter(0, 1, &chapter_r1.title);
         assert_eq!(4, boundaries.len());
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_r1.clone()),
             }),
             boundaries.get(&0),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_r1.clone()),
                 next: Some(chapter_r2.clone()),
             }),
             boundaries.get(&1),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_r2.clone()),
                 next: Some(chapter_3.clone()),
             }),
             boundaries.get(&2),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_3.clone()),
                 next: None,
             }),
@@ -321,28 +321,28 @@ mod tests {
         boundaries.rename_chapter(2, 4, &chapter_r3.title);
         assert_eq!(4, boundaries.len());
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_r1.clone()),
             }),
             boundaries.get(&0),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_r1.clone()),
                 next: Some(chapter_r2.clone()),
             }),
             boundaries.get(&1),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_r2.clone()),
                 next: Some(chapter_r3.clone()),
             }),
             boundaries.get(&2),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_r3.clone()),
                 next: None,
             }),
@@ -353,21 +353,21 @@ mod tests {
         boundaries.remove_chapter(1, 2);
         assert_eq!(3, boundaries.len());
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_r1.clone()),
             }),
             boundaries.get(&0),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_r1.clone()),
                 next: Some(chapter_r3.clone()),
             }),
             boundaries.get(&2),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_r3.clone()),
                 next: None,
             }),
@@ -379,28 +379,28 @@ mod tests {
         boundaries.add_chapter(1, 2, &chapter_n2.title, &chapter_n2.iter);
         assert_eq!(4, boundaries.len());
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_r1.clone()),
             }),
             boundaries.get(&0),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_r1.clone()),
                 next: Some(chapter_n2.clone()),
             }),
             boundaries.get(&1),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_n2.clone()),
                 next: Some(chapter_r3.clone()),
             }),
             boundaries.get(&2),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_r3.clone()),
                 next: None,
             }),
@@ -411,21 +411,21 @@ mod tests {
         boundaries.remove_chapter(0, 1);
         assert_eq!(3, boundaries.len());
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_n2.clone()),
             }),
             boundaries.get(&1),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_n2.clone()),
                 next: Some(chapter_r3.clone()),
             }),
             boundaries.get(&2),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_r3.clone()),
                 next: None,
             }),
@@ -437,28 +437,28 @@ mod tests {
         boundaries.add_chapter(0, 1, &chapter_n1.title, &chapter_n1.iter);
         assert_eq!(4, boundaries.len());
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_n1.clone()),
             }),
             boundaries.get(&0),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_n1.clone()),
                 next: Some(chapter_n2.clone()),
             }),
             boundaries.get(&1),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_n2.clone()),
                 next: Some(chapter_r3.clone()),
             }),
             boundaries.get(&2),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_r3.clone()),
                 next: None,
             }),
@@ -469,21 +469,21 @@ mod tests {
         boundaries.remove_chapter(2, 4);
         assert_eq!(3, boundaries.len());
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_n1.clone()),
             }),
             boundaries.get(&0),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_n1.clone()),
                 next: Some(chapter_n2.clone()),
             }),
             boundaries.get(&1),
         );
         assert_eq!(
-            Some(&SuccessiveChapters{
+            Some(&SuccessiveChapters {
                 prev: Some(chapter_n2.clone()),
                 next: None,
             }),

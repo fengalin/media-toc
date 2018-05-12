@@ -1,5 +1,5 @@
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use std::collections::HashSet;
 
@@ -16,11 +16,11 @@ use gtk::prelude::*;
 
 use gdk::{Cursor, CursorType, WindowExt};
 
-use media::{ContextMessage, PlaybackContext};
 use media::ContextMessage::*;
+use media::{ContextMessage, PlaybackContext};
 
 use super::{AudioController, ChaptersBoundaries, ExportController, InfoController,
-            PerspectiveController, StreamsController, SplitController, VideoController};
+            PerspectiveController, SplitController, StreamsController, VideoController};
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
 const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
@@ -121,24 +121,22 @@ impl MainController {
                 SplitController::register_callbacks(&this_mut.split_ctrl, &this);
                 StreamsController::register_callbacks(&this_mut.streams_ctrl, &this);
 
-                let _ = PlaybackContext::check_requirements()
-                    .map_err(|err| {
-                        error!("{}", err);
-                        let this_rc = Rc::clone(&this);
-                        gtk::idle_add(move || {
-                            this_rc
-                                .borrow()
-                                .show_message(gtk::MessageType::Warning, &err);
-                            glib::Continue(false)
-                        });
+                let _ = PlaybackContext::check_requirements().map_err(|err| {
+                    error!("{}", err);
+                    let this_rc = Rc::clone(&this);
+                    gtk::idle_add(move || {
+                        this_rc
+                            .borrow()
+                            .show_message(gtk::MessageType::Warning, &err);
+                        glib::Continue(false)
                     });
+                });
 
                 let this_rc = Rc::clone(&this);
                 this_mut.open_btn.connect_clicked(move |_| {
                     let mut this = this_rc.borrow_mut();
 
-                    if this.state == ControllerState::Playing
-                        || this.state == ControllerState::EOS
+                    if this.state == ControllerState::Playing || this.state == ControllerState::EOS
                     {
                         this.hold();
                         this.state = ControllerState::PendingSelectMedia;
@@ -423,10 +421,11 @@ impl MainController {
                     AsyncDone => {
                         let mut this = this_rc.borrow_mut();
                         if let ControllerState::Seeking {
-                                seek_pos,
-                                switch_to_play,
-                                keep_paused,
-                           } = this.state {
+                            seek_pos,
+                            switch_to_play,
+                            keep_paused,
+                        } = this.state
+                        {
                             if switch_to_play {
                                 this.context.as_mut().unwrap().play().unwrap();
                                 this.play_pause_btn.set_icon_name(PAUSE_ICON);
@@ -465,14 +464,16 @@ impl MainController {
                         this.state = ControllerState::Ready;
                     }
                     MissingPlugin(plugin) => {
-                        error!("{}", gettext("Missing plugin: {}").replacen("{}", &plugin, 1));
+                        error!(
+                            "{}",
+                            gettext("Missing plugin: {}").replacen("{}", &plugin, 1)
+                        );
                         this_rc.borrow_mut().missing_plugins.insert(plugin);
                     }
                     ReadyForRefresh => {
                         let mut this = this_rc.borrow_mut();
                         match this.state {
-                            ControllerState::Paused
-                                | ControllerState::Ready=> this.refresh(),
+                            ControllerState::Paused | ControllerState::Ready => this.refresh(),
                             ControllerState::TwoStepsSeek(target) => this.seek(target, true),
                             ControllerState::PendingSelectMedia => this.select_media(),
                             ControllerState::PendingTakeContext => this.have_context(),

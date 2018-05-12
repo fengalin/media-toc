@@ -4,8 +4,8 @@ use std::any::Any;
 use std::boxed::Box;
 use std::sync::{Arc, Mutex};
 
-use media::{AudioBuffer, AudioChannel, DoubleAudioBuffer, SampleExtractor};
 use media::sample_extractor::SampleExtractionState;
+use media::{AudioBuffer, AudioChannel, DoubleAudioBuffer, SampleExtractor};
 
 use super::WaveformImage;
 

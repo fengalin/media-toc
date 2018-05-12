@@ -140,18 +140,16 @@ impl PlaybackContext {
         this.build_pipeline();
         this.register_bus_inspector();
 
-        this.pause()
-            .map(|_| this)
+        this.pause().map(|_| this)
     }
 
     pub fn check_requirements() -> Result<(), String> {
-        gst::ElementFactory::make("decodebin3", None)
-            .map_or(
-                Err(gettext(
-                    "Missing `decodebin3`\ncheck your gst-plugins-base install",
-                )),
-                |_| Ok(()),
-            )?;
+        gst::ElementFactory::make("decodebin3", None).map_or(
+            Err(gettext(
+                "Missing `decodebin3`\ncheck your gst-plugins-base install",
+            )),
+            |_| Ok(()),
+        )?;
         gst::ElementFactory::make("gtksink", None).map_or_else(
             || {
                 let (major, minor, _micro, _nano) = gst::version();
@@ -548,8 +546,7 @@ impl PlaybackContext {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
                     {
-                        let dbl_audio_buffer =
-                            &mut dbl_audio_buffer_mtx.lock().unwrap();
+                        let dbl_audio_buffer = &mut dbl_audio_buffer_mtx.lock().unwrap();
                         dbl_audio_buffer.set_state(gst::State::Paused);
                     }
                     ctx_tx
@@ -569,7 +566,11 @@ impl PlaybackContext {
                     if structure.get_name() == "missing-plugin" {
                         ctx_tx
                             .send(ContextMessage::MissingPlugin(
-                                structure.get_value("name").unwrap().get::<String>().unwrap(),
+                                structure
+                                    .get_value("name")
+                                    .unwrap()
+                                    .get::<String>()
+                                    .unwrap(),
                             ))
                             .unwrap();
                     }
@@ -624,9 +625,7 @@ impl PlaybackContext {
                                         }
                                         pipeline_state =
                                             PipelineState::Initialized(InitializedState::Paused);
-                                        ctx_tx
-                                            .send(ContextMessage::ReadyForRefresh)
-                                            .unwrap();
+                                        ctx_tx.send(ContextMessage::ReadyForRefresh).unwrap();
                                     }
                                 }
                                 _ => {
@@ -665,46 +664,43 @@ impl PlaybackContext {
                         }
                     }
                 }
-                gst::MessageView::StreamsSelected(_) => {
-                    match pipeline_state {
-                        PipelineState::Initialized(_) => {
-                            let audio_has_changed = info_arc_mtx
-                                .read()
-                                .expect("Failed to lock media info while comparing streams")
-                                .streams
-                                .audio_changed;
+                gst::MessageView::StreamsSelected(_) => match pipeline_state {
+                    PipelineState::Initialized(_) => {
+                        let audio_has_changed = info_arc_mtx
+                            .read()
+                            .expect("Failed to lock media info while comparing streams")
+                            .streams
+                            .audio_changed;
 
-                            if audio_has_changed {
-                                debug!("changing audio stream");
-                                let dbl_audio_buffer =
-                                    &mut dbl_audio_buffer_mtx.lock().unwrap();
-                                dbl_audio_buffer.clean_samples();
-                            }
-
-                            ctx_tx.send(ContextMessage::StreamsSelected).unwrap();
+                        if audio_has_changed {
+                            debug!("changing audio stream");
+                            let dbl_audio_buffer = &mut dbl_audio_buffer_mtx.lock().unwrap();
+                            dbl_audio_buffer.clean_samples();
                         }
-                        _ => {
-                            let has_usable_streams = {
-                                let streams = &info_arc_mtx
-                                    .read()
-                                    .expect("Failed to lock media info while checking streams")
-                                    .streams;
-                                streams.is_audio_selected() || streams.is_video_selected()
-                            };
 
-                            if has_usable_streams {
-                                pipeline_state = PipelineState::StreamsSelected;
-                            } else {
-                                ctx_tx
-                                    .send(ContextMessage::FailedToOpenMedia(
-                                        gettext("No usable streams could be found."),
-                                    ))
-                                    .unwrap();
-                                return glib::Continue(false);
-                            }
+                        ctx_tx.send(ContextMessage::StreamsSelected).unwrap();
+                    }
+                    _ => {
+                        let has_usable_streams = {
+                            let streams = &info_arc_mtx
+                                .read()
+                                .expect("Failed to lock media info while checking streams")
+                                .streams;
+                            streams.is_audio_selected() || streams.is_video_selected()
+                        };
+
+                        if has_usable_streams {
+                            pipeline_state = PipelineState::StreamsSelected;
+                        } else {
+                            ctx_tx
+                                .send(ContextMessage::FailedToOpenMedia(gettext(
+                                    "No usable streams could be found.",
+                                )))
+                                .unwrap();
+                            return glib::Continue(false);
                         }
                     }
-                }
+                },
                 gst::MessageView::StreamCollection(msg_stream_collection) => {
                     let stream_collection = msg_stream_collection.get_stream_collection();
                     let info = &mut info_arc_mtx.write().unwrap();
