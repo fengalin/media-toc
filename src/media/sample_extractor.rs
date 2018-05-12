@@ -69,7 +69,7 @@ pub trait SampleExtractor: Send {
 
     fn get_lower(&self) -> usize;
 
-    fn get_requested_sample_window(&self) -> usize;
+    fn get_requested_sample_window(&self) -> Option<usize>;
 
     fn switch_to_paused(&mut self);
 

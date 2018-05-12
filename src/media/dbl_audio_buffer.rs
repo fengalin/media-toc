@@ -28,7 +28,7 @@ pub struct DoubleAudioBuffer {
     working_buffer: Option<Box<SampleExtractor>>,
     lower_to_keep: usize,
     sample_gauge: Option<usize>,
-    sample_window: usize,
+    sample_window: Option<usize>,
     max_sample_window: usize,
     can_handle_eos: bool, // accept / ignore eos (required for range seeks handling)
     has_new_position: bool,
@@ -50,7 +50,7 @@ impl DoubleAudioBuffer {
             working_buffer: Some(working_buffer),
             lower_to_keep: 0,
             sample_gauge: None,
-            sample_window: 0,
+            sample_window: None,
             max_sample_window: 0,
             can_handle_eos: true,
             has_new_position: false,
@@ -79,7 +79,7 @@ impl DoubleAudioBuffer {
         self.samples_since_last_extract = 0;
         self.lower_to_keep = 0;
         self.sample_gauge = None;
-        self.sample_window = 0;
+        self.sample_window = None;
         self.max_sample_window = 0;
         self.can_handle_eos = true;
         self.has_new_position = false;
@@ -187,12 +187,20 @@ impl DoubleAudioBuffer {
             .push_gst_buffer(buffer, self.lower_to_keep);
         self.samples_since_last_extract += sample_nb;
 
-        let sample_window = self.sample_window;
         let must_notify = if self.state != gst::State::Playing {
-            self.sample_gauge.as_mut().map_or(false, |gauge| {
-                *gauge += sample_nb;
-                *gauge > sample_window
-            })
+            if let Some(mut gauge) = self.sample_gauge.take() {
+                gauge += sample_nb;
+                let must_notify = self.sample_window
+                    .map_or(false, |sample_window| gauge >= sample_window);
+
+                if !must_notify {
+                    self.sample_gauge = Some(gauge);
+                }
+                // after the threshold is reached, the gauge is removed
+                must_notify
+            } else {
+                false
+            }
         } else {
             false
         };
@@ -227,7 +235,7 @@ impl DoubleAudioBuffer {
         self.lower_to_keep = working_buffer.get_lower();
         self.sample_window = working_buffer
             .get_requested_sample_window()
-            .min(self.max_sample_window);
+            .map(|req_sample_window| req_sample_window.min(self.max_sample_window));
 
         self.working_buffer = Some(working_buffer);
         // self.working_buffer is now the buffer previously in

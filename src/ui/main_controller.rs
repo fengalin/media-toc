@@ -480,7 +480,8 @@ impl MainController {
                     ReadyForRefresh => {
                         let mut this = this_rc.borrow_mut();
                         match this.state {
-                            ControllerState::Paused => this.refresh(),
+                            ControllerState::Paused
+                                | ControllerState::Ready=> this.refresh(),
                             ControllerState::TwoStepsSeek(target) => this.seek(target, true),
                             ControllerState::PendingSelectMedia => this.select_media(),
                             ControllerState::PendingTakeContext => this.have_context(),

@@ -806,8 +806,11 @@ impl SampleExtractor for WaveformBuffer {
             })
     }
 
-    fn get_requested_sample_window(&self) -> usize {
-        self.req_sample_window
+    fn get_requested_sample_window(&self) -> Option<usize> {
+        match self.req_sample_window {
+            0 => None,
+            value => Some(value),
+        }
     }
 
     fn cleanup(&mut self) {
