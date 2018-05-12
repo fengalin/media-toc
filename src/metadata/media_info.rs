@@ -134,19 +134,19 @@ impl Streams {
 
     pub fn selected_audio(&self) -> Option<&Stream> {
         self.cur_audio_id.as_ref().map(|stream_id| {
-            self.audio.get(stream_id).unwrap()
+            &self.audio[stream_id]
         })
     }
 
     pub fn selected_video(&self) -> Option<&Stream> {
         self.cur_video_id.as_ref().map(|stream_id| {
-            self.video.get(stream_id).unwrap()
+            &self.video[stream_id]
         })
     }
 
     pub fn selected_text(&self) -> Option<&Stream> {
         self.cur_text_id.as_ref().map(|stream_id| {
-            self.text.get(stream_id).unwrap()
+            &self.text[stream_id]
         })
     }
 

@@ -599,7 +599,6 @@ impl WaveformBuffer {
         }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(collapsible_if))]
     fn get_sample_range(&mut self, audio_buffer: &AudioBuffer) -> (usize, usize) {
         // First step: see how current waveform and the audio_buffer can merge
         let (lower, upper) = if audio_buffer.lower <= self.image.lower
@@ -890,7 +889,6 @@ impl SampleExtractor for WaveformBuffer {
     // since last extraction and adapts to the evolving conditions of
     // the playback position and target rendering dimensions and
     // resolution.
-    #[cfg_attr(feature = "cargo-clippy", allow(needless_bool))]
     fn extract_samples(&mut self, audio_buffer: &AudioBuffer) {
         if self.req_sample_window == 0 {
             // conditions not defined yet

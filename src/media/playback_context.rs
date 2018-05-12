@@ -44,7 +44,7 @@ lazy_static! {
                 .expect("PlaybackContext: couldn't set property `sink` for `glsinkbin`");
             Some(VideoOutput {
                 sink: glsinkbin,
-                widget: gtkglsink.get_property("widget").ok()
+                widget: gtkglsink.get_property("widget")
                     .expect("PlaybackContext: couldn't get property `widget` from `gtkglsink`")
                     .get::<gtk::Widget>()
                     .expect("PlaybackContext: unexpected type for property `widget` in `gtkglsink`"),
@@ -53,7 +53,7 @@ lazy_static! {
             debug!("Using gtksink");
             Some(VideoOutput {
                 sink: sink.clone(),
-                widget: sink.get_property("widget").ok()
+                widget: sink.get_property("widget")
                     .expect("PlaybackContext: couldn't get property `widget` from `gtksink`")
                     .get::<gtk::Widget>()
                     .expect("PlaybackContext: unexpected type for property `widget` in `gtksink`"),

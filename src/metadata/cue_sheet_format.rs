@@ -80,7 +80,7 @@ impl Writer for CueSheetFormat {
                         .map(|tag| tag.get().unwrap().to_owned())
                 })
                 .or_else(|| media_title.clone())
-                .unwrap_or_else(|| get_default_chapter_title());
+                .unwrap_or_else(get_default_chapter_title);
             write_fmt!(destination, "    TITLE \"{}\"\n", &title);
 
             let artist = chapter
@@ -90,7 +90,7 @@ impl Writer for CueSheetFormat {
                         .map(|tag| tag.get().unwrap().to_owned())
                 })
                 .or_else(|| media_artist.clone())
-                .unwrap_or_else(|| get_default_chapter_title());
+                .unwrap_or_else(get_default_chapter_title);
             write_fmt!(destination, "    PERFORMER \"{}\"\n", &artist);
 
             if let Some((start, _end)) = chapter.get_start_stop_times() {

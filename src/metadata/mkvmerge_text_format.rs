@@ -113,7 +113,6 @@ fn parse_chapter_test() {
     }
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(match_wild_err_arm))]
 impl Reader for MKVMergeTextFormat {
     fn read(&self, info: &MediaInfo, source: &mut Read) -> Result<Option<gst::Toc>, String> {
         let error_msg = gettext("unexpected error reading mkvmerge text file.");
@@ -249,7 +248,7 @@ impl Writer for MKVMergeTextFormat {
                         tags.get::<gst::tags::Title>()
                             .map(|tag| tag.get().unwrap().to_owned())
                     })
-                    .unwrap_or_else(|| get_default_chapter_title());
+                    .unwrap_or_else(get_default_chapter_title);
                 write_fmt!(destination, "{}{}={}\n", prefix, NAME_TAG, &title);
             }
         }

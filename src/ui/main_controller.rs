@@ -399,14 +399,8 @@ impl MainController {
                 missing_list += missing_plugin;
                 missing_nb += 1;
             });
-
-            let message = format!("{}",
-                ngettext(
-                    "Missing plugin: {}",
-                    "Missing plugins: {}",
-                    missing_nb
-                ).replacen("{}", &missing_list, 1),
-            );
+            let message = ngettext("Missing plugin: {}", "Missing plugins: {}", missing_nb)
+                .replacen("{}", &missing_list, 1);
 
             Some(message)
         } else {
@@ -428,26 +422,23 @@ impl MainController {
                 match message {
                     AsyncDone => {
                         let mut this = this_rc.borrow_mut();
-                        match this.state {
-                            ControllerState::Seeking {
+                        if let ControllerState::Seeking {
                                 seek_pos,
                                 switch_to_play,
                                 keep_paused,
-                            } => {
-                                if switch_to_play {
-                                    this.context.as_mut().unwrap().play().unwrap();
-                                    this.play_pause_btn.set_icon_name(PAUSE_ICON);
-                                    this.state = ControllerState::Playing;
-                                    this.audio_ctrl.borrow_mut().switch_to_playing();
-                                } else if keep_paused {
-                                    this.state = ControllerState::Paused;
-                                    this.info_ctrl.borrow_mut().seek(seek_pos, &this.state);
-                                    this.audio_ctrl.borrow_mut().seek(seek_pos);
-                                } else {
-                                    this.state = ControllerState::Playing;
-                                }
+                           } = this.state {
+                            if switch_to_play {
+                                this.context.as_mut().unwrap().play().unwrap();
+                                this.play_pause_btn.set_icon_name(PAUSE_ICON);
+                                this.state = ControllerState::Playing;
+                                this.audio_ctrl.borrow_mut().switch_to_playing();
+                            } else if keep_paused {
+                                this.state = ControllerState::Paused;
+                                this.info_ctrl.borrow_mut().seek(seek_pos, &this.state);
+                                this.audio_ctrl.borrow_mut().seek(seek_pos);
+                            } else {
+                                this.state = ControllerState::Playing;
                             }
-                            _ => (),
                         }
                     }
                     InitDone => {

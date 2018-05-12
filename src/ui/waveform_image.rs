@@ -630,7 +630,7 @@ impl WaveformImage {
             Some(last) => {
                 let range_to_draw =
                     ((upper - self.upper.max(lower)) / self.sample_step * self.x_step) as f64;
-                !(last.x + range_to_draw < self.image_width_f)
+                last.x + range_to_draw >= self.image_width_f
             }
             None => true,
         };
@@ -791,7 +791,6 @@ impl WaveformImage {
 
     // Draw samples from sample_iter starting at first_x.
     // Returns the lower bound and last drawn coordinates.
-    #[cfg_attr(feature = "cargo-clippy", allow(question_mark))]
     fn draw_samples(
         &self,
         cr: &cairo::Context,

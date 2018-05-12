@@ -94,7 +94,7 @@ impl StreamsController {
             let this_clone = Rc::clone(&this_rc);
             let mut this = this_rc.borrow_mut();
             this.cleanup();
-            this.init_treeviews(this_clone);
+            this.init_treeviews(&this_clone);
         }
 
         this_rc
@@ -133,7 +133,7 @@ impl StreamsController {
             });
     }
 
-    fn toggle_export(store: &gtk::ListStore, tree_path: gtk::TreePath) -> Option<(String, bool)> {
+    fn toggle_export(store: &gtk::ListStore, tree_path: &gtk::TreePath) -> Option<(String, bool)> {
         store.get_iter(&tree_path).map(|iter| {
             let stream_id = store.get_value(&iter, STREAM_ID_COL as i32).get::<String>().unwrap();
             let value = !store.get_value(&iter, EXPORT_FLAG_COL as i32).get::<bool>().unwrap();
@@ -142,7 +142,7 @@ impl StreamsController {
         })
     }
 
-    fn video_export_toggled(&self, tree_path: gtk::TreePath) {
+    fn video_export_toggled(&self, tree_path: &gtk::TreePath) {
         if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
             if let Some(mut context) = main_ctrl_rc.borrow_mut().context.as_mut() {
                 if let Some((stream_id, value)) = Self::toggle_export(&self.video_store, tree_path) {
@@ -161,7 +161,7 @@ impl StreamsController {
         }
     }
 
-    fn audio_export_toggled(&self, tree_path: gtk::TreePath) {
+    fn audio_export_toggled(&self, tree_path: &gtk::TreePath) {
         if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
             if let Some(mut context) = main_ctrl_rc.borrow_mut().context.as_mut() {
                 if let Some((stream_id, value)) = Self::toggle_export(&self.audio_store, tree_path) {
@@ -180,7 +180,7 @@ impl StreamsController {
         }
     }
 
-    fn text_export_toggled(&self, tree_path: gtk::TreePath) {
+    fn text_export_toggled(&self, tree_path: &gtk::TreePath) {
         if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
             if let Some(mut context) = main_ctrl_rc.borrow_mut().context.as_mut() {
                 if let Some((stream_id, value)) = Self::toggle_export(&self.text_store, tree_path) {
@@ -359,7 +359,7 @@ impl StreamsController {
             .unwrap()
     }
 
-    fn init_treeviews(&self, this_rc: Rc<RefCell<Self>>) {
+    fn init_treeviews(&self, this_rc: &Rc<RefCell<Self>>) {
         self.video_treeview.set_model(Some(&self.video_store));
 
         let export_flag_lbl = gettext("Export?");
@@ -376,7 +376,7 @@ impl StreamsController {
         );
         let this_clone = Rc::clone(&this_rc);
         renderer.connect_toggled(move |_, tree_path| {
-            this_clone.borrow().video_export_toggled(tree_path);
+            this_clone.borrow().video_export_toggled(&tree_path);
         });
         self.add_text_column(
             &self.video_treeview,
@@ -430,7 +430,7 @@ impl StreamsController {
         );
         let this_clone = Rc::clone(&this_rc);
         renderer.connect_toggled(move |_, tree_path| {
-            this_clone.borrow().audio_export_toggled(tree_path);
+            this_clone.borrow().audio_export_toggled(&tree_path);
         });
         self.add_text_column(
             &self.audio_treeview,
@@ -484,7 +484,7 @@ impl StreamsController {
         );
         let this_clone = Rc::clone(&this_rc);
         renderer.connect_toggled(move |_, tree_path| {
-            this_clone.borrow().text_export_toggled(tree_path);
+            this_clone.borrow().text_export_toggled(&tree_path);
         });
         self.add_text_column(
             &self.text_treeview,

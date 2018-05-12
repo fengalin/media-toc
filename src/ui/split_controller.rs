@@ -127,10 +127,9 @@ impl SplitController {
         self.streams_changed(&info);
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(map_clone))]
     pub fn streams_changed(&mut self, info: &MediaInfo) {
-        self.selected_audio = info.streams
-            .selected_audio()
-            .map(|stream| stream.clone());
+        self.selected_audio = info.streams.selected_audio().map(|stream| stream.clone());
         self.split_btn.set_sensitive(self.selected_audio.is_some());
     }
 
@@ -296,7 +295,7 @@ impl SplitController {
                 tags.get::<gst::tags::Title>()
                     .map(|tag| tag.get().unwrap().to_owned())
             })
-            .unwrap_or_else(|| get_default_chapter_title());
+            .unwrap_or_else(get_default_chapter_title);
 
         if self.toc_visitor.is_some() {
             split_name += &format!("{:02}. ", self.idx);
@@ -403,7 +402,7 @@ impl SplitController {
                     tags.get::<gst::tags::Title>()
                         .map(|tag| tag.get().unwrap().to_owned())
                 })
-                .unwrap_or_else(|| get_default_chapter_title());
+                .unwrap_or_else(get_default_chapter_title);
             tags.add::<gst::tags::Title>(&title.as_str(), gst::TagMergeMode::Replace);
 
             let (start, end) = chapter.get_start_stop_times().unwrap();

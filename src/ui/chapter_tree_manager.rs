@@ -232,7 +232,7 @@ impl ChapterTreeManager {
                             tags.get::<gst::tags::Title>()
                                 .map(|tag| tag.get().unwrap().to_owned())
                         })
-                        .unwrap_or_else(|| get_default_chapter_title());
+                        .unwrap_or_else(get_default_chapter_title);
                     let iter = self.store.insert_with_values(
                         None,
                         None,
@@ -241,8 +241,8 @@ impl ChapterTreeManager {
                             &start,
                             &end,
                             &title,
-                            &format!("{}", &Timestamp::format(start, false)),
-                            &format!("{}", &Timestamp::format(end, false)),
+                            &Timestamp::format(start, false),
+                            &Timestamp::format(end, false),
                         ],
                     );
 
