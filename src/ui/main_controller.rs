@@ -112,10 +112,6 @@ impl MainController {
                 Inhibit(false)
             });
 
-            this_mut
-                .info_bar
-                .connect_response(|info_bar, _| info_bar.hide());
-
             if is_gst_ok {
                 this_mut.video_ctrl.register_callbacks(&this);
                 PerspectiveController::register_callbacks(&this_mut.perspective_ctrl, &this);
@@ -157,6 +153,10 @@ impl MainController {
                     this_rc.borrow_mut().play_pause();
                 });
                 this_mut.play_pause_btn.set_sensitive(true);
+
+                this_mut
+                    .info_bar
+                    .connect_response(move |info_bar, _| info_bar.hide());
 
             // TODO: add key bindings to seek by steps
             // play/pause, etc.
@@ -565,8 +565,8 @@ impl MainController {
     }
 
     fn select_media(&mut self) {
-        self.switch_to_busy();
         self.info_bar.hide();
+        self.switch_to_busy();
 
         let file_dlg = gtk::FileChooserDialog::new(
             Some(&gettext("Open a media file")),

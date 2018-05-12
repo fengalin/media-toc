@@ -223,8 +223,14 @@ impl WaveformImage {
                 self.force_redraw = true;
             }
 
-            self.req_width = other.req_width;
-            self.req_height = other.req_height;
+            if self.req_width != other.req_width {
+                self.req_width = other.req_width;
+                self.force_redraw = true;
+            }
+            if self.req_height != other.req_height {
+                self.req_height = other.req_height;
+                self.force_redraw = true;
+            }
 
             other.shareable_state_changed = false;
         }
