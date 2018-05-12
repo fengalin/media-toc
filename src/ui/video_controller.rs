@@ -8,11 +8,9 @@ use gtk::{BoxExt, ContainerExt, Inhibit, WidgetExt};
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use media::PlaybackContext;
-
 use metadata::MediaInfo;
 
-use super::MainController;
+use super::{MainController, PlaybackContext};
 
 pub struct VideoController {
     is_available: bool,

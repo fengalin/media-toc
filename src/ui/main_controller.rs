@@ -16,11 +16,12 @@ use gtk::prelude::*;
 
 use gdk::{Cursor, CursorType, WindowExt};
 
-use media::{ContextMessage, PlaybackContext};
+use media::ContextMessage;
 use media::ContextMessage::*;
 
 use super::{AudioController, ChaptersBoundaries, ExportController, InfoController,
-            PerspectiveController, StreamsController, SplitController, VideoController};
+            PerspectiveController, PlaybackContext, StreamsController, SplitController,
+            VideoController};
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
 const PLAYBACK_ICON: &str = "media-playback-start-symbolic";

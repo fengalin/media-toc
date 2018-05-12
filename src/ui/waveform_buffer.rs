@@ -1,7 +1,6 @@
 use cairo;
 
 use std::any::Any;
-use std::boxed::Box;
 use std::sync::{Arc, Mutex};
 
 use media::{AudioBuffer, AudioChannel, DoubleAudioBuffer, SampleExtractor};
@@ -12,8 +11,8 @@ use super::WaveformImage;
 pub struct DoubleWaveformBuffer {}
 
 impl DoubleWaveformBuffer {
-    pub fn new_mutex(buffer_duration: u64) -> Arc<Mutex<DoubleAudioBuffer>> {
-        Arc::new(Mutex::new(DoubleAudioBuffer::new(
+    pub fn new_mutex(buffer_duration: u64) -> Arc<Mutex<DoubleAudioBuffer<WaveformBuffer>>> {
+        Arc::new(Mutex::new(DoubleAudioBuffer::<WaveformBuffer>::new(
             buffer_duration,
             Box::new(WaveformBuffer::new(1)),
             Box::new(WaveformBuffer::new(2)),

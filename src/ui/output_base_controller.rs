@@ -7,11 +7,9 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::{Rc, Weak};
 
-use media::PlaybackContext;
-
 use metadata;
 
-use super::MainController;
+use super::{MainController, PlaybackContext};
 
 pub struct OutputBaseController {
     perspective_selector: gtk::MenuButton,

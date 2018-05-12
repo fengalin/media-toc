@@ -39,3 +39,5 @@ pub use self::waveform_buffer::{DoubleWaveformBuffer, ImagePositions, WaveformBu
 
 pub mod waveform_image;
 pub use self::waveform_image::{WaveformImage, BACKGROUND_COLOR};
+
+type PlaybackContext = super::media::PlaybackContext<WaveformBuffer>;

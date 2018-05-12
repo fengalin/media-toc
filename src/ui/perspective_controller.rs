@@ -6,10 +6,9 @@ use gtk::{BinExt, ButtonExt, ContainerExt, ImageExt, StackExt, WidgetExt};
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use media::PlaybackContext;
 use metadata::MediaInfo;
 
-use super::MainController;
+use super::{MainController, PlaybackContext};
 
 macro_rules! gtk_downcast(
     ($source:expr, $target_type:ty, $item_name:expr) => {

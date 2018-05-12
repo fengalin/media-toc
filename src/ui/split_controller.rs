@@ -11,13 +11,13 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
 
-use media::{ContextMessage, PlaybackContext, SplitterContext};
+use media::{ContextMessage, SplitterContext};
 use media::ContextMessage::*;
 
 use metadata;
 use metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor};
 
-use super::{MainController, OutputBaseController};
+use super::{MainController, OutputBaseController, PlaybackContext};
 
 const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
 

@@ -8,11 +8,9 @@ use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 
-use media::PlaybackContext;
-
 use metadata::Stream;
 
-use super::MainController;
+use super::{MainController, PlaybackContext};
 
 const ALIGN_LEFT: f32 = 0f32;
 const ALIGN_CENTER: f32 = 0.5f32;

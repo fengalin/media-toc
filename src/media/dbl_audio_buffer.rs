@@ -20,12 +20,12 @@ const EXTRACTION_THRESHOLD: usize = 1024;
 // The DoubleBuffer prepares the extraction in the working_buffer and exposes
 // the exposed_buffer during that time. When the extration is done, the buffers
 // are swapped.
-pub struct DoubleAudioBuffer {
+pub struct DoubleAudioBuffer<T> {
     state: gst::State,
     audio_buffer: AudioBuffer,
     samples_since_last_extract: usize,
-    exposed_buffer_mtx: Arc<Mutex<Box<SampleExtractor>>>,
-    working_buffer: Option<Box<SampleExtractor>>,
+    exposed_buffer_mtx: Arc<Mutex<Box<T>>>,
+    working_buffer: Option<Box<T>>,
     lower_to_keep: usize,
     sample_gauge: Option<usize>,
     sample_window: Option<usize>,
@@ -34,14 +34,14 @@ pub struct DoubleAudioBuffer {
     has_new_position: bool,
 }
 
-impl DoubleAudioBuffer {
+impl<T: SampleExtractor> DoubleAudioBuffer<T> {
     // need 2 arguments for new as we can't clone buffers as they are known
     // as trait SampleExtractor
     pub fn new(
         buffer_duration: u64,
-        exposed_buffer: Box<SampleExtractor>,
-        working_buffer: Box<SampleExtractor>,
-    ) -> DoubleAudioBuffer {
+        exposed_buffer: Box<T>,
+        working_buffer: Box<T>,
+    ) -> DoubleAudioBuffer<T> {
         DoubleAudioBuffer {
             state: gst::State::Null,
             audio_buffer: AudioBuffer::new(buffer_duration),
@@ -58,7 +58,7 @@ impl DoubleAudioBuffer {
     }
 
     // Get a reference on the exposed buffer mutex.
-    pub fn get_exposed_buffer_mtx(&self) -> Arc<Mutex<Box<SampleExtractor>>> {
+    pub fn get_exposed_buffer_mtx(&self) -> Arc<Mutex<Box<T>>> {
         Arc::clone(&self.exposed_buffer_mtx)
     }
 

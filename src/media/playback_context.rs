@@ -17,7 +17,7 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use metadata::MediaInfo;
 
-use super::{ContextMessage, DoubleAudioBuffer};
+use super::{ContextMessage, DoubleAudioBuffer, SampleExtractor};
 
 // Buffer size in ns for queues
 // This is the max duration that queues can hold
@@ -78,12 +78,12 @@ pub enum PipelineState {
     StreamsSelected,
 }
 
-pub struct PlaybackContext {
+pub struct PlaybackContext<T> {
     pipeline: gst::Pipeline,
     decodebin: gst::Element,
     position_query: gst::query::Position<gst::Query>,
 
-    dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
+    dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer<T>>>,
     ctx_tx: Sender<ContextMessage>,
 
     pub path: PathBuf,
@@ -94,7 +94,7 @@ pub struct PlaybackContext {
 }
 
 // FIXME: might need to `release_request_pad` on the tee
-impl Drop for PlaybackContext {
+impl<T> Drop for PlaybackContext<T> {
     fn drop(&mut self) {
         if let Some(video_sink) = self.pipeline.get_by_name("video_sink") {
             self.pipeline.remove(&video_sink).unwrap();
@@ -102,12 +102,12 @@ impl Drop for PlaybackContext {
     }
 }
 
-impl PlaybackContext {
+impl<T: SampleExtractor+ 'static> PlaybackContext<T> {
     pub fn new(
         path: PathBuf,
-        dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
+        dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer<T>>>,
         ctx_tx: Sender<ContextMessage>,
-    ) -> Result<PlaybackContext, String> {
+    ) -> Result<PlaybackContext<T>, String> {
         info!(
             "{}",
             gettext("Opening {}...").replacen("{}", path.to_str().unwrap(), 1)
@@ -120,7 +120,7 @@ impl PlaybackContext {
             decodebin: gst::ElementFactory::make("decodebin3", "decodebin").unwrap(),
             position_query: gst::Query::new_position(gst::Format::Time),
 
-            dbl_audio_buffer_mtx,
+            dbl_audio_buffer_mtx: Arc::clone(&dbl_audio_buffer_mtx),
             ctx_tx,
 
             file_name: file_name.clone(),
@@ -330,7 +330,7 @@ impl PlaybackContext {
         // From decodebin3's documentation: "Children: multiqueue0"
         let decodebin_as_bin = self.decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
         let decodebin_multiqueue = &decodebin_as_bin.get_children()[0];
-        PlaybackContext::setup_queue(decodebin_multiqueue);
+        PlaybackContext::<T>::setup_queue(decodebin_multiqueue);
         // Discard "interleave" as it modifies "max-size-time"
         decodebin_multiqueue
             .set_property("use-interleave", &false)
@@ -349,8 +349,8 @@ impl PlaybackContext {
         let pipeline_clone = self.pipeline.clone();
         let dbl_audio_buffer_mtx = Arc::clone(&self.dbl_audio_buffer_mtx);
         let video_sink = (*VIDEO_OUTPUT)
-            .as_ref()
-            .map(|video_output| video_output.sink.clone());
+                .as_ref()
+                .map(|video_output| video_output.sink.clone());
         let ctx_tx_mtx = Arc::new(Mutex::new(self.ctx_tx.clone()));
         self.decodebin
             .connect_pad_added(move |_decodebin, src_pad| {
@@ -367,7 +367,7 @@ impl PlaybackContext {
                     );
                 } else if name.starts_with("video_") {
                     if let Some(ref video_sink) = video_sink {
-                        PlaybackContext::build_video_pipeline(pipeline, src_pad, video_sink);
+                        PlaybackContext::<T>::build_video_pipeline(pipeline, src_pad, video_sink);
                     }
                 } else {
                     // TODO: handle subtitles
@@ -385,10 +385,10 @@ impl PlaybackContext {
         src_pad: &gst::Pad,
         audio_sink: &gst::Element,
         ctx_tx_mtx: Arc<Mutex<Sender<ContextMessage>>>,
-        dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
+        dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer<T>>>,
     ) {
         let playback_queue = gst::ElementFactory::make("queue", "audio_playback_queue").unwrap();
-        PlaybackContext::setup_queue(&playback_queue);
+        PlaybackContext::<T>::setup_queue(&playback_queue);
 
         let playback_convert =
             gst::ElementFactory::make("audioconvert", "playback_audioconvert").unwrap();
@@ -403,7 +403,7 @@ impl PlaybackContext {
         ];
 
         let waveform_queue = gst::ElementFactory::make("queue2", "waveform_queue").unwrap();
-        PlaybackContext::setup_queue(&waveform_queue);
+        PlaybackContext::<T>::setup_queue(&waveform_queue);
 
         let waveform_sink = gst::ElementFactory::make("fakesink", "waveform_sink").unwrap();
         let waveform_sink_pad = waveform_queue.get_static_pad("sink").unwrap();
@@ -521,7 +521,7 @@ impl PlaybackContext {
         video_sink: &gst::Element,
     ) {
         let queue = gst::ElementFactory::make("queue", "video_queue").unwrap();
-        PlaybackContext::setup_queue(&queue);
+        PlaybackContext::<T>::setup_queue(&queue);
         let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
         let scale = gst::ElementFactory::make("videoscale", None).unwrap();
 
@@ -540,8 +540,8 @@ impl PlaybackContext {
     // Uses ctx_tx to notify the UI controllers about the inspection process
     fn register_bus_inspector(&self) {
         let mut pipeline_state = PipelineState::None;
-        let info_arc_mtx = Arc::clone(&self.info);
         let dbl_audio_buffer_mtx = Arc::clone(&self.dbl_audio_buffer_mtx);
+        let info_arc_mtx = Arc::clone(&self.info);
         let ctx_tx = self.ctx_tx.clone();
         let pipeline = self.pipeline.clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
