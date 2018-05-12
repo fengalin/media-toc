@@ -141,11 +141,12 @@ impl MainController {
                 this_mut.open_btn.connect_clicked(move |_| {
                     let mut this = this_rc.borrow_mut();
 
-                    if this.state == ControllerState::Playing {
+                    if this.state == ControllerState::Playing
+                        || this.state == ControllerState::EOS
+                    {
                         this.hold();
                         this.state = ControllerState::PendingSelectMedia;
                     } else {
-                        this.hold();
                         this.select_media();
                     }
                 });
@@ -357,7 +358,7 @@ impl MainController {
         };
 
         self.take_context_cb = Some(callback);
-        if self.state == ControllerState::Playing {
+        if self.state == ControllerState::Playing || self.state == ControllerState::EOS {
             self.state = ControllerState::PendingTakeContext;
         } else {
             self.have_context();
