@@ -464,11 +464,6 @@ impl AudioController {
         range.next().map(|(boundary, _chapters)| *boundary)
     }
 
-    fn clean_cairo_context(&self, cr: &cairo::Context) {
-        cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
-        cr.paint();
-    }
-
     fn adjust_waveform_text_width(&mut self, cr: &cairo::Context) {
         match self.font_family {
             Some(ref family) => {
@@ -533,10 +528,12 @@ impl AudioController {
         da: &gtk::DrawingArea,
         cr: &cairo::Context,
     ) -> Inhibit {
+        cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
+        cr.paint();
+
         if self.state == ControllerState::Disabled {
             // Not active yet, don't display
             debug!("draw still disabled, not drawing");
-            self.clean_cairo_context(cr);
             return Inhibit(false);
         }
 
@@ -559,7 +556,6 @@ impl AudioController {
                     (current_position, image_positions)
                 }
                 None => {
-                    self.clean_cairo_context(cr);
                     debug!("draw no image");
                     return Inhibit(false);
                 }
