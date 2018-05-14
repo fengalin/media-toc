@@ -609,7 +609,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "nom"
 version = "4.0.0-beta3"
-source = "git+https://github.com/fengalin/nom?branch=parse_to_error_kind#70da3b59c133d22efd8d23e535fc337051193b0f"
+source = "git+https://github.com/fengalin/nom?branch=parse_to_error_kind#61e01425442c0af5af587d40ad6afc373ba7aae1"
 dependencies = [
  "memchr 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
