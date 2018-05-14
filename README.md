@@ -7,13 +7,13 @@ a media player with a table of contents.
 
 ## <a name='ui'></a>Screenshots
 ### media-toc playing a video
-![media-toc UI Video](assets/media-toc_video.png)
+![media-toc UI Video](assets/screenshots/media-toc_video.png)
 
 ### media-toc playing an audio file, French localization
-![media-toc UI Audio](assets/media-toc_audio.png)
+![media-toc UI Audio](assets/screenshots/media-toc_audio.png)
 
 ### Waveform showing 5.1 audio channels
-![media-toc Waveform 5.1 audio channels](assets/waveform_5.1_audio_channels.png)
+![media-toc Waveform 5.1 audio channels](assets/screenshots/waveform_5.1_audio_channels.png)
 
 ## Features
 
