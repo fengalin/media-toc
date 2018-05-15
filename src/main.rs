@@ -27,6 +27,7 @@ use clap::{App, Arg};
 
 use gettextrs::{gettext, TextDomain, TextDomainError};
 
+use gio::prelude::*;
 use gtk::Builder;
 
 use std::path::PathBuf;
@@ -35,6 +36,8 @@ mod media;
 mod metadata;
 mod ui;
 use ui::MainController;
+
+const APP_ID: &str = "org.fengalin.media-toc";
 
 fn init_locale() {
     match TextDomain::new("media-toc").prepend("target").init() {
@@ -70,7 +73,7 @@ fn handle_command_line() -> Option<PathBuf> {
         .map(|input_file| input_file.into())
 }
 
-fn init_ui(is_gst_ok: bool, input_file: Option<PathBuf>) {
+fn run(is_gst_ok: bool, input_file: Option<PathBuf>) {
     // Init resources
     let res_bytes = include_bytes!("../target/resources/icons.gresource");
     let gbytes = glib::Bytes::from(res_bytes.as_ref());
@@ -81,21 +84,35 @@ fn init_ui(is_gst_ok: bool, input_file: Option<PathBuf>) {
         })
         .unwrap_or_else(|err| {
             warn!("unable to load resources: {:?}", err);
-            ()
         });
 
-    let builder = Builder::new_from_string(include_str!("ui/media-toc.ui"));
-    let main_ctrl = MainController::new(&builder, is_gst_ok);
-    main_ctrl.borrow().show_all();
+    // Init App
+    let gtk_app = gtk::Application::new(Some(APP_ID), gio::ApplicationFlags::empty())
+        .expect("Failed to initialize GtkApplication");
+    //gtk_app.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
 
-    let _window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
-    //window.set_application(app);
+    gtk_app.connect_startup(move |gtk_app| {
+        let main_ctrl = MainController::new(
+            gtk_app,
+            &Builder::new_from_string(include_str!("ui/media-toc.ui")),
+            is_gst_ok,
+        );
 
-    if is_gst_ok {
-        if let Some(input_file) = input_file {
-            main_ctrl.borrow_mut().open_media(input_file);
-        }
-    }
+        main_ctrl.borrow().show_all();
+
+        let input_file = input_file.clone();
+        gtk_app.connect_activate(move |_| {
+            if is_gst_ok {
+                if let Some(ref input_file) = input_file {
+                    // FIXME: there must be a lifetime way to avoid
+                    // all these duplications
+                    main_ctrl.borrow_mut().open_media(input_file.clone());
+                }
+            }
+        });
+    });
+
+    gtk_app.run(&[]);
 }
 
 fn main() {
@@ -109,8 +126,7 @@ fn main() {
     let input_file = handle_command_line();
 
     if is_gtk_ok {
-        init_ui(gstreamer::init().is_ok(), input_file);
-        gtk::main();
+        run(gstreamer::init().is_ok(), input_file);
     } else {
         error!("{}", gettext("Failed to initialize GTK"));
     }

@@ -72,11 +72,18 @@ pub struct MainController {
 }
 
 impl MainController {
-    pub fn new(builder: &gtk::Builder, is_gst_ok: bool) -> Rc<RefCell<Self>> {
+    pub fn new(
+        gtk_app: &gtk::Application,
+        builder: &gtk::Builder,
+        is_gst_ok: bool,
+    ) -> Rc<RefCell<Self>> {
+        let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
+        window.set_application(gtk_app);
+
         let chapters_boundaries = Rc::new(RefCell::new(ChaptersBoundaries::new()));
 
         let this = Rc::new(RefCell::new(MainController {
-            window: builder.get_object("application-window").unwrap(),
+            window,
             header_bar: builder.get_object("header-bar").unwrap(),
             open_btn: builder.get_object("open-btn").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
@@ -107,8 +114,9 @@ impl MainController {
             let this_rc = Rc::clone(&this);
             this_mut.this_opt = Some(this_rc);
 
-            this_mut.window.connect_delete_event(|_, _| {
-                gtk::main_quit();
+            let this_rc = Rc::clone(&this);
+            this_mut.window.connect_delete_event(move |_, _| {
+                this_rc.borrow_mut().quit();
                 Inhibit(false)
             });
 
@@ -173,6 +181,15 @@ impl MainController {
 
     pub fn show_all(&self) {
         self.window.show_all();
+        self.window.activate();
+    }
+
+    fn quit(&mut self) {
+        if let Some(context) = self.context.take() {
+            context.stop();
+        }
+        self.remove_listener();
+        self.window.destroy();
     }
 
     pub fn show_message(&self, type_: gtk::MessageType, message: &str) {
