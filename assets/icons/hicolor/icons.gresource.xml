@@ -17,5 +17,6 @@
     <file>256x256/apps/org.fengalin.media-toc-symbolic.symbolic.png</file>
     <file>512x512/apps/org.fengalin.media-toc.png</file>
     <file>512x512/apps/org.fengalin.media-toc-symbolic.symbolic.png</file>
+    <file>scalable/apps/org.fengalin.media-toc-symbolic.svg</file>
   </gresource>
 </gresources>
