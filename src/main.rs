@@ -87,7 +87,7 @@ fn run(is_gst_ok: bool, input_file: Option<PathBuf>) {
         });
 
     // Init App
-    let gtk_app = gtk::Application::new(Some(APP_ID), gio::ApplicationFlags::empty())
+    let gtk_app = gtk::Application::new(APP_ID, gio::ApplicationFlags::empty())
         .expect("Failed to initialize GtkApplication");
 
     gtk_app.connect_startup(move |gtk_app| {
@@ -97,15 +97,16 @@ fn run(is_gst_ok: bool, input_file: Option<PathBuf>) {
             is_gst_ok,
         );
 
-        main_ctrl.borrow().show_all();
-
         let input_file = input_file.clone();
         gtk_app.connect_activate(move |_| {
+            let mut main_ctrl = main_ctrl.borrow_mut();
+            main_ctrl.show_all();
+
             if is_gst_ok {
                 if let Some(ref input_file) = input_file {
                     // FIXME: there must be a lifetime way to avoid
                     // all these duplications
-                    main_ctrl.borrow_mut().open_media(input_file.clone());
+                    main_ctrl.open_media(input_file.clone());
                 }
             }
         });
