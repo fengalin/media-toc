@@ -1760,6 +1760,7 @@ Tags support.</property>
                 <child>
                   <object class="GtkAccelLabel" id="perspective-display-accel_lb">
                     <property name="visible">True</property>
+                    <property name="sensitive">False</property>
                     <property name="can_focus">False</property>
                     <property name="margin_left">10</property>
                     <property name="label">F5</property>
@@ -1821,6 +1822,7 @@ Tags support.</property>
                 <child>
                   <object class="GtkAccelLabel" id="perspective-streams-accel_lb">
                     <property name="visible">True</property>
+                    <property name="sensitive">False</property>
                     <property name="can_focus">False</property>
                     <property name="margin_left">10</property>
                     <property name="label">F6</property>
@@ -1882,6 +1884,7 @@ Tags support.</property>
                 <child>
                   <object class="GtkAccelLabel" id="perspective-export-accel_lb">
                     <property name="visible">True</property>
+                    <property name="sensitive">False</property>
                     <property name="can_focus">False</property>
                     <property name="label">F7</property>
                     <property name="accel_widget">perspective-export-btn</property>
@@ -1942,6 +1945,7 @@ Tags support.</property>
                 <child>
                   <object class="GtkAccelLabel" id="perspective-split-accel_lb">
                     <property name="visible">True</property>
+                    <property name="sensitive">False</property>
                     <property name="can_focus">False</property>
                     <property name="label">F8</property>
                     <property name="accel_widget">perspective-split-btn</property>
