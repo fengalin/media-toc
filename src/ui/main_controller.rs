@@ -9,6 +9,8 @@ use std::sync::Arc;
 use std::sync::mpsc::{channel, Receiver};
 
 use gettextrs::{gettext, ngettext};
+use gio;
+use gio::prelude::*;
 use glib;
 use gstreamer as gst;
 use gtk;
@@ -114,15 +116,22 @@ impl MainController {
             let this_rc = Rc::clone(&this);
             this_mut.this_opt = Some(this_rc);
 
+            // Register Quit action
+            let quit = gio::SimpleAction::new("quit", None);
+            gtk_app.add_action(&quit);
             let this_rc = Rc::clone(&this);
-            this_mut.window.connect_delete_event(move |_, _| {
+            quit.connect_activate(move |_, _| {
                 this_rc.borrow_mut().quit();
-                Inhibit(false)
             });
+            gtk_app.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
 
             if is_gst_ok {
                 this_mut.video_ctrl.register_callbacks(&this);
-                PerspectiveController::register_callbacks(&this_mut.perspective_ctrl, &this);
+                PerspectiveController::register_callbacks(
+                    &this_mut.perspective_ctrl,
+                    gtk_app,
+                    &this,
+                );
                 InfoController::register_callbacks(&this_mut.info_ctrl, &this);
                 AudioController::register_callbacks(&this_mut.audio_ctrl, &this);
                 ExportController::register_callbacks(&this_mut.export_ctrl, &this);
@@ -154,18 +163,20 @@ impl MainController {
                 });
                 this_mut.open_btn.set_sensitive(true);
 
+                // Register Play/Pause action
+                let play_pause = gio::SimpleAction::new("play_pause", None);
+                gtk_app.add_action(&play_pause);
                 let this_rc = Rc::clone(&this);
-                this_mut.play_pause_btn.connect_clicked(move |_| {
+                play_pause.connect_activate(move |_, _| {
                     this_rc.borrow_mut().play_pause();
                 });
+                gtk_app.set_accels_for_action("app.play_pause", &["P"]); // FIXME: use Spacebar...
+
                 this_mut.play_pause_btn.set_sensitive(true);
 
                 this_mut
                     .info_bar
                     .connect_response(move |info_bar, _| info_bar.hide());
-
-            // TODO: add key bindings to seek by steps
-            // play/pause, etc.
             } else {
                 // GStreamer initialization failed
                 this_mut.info_bar.connect_response(|_, _| gtk::main_quit());

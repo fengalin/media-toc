@@ -33,6 +33,7 @@ Author: François Laignel <fengalin@free.fr>
   <!-- interface-description Build a table of contents from a media file or split a media file into chapters -->
   <!-- interface-copyright Copyright (C) 2018 Fran\303\247ois Laignel -->
   <!-- interface-authors Fran\303\247ois Laignel <fengalin@free.fr> -->
+  <object class="GtkAccelGroup"/>
   <object class="GtkListStore" id="audio_streams-liststore">
     <columns>
       <!-- column-name export_flag -->
@@ -768,12 +769,12 @@ Author: François Laignel <fengalin@free.fr>
                             <child>
                               <object class="GtkToolButton" id="play_pause-toolbutton">
                                 <property name="visible">True</property>
-                                <property name="sensitive">False</property>
                                 <property name="can_focus">False</property>
                                 <property name="tooltip_text" translatable="yes" comments="Button tooltip">Play / Pause</property>
                                 <property name="halign">end</property>
                                 <property name="valign">end</property>
                                 <property name="visible_vertical">False</property>
+                                <property name="action_name">app.play_pause</property>
                                 <property name="icon_name">media-playback-start-symbolic</property>
                               </object>
                               <packing>
@@ -1725,6 +1726,7 @@ Tags support.</property>
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
+            <property name="action_name">app.perspective.display</property>
             <property name="relief">none</property>
             <child>
               <object class="GtkBox" id="perspective-display-box">
@@ -1755,6 +1757,21 @@ Tags support.</property>
                     <property name="position">1</property>
                   </packing>
                 </child>
+                <child>
+                  <object class="GtkAccelLabel" id="perspective-display-accel_lb">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="margin_left">10</property>
+                    <property name="label">F5</property>
+                    <property name="accel_widget">perspective-display-btn</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="pack_type">end</property>
+                    <property name="position">2</property>
+                  </packing>
+                </child>
               </object>
             </child>
           </object>
@@ -1770,6 +1787,7 @@ Tags support.</property>
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
+            <property name="action_name">app.perspective.streams</property>
             <property name="relief">none</property>
             <child>
               <object class="GtkBox" id="perspective-streams-box">
@@ -1800,6 +1818,21 @@ Tags support.</property>
                     <property name="position">1</property>
                   </packing>
                 </child>
+                <child>
+                  <object class="GtkAccelLabel" id="perspective-streams-accel_lb">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="margin_left">10</property>
+                    <property name="label">F6</property>
+                    <property name="accel_widget">perspective-streams-btn</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="pack_type">end</property>
+                    <property name="position">2</property>
+                  </packing>
+                </child>
               </object>
             </child>
           </object>
@@ -1811,10 +1844,11 @@ Tags support.</property>
         </child>
         <child>
           <object class="GtkButton" id="perspective-export-btn">
-            <property name="name">perspective-streams-btn</property>
+            <property name="name">perspective-export-btn</property>
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
+            <property name="action_name">app.perspective.export</property>
             <property name="relief">none</property>
             <child>
               <object class="GtkBox" id="perspective-export-box">
@@ -1845,6 +1879,20 @@ Tags support.</property>
                     <property name="position">1</property>
                   </packing>
                 </child>
+                <child>
+                  <object class="GtkAccelLabel" id="perspective-export-accel_lb">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="label">F7</property>
+                    <property name="accel_widget">perspective-export-btn</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="pack_type">end</property>
+                    <property name="position">2</property>
+                  </packing>
+                </child>
               </object>
             </child>
           </object>
@@ -1856,10 +1904,11 @@ Tags support.</property>
         </child>
         <child>
           <object class="GtkButton" id="perspective-split-btn">
-            <property name="name">perspective-streams-btn</property>
+            <property name="name">perspective-split-btn</property>
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
+            <property name="action_name">app.perspective.split</property>
             <property name="relief">none</property>
             <child>
               <object class="GtkBox" id="perspective-split-box">
@@ -1888,6 +1937,20 @@ Tags support.</property>
                     <property name="expand">False</property>
                     <property name="fill">True</property>
                     <property name="position">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkAccelLabel" id="perspective-split-accel_lb">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="label">F8</property>
+                    <property name="accel_widget">perspective-split-btn</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="pack_type">end</property>
+                    <property name="position">2</property>
                   </packing>
                 </child>
               </object>

@@ -1,7 +1,8 @@
 use glib::Cast;
-
+use gio;
+use gio::prelude::*;
 use gtk;
-use gtk::{BinExt, ButtonExt, ContainerExt, ImageExt, StackExt, WidgetExt};
+use gtk::prelude::*;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -61,6 +62,7 @@ impl PerspectiveController {
 
     pub fn register_callbacks(
         this_rc: &Rc<RefCell<Self>>,
+        gtk_app: &gtk::Application,
         _main_ctrl: &Rc<RefCell<MainController>>,
     ) {
         let this = this_rc.borrow();
@@ -85,7 +87,7 @@ impl PerspectiveController {
             ));
 
             let button = gtk_downcast!(perspective_box_child, gtk::Button, "popover box");
-            let button_name = button.get_name();
+            let button_name = gtk::WidgetExt::get_name(&button);
             let button_box = gtk_downcast!(
                 button.get_child().expect(&format!(
                     "PerspectiveController no box for button {:?}",
@@ -116,16 +118,43 @@ impl PerspectiveController {
                 this.stack.set_visible_child_name(&stack_child_name);
             }
 
+            button.set_sensitive(true);
+
             let menu_btn_image = menu_btn_image.clone();
             let stack = this.stack.clone();
             let popover = this.popover.clone();
-            button.connect_clicked(move |_| {
-                menu_btn_image.set_property_icon_name(Some(&perspective_icon_name));
-                stack.set_visible_child_name(&stack_child_name);
-                // popdown is available from GTK 3.22
-                // current package used on package is GTK .18
-                popover.hide();
-            });
+            let event = move || {
+                    menu_btn_image.set_property_icon_name(Some(&perspective_icon_name));
+                    stack.set_visible_child_name(&stack_child_name);
+                    // popdown is available from GTK 3.22
+                    // current package used on package is GTK .18
+                    popover.hide();
+                };
+
+            match button.get_action_name() {
+                Some(action_name) => {
+                    let accel_key = gtk_downcast!(button_box, 2, gtk::Label, button_name)
+                        .get_text()
+                        .expect(&format!(
+                            "PerspectiveController no acceleration label for button {:?}",
+                            button_name,
+                        ));
+                    let action_splits: Vec<&str> = action_name.splitn(2, ".").collect();
+                    if action_splits.len() != 2 {
+                        panic!("PerspectiveController unexpected action name for button {:?}",
+                            button_name,
+                        );
+                    }
+
+                    let action = gio::SimpleAction::new(action_splits[1], None);
+                    gtk_app.add_action(&action);
+                    action.connect_activate(move |_, _| event());
+                    gtk_app.set_accels_for_action(&action_name, &[&accel_key]);
+                }
+                None => {
+                    button.connect_clicked(move |_| event());
+                }
+            }
 
             index += 1;
         }

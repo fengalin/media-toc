@@ -89,7 +89,6 @@ fn run(is_gst_ok: bool, input_file: Option<PathBuf>) {
     // Init App
     let gtk_app = gtk::Application::new(Some(APP_ID), gio::ApplicationFlags::empty())
         .expect("Failed to initialize GtkApplication");
-    //gtk_app.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
 
     gtk_app.connect_startup(move |gtk_app| {
         let main_ctrl = MainController::new(
