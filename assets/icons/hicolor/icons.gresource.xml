@@ -1,22 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
   <gresource prefix="/org/fengalin/media-toc/icons">
-    <file>16x16/apps/org.fengalin.media-toc.png</file>
-    <file>16x16/apps/org.fengalin.media-toc-symbolic.symbolic.png</file>
-    <file>24x24/apps/org.fengalin.media-toc.png</file>
-    <file>24x24/apps/org.fengalin.media-toc-symbolic.symbolic.png</file>
-    <file>32x32/apps/org.fengalin.media-toc.png</file>
-    <file>32x32/apps/org.fengalin.media-toc-symbolic.symbolic.png</file>
-    <file>48x48/apps/org.fengalin.media-toc.png</file>
-    <file>48x48/apps/org.fengalin.media-toc-symbolic.symbolic.png</file>
-    <file>64x64/apps/org.fengalin.media-toc.png</file>
-    <file>64x64/apps/org.fengalin.media-toc-symbolic.symbolic.png</file>
-    <file>128x128/apps/org.fengalin.media-toc.png</file>
-    <file>128x128/apps/org.fengalin.media-toc-symbolic.symbolic.png</file>
-    <file>256x256/apps/org.fengalin.media-toc.png</file>
-    <file>256x256/apps/org.fengalin.media-toc-symbolic.symbolic.png</file>
-    <file>512x512/apps/org.fengalin.media-toc.png</file>
-    <file>512x512/apps/org.fengalin.media-toc-symbolic.symbolic.png</file>
-    <file>scalable/apps/org.fengalin.media-toc-symbolic.svg</file>
+    <file preprocess="xml-stripblanks">scalable/apps/org.fengalin.media-toc.svg</file>
+    <file preprocess="xml-stripblanks">scalable/apps/org.fengalin.media-toc-symbolic.svg</file>
   </gresource>
 </gresources>
