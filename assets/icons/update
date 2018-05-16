@@ -6,7 +6,7 @@ cp assets/icons/src/media-toc-square.svg \
 cp assets/icons/src/media-toc-symbolic-small.svg \
 	assets/icons/hicolor/scalable/apps/$APP_ID-symbolic.svg
 
-for XY in 16 24 32 48 64; do
+for XY in 16 24 32 48; do
     mkdir -p assets/icons/hicolor/"$XY"x"$XY"/apps/
     inkscape --without-gui \
     	-w$XY -h$XY \
@@ -18,7 +18,7 @@ for XY in 16 24 32 48 64; do
     	assets/icons/src/media-toc-symbolic-small.svg
 done
 
-XY=128
+XY=64
 mkdir -p assets/icons/hicolor/"$XY"x"$XY"/apps/
 inkscape --without-gui \
     -w$XY -h$XY \
@@ -27,9 +27,9 @@ inkscape --without-gui \
 inkscape --without-gui \
     -w$XY -h$XY \
     --export-png=assets/icons/hicolor/"$XY"x"$XY"/apps/$APP_ID-symbolic.symbolic.png \
-    assets/icons/src/media-toc-symbolic.svg
+    assets/icons/src/media-toc-symbolic-small.svg
 
-for XY in 256 512; do
+for XY in 128 256 512; do
     mkdir -p assets/icons/hicolor/"$XY"x"$XY"/apps/
 
     PYTHON_EXPR=$(printf "import bpy\nfor scene in bpy.data.scenes:\n scene.render.resolution_x="$XY"\n scene.render.resolution_y="$XY)
