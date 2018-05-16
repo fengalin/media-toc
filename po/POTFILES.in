@@ -1,5 +1,6 @@
 # List of source files containing translatable strings.
 # Please keep this file sorted alphabetically.
+assets/ui/media-toc.ui
 src/main.rs
 src/media/playback_context.rs
 src/media/splitter_context.rs
@@ -11,6 +12,5 @@ src/ui/chapter_tree_manager.rs
 src/ui/export_controller.rs
 src/ui/info_controller.rs
 src/ui/main_controller.rs
-src/ui/media-toc.ui
 src/ui/split_controller.rs
 src/ui/streams_controller.rs
