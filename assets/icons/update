@@ -1,0 +1,46 @@
+APP_ID=org.fengalin.media-toc
+
+mkdir -p assets/icons/hicolor/scalable/apps/
+cp assets/icons/src/media-toc-square.svg \
+	assets/icons/hicolor/scalable/apps/$APP_ID.svg
+cp assets/icons/src/media-toc-symbolic-small.svg \
+	assets/icons/hicolor/scalable/apps/$APP_ID-symbolic.svg
+
+for XY in 16 24 32 48 64; do
+    mkdir -p assets/icons/hicolor/"$XY"x"$XY"/apps/
+    inkscape --without-gui \
+    	-w$XY -h$XY \
+    	--export-png=assets/icons/hicolor/"$XY"x"$XY"/apps/$APP_ID.png \
+    	assets/icons/src/media-toc-square-small.svg
+    inkscape --without-gui \
+    	-w$XY -h$XY \
+    	--export-png=assets/icons/hicolor/"$XY"x"$XY"/apps/$APP_ID-symbolic.symbolic.png \
+    	assets/icons/src/media-toc-symbolic-small.svg
+done
+
+XY=128
+mkdir -p assets/icons/hicolor/"$XY"x"$XY"/apps/
+inkscape --without-gui \
+    -w$XY -h$XY \
+    --export-png=assets/icons/hicolor/"$XY"x"$XY"/apps/$APP_ID.png \
+    assets/icons/src/media-toc-square.svg
+inkscape --without-gui \
+    -w$XY -h$XY \
+    --export-png=assets/icons/hicolor/"$XY"x"$XY"/apps/$APP_ID-symbolic.symbolic.png \
+    assets/icons/src/media-toc-symbolic.svg
+
+for XY in 256 512; do
+    mkdir -p assets/icons/hicolor/"$XY"x"$XY"/apps/
+
+    PYTHON_EXPR=$(printf "import bpy\nfor scene in bpy.data.scenes:\n scene.render.resolution_x="$XY"\n scene.render.resolution_y="$XY)
+    blender --background \
+    	-b assets/icons/src/media-toc.blend \
+    	--render-output assets/icons/hicolor/"$XY"x"$XY"/apps/ \
+    	-f 1 --python-expr "$PYTHON_EXPR"
+    mv assets/icons/hicolor/"$XY"x"$XY"/apps/0001.png assets/icons/hicolor/"$XY"x"$XY"/apps/$APP_ID.png
+
+    inkscape --without-gui \
+    	-w$XY -h$XY \
+    	--export-png=assets/icons/hicolor/"$XY"x"$XY"/apps/$APP_ID-symbolic.symbolic.png \
+    	assets/icons/src/media-toc-symbolic.svg
+done
