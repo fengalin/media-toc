@@ -11,6 +11,8 @@ use std::sync::mpsc::{channel, Receiver};
 use gettextrs::{gettext, ngettext};
 use gio;
 use gio::prelude::*;
+use gio::MenuExt;
+
 use glib;
 use gstreamer as gst;
 use gtk;
@@ -21,7 +23,7 @@ use gdk::{Cursor, CursorType, WindowExt};
 use media::ContextMessage::*;
 use media::{ContextMessage, PlaybackContext};
 
-use super::{AudioController, ChaptersBoundaries, ExportController, InfoController,
+use super::{APP_ID, AudioController, ChaptersBoundaries, ExportController, InfoController,
             PerspectiveController, SplitController, StreamsController, VideoController};
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
@@ -74,11 +76,8 @@ pub struct MainController {
 }
 
 impl MainController {
-    pub fn new(
-        gtk_app: &gtk::Application,
-        builder: &gtk::Builder,
-        is_gst_ok: bool,
-    ) -> Rc<RefCell<Self>> {
+    pub fn new(gtk_app: &gtk::Application, is_gst_ok: bool) -> Rc<RefCell<Self>> {
+        let builder = gtk::Builder::new_from_string(include_str!("../../assets/ui/media-toc.ui"));
         let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
         window.set_application(gtk_app);
 
@@ -92,13 +91,13 @@ impl MainController {
             info_bar: builder.get_object("info-bar").unwrap(),
             info_bar_lbl: builder.get_object("info_bar-lbl").unwrap(),
 
-            perspective_ctrl: PerspectiveController::new(builder),
-            video_ctrl: VideoController::new(builder),
-            info_ctrl: InfoController::new(builder, Rc::clone(&chapters_boundaries)),
-            audio_ctrl: AudioController::new(builder, chapters_boundaries),
-            export_ctrl: ExportController::new(builder),
-            split_ctrl: SplitController::new(builder),
-            streams_ctrl: StreamsController::new(builder),
+            perspective_ctrl: PerspectiveController::new(&builder),
+            video_ctrl: VideoController::new(&builder),
+            info_ctrl: InfoController::new(&builder, Rc::clone(&chapters_boundaries)),
+            audio_ctrl: AudioController::new(&builder, chapters_boundaries),
+            export_ctrl: ExportController::new(&builder),
+            split_ctrl: SplitController::new(&builder),
+            streams_ctrl: StreamsController::new(&builder),
 
             context: None,
             take_context_cb: None,
@@ -116,15 +115,26 @@ impl MainController {
             let this_rc = Rc::clone(&this);
             this_mut.this_opt = Some(this_rc);
 
+            let app_menu = gio::Menu::new();
+            gtk_app.set_app_menu(&app_menu);
+
+            // Register About action
+            let about = gio::SimpleAction::new("about", None);
+            gtk_app.add_action(&about);
+            let this_rc = Rc::clone(&this);
+            about.connect_activate(move |_, _| this_rc.borrow().about());
+            gtk_app.set_accels_for_action("app.about", &["<Ctrl>A"]);
+            app_menu.append(&gettext("About")[..], "app.about");
+
             // Register Quit action
             let quit = gio::SimpleAction::new("quit", None);
             gtk_app.add_action(&quit);
             let this_rc = Rc::clone(&this);
-            quit.connect_activate(move |_, _| {
-                this_rc.borrow_mut().quit();
-            });
+            quit.connect_activate(move |_, _| this_rc.borrow_mut().quit());
             gtk_app.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
+            app_menu.append(&gettext("Quit")[..], "app.quit");
 
+            // Prepare controllers
             if is_gst_ok {
                 this_mut.video_ctrl.register_callbacks(&this);
                 PerspectiveController::register_callbacks(
@@ -193,6 +203,25 @@ impl MainController {
     pub fn show_all(&self) {
         self.window.show_all();
         self.window.activate();
+    }
+
+    fn about(&self) {
+        let dialog = gtk::AboutDialog::new();
+        dialog.set_modal(true);
+        dialog.set_transient_for(&self.window);
+
+        dialog.set_program_name("media-toc");
+        dialog.set_logo_icon_name(APP_ID);
+        dialog.set_comments(&gettext(
+            "Build a table of contents from a media file\nor split a media file into chapters"
+        )[..]);
+        dialog.set_copyright(&gettext("© 2017–2018 François Laignel")[..]);
+        dialog.set_license_type(gtk::License::MitX11);
+        dialog.set_version(env!("CARGO_PKG_VERSION"));
+        dialog.set_website("https://github.com/fengalin/media-toc");
+        dialog.set_website_label(&gettext("Learn more about media-toc")[..]);
+
+        dialog.show();
     }
 
     fn quit(&mut self) {

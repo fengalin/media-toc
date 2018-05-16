@@ -28,16 +28,13 @@ use clap::{App, Arg};
 use gettextrs::{gettext, TextDomain, TextDomainError};
 
 use gio::prelude::*;
-use gtk::Builder;
 
 use std::path::PathBuf;
 
 mod media;
 mod metadata;
 mod ui;
-use ui::MainController;
-
-const APP_ID: &str = "org.fengalin.media-toc";
+use ui::{APP_ID, MainController};
 
 fn init_locale() {
     match TextDomain::new("media-toc").prepend("target").init() {
@@ -58,7 +55,7 @@ fn handle_command_line() -> Option<PathBuf> {
     let input_arg = gettext("MEDIA");
 
     App::new("media-toc")
-        .version("0.4.1")
+        .version(env!("CARGO_PKG_VERSION"))
         .author("François Laignel <fengalin@free.fr>")
         .about(about_msg.as_str())
         .help_message(help_msg.as_str())
@@ -91,12 +88,7 @@ fn run(is_gst_ok: bool, input_file: Option<PathBuf>) {
         .expect("Failed to initialize GtkApplication");
 
     gtk_app.connect_startup(move |gtk_app| {
-        let main_ctrl = MainController::new(
-            gtk_app,
-            &Builder::new_from_string(include_str!("ui/media-toc.ui")),
-            is_gst_ok,
-        );
-
+        let main_ctrl = MainController::new(gtk_app, is_gst_ok);
         let input_file = input_file.clone();
         gtk_app.connect_activate(move |_| {
             let mut main_ctrl = main_ctrl.borrow_mut();
