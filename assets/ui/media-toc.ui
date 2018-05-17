@@ -33,7 +33,6 @@ Author: François Laignel <fengalin@free.fr>
   <!-- interface-description Build a table of contents from a media file or split a media file into chapters -->
   <!-- interface-copyright Copyright (C) 2018 Fran\303\247ois Laignel -->
   <!-- interface-authors Fran\303\247ois Laignel <fengalin@free.fr> -->
-  <object class="GtkAccelGroup"/>
   <object class="GtkListStore" id="audio_streams-liststore">
     <columns>
       <!-- column-name export_flag -->
@@ -528,67 +527,11 @@ Author: François Laignel <fengalin@free.fr>
           </packing>
         </child>
         <child>
-          <object class="GtkBox">
+          <object class="GtkOverlay">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
             <property name="hexpand">True</property>
             <property name="vexpand">True</property>
-            <property name="orientation">vertical</property>
-            <child>
-              <object class="GtkInfoBar" id="info-bar">
-                <property name="can_focus">False</property>
-                <property name="no_show_all">True</property>
-                <property name="hexpand">True</property>
-                <property name="show_close_button">True</property>
-                <child internal-child="action_area">
-                  <object class="GtkButtonBox">
-                    <property name="can_focus">False</property>
-                    <property name="spacing">6</property>
-                    <property name="layout_style">end</property>
-                    <child>
-                      <placeholder/>
-                    </child>
-                  </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">False</property>
-                    <property name="position">0</property>
-                  </packing>
-                </child>
-                <child internal-child="content_area">
-                  <object class="GtkBox">
-                    <property name="can_focus">False</property>
-                    <property name="spacing">16</property>
-                    <child>
-                      <object class="GtkLabel" id="info_bar-lbl">
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="hexpand">True</property>
-                        <property name="selectable">True</property>
-                      </object>
-                      <packing>
-                        <property name="expand">True</property>
-                        <property name="fill">True</property>
-                        <property name="position">0</property>
-                      </packing>
-                    </child>
-                  </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">False</property>
-                    <property name="position">0</property>
-                  </packing>
-                </child>
-                <child>
-                  <placeholder/>
-                </child>
-              </object>
-              <packing>
-                <property name="expand">False</property>
-                <property name="fill">True</property>
-                <property name="position">0</property>
-              </packing>
-            </child>
             <child>
               <object class="GtkStack" id="perspective-stack">
                 <property name="visible">True</property>
@@ -807,8 +750,6 @@ Author: François Laignel <fengalin@free.fr>
                   <object class="GtkBox" id="streams-box">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="margin_left">40</property>
-                    <property name="margin_right">40</property>
                     <property name="margin_bottom">10</property>
                     <property name="hexpand">True</property>
                     <property name="vexpand">True</property>
@@ -818,7 +759,6 @@ Author: François Laignel <fengalin@free.fr>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="halign">start</property>
-                        <property name="margin_left">6</property>
                         <property name="margin_top">10</property>
                         <property name="label" translatable="yes">Video Streams</property>
                       </object>
@@ -852,7 +792,6 @@ Author: François Laignel <fengalin@free.fr>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="halign">start</property>
-                        <property name="margin_left">6</property>
                         <property name="margin_top">10</property>
                         <property name="label" translatable="yes">Audio Streams</property>
                       </object>
@@ -886,7 +825,6 @@ Author: François Laignel <fengalin@free.fr>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="halign">start</property>
-                        <property name="margin_left">6</property>
                         <property name="margin_top">10</property>
                         <property name="label" translatable="yes">Text Streams</property>
                       </object>
@@ -959,9 +897,6 @@ Author: François Laignel <fengalin@free.fr>
                               <object class="GtkGrid">
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
-                                <property name="has_focus">True</property>
-                                <property name="margin_left">6</property>
-                                <property name="margin_right">6</property>
                                 <property name="margin_top">6</property>
                                 <property name="margin_bottom">6</property>
                                 <child>
@@ -1012,8 +947,6 @@ Time resolution: 1 ms.</property>
                               <object class="GtkGrid">
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
-                                <property name="margin_left">6</property>
-                                <property name="margin_right">6</property>
                                 <property name="margin_top">6</property>
                                 <property name="margin_bottom">6</property>
                                 <child>
@@ -1064,8 +997,6 @@ Time resolution: 1 frame (1/75 s).</property>
                               <object class="GtkGrid">
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
-                                <property name="margin_left">6</property>
-                                <property name="margin_right">6</property>
                                 <property name="margin_top">6</property>
                                 <property name="margin_bottom">6</property>
                                 <child>
@@ -1140,8 +1071,6 @@ Time resolution: 1 ns.</property>
                         <property name="tooltip_text" translatable="yes" comments="Button tooltip">Export media to selected format</property>
                         <property name="halign">center</property>
                         <property name="valign">center</property>
-                        <property name="margin_left">20</property>
-                        <property name="margin_right">20</property>
                         <property name="margin_bottom">10</property>
                       </object>
                       <packing>
@@ -1155,7 +1084,6 @@ Time resolution: 1 ns.</property>
                         <property name="can_focus">False</property>
                         <property name="halign">start</property>
                         <property name="valign">end</property>
-                        <property name="margin_left">6</property>
                         <property name="label" translatable="yes">Export Formats</property>
                         <attributes>
                           <attribute name="weight" value="bold"/>
@@ -1168,7 +1096,7 @@ Time resolution: 1 ns.</property>
                     </child>
                     <child>
                       <object class="GtkFixed">
-                        <property name="width_request">40</property>
+                        <property name="width_request">32</property>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="vexpand">True</property>
@@ -1242,7 +1170,7 @@ Time resolution: 1 ns.</property>
                     </child>
                     <child>
                       <object class="GtkFixed">
-                        <property name="width_request">40</property>
+                        <property name="width_request">32</property>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="vexpand">True</property>
@@ -1269,8 +1197,6 @@ Time resolution: 1 ns.</property>
                               <object class="GtkGrid">
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
-                                <property name="margin_left">6</property>
-                                <property name="margin_right">6</property>
                                 <property name="margin_top">6</property>
                                 <property name="margin_bottom">6</property>
                                 <child>
@@ -1339,8 +1265,6 @@ Tags support.</property>
                               <object class="GtkGrid">
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
-                                <property name="margin_left">6</property>
-                                <property name="margin_right">6</property>
                                 <property name="margin_top">6</property>
                                 <property name="margin_bottom">6</property>
                                 <child>
@@ -1409,8 +1333,6 @@ Tags support.</property>
                               <object class="GtkGrid">
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
-                                <property name="margin_left">6</property>
-                                <property name="margin_right">6</property>
                                 <property name="margin_top">6</property>
                                 <property name="margin_bottom">6</property>
                                 <child>
@@ -1479,8 +1401,6 @@ Tags support.</property>
                               <object class="GtkGrid">
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
-                                <property name="margin_left">6</property>
-                                <property name="margin_right">6</property>
                                 <property name="margin_top">6</property>
                                 <property name="margin_bottom">6</property>
                                 <child>
@@ -1549,8 +1469,6 @@ Tags support.</property>
                               <object class="GtkGrid">
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
-                                <property name="margin_left">6</property>
-                                <property name="margin_right">6</property>
                                 <property name="margin_top">6</property>
                                 <property name="margin_bottom">6</property>
                                 <child>
@@ -1624,8 +1542,6 @@ Tags support.</property>
                         <property name="tooltip_text" translatable="yes" comments="Button tooltip">Split audio stream and encode to selected format</property>
                         <property name="halign">center</property>
                         <property name="valign">end</property>
-                        <property name="margin_left">20</property>
-                        <property name="margin_right">20</property>
                         <property name="margin_bottom">10</property>
                       </object>
                       <packing>
@@ -1639,7 +1555,6 @@ Tags support.</property>
                         <property name="can_focus">False</property>
                         <property name="halign">start</property>
                         <property name="valign">end</property>
-                        <property name="margin_left">6</property>
                         <property name="label" translatable="yes">Split Formats</property>
                         <attributes>
                           <attribute name="weight" value="bold"/>
@@ -1692,10 +1607,83 @@ Tags support.</property>
                 </child>
               </object>
               <packing>
-                <property name="expand">False</property>
-                <property name="fill">True</property>
-                <property name="position">1</property>
+                <property name="index">-1</property>
               </packing>
+            </child>
+            <child type="overlay">
+              <object class="GtkOverlay">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="halign">center</property>
+                <property name="valign">start</property>
+                <child>
+                  <object class="GtkRevealer" id="info_bar-revealer">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="halign">center</property>
+                    <child>
+                      <object class="GtkInfoBar" id="info_bar">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="show_close_button">True</property>
+                        <child internal-child="action_area">
+                          <object class="GtkButtonBox">
+                            <property name="can_focus">False</property>
+                            <property name="spacing">6</property>
+                            <property name="layout_style">end</property>
+                            <child>
+                              <placeholder/>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">False</property>
+                            <property name="position">0</property>
+                          </packing>
+                        </child>
+                        <child internal-child="content_area">
+                          <object class="GtkBox">
+                            <property name="can_focus">False</property>
+                            <property name="spacing">16</property>
+                            <child>
+                              <object class="GtkLabel" id="info_bar-lbl">
+                                <property name="visible">True</property>
+                                <property name="can_focus">False</property>
+                              </object>
+                              <packing>
+                                <property name="expand">True</property>
+                                <property name="fill">True</property>
+                                <property name="position">0</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <placeholder/>
+                            </child>
+                            <child>
+                              <placeholder/>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">False</property>
+                            <property name="position">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <placeholder/>
+                        </child>
+                        <style>
+                          <class name="app-notification"/>
+                        </style>
+                      </object>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="pass_through">True</property>
+                    <property name="index">-1</property>
+                  </packing>
+                </child>
+              </object>
             </child>
           </object>
           <packing>

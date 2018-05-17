@@ -54,6 +54,7 @@ pub struct MainController {
     header_bar: gtk::HeaderBar,
     open_btn: gtk::Button,
     play_pause_btn: gtk::ToolButton,
+    info_bar_revealer: gtk::Revealer,
     info_bar: gtk::InfoBar,
     info_bar_lbl: gtk::Label,
 
@@ -88,7 +89,8 @@ impl MainController {
             header_bar: builder.get_object("header-bar").unwrap(),
             open_btn: builder.get_object("open-btn").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
-            info_bar: builder.get_object("info-bar").unwrap(),
+            info_bar_revealer: builder.get_object("info_bar-revealer").unwrap(),
+            info_bar: builder.get_object("info_bar").unwrap(),
             info_bar_lbl: builder.get_object("info_bar-lbl").unwrap(),
 
             perspective_ctrl: PerspectiveController::new(&builder),
@@ -184,9 +186,10 @@ impl MainController {
 
                 this_mut.play_pause_btn.set_sensitive(true);
 
+                let revealer = this_mut.info_bar_revealer.clone();
                 this_mut
                     .info_bar
-                    .connect_response(move |info_bar, _| info_bar.hide());
+                    .connect_response(move |_, _| revealer.set_reveal_child(false));
             } else {
                 // GStreamer initialization failed
                 this_mut.info_bar.connect_response(|_, _| gtk::main_quit());
@@ -235,9 +238,7 @@ impl MainController {
     pub fn show_message(&self, type_: gtk::MessageType, message: &str) {
         self.info_bar.set_message_type(type_);
         self.info_bar_lbl.set_label(message);
-        self.info_bar.show();
-        // workaround, see: https://bugzilla.gnome.org/show_bug.cgi?id=710888
-        self.info_bar.queue_resize();
+        self.info_bar_revealer.set_reveal_child(true);
     }
 
     pub fn play_pause(&mut self) {
@@ -615,7 +616,7 @@ impl MainController {
     }
 
     fn select_media(&mut self) {
-        self.info_bar.hide();
+        self.info_bar_revealer.set_reveal_child(false);
         self.switch_to_busy();
 
         let file_dlg = gtk::FileChooserDialog::new(
