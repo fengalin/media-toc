@@ -747,110 +747,165 @@ Author: François Laignel <fengalin@free.fr>
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkBox" id="streams-box">
+                  <object class="GtkGrid" id="streams-grid">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="margin_bottom">10</property>
-                    <property name="hexpand">True</property>
-                    <property name="vexpand">True</property>
-                    <property name="orientation">vertical</property>
                     <child>
-                      <object class="GtkLabel" id="video_streams-lbl">
+                      <object class="GtkBox" id="streams-box">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="halign">start</property>
-                        <property name="margin_top">10</property>
-                        <property name="label" translatable="yes">Video Streams</property>
-                      </object>
-                      <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">True</property>
-                        <property name="position">0</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkTreeView" id="video_streams-treeview">
-                        <property name="visible">True</property>
-                        <property name="can_focus">True</property>
-                        <property name="model">video_streams-liststore</property>
-                        <property name="rules_hint">True</property>
-                        <property name="search_column">0</property>
-                        <property name="enable_grid_lines">horizontal</property>
-                        <property name="activate_on_single_click">True</property>
-                        <child internal-child="selection">
-                          <object class="GtkTreeSelection"/>
+                        <property name="hexpand">True</property>
+                        <property name="vexpand">True</property>
+                        <property name="orientation">vertical</property>
+                        <child>
+                          <object class="GtkLabel" id="video_streams-lbl">
+                            <property name="visible">True</property>
+                            <property name="can_focus">False</property>
+                            <property name="halign">start</property>
+                            <property name="margin_top">10</property>
+                            <property name="label" translatable="yes">Video Streams</property>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkTreeView" id="video_streams-treeview">
+                            <property name="visible">True</property>
+                            <property name="can_focus">True</property>
+                            <property name="model">video_streams-liststore</property>
+                            <property name="rules_hint">True</property>
+                            <property name="search_column">0</property>
+                            <property name="enable_grid_lines">horizontal</property>
+                            <property name="activate_on_single_click">True</property>
+                            <child internal-child="selection">
+                              <object class="GtkTreeSelection"/>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="expand">True</property>
+                            <property name="fill">True</property>
+                            <property name="position">1</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkLabel" id="audio_streams-lbl">
+                            <property name="visible">True</property>
+                            <property name="can_focus">False</property>
+                            <property name="halign">start</property>
+                            <property name="margin_top">10</property>
+                            <property name="label" translatable="yes">Audio Streams</property>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">2</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkTreeView" id="audio_streams-treeview">
+                            <property name="visible">True</property>
+                            <property name="can_focus">True</property>
+                            <property name="model">audio_streams-liststore</property>
+                            <property name="rules_hint">True</property>
+                            <property name="search_column">0</property>
+                            <property name="enable_grid_lines">horizontal</property>
+                            <property name="activate_on_single_click">True</property>
+                            <child internal-child="selection">
+                              <object class="GtkTreeSelection"/>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="expand">True</property>
+                            <property name="fill">True</property>
+                            <property name="position">3</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkLabel" id="text_streams-lbl">
+                            <property name="visible">True</property>
+                            <property name="can_focus">False</property>
+                            <property name="halign">start</property>
+                            <property name="margin_top">10</property>
+                            <property name="label" translatable="yes">Text Streams</property>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">4</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkTreeView" id="text_streams-treeview">
+                            <property name="visible">True</property>
+                            <property name="can_focus">True</property>
+                            <property name="model">text_streams-liststore</property>
+                            <property name="rules_hint">True</property>
+                            <property name="search_column">0</property>
+                            <property name="enable_grid_lines">horizontal</property>
+                            <property name="activate_on_single_click">True</property>
+                            <child internal-child="selection">
+                              <object class="GtkTreeSelection"/>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="expand">True</property>
+                            <property name="fill">True</property>
+                            <property name="position">5</property>
+                          </packing>
                         </child>
                       </object>
                       <packing>
-                        <property name="expand">True</property>
-                        <property name="fill">True</property>
-                        <property name="position">1</property>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">1</property>
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkLabel" id="audio_streams-lbl">
+                      <object class="GtkFixed">
+                        <property name="width_request">40</property>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="halign">start</property>
-                        <property name="margin_top">10</property>
-                        <property name="label" translatable="yes">Audio Streams</property>
                       </object>
                       <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">True</property>
-                        <property name="position">2</property>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">0</property>
+                        <property name="height">3</property>
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkTreeView" id="audio_streams-treeview">
-                        <property name="visible">True</property>
-                        <property name="can_focus">True</property>
-                        <property name="model">audio_streams-liststore</property>
-                        <property name="rules_hint">True</property>
-                        <property name="search_column">0</property>
-                        <property name="enable_grid_lines">horizontal</property>
-                        <property name="activate_on_single_click">True</property>
-                        <child internal-child="selection">
-                          <object class="GtkTreeSelection"/>
-                        </child>
-                      </object>
-                      <packing>
-                        <property name="expand">True</property>
-                        <property name="fill">True</property>
-                        <property name="position">3</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkLabel" id="text_streams-lbl">
+                      <object class="GtkFixed">
+                        <property name="width_request">40</property>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="halign">start</property>
-                        <property name="margin_top">10</property>
-                        <property name="label" translatable="yes">Text Streams</property>
                       </object>
                       <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">True</property>
-                        <property name="position">4</property>
+                        <property name="left_attach">2</property>
+                        <property name="top_attach">0</property>
+                        <property name="height">3</property>
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkTreeView" id="text_streams-treeview">
+                      <object class="GtkFixed">
+                        <property name="height_request">10</property>
                         <property name="visible">True</property>
-                        <property name="can_focus">True</property>
-                        <property name="model">text_streams-liststore</property>
-                        <property name="rules_hint">True</property>
-                        <property name="search_column">0</property>
-                        <property name="enable_grid_lines">horizontal</property>
-                        <property name="activate_on_single_click">True</property>
-                        <child internal-child="selection">
-                          <object class="GtkTreeSelection"/>
-                        </child>
+                        <property name="can_focus">False</property>
                       </object>
                       <packing>
-                        <property name="expand">True</property>
-                        <property name="fill">True</property>
-                        <property name="position">5</property>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">0</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkFixed">
+                        <property name="height_request">10</property>
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">2</property>
                       </packing>
                     </child>
                   </object>
@@ -1071,6 +1126,8 @@ Time resolution: 1 ns.</property>
                         <property name="tooltip_text" translatable="yes" comments="Button tooltip">Export media to selected format</property>
                         <property name="halign">center</property>
                         <property name="valign">center</property>
+                        <property name="margin_left">10</property>
+                        <property name="margin_right">10</property>
                         <property name="margin_bottom">10</property>
                       </object>
                       <packing>
@@ -1096,10 +1153,9 @@ Time resolution: 1 ns.</property>
                     </child>
                     <child>
                       <object class="GtkFixed">
-                        <property name="width_request">32</property>
+                        <property name="width_request">40</property>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="vexpand">True</property>
                       </object>
                       <packing>
                         <property name="left_attach">0</property>
@@ -1170,10 +1226,9 @@ Time resolution: 1 ns.</property>
                     </child>
                     <child>
                       <object class="GtkFixed">
-                        <property name="width_request">32</property>
+                        <property name="width_request">40</property>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="vexpand">True</property>
                       </object>
                       <packing>
                         <property name="left_attach">0</property>
@@ -1542,6 +1597,8 @@ Tags support.</property>
                         <property name="tooltip_text" translatable="yes" comments="Button tooltip">Split audio stream and encode to selected format</property>
                         <property name="halign">center</property>
                         <property name="valign">end</property>
+                        <property name="margin_left">10</property>
+                        <property name="margin_right">10</property>
                         <property name="margin_bottom">10</property>
                       </object>
                       <packing>
