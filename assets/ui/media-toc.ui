@@ -1668,79 +1668,71 @@ Tags support.</property>
               </packing>
             </child>
             <child type="overlay">
-              <object class="GtkOverlay">
+              <object class="GtkRevealer" id="info_bar-revealer">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <property name="halign">center</property>
                 <property name="valign">start</property>
                 <child>
-                  <object class="GtkRevealer" id="info_bar-revealer">
+                  <object class="GtkInfoBar" id="info_bar">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="halign">center</property>
-                    <child>
-                      <object class="GtkInfoBar" id="info_bar">
-                        <property name="visible">True</property>
+                    <property name="show_close_button">True</property>
+                    <child internal-child="action_area">
+                      <object class="GtkButtonBox">
                         <property name="can_focus">False</property>
-                        <property name="show_close_button">True</property>
-                        <child internal-child="action_area">
-                          <object class="GtkButtonBox">
-                            <property name="can_focus">False</property>
-                            <property name="spacing">6</property>
-                            <property name="layout_style">end</property>
-                            <child>
-                              <placeholder/>
-                            </child>
-                          </object>
-                          <packing>
-                            <property name="expand">False</property>
-                            <property name="fill">False</property>
-                            <property name="position">0</property>
-                          </packing>
+                        <property name="spacing">6</property>
+                        <property name="layout_style">end</property>
+                        <child>
+                          <placeholder/>
                         </child>
-                        <child internal-child="content_area">
-                          <object class="GtkBox">
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">False</property>
+                        <property name="position">0</property>
+                      </packing>
+                    </child>
+                    <child internal-child="content_area">
+                      <object class="GtkBox">
+                        <property name="can_focus">False</property>
+                        <property name="spacing">16</property>
+                        <child>
+                          <object class="GtkLabel" id="info_bar-lbl">
+                            <property name="visible">True</property>
                             <property name="can_focus">False</property>
-                            <property name="spacing">16</property>
-                            <child>
-                              <object class="GtkLabel" id="info_bar-lbl">
-                                <property name="visible">True</property>
-                                <property name="can_focus">False</property>
-                              </object>
-                              <packing>
-                                <property name="expand">True</property>
-                                <property name="fill">True</property>
-                                <property name="position">0</property>
-                              </packing>
-                            </child>
-                            <child>
-                              <placeholder/>
-                            </child>
-                            <child>
-                              <placeholder/>
-                            </child>
                           </object>
                           <packing>
-                            <property name="expand">False</property>
-                            <property name="fill">False</property>
+                            <property name="expand">True</property>
+                            <property name="fill">True</property>
                             <property name="position">0</property>
                           </packing>
                         </child>
                         <child>
                           <placeholder/>
                         </child>
-                        <style>
-                          <class name="app-notification"/>
-                        </style>
+                        <child>
+                          <placeholder/>
+                        </child>
                       </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">False</property>
+                        <property name="position">0</property>
+                      </packing>
                     </child>
+                    <child>
+                      <placeholder/>
+                    </child>
+                    <style>
+                      <class name="app-notification"/>
+                    </style>
                   </object>
-                  <packing>
-                    <property name="pass_through">True</property>
-                    <property name="index">-1</property>
-                  </packing>
                 </child>
               </object>
+              <packing>
+                <property name="index">1</property>
+              </packing>
             </child>
           </object>
           <packing>
