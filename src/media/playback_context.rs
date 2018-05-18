@@ -3,12 +3,10 @@ use gettextrs::gettext;
 use gstreamer as gst;
 
 use gstreamer::prelude::*;
-use gstreamer::{BinExt, ClockTime, ElementFactory, GstObjectExt, PadExt};
+use gstreamer::{BinExt, ClockTime, GstObjectExt, PadExt};
 
 use glib;
 use glib::{Cast, ObjectExt};
-
-use gtk;
 
 use std::error::Error;
 use std::path::PathBuf;
@@ -22,48 +20,6 @@ use super::{ContextMessage, DoubleAudioBuffer};
 // Buffer size in ns for queues
 // This is the max duration that queues can hold
 pub const QUEUE_SIZE_NS: u64 = 5_000_000_000u64; // 5s
-
-// The video_sink must be created in the main UI thread
-// as it contains a gtk::Widget
-struct VideoOutput {
-    sink: gst::Element,
-    widget: gtk::Widget,
-}
-
-unsafe impl Sync for VideoOutput {}
-
-lazy_static! {
-    static ref VIDEO_OUTPUT: Option<VideoOutput> = {
-        // FIXME: make using gtkglsink an option on the command line
-        // in many cases it's suboptimal or even broken.
-        /*if let Some(gtkglsink) = ElementFactory::make("gtkglsink", "video_sink") {
-            debug!("Using gtkglsink");
-            let glsinkbin = ElementFactory::make("glsinkbin", "video_sink_bin")
-                .expect("PlaybackContext: couldn't get `glsinkbin` from `gtkglsink`");
-            glsinkbin.set_property("sink", &gtkglsink.to_value())
-                .expect("PlaybackContext: couldn't set property `sink` for `glsinkbin`");
-            Some(VideoOutput {
-                sink: glsinkbin,
-                widget: gtkglsink.get_property("widget")
-                    .expect("PlaybackContext: couldn't get property `widget` from `gtkglsink`")
-                    .get::<gtk::Widget>()
-                    .expect("PlaybackContext: unexpected type for property `widget` in `gtkglsink`"),
-            })
-        } else */if let Some(sink) = ElementFactory::make("gtksink", "video_sink") {
-            debug!("Using gtksink");
-            Some(VideoOutput {
-                sink: sink.clone(),
-                widget: sink.get_property("widget")
-                    .expect("PlaybackContext: couldn't get property `widget` from `gtksink`")
-                    .get::<gtk::Widget>()
-                    .expect("PlaybackContext: unexpected type for property `widget` in `gtksink`"),
-            })
-        } else {
-            error!("{}", gettext("Couldn't find GStreamer GTK video sink."));
-            None
-        }
-    };
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum InitializedState {
@@ -84,6 +40,7 @@ pub struct PlaybackContext {
     position_query: gst::query::Position<gst::Query>,
 
     dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
+    video_sink: Option<gst::Element>,
     ctx_tx: Sender<ContextMessage>,
 
     pub path: PathBuf,
@@ -106,6 +63,7 @@ impl PlaybackContext {
     pub fn new(
         path: PathBuf,
         dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
+        video_sink: Option<gst::Element>,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<PlaybackContext, String> {
         info!(
@@ -121,6 +79,7 @@ impl PlaybackContext {
             position_query: gst::Query::new_position(gst::Format::Time),
 
             dbl_audio_buffer_mtx,
+            video_sink,
             ctx_tx,
 
             file_name: file_name.clone(),
@@ -172,12 +131,6 @@ impl PlaybackContext {
             },
             |_| Ok(()),
         )
-    }
-
-    pub fn get_video_widget() -> Option<gtk::Widget> {
-        (*VIDEO_OUTPUT)
-            .as_ref()
-            .map(|video_output| video_output.widget.clone())
     }
 
     pub fn get_position(&mut self) -> u64 {
@@ -346,9 +299,7 @@ impl PlaybackContext {
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
         let dbl_audio_buffer_mtx = Arc::clone(&self.dbl_audio_buffer_mtx);
-        let video_sink = (*VIDEO_OUTPUT)
-            .as_ref()
-            .map(|video_output| video_output.sink.clone());
+        let video_sink = self.video_sink.clone();
         let ctx_tx_mtx = Arc::new(Mutex::new(self.ctx_tx.clone()));
         self.decodebin
             .connect_pad_added(move |_decodebin, src_pad| {

@@ -77,7 +77,11 @@ pub struct MainController {
 }
 
 impl MainController {
-    pub fn new(gtk_app: &gtk::Application, is_gst_ok: bool) -> Rc<RefCell<Self>> {
+    pub fn new(
+        gtk_app: &gtk::Application,
+        is_gst_ok: bool,
+        disable_gl: bool,
+    ) -> Rc<RefCell<Self>> {
         let builder = gtk::Builder::new_from_string(include_str!("../../assets/ui/media-toc.ui"));
         let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
         window.set_application(gtk_app);
@@ -94,7 +98,7 @@ impl MainController {
             info_bar_lbl: builder.get_object("info_bar-lbl").unwrap(),
 
             perspective_ctrl: PerspectiveController::new(&builder),
-            video_ctrl: VideoController::new(&builder),
+            video_ctrl: VideoController::new(&builder, disable_gl),
             info_ctrl: InfoController::new(&builder, Rc::clone(&chapters_boundaries)),
             audio_ctrl: AudioController::new(&builder, chapters_boundaries),
             export_ctrl: ExportController::new(&builder),
@@ -662,7 +666,12 @@ impl MainController {
         self.register_listener(LISTENER_PERIOD, ui_rx);
 
         let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.borrow().get_dbl_buffer_mtx());
-        match PlaybackContext::new(filepath, dbl_buffer_mtx, ctx_tx) {
+        match PlaybackContext::new(
+            filepath,
+            dbl_buffer_mtx,
+            self.video_ctrl.get_video_sink(),
+            ctx_tx,
+        ) {
             Ok(context) => self.context = Some(context),
             Err(error) => {
                 self.switch_to_default();

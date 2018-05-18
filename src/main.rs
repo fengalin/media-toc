@@ -46,31 +46,47 @@ fn init_locale() {
     }
 }
 
-fn handle_command_line() -> Option<PathBuf> {
+pub struct CommandLineArguments {
+    pub input_file: Option<PathBuf>,
+    pub disable_gl: bool,
+}
+
+fn handle_command_line() -> CommandLineArguments {
     let about_msg =
         gettext("Build a table of contents from a media file\nor split a media file into chapters");
     let help_msg = gettext("Display this message");
     let version_msg = gettext("Print version information");
 
+    let disable_gl_arg = "DISABLE_GL";
     let input_arg = gettext("MEDIA");
 
-    App::new("media-toc")
+    let matches = App::new("media-toc")
         .version(env!("CARGO_PKG_VERSION"))
         .author("François Laignel <fengalin@free.fr>")
-        .about(about_msg.as_str())
-        .help_message(help_msg.as_str())
-        .version_message(version_msg.as_str())
+        .about(&about_msg[..])
+        .help_message(&help_msg[..])
+        .version_message(&version_msg[..])
         .arg(
-            Arg::with_name(input_arg.as_str())
+            Arg::with_name(&disable_gl_arg[..])
+                .short("d")
+                .long("disable-gl")
+                .help(&gettext("Disable hardware acceleration for video rendering"))
+        )
+        .arg(
+            Arg::with_name(&input_arg[..])
                 .help(&gettext("Path to the input media file"))
                 .last(false),
         )
-        .get_matches()
-        .value_of(input_arg.as_str())
-        .map(|input_file| input_file.into())
+        .get_matches();
+
+    CommandLineArguments {
+        input_file: matches.value_of(input_arg.as_str())
+            .map(|input_file| input_file.into()),
+        disable_gl: matches.is_present(disable_gl_arg),
+    }
 }
 
-fn run(is_gst_ok: bool, input_file: Option<PathBuf>) {
+fn run(is_gst_ok: bool, args: CommandLineArguments) {
     // Init resources
     let res_bytes = include_bytes!("../target/resources/icons.gresource");
     let gbytes = glib::Bytes::from(res_bytes.as_ref());
@@ -87,21 +103,17 @@ fn run(is_gst_ok: bool, input_file: Option<PathBuf>) {
     let gtk_app = gtk::Application::new(APP_ID, gio::ApplicationFlags::empty())
         .expect("Failed to initialize GtkApplication");
 
-    gtk_app.connect_startup(move |gtk_app| {
-        let main_ctrl = MainController::new(gtk_app, is_gst_ok);
-        let input_file = input_file.clone();
-        gtk_app.connect_activate(move |_| {
-            let mut main_ctrl = main_ctrl.borrow_mut();
-            main_ctrl.show_all();
+    gtk_app.connect_activate(move |gtk_app| {
+        let main_ctrl = MainController::new(gtk_app, is_gst_ok, args.disable_gl);
+        main_ctrl.borrow().show_all();
 
-            if is_gst_ok {
-                if let Some(ref input_file) = input_file {
-                    // FIXME: there must be a lifetime way to avoid
-                    // all these duplications
-                    main_ctrl.open_media(input_file.clone());
-                }
+        if is_gst_ok {
+            if let Some(ref input_file) = args.input_file {
+                // FIXME: there must be a lifetime way to avoid
+                // all these duplications
+                main_ctrl.borrow_mut().open_media(input_file.clone());
             }
-        });
+        }
     });
 
     gtk_app.run(&[]);
@@ -115,10 +127,10 @@ fn main() {
     // Messages are not translated unless gtk (glib) is initialized
     let is_gtk_ok = gtk::init().is_ok();
 
-    let input_file = handle_command_line();
+    let args = handle_command_line();
 
     if is_gtk_ok {
-        run(gstreamer::init().is_ok(), input_file);
+        run(gstreamer::init().is_ok(), args);
     } else {
         error!("{}", gettext("Failed to initialize GTK"));
     }
