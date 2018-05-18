@@ -479,7 +479,11 @@ impl PlaybackContext {
         gst::Element::link_many(elements).unwrap();
 
         for e in elements {
-            e.sync_state_with_parent().unwrap();
+            // Silently ignore the state sync issues
+            // and rely on the PlaybackContext state to return an error.
+            // Can't use ctx_tx to return the error because
+            // the bus catches it first.
+            let _res = e.sync_state_with_parent();
         }
 
         let sink_pad = queue.get_static_pad("sink").unwrap();
@@ -505,10 +509,16 @@ impl PlaybackContext {
                         .expect("Failed to notify UI");
                 }
                 gst::MessageView::Error(err) => {
+                    let msg = if "sink" == err.get_src().unwrap().get_name() {
+                        // TODO: make sure this only occurs in this particular case
+                        gettext(
+"Can't use hardware acceleration for video rendering.\nTry launching the application with `--disable-gl`.",
+                        )
+                    } else {
+                        err.get_error().description().to_owned()
+                    };
                     ctx_tx
-                        .send(ContextMessage::FailedToOpenMedia(
-                            err.get_error().description().to_owned(),
-                        ))
+                        .send(ContextMessage::FailedToOpenMedia(msg))
                         .unwrap();
                     return glib::Continue(false);
                 }

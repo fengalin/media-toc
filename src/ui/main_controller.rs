@@ -571,9 +571,9 @@ impl MainController {
                         this.keep_going = false;
                         keep_going = false;
 
-                        let mut error = gettext("Error opening file. {}").replacen("{}", &error, 1);
+                        let mut error = gettext("Error opening file.\n\n{}").replacen("{}", &error, 1);
                         if let Some(message) = this.check_missing_plugins() {
-                            error += "\n";
+                            error += "\n\n";
                             error += &message;
                         }
                         this.show_message(gtk::MessageType::Error, &error);
@@ -675,7 +675,7 @@ impl MainController {
             Ok(context) => self.context = Some(context),
             Err(error) => {
                 self.switch_to_default();
-                let error = gettext("Error opening file. {}").replace("{}", &error);
+                let error = gettext("Error opening file.\n\n{}").replace("{}", &error);
                 self.show_message(gtk::MessageType::Error, &error);
                 error!("{}", error);
             }

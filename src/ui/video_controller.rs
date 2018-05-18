@@ -3,7 +3,6 @@ use glib;
 use glib::{ObjectExt, ToValue};
 use glib::signal::SignalHandlerId;
 use gstreamer as gst;
-use gstreamer::prelude::*;
 use gtk;
 use gtk::{BoxExt, ContainerExt, Inhibit, WidgetExt};
 
@@ -30,47 +29,25 @@ pub struct VideoController {
 impl VideoController {
     pub fn new(builder: &gtk::Builder, disable_gl: bool) -> Self {
         let video_output = if !disable_gl {
-                gst::ElementFactory::make("gtkglsink", "video_sink")
-                    .and_then(|gtkglsink| {
-                        let glsinkbin = gst::ElementFactory::make("glsinkbin", "video_sink_bin")
-                            .expect("PlaybackContext: couldn't get `glsinkbin` from `gtkglsink`");
-                        glsinkbin.set_property("sink", &gtkglsink.to_value())
-                            .expect("VideoController: couldn't set `sink` for `glsinkbin`");
+                gst::ElementFactory::make("gtkglsink", "gtkglsink").map(|gtkglsink| {
+                    let glsinkbin = gst::ElementFactory::make("glsinkbin", "video_sink")
+                        .expect("PlaybackContext: couldn't get `glsinkbin` from `gtkglsink`");
+                    glsinkbin.set_property("sink", &gtkglsink.to_value())
+                        .expect("VideoController: couldn't set `sink` for `glsinkbin`");
 
-                        // Make sure the `glsink` is operational
-                        let must_try_gl = match gst::ElementFactory::make("fakevideosink", None) {
-                            Some(fake_src) => {
-                                let glsinkbin = glsinkbin.clone();
-                                let pipeline = gst::Pipeline::new("pipeline");
-                                pipeline.add_many(&[&fake_src, &glsinkbin]).unwrap();
-                                match fake_src.link(&glsinkbin) {
-                                    Ok(()) => glsinkbin.sync_state_with_parent().is_ok(),
-                                    Err(_) => false,
-                                }
-                            }
-                            None => {
-                                warn!("can't check wether `glsink` is operational beforehand. Install `gst-plugins-bad`.");
-                                true
-                            }
-                        };
-
-                        if must_try_gl {
-                            debug!("Using gtkglsink");
-                            Some(VideoOutput {
-                                sink: glsinkbin,
-                                widget: gtkglsink.get_property("widget")
-                                    .expect(
-                                        "VideoController: couldn't get `widget` from `gtkglsink`"
-                                    )
-                                    .get::<gtk::Widget>()
-                                    .expect(
-                                        "VideoController: unexpected type for `widget` in `gtkglsink`"
-                                    ),
-                            })
-                        } else {
-                            None
-                        }
-                    })
+                    debug!("Using gtkglsink");
+                    VideoOutput {
+                        sink: glsinkbin,
+                        widget: gtkglsink.get_property("widget")
+                            .expect(
+                                "VideoController: couldn't get `widget` from `gtkglsink`"
+                            )
+                            .get::<gtk::Widget>()
+                            .expect(
+                                "VideoController: unexpected type for `widget` in `gtkglsink`"
+                            ),
+                    }
+                })
             } else {
                 None
             }.or_else(|| {
