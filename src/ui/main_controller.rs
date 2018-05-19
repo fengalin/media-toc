@@ -186,7 +186,7 @@ impl MainController {
                 play_pause.connect_activate(move |_, _| {
                     this_rc.borrow_mut().play_pause();
                 });
-                gtk_app.set_accels_for_action("app.play_pause", &["P"]); // FIXME: use Spacebar...
+                gtk_app.set_accels_for_action("app.play_pause", &["space", "P"]);
 
                 this_mut.play_pause_btn.set_sensitive(true);
 
