@@ -9,7 +9,7 @@ use gtk::{BoxExt, ContainerExt, Inhibit, WidgetExt};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use application::Config;
+use application::CONFIG;
 use media::PlaybackContext;
 use metadata::MediaInfo;
 use super::MainController;
@@ -36,8 +36,8 @@ impl VideoController {
         }
     }
 
-    pub fn register_callbacks(&mut self, main_ctrl: &Rc<RefCell<MainController>>, config: &Config) {
-        let video_output = if !self.disable_gl && !config.media.is_gl_disable {
+    pub fn register_callbacks(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
+        let video_output = if !self.disable_gl && !CONFIG.read().unwrap().media.is_gl_disable {
                 gst::ElementFactory::make("gtkglsink", "gtkglsink").map(|gtkglsink| {
                     let glsinkbin = gst::ElementFactory::make("glsinkbin", "video_sink")
                         .expect("PlaybackContext: couldn't get `glsinkbin` from `gtkglsink`");

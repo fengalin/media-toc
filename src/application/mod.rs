@@ -15,7 +15,7 @@ mod command_line;
 pub use self::command_line::{CommandLineArguments, handle_command_line};
 
 mod configuration;
-pub use self::configuration::Config;
+pub use self::configuration::CONFIG;
 
 mod locale;
 pub use self::locale::init_locale;

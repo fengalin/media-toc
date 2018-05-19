@@ -4,44 +4,52 @@ use ron;
 
 use std::fs::{create_dir_all, File};
 use std::io::Write;
+use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
+use std::sync::{Arc, RwLock};
 
 use super::{TLD, SLD};
 
 const CONFIG_FILENAME: &str = "config.ron";
 
 lazy_static! {
-    pub static ref CONFIG_PATH: PathBuf = {
-        let project_dirs = ProjectDirs::from(TLD, SLD, env!("CARGO_PKG_NAME"));
-        let config_dir = project_dirs.config_dir();
-        create_dir_all(&config_dir).unwrap();
-        config_dir.join(CONFIG_FILENAME).to_owned()
-    };
+    pub static ref CONFIG: Arc<RwLock<Config>> = Arc::new(RwLock::new(Config::new()));
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct UI {
     pub width: i32,
     pub height: i32,
     pub is_chapters_list_hidden: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct Media {
     pub is_gl_disable: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct Config {
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+pub struct GlobalConfig {
     pub ui: UI,
     pub media: Media,
 }
 
+pub struct Config {
+    path: PathBuf,
+    last: GlobalConfig,
+    current: GlobalConfig,
+}
+
 impl Config {
-    pub fn get() -> Config {
-        match File::open(&*CONFIG_PATH) {
+    fn new() -> Config {
+        let project_dirs = ProjectDirs::from(TLD, SLD, env!("CARGO_PKG_NAME"));
+        let config_dir = project_dirs.config_dir();
+        create_dir_all(&config_dir).unwrap();
+        let path = config_dir.join(CONFIG_FILENAME).to_owned();
+
+        let last = match File::open(&path) {
             Ok(config_file) => {
-                let config: Result<Config, ron::de::Error> = ron::de::from_reader(config_file);
+                let config: Result<GlobalConfig, ron::de::Error> = ron::de::from_reader(config_file);
                 match config {
                     Ok(config) => {
                         debug!("read config: {:?}", config);
@@ -52,21 +60,37 @@ impl Config {
                             &gettext("couldn't load configuration: {}")
                                 .replacen("{}", &format!("{:?}", err), 1),
                         );
-                        Config::default()
+                        GlobalConfig::default()
                     }
                 }
             }
-            Err(_) => Config::default(),
+            Err(_) => GlobalConfig::default(),
+        };
+
+        Config {
+            path,
+            current: last.clone(),
+            last,
         }
     }
 
-    pub fn save(&self) {
-        match File::create(&*CONFIG_PATH) {
+    pub fn save(&mut self) {
+        if self.last == self.current {
+            // unchanged => don't save
+            return;
+        }
+
+        match File::create(&self.path) {
             Ok(mut config_file) => {
-                let config_se = ron::ser::to_string_pretty(self, ron::ser::PrettyConfig::default());
-                match config_se {
+                match ron::ser::to_string_pretty(
+                    &self.current,
+                    ron::ser::PrettyConfig::default(),
+                ) {
                     Ok(config_str) => match config_file.write_all(config_str.as_bytes()) {
-                        Ok(()) => debug!("saved config: {:?}", self),
+                        Ok(()) => {
+                            self.last = self.current.clone();
+                            debug!("saved config: {:?}", self.current);
+                        }
                         Err(err) => {
                             error!("{}",
                                 &gettext("couldn't write configuration: {}")
@@ -89,5 +113,19 @@ impl Config {
                 );
             }
         }
+    }
+}
+
+impl Deref for Config {
+    type Target = GlobalConfig;
+
+    fn deref(&self) -> &Self::Target {
+        &self.current
+    }
+}
+
+impl DerefMut for Config {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.current
     }
 }

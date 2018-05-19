@@ -8,7 +8,7 @@ use std::fs::File;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
-use application::Config;
+use application::CONFIG;
 use media::PlaybackContext;
 use metadata;
 use metadata::{MediaInfo, Timestamp};
@@ -104,14 +104,13 @@ impl InfoController {
     pub fn register_callbacks(
         this_rc: &Rc<RefCell<Self>>,
         main_ctrl: &Rc<RefCell<MainController>>,
-        config: &Config,
     ) {
         let mut this = this_rc.borrow_mut();
 
         this.main_ctrl = Some(Rc::downgrade(main_ctrl));
 
         // Show chapters toggle
-        if config.ui.is_chapters_list_hidden {
+        if CONFIG.read().unwrap().ui.is_chapters_list_hidden {
             this.show_chapters_btn.set_active(false);
             this.info_container.hide();
         }
@@ -120,14 +119,10 @@ impl InfoController {
         this.show_chapters_btn
             .connect_toggled(move |toggle_button| {
                 if toggle_button.get_active() {
-                    let mut config = Config::get();
-                    config.ui.is_chapters_list_hidden = false;
-                    config.save();
+                    CONFIG.write().unwrap().ui.is_chapters_list_hidden = false;
                     this_clone.borrow().info_container.show();
                 } else {
-                    let mut config = Config::get();
-                    config.ui.is_chapters_list_hidden = true;
-                    config.save();
+                    CONFIG.write().unwrap().ui.is_chapters_list_hidden = true;
                     this_clone.borrow().info_container.hide();
                 }
             });
