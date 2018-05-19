@@ -20,10 +20,11 @@ use gtk::prelude::*;
 
 use gdk::{Cursor, CursorType, WindowExt};
 
+use application::APP_ID;
 use media::ContextMessage::*;
 use media::{ContextMessage, PlaybackContext};
 
-use super::{APP_ID, AudioController, ChaptersBoundaries, ExportController, InfoController,
+use super::{AudioController, ChaptersBoundaries, ExportController, InfoController,
             PerspectiveController, SplitController, StreamsController, VideoController};
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
@@ -217,7 +218,7 @@ impl MainController {
         dialog.set_modal(true);
         dialog.set_transient_for(&self.window);
 
-        dialog.set_program_name("media-toc");
+        dialog.set_program_name(env!("CARGO_PKG_NAME"));
         dialog.set_logo_icon_name(APP_ID);
         dialog.set_comments(&gettext(
             "Build a table of contents from a media file\nor split a media file into chapters"
@@ -225,7 +226,7 @@ impl MainController {
         dialog.set_copyright(&gettext("© 2017–2018 François Laignel")[..]);
         dialog.set_license_type(gtk::License::MitX11);
         dialog.set_version(env!("CARGO_PKG_VERSION"));
-        dialog.set_website("https://github.com/fengalin/media-toc");
+        dialog.set_website(env!("CARGO_PKG_HOMEPAGE"));
         dialog.set_website_label(&gettext("Learn more about media-toc")[..]);
 
         dialog.show();

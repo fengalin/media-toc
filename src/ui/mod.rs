@@ -1,5 +1,3 @@
-pub const APP_ID: &str = "org.fengalin.media-toc";
-
 mod audio_controller;
 use self::audio_controller::AudioController;
 

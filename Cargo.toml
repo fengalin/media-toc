@@ -1,13 +1,14 @@
 [package]
-name = "media-toc"
-version = "0.4.2"
 authors = ["François Laignel <fengalin@free.fr>"]
-keywords = ["multimedia", "chapter", "table-of-contents", "gtk3", "gstreamer"]
-repository = "https://github.com/fengalin/media-toc"
-readme = "README.md"
-description = "Build a table of contents from a media file or split a media file into chapters"
-license = "MIT"
 build = "build.rs"
+description = "Build a table of contents from a media file or split a media file into chapters"
+homepage = "https://github.com/fengalin/media-toc"
+keywords = ["multimedia", "chapter", "table-of-contents", "gtk3", "gstreamer"]
+license = "MIT"
+name = "media-toc"
+readme = "README.md"
+repository = "https://github.com/fengalin/media-toc"
+version = "0.4.2"
 
 [dependencies]
 cairo-rs = "^0.4.1"

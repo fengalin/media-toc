@@ -39,13 +39,9 @@ impl VideoController {
                     VideoOutput {
                         sink: glsinkbin,
                         widget: gtkglsink.get_property("widget")
-                            .expect(
-                                "VideoController: couldn't get `widget` from `gtkglsink`"
-                            )
+                            .expect("VideoController: couldn't get `widget` from `gtkglsink`")
                             .get::<gtk::Widget>()
-                            .expect(
-                                "VideoController: unexpected type for `widget` in `gtkglsink`"
-                            ),
+                            .expect("VideoController: unexpected type for `widget` in `gtkglsink`"),
                     }
                 })
             } else {
