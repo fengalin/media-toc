@@ -5,10 +5,17 @@ use gtk;
 
 use ui::MainController;
 
-pub const APP_ID: &str = "org.fengalin.media-toc";
+pub const TLD: &str = "org";
+pub const SLD: &str = "fengalin";
+lazy_static! {
+    pub static ref APP_ID: String = TLD.to_owned() + "." + SLD + "." + env!("CARGO_PKG_NAME");
+}
 
 mod command_line;
 pub use self::command_line::{CommandLineArguments, handle_command_line};
+
+mod configuration;
+pub use self::configuration::Config;
 
 mod locale;
 pub use self::locale::init_locale;
@@ -27,7 +34,7 @@ pub fn run(is_gst_ok: bool, args: CommandLineArguments) {
         });
 
     // Init App
-    let gtk_app = gtk::Application::new(APP_ID, gio::ApplicationFlags::empty())
+    let gtk_app = gtk::Application::new(&APP_ID[..], gio::ApplicationFlags::empty())
         .expect("Failed to initialize GtkApplication");
 
     gtk_app.connect_activate(move |gtk_app| {

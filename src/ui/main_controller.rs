@@ -20,7 +20,7 @@ use gtk::prelude::*;
 
 use gdk::{Cursor, CursorType, WindowExt};
 
-use application::APP_ID;
+use application::{APP_ID, Config};
 use media::ContextMessage::*;
 use media::{ContextMessage, PlaybackContext};
 
@@ -141,15 +141,26 @@ impl MainController {
             gtk_app.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
             app_menu.append(&gettext("Quit")[..], "app.quit");
 
+            let this_rc = Rc::clone(&this);
+            this_mut.window.connect_delete_event(move |_, _| {
+                this_rc.borrow_mut().quit();
+                Inhibit(false)
+            });
+
             // Prepare controllers
             if is_gst_ok {
+                let config = Config::get();
+                if config.ui.width > 0 && config.ui.height > 0 {
+                    this_mut.window.resize(config.ui.width, config.ui.height);
+                }
+
                 this_mut.video_ctrl.register_callbacks(&this);
                 PerspectiveController::register_callbacks(
                     &this_mut.perspective_ctrl,
                     gtk_app,
                     &this,
                 );
-                InfoController::register_callbacks(&this_mut.info_ctrl, &this);
+                InfoController::register_callbacks(&this_mut.info_ctrl, &this, &config);
                 AudioController::register_callbacks(&this_mut.audio_ctrl, &this);
                 ExportController::register_callbacks(&this_mut.export_ctrl, &this);
                 SplitController::register_callbacks(&this_mut.split_ctrl, &this);
@@ -209,7 +220,7 @@ impl MainController {
     }
 
     pub fn show_all(&self) {
-        self.window.show_all();
+        self.window.show();
         self.window.activate();
     }
 
@@ -219,7 +230,7 @@ impl MainController {
         dialog.set_transient_for(&self.window);
 
         dialog.set_program_name(env!("CARGO_PKG_NAME"));
-        dialog.set_logo_icon_name(APP_ID);
+        dialog.set_logo_icon_name(&APP_ID[..]);
         dialog.set_comments(&gettext(
             "Build a table of contents from a media file\nor split a media file into chapters"
         )[..]);
@@ -237,6 +248,13 @@ impl MainController {
             context.stop();
         }
         self.remove_listener();
+
+        let mut config = Config::get();
+        let size = self.window.get_size();
+        config.ui.width = size.0;
+        config.ui.height = size.1;
+        config.save();
+
         self.window.destroy();
     }
 

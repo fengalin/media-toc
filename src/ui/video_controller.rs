@@ -66,6 +66,7 @@ impl VideoController {
             Some(ref video_output) => {
                 container.pack_start(&video_output.widget, true, true, 0);
                 container.reorder_child(&video_output.widget, 0);
+                video_output.widget.show();
             }
             None => {
                 error!("{}", gettext("Couldn't find GStreamer GTK video sink."));
@@ -86,6 +87,7 @@ impl VideoController {
 
     pub fn register_callbacks(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
         if self.video_output.is_some() {
+            self.cleanup();
             let main_ctrl_clone = Rc::clone(main_ctrl);
             self.container
                 .connect_button_press_event(move |_, _event_button| {

@@ -1,6 +1,7 @@
 extern crate byteorder;
 extern crate cairo;
 extern crate clap;
+extern crate directories;
 extern crate env_logger;
 extern crate gdk;
 extern crate gettextrs;
@@ -11,7 +12,9 @@ extern crate gstreamer_audio;
 extern crate gtk;
 extern crate image;
 extern crate pango;
+extern crate ron;
 extern crate sample;
+extern crate serde;
 
 #[macro_use]
 extern crate lazy_static;
@@ -19,6 +22,8 @@ extern crate lazy_static;
 extern crate log;
 #[macro_use]
 extern crate nom;
+#[macro_use]
+extern crate serde_derive;
 
 #[cfg(feature = "dump-waveform")]
 extern crate chrono;
