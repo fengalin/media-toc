@@ -1,6 +1,7 @@
 # List of source files containing translatable strings.
 # Please keep this file sorted alphabetically.
 assets/ui/media-toc.ui
+src/application/command_line.rs
 src/main.rs
 src/media/playback_context.rs
 src/media/splitter_context.rs

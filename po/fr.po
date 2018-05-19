@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-05-18 17:53+0200\n"
-"PO-Revision-Date: 2018-05-18 17:55+0200\n"
+"POT-Creation-Date: 2018-05-19 17:58+0200\n"
+"PO-Revision-Date: 2018-05-19 18:01+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -236,7 +236,7 @@ msgstr "Flux"
 msgid "Export\t"
 msgstr "Exporter"
 
-#: src/main.rs:56 src/ui/main_controller.rs:223
+#: src/application/command_line.rs:13 src/ui/main_controller.rs:235
 msgid ""
 "Build a table of contents from a media file\n"
 "or split a media file into chapters"
@@ -244,35 +244,35 @@ msgstr ""
 "Construit une table des matières à partir d'un fichier multimédia\n"
 "ou découpe un fichier multimédia en chapitres"
 
-#: src/main.rs:57
+#: src/application/command_line.rs:14
 msgid "Display this message"
 msgstr "Affiche ce message"
 
-#: src/main.rs:58
+#: src/application/command_line.rs:15
 msgid "Print version information"
 msgstr "Affiche la version"
 
-#: src/main.rs:61
+#: src/application/command_line.rs:18
 msgid "MEDIA"
 msgstr "MÉDIA"
 
-#: src/main.rs:73
-msgid "Disable hardware acceleration for video rendering"
-msgstr "Désactive l'accélération matérielle pour la video"
+#: src/application/command_line.rs:30
+msgid "Disable video rendering hardware acceleration"
+msgstr "Désactive l'accélération matérielle pour la vidéo"
 
-#: src/main.rs:77
+#: src/application/command_line.rs:34
 msgid "Path to the input media file"
 msgstr "Chemin du fichier multimédia"
 
-#: src/main.rs:135
+#: src/main.rs:52
 msgid "Failed to initialize GTK"
 msgstr "Impossible d'initialiser GTK"
 
-#: src/media/playback_context.rs:71
+#: src/media/playback_context.rs:72
 msgid "Opening {}..."
 msgstr "Ouverture de {}…"
 
-#: src/media/playback_context.rs:108
+#: src/media/playback_context.rs:109
 msgid ""
 "Missing `decodebin3`\n"
 "check your gst-plugins-base install"
@@ -280,36 +280,37 @@ msgstr ""
 "`decodebin3` manquant\n"
 "Vérifiez l'installation de gst-plugin-base"
 
-#: src/media/playback_context.rs:125
+#: src/media/playback_context.rs:126
 msgid "Couldn't find GStreamer GTK video sink."
 msgstr "Impossible de trouver l'élément « GTK video sink »."
 
-#: src/media/playback_context.rs:126
+#: src/media/playback_context.rs:127
 msgid "Video playback will be disabled."
 msgstr "L'affichage vidéo sera désactivé."
 
-#: src/media/playback_context.rs:127
+#: src/media/playback_context.rs:128
 msgid "Please install {} or {}, depending on your distribution."
 msgstr "Veuillez installer {} ou {}, selon votre distribution."
 
-#: src/media/playback_context.rs:153 src/media/toc_setter_context.rs:74
+#: src/media/playback_context.rs:154 src/media/toc_setter_context.rs:74
 msgid "Could not set media in Playing mode"
 msgstr "Impossible de passer le média en mode lecture."
 
-#: src/media/playback_context.rs:160 src/media/splitter_context.rs:118
+#: src/media/playback_context.rs:161 src/media/splitter_context.rs:118
 #: src/media/toc_setter_context.rs:63
 msgid "Could not set media in Paused mode"
 msgstr "Impossible de passer le média en mode pause."
 
-#: src/media/playback_context.rs:515
+#: src/media/playback_context.rs:520
 msgid ""
-"Can't use hardware acceleration for video rendering.\n"
-"Try launching the application with `--disable-gl`."
+"Video rendering hardware acceleration seems broken and has been disable.\n"
+"Please restart the application."
 msgstr ""
-"L'accélération matérielle pour la vidéo est inutilisable.\n"
-"Essayez en relançant l'application avec `--disable-gl`."
+"L'accélération matérielle pour la vidéo a été désactivée\n"
+"car elle ne semble pas fonctionner correctement.\n"
+"Veuillez relancer l'application."
 
-#: src/media/playback_context.rs:658
+#: src/media/playback_context.rs:663
 msgid "No usable streams could be found."
 msgstr "Aucun flux exploitable n'a été trouvé."
 
@@ -467,11 +468,11 @@ msgstr "Échec à l'export du média. {}"
 msgid "Media exported succesfully"
 msgstr "Table des matières exportée avec succès"
 
-#: src/ui/info_controller.rs:299
+#: src/ui/info_controller.rs:308
 msgid "No toc in file \"{}\""
 msgstr "Aucune table des matières dans le fichier «{}»"
 
-#: src/ui/info_controller.rs:310
+#: src/ui/info_controller.rs:319
 msgid ""
 "Error opening toc file \"{}\":\n"
 "{}"
@@ -479,37 +480,37 @@ msgstr ""
 "Erreur à l'ouverture du fichier «{}» :\n"
 "{}"
 
-#: src/ui/info_controller.rs:323
+#: src/ui/info_controller.rs:332
 msgid "Failed to open toc file."
 msgstr "Impossible d'ouvrir le fichier de table des matières."
 
-#: src/ui/main_controller.rs:133
+#: src/ui/main_controller.rs:134
 msgid "About"
 msgstr "À propos"
 
-#: src/ui/main_controller.rs:141
+#: src/ui/main_controller.rs:142
 msgid "Quit"
 msgstr "Quitter"
 
-#: src/ui/main_controller.rs:201
+#: src/ui/main_controller.rs:213
 msgid "Failed to initialize GStreamer, the application can't be used."
 msgstr "Échec à l'initialisation de GStreamer, l'application est inutilisable."
 
-#: src/ui/main_controller.rs:225
+#: src/ui/main_controller.rs:237
 msgid "© 2017–2018 François Laignel"
 msgstr "© 2017–2018 François Laignel"
 
-#: src/ui/main_controller.rs:229
+#: src/ui/main_controller.rs:241
 msgid "Learn more about media-toc"
 msgstr "En apprendre plus sur media-toc"
 
-#: src/ui/main_controller.rs:462 src/ui/main_controller.rs:531
+#: src/ui/main_controller.rs:481 src/ui/main_controller.rs:550
 msgid "Missing plugin: {}"
 msgid_plural "Missing plugins: {}"
 msgstr[0] "Greffon manquant : {}"
 msgstr[1] "Greffons manquants : {}"
 
-#: src/ui/main_controller.rs:574 src/ui/main_controller.rs:678
+#: src/ui/main_controller.rs:593 src/ui/main_controller.rs:697
 msgid ""
 "Error opening file.\n"
 "\n"
@@ -519,11 +520,11 @@ msgstr ""
 "\n"
 "{}"
 
-#: src/ui/main_controller.rs:627
+#: src/ui/main_controller.rs:646
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:632
+#: src/ui/main_controller.rs:651
 msgid "Open"
 msgstr "Ouvrir"
 
