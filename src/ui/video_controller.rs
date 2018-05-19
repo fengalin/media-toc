@@ -9,10 +9,9 @@ use gtk::{BoxExt, ContainerExt, Inhibit, WidgetExt};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use application::Config;
 use media::PlaybackContext;
-
 use metadata::MediaInfo;
-
 use super::MainController;
 
 struct VideoOutput {
@@ -21,6 +20,7 @@ struct VideoOutput {
 }
 
 pub struct VideoController {
+    disable_gl: bool,
     video_output: Option<VideoOutput>,
     container: gtk::Box,
     cleaner_id: Option<SignalHandlerId>,
@@ -28,7 +28,16 @@ pub struct VideoController {
 
 impl VideoController {
     pub fn new(builder: &gtk::Builder, disable_gl: bool) -> Self {
-        let video_output = if !disable_gl {
+        VideoController {
+            disable_gl,
+            video_output: None,
+            container: builder.get_object("video-container").unwrap(),
+            cleaner_id: None,
+        }
+    }
+
+    pub fn register_callbacks(&mut self, main_ctrl: &Rc<RefCell<MainController>>, config: &Config) {
+        let video_output = if !self.disable_gl && !config.media.is_gl_disable {
                 gst::ElementFactory::make("gtkglsink", "gtkglsink").map(|gtkglsink| {
                     let glsinkbin = gst::ElementFactory::make("glsinkbin", "video_sink")
                         .expect("PlaybackContext: couldn't get `glsinkbin` from `gtkglsink`");
@@ -61,16 +70,22 @@ impl VideoController {
                 })
             });
 
-        let container: gtk::Box = builder.get_object("video-container").unwrap();
         match video_output {
             Some(ref video_output) => {
-                container.pack_start(&video_output.widget, true, true, 0);
-                container.reorder_child(&video_output.widget, 0);
+                self.container.pack_start(&video_output.widget, true, true, 0);
+                self.container.reorder_child(&video_output.widget, 0);
                 video_output.widget.show();
+                self.cleanup();
+                let main_ctrl_clone = Rc::clone(main_ctrl);
+                self.container
+                    .connect_button_press_event(move |_, _event_button| {
+                        main_ctrl_clone.borrow_mut().play_pause();
+                        Inhibit(false)
+                    });
             }
             None => {
                 error!("{}", gettext("Couldn't find GStreamer GTK video sink."));
-                let container = container.clone();
+                let container = self.container.clone();
                 gtk::idle_add(move || {
                     container.hide();
                     glib::Continue(false)
@@ -78,23 +93,7 @@ impl VideoController {
             }
         };
 
-        VideoController {
-            video_output,
-            container,
-            cleaner_id: None,
-        }
-    }
-
-    pub fn register_callbacks(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
-        if self.video_output.is_some() {
-            self.cleanup();
-            let main_ctrl_clone = Rc::clone(main_ctrl);
-            self.container
-                .connect_button_press_event(move |_, _event_button| {
-                    main_ctrl_clone.borrow_mut().play_pause();
-                    Inhibit(false)
-                });
-        }
+        self.video_output = video_output;
     }
 
     pub fn get_video_sink(&self) -> Option<gst::Element> {

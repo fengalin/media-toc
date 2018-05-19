@@ -27,7 +27,7 @@ pub fn handle_command_line() -> CommandLineArguments {
             Arg::with_name(&disable_gl_arg[..])
                 .short("d")
                 .long("disable-gl")
-                .help(&gettext("Disable hardware acceleration for video rendering"))
+                .help(&gettext("Disable video rendering hardware acceleration"))
         )
         .arg(
             Arg::with_name(&input_arg[..])

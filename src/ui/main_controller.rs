@@ -154,7 +154,7 @@ impl MainController {
                     this_mut.window.resize(config.ui.width, config.ui.height);
                 }
 
-                this_mut.video_ctrl.register_callbacks(&this);
+                this_mut.video_ctrl.register_callbacks(&this, &config);
                 PerspectiveController::register_callbacks(
                     &this_mut.perspective_ctrl,
                     gtk_app,

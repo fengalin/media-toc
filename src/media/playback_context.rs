@@ -13,6 +13,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, RwLock};
 
+use application::Config;
 use metadata::MediaInfo;
 
 use super::{ContextMessage, DoubleAudioBuffer};
@@ -511,8 +512,12 @@ impl PlaybackContext {
                 gst::MessageView::Error(err) => {
                     let msg = if "sink" == err.get_src().unwrap().get_name() {
                         // TODO: make sure this only occurs in this particular case
+                        let mut config = Config::get();
+                        config.media.is_gl_disable = true;
+                        config.save();
+
                         gettext(
-"Can't use hardware acceleration for video rendering.\nTry launching the application with `--disable-gl`.",
+"Video rendering hardware acceleration seems broken and has been disable.\nPlease restart the application.",
                         )
                     } else {
                         err.get_error().description().to_owned()
