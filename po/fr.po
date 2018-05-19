@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-05-19 17:58+0200\n"
-"PO-Revision-Date: 2018-05-19 18:01+0200\n"
+"POT-Creation-Date: 2018-05-19 18:10+0200\n"
+"PO-Revision-Date: 2018-05-19 18:11+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -263,6 +263,22 @@ msgstr "Désactive l'accélération matérielle pour la vidéo"
 #: src/application/command_line.rs:34
 msgid "Path to the input media file"
 msgstr "Chemin du fichier multimédia"
+
+#: src/application/configuration.rs:52
+msgid "couldn't load configuration: {}"
+msgstr "impossible de charger la configuration : {}"
+
+#: src/application/configuration.rs:72
+msgid "couldn't write configuration: {}"
+msgstr "impossible d'écrire la configuration : {}"
+
+#: src/application/configuration.rs:79
+msgid "couldn't serialize configuration: {}"
+msgstr "impossible de sérialiser la configuration : {}"
+
+#: src/application/configuration.rs:87
+msgid "couldn't create configuration file: {}"
+msgstr "impossible de créer le fichier de configuration : {}"
 
 #: src/main.rs:52
 msgid "Failed to initialize GTK"
