@@ -6,14 +6,14 @@ use std::fs::{create_dir_all, File};
 use std::io::Write;
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::RwLock;
 
 use super::{TLD, SLD};
 
 const CONFIG_FILENAME: &str = "config.ron";
 
 lazy_static! {
-    pub static ref CONFIG: Arc<RwLock<Config>> = Arc::new(RwLock::new(Config::new()));
+    pub static ref CONFIG: RwLock<Config> = RwLock::new(Config::new());
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
