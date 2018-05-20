@@ -32,12 +32,9 @@ inkscape --without-gui \
 for XY in 128 256 512; do
     mkdir -p assets/icons/hicolor/"$XY"x"$XY"/apps/
 
-    PYTHON_EXPR=$(printf "import bpy\nfor scene in bpy.data.scenes:\n scene.render.resolution_x="$XY"\n scene.render.resolution_y="$XY)
-    blender --background \
+    XY=$XY APP_ID=$APP_ID blender --background \
     	-b assets/icons/src/media-toc.blend \
-    	--render-output assets/icons/hicolor/"$XY"x"$XY"/apps/ \
-    	-f 1 --python-expr "$PYTHON_EXPR"
-    mv assets/icons/hicolor/"$XY"x"$XY"/apps/0001.png assets/icons/hicolor/"$XY"x"$XY"/apps/$APP_ID.png
+    	--python assets/icons/render_image.py
 
     inkscape --without-gui \
     	-w$XY -h$XY \
