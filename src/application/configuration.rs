@@ -13,7 +13,7 @@ use super::{TLD, SLD};
 const CONFIG_FILENAME: &str = "config.ron";
 
 lazy_static! {
-    pub static ref CONFIG: RwLock<Config> = RwLock::new(Config::new());
+    pub static ref CONFIG: RwLock<GlobalConfig> = RwLock::new(GlobalConfig::new());
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
@@ -29,19 +29,19 @@ pub struct Media {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
-pub struct GlobalConfig {
+pub struct Config {
     pub ui: UI,
     pub media: Media,
 }
 
-pub struct Config {
+pub struct GlobalConfig {
     path: PathBuf,
-    last: GlobalConfig,
-    current: GlobalConfig,
+    last: Config,
+    current: Config,
 }
 
-impl Config {
-    fn new() -> Config {
+impl GlobalConfig {
+    fn new() -> GlobalConfig {
         let project_dirs = ProjectDirs::from(TLD, SLD, env!("CARGO_PKG_NAME"));
         let config_dir = project_dirs.config_dir();
         create_dir_all(&config_dir).unwrap();
@@ -49,7 +49,7 @@ impl Config {
 
         let last = match File::open(&path) {
             Ok(config_file) => {
-                let config: Result<GlobalConfig, ron::de::Error> = ron::de::from_reader(config_file);
+                let config: Result<Config, ron::de::Error> = ron::de::from_reader(config_file);
                 match config {
                     Ok(config) => {
                         debug!("read config: {:?}", config);
@@ -60,14 +60,14 @@ impl Config {
                             &gettext("couldn't load configuration: {}")
                                 .replacen("{}", &format!("{:?}", err), 1),
                         );
-                        GlobalConfig::default()
+                        Config::default()
                     }
                 }
             }
-            Err(_) => GlobalConfig::default(),
+            Err(_) => Config::default(),
         };
 
-        Config {
+        GlobalConfig {
             path,
             current: last.clone(),
             last,
@@ -116,15 +116,15 @@ impl Config {
     }
 }
 
-impl Deref for Config {
-    type Target = GlobalConfig;
+impl Deref for GlobalConfig {
+    type Target = Config;
 
     fn deref(&self) -> &Self::Target {
         &self.current
     }
 }
 
-impl DerefMut for Config {
+impl DerefMut for GlobalConfig {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.current
     }
