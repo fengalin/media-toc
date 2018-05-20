@@ -35,27 +35,16 @@ impl Factory {
 
     pub fn get_reader(format: &Format) -> Box<Reader> {
         match *format {
-            Format::CueSheet => unimplemented!("Reader for toc::Format::CueSheet"),
-            Format::Flac => unimplemented!("Reader for toc::Format::Flac"),
-            Format::Matroska => unimplemented!("Reader for toc::Format::Matroska"),
             Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),
-            Format::MP3 => unimplemented!("Reader for toc::Format::MP3"),
-            Format::Opus => unimplemented!("Reader for toc::Format::Opus"),
-            Format::Vorbis => unimplemented!("Reader for toc::Format::Vorbis"),
-            Format::Wave => unimplemented!("Reader for toc::Format::Wave"),
+            format => unimplemented!("Reader for {:?}", format),
         }
     }
 
     pub fn get_writer(format: &Format) -> Box<Writer> {
         match *format {
             Format::CueSheet => CueSheetFormat::new_as_boxed(),
-            Format::Flac => unimplemented!("Writer for toc::Format::Wave"),
-            Format::Matroska => unimplemented!("Writer for toc::Format::Matroska"),
             Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),
-            Format::MP3 => unimplemented!("Writer for toc::Format::MP3"),
-            Format::Opus => unimplemented!("Writer for toc::Format::Opus"),
-            Format::Vorbis => unimplemented!("Writer for toc::Format::Vorbis"),
-            Format::Wave => unimplemented!("Writer for toc::Format::Wave"),
+            format => unimplemented!("Writer for {:?}", format),
         }
     }
 }
