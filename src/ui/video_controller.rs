@@ -1,3 +1,4 @@
+use gdk;
 use gettextrs::gettext;
 use glib;
 use glib::{ObjectExt, ToValue};
@@ -72,6 +73,9 @@ impl VideoController {
 
         match video_output {
             Some(ref video_output) => {
+                // discard GStreamer defined navigation events on widget
+                video_output.widget.set_events(gdk::EventMask::BUTTON_PRESS_MASK.bits() as i32);
+
                 self.container.pack_start(&video_output.widget, true, true, 0);
                 self.container.reorder_child(&video_output.widget, 0);
                 video_output.widget.show();
@@ -80,7 +84,7 @@ impl VideoController {
                 self.container
                     .connect_button_press_event(move |_, _event_button| {
                         main_ctrl_clone.borrow_mut().play_pause();
-                        Inhibit(false)
+                        Inhibit(true)
                     });
             }
             None => {
