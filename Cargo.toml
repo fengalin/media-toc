@@ -45,5 +45,8 @@ dump-waveform = ["cairo-rs/png"]
 trace-playback-queues = []
 default-features = []
 
+[build-dependencies]
+directories = "^0.10.0"
+
 [dev-dependencies]
 cairo-rs = { version = "^0.4.1", features = ["png"] }
