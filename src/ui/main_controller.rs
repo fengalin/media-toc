@@ -646,15 +646,20 @@ impl MainController {
         self.info_bar_revealer.set_reveal_child(false);
         self.switch_to_busy();
 
-        let file_dlg = gtk::FileChooserDialog::new(
+        let file_dlg = gtk::FileChooserDialog::with_buttons(
             Some(&gettext("Open a media file")),
             Some(&self.window),
             gtk::FileChooserAction::Open,
+            &[
+                (&gettext("Cancel"), gtk::ResponseType::Cancel),
+                (&gettext("Open"), gtk::ResponseType::Accept),
+            ],
         );
-        // Note: couldn't find equivalents for STOCK_OK
-        file_dlg.add_button(&gettext("Open"), gtk::ResponseType::Ok.into());
+        if let Some(ref last_path) = CONFIG.read().unwrap().media.last_path {
+            file_dlg.set_current_folder(last_path);
+        }
 
-        if file_dlg.run() == gtk::ResponseType::Ok.into() {
+        if file_dlg.run() == gtk::ResponseType::Accept.into() {
             if let Some(ref context) = self.context.take() {
                 context.stop();
             }
@@ -695,7 +700,13 @@ impl MainController {
             self.video_ctrl.get_video_sink(),
             ctx_tx,
         ) {
-            Ok(context) => self.context = Some(context),
+            Ok(context) => {
+                CONFIG
+                    .write()
+                    .unwrap()
+                    .media.last_path = filepath.parent().map(|path| path.to_owned());
+                self.context = Some(context);
+            }
             Err(error) => {
                 self.switch_to_default();
                 let error = gettext("Error opening file.\n\n{}").replace("{}", &error);

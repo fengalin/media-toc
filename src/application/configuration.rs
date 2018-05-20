@@ -25,7 +25,8 @@ pub struct UI {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct Media {
-    pub is_gl_disable: bool,
+    pub is_gl_disabled: bool,
+    pub last_path: Option<PathBuf>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]

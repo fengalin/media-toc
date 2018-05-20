@@ -37,7 +37,7 @@ impl VideoController {
     }
 
     pub fn register_callbacks(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
-        let video_output = if !self.disable_gl && !CONFIG.read().unwrap().media.is_gl_disable {
+        let video_output = if !self.disable_gl && !CONFIG.read().unwrap().media.is_gl_disabled {
                 gst::ElementFactory::make("gtkglsink", "gtkglsink").map(|gtkglsink| {
                     let glsinkbin = gst::ElementFactory::make("glsinkbin", "video_sink")
                         .expect("PlaybackContext: couldn't get `glsinkbin` from `gtkglsink`");

@@ -499,10 +499,10 @@ impl PlaybackContext {
                         CONFIG
                             .write()
                             .expect("Failed to get CONFIG as mut")
-                            .media.is_gl_disable = true;
+                            .media.is_gl_disabled = true;
 
                         gettext(
-"Video rendering hardware acceleration seems broken and has been disable.\nPlease restart the application.",
+"Video rendering hardware acceleration seems broken and has been disabled.\nPlease restart the application.",
                         )
                     } else {
                         err.get_error().description().to_owned()
