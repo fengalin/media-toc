@@ -8,7 +8,11 @@ use ui::MainController;
 pub const TLD: &str = "org";
 pub const SLD: &str = "fengalin";
 lazy_static! {
-    pub static ref APP_ID: String = TLD.to_owned() + "." + SLD + "." + env!("CARGO_PKG_NAME");
+    pub static ref APP_ID: String = format!("{}.{}.{}", TLD, SLD, env!("CARGO_PKG_NAME"));
+}
+
+lazy_static! {
+    pub static ref APP_PATH: String = format!("/{}/{}/{}", TLD, SLD, env!("CARGO_PKG_NAME"));
 }
 
 mod command_line;
@@ -20,10 +24,8 @@ pub use self::configuration::CONFIG;
 mod locale;
 pub use self::locale::init_locale;
 
-pub fn run(is_gst_ok: bool, args: CommandLineArguments) {
-    // Init resources
-    let res_bytes = include_bytes!("../../target/resources/icons.gresource");
-    let gbytes = glib::Bytes::from(res_bytes.as_ref());
+fn register_resource(resource: &[u8]) {
+    let gbytes = glib::Bytes::from(resource);
     let _res = gio::Resource::new_from_data(&gbytes)
         .and_then(|resource| {
             gio::resources_register(&resource);
@@ -32,8 +34,12 @@ pub fn run(is_gst_ok: bool, args: CommandLineArguments) {
         .unwrap_or_else(|err| {
             warn!("unable to load resources: {:?}", err);
         });
+}
 
-    // Init App
+pub fn run(is_gst_ok: bool, args: CommandLineArguments) {
+    register_resource(include_bytes!("../../target/resources/icons.gresource"));
+    register_resource(include_bytes!("../../target/resources/ui.gresource"));
+
     let gtk_app = gtk::Application::new(&APP_ID[..], gio::ApplicationFlags::empty())
         .expect("Failed to initialize GtkApplication");
 

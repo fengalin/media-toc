@@ -20,7 +20,7 @@ use gtk::prelude::*;
 
 use gdk::{Cursor, CursorType, WindowExt};
 
-use application::{APP_ID, CONFIG};
+use application::{APP_ID, APP_PATH, CONFIG};
 use media::ContextMessage::*;
 use media::{ContextMessage, PlaybackContext};
 
@@ -84,7 +84,7 @@ impl MainController {
         is_gst_ok: bool,
         disable_gl: bool,
     ) -> Rc<RefCell<Self>> {
-        let builder = gtk::Builder::new_from_string(include_str!("../../assets/ui/media-toc.ui"));
+        let builder = gtk::Builder::new_from_resource(&format!("{}/{}", *APP_PATH, "media-toc.ui"));
         let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
         window.set_application(gtk_app);
 

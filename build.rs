@@ -8,6 +8,7 @@ fn generate_resources() {
         .join("resources");
     create_dir_all(&target_path).unwrap();
 
+    // Icons
     let input_path = PathBuf::from("assets").join("icons").join("hicolor");
 
     let mut compile_res = Command::new("glib-compile-resources");
@@ -23,6 +24,34 @@ fn generate_resources() {
         Ok(status) => if !status.success() {
             panic!(format!(
                 "Failed to generate resources file for icons\n{:?}",
+                compile_res,
+            ));
+        },
+        Err(ref error) => match error.kind() {
+            ErrorKind::NotFound => {
+                eprintln!("Can't generate translations: command `compile_res` not available");
+                return;
+            }
+            _ => panic!("Error invoking `compile_res`: {}", error),
+        },
+    }
+
+    // UI
+    let input_path = PathBuf::from("assets").join("ui");
+
+    let mut compile_res = Command::new("glib-compile-resources");
+    compile_res
+        .arg("--generate")
+        .arg(format!("--sourcedir={}", input_path.to_str().unwrap()))
+        .arg(format!("--target={}",
+            target_path.join("ui.gresource").to_str().unwrap()
+        ))
+        .arg(input_path.join("ui.gresource.xml").to_str().unwrap());
+
+    match compile_res.status() {
+        Ok(status) => if !status.success() {
+            panic!(format!(
+                "Failed to generate resources file for the UI\n{:?}",
                 compile_res,
             ));
         },
