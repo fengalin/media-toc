@@ -20,6 +20,7 @@ lazy_static! {
 pub struct UI {
     pub width: i32,
     pub height: i32,
+    pub paned_pos: i32,
     pub is_chapters_list_hidden: bool,
 }
 

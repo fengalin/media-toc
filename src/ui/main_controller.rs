@@ -54,6 +54,7 @@ pub struct MainController {
     window: gtk::ApplicationWindow,
     header_bar: gtk::HeaderBar,
     open_btn: gtk::Button,
+    playback_paned: gtk::Paned,
     play_pause_btn: gtk::ToolButton,
     info_bar_revealer: gtk::Revealer,
     info_bar: gtk::InfoBar,
@@ -93,6 +94,7 @@ impl MainController {
             window,
             header_bar: builder.get_object("header-bar").unwrap(),
             open_btn: builder.get_object("open-btn").unwrap(),
+            playback_paned: builder.get_object("playback-paned").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
             info_bar_revealer: builder.get_object("info_bar-revealer").unwrap(),
             info_bar: builder.get_object("info_bar").unwrap(),
@@ -153,6 +155,7 @@ impl MainController {
                     let config = CONFIG.read().unwrap();
                     if config.ui.width > 0 && config.ui.height > 0 {
                         this_mut.window.resize(config.ui.width, config.ui.height);
+                        this_mut.playback_paned.set_position(config.ui.paned_pos);
                     }
                 }
 
@@ -253,9 +256,11 @@ impl MainController {
 
         {
             let size = self.window.get_size();
+            let paned_pos = self.playback_paned.get_position();
             let mut config = CONFIG.write().unwrap();
             config.ui.width = size.0;
             config.ui.height = size.1;
+            config.ui.paned_pos = paned_pos;
             config.save();
         }
 
