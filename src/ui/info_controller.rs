@@ -248,27 +248,23 @@ impl InfoController {
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
-        let media_path = context.path.clone();
-        let file_stem = media_path.file_stem().unwrap().to_str().unwrap();
-
-        // check the presence of toc files
         let toc_extensions = metadata::Factory::get_extensions();
-        let test_path = media_path.clone();
-        let mut toc_candidates = toc_extensions
-            .into_iter()
-            .filter_map(|(extension, format)| {
-                let path = test_path
-                    .clone()
-                    .with_file_name(&format!("{}.{}", file_stem, extension));
-                if path.is_file() {
-                    Some((path, format))
-                } else {
-                    None
-                }
-            });
 
         {
             let info = context.info.read().unwrap();
+
+            // check the presence of a toc file
+            let mut toc_candidates = toc_extensions
+                .into_iter()
+                .filter_map(|(extension, format)| {
+                    let path = info.path
+                        .with_file_name(&format!("{}.{}", info.name, extension));
+                    if path.is_file() {
+                        Some((path, format))
+                    } else {
+                        None
+                    }
+                });
 
             self.duration = info.duration;
             self.timeline_scale.set_range(0f64, info.duration as f64);

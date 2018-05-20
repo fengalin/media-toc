@@ -93,7 +93,7 @@ impl SplitterContext {
     pub fn new(
         input_path: &Path,
         output_path: &Path,
-        stream_id: String,
+        stream_id: &str,
         format: Format,
         chapter: gst::TocEntry,
         ctx_tx: Sender<ContextMessage>,
@@ -125,7 +125,7 @@ impl SplitterContext {
         self.position_query.get_result().get_value() as u64
     }
 
-    fn build_pipeline(&mut self, input_path: &Path, output_path: &Path, stream_id: String) {
+    fn build_pipeline(&mut self, input_path: &Path, output_path: &Path, stream_id: &str) {
         /* There are multiple showstoppers to implementing something ideal
          * to export splitted chapters with audio and video (and subtitles):
          * 1. matroska-mux drops seek events explicitely (a message states: "discard for now").
@@ -272,6 +272,7 @@ impl SplitterContext {
         outsink.sync_state_with_parent().unwrap();
 
         let pipeline_cb = self.pipeline.clone();
+        let stream_id = stream_id.to_owned();
         decodebin.connect_pad_added(move |_element, pad| {
             let caps = pad.get_current_caps().unwrap();
             let structure = caps.get_structure(0).unwrap();

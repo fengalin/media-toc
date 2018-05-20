@@ -9,7 +9,7 @@ use glib;
 use glib::{Cast, ObjectExt};
 
 use std::error::Error;
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -39,14 +39,7 @@ pub struct PlaybackContext {
     pipeline: gst::Pipeline,
     decodebin: gst::Element,
     position_query: gst::query::Position<gst::Query>,
-
     dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
-    video_sink: Option<gst::Element>,
-    ctx_tx: Sender<ContextMessage>,
-
-    pub path: PathBuf,
-    pub file_name: String,
-    pub name: String,
 
     pub info: Arc<RwLock<MediaInfo>>,
 }
@@ -62,8 +55,8 @@ impl Drop for PlaybackContext {
 
 impl PlaybackContext {
     pub fn new(
-        path: PathBuf,
-        dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
+        path: &Path,
+        dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer>>,
         video_sink: Option<gst::Element>,
         ctx_tx: Sender<ContextMessage>,
     ) -> Result<PlaybackContext, String> {
@@ -72,33 +65,18 @@ impl PlaybackContext {
             gettext("Opening {}...").replacen("{}", path.to_str().unwrap(), 1)
         );
 
-        let file_name = String::from(path.file_name().unwrap().to_str().unwrap());
-
         let mut this = PlaybackContext {
             pipeline: gst::Pipeline::new("pipeline"),
             decodebin: gst::ElementFactory::make("decodebin3", "decodebin").unwrap(),
             position_query: gst::Query::new_position(gst::Format::Time),
+            dbl_audio_buffer_mtx: Arc::clone(dbl_audio_buffer_mtx),
 
-            dbl_audio_buffer_mtx,
-            video_sink,
-            ctx_tx,
-
-            file_name: file_name.clone(),
-            name: String::from(path.file_stem().unwrap().to_str().unwrap()),
-            path,
-
-            info: Arc::new(RwLock::new(MediaInfo::new())),
+            info: Arc::new(RwLock::new(MediaInfo::new(path))),
         };
 
         this.pipeline.add(&this.decodebin).unwrap();
-
-        this.info
-            .write()
-            .expect("PlaybackContext::new failed to lock media info")
-            .file_name = file_name;
-
-        this.build_pipeline();
-        this.register_bus_inspector();
+        this.build_pipeline(path, video_sink, &ctx_tx);
+        this.register_bus_inspector(&ctx_tx);
 
         this.pause().map(|_| this)
     }
@@ -278,7 +256,11 @@ impl PlaybackContext {
             .unwrap();
     }
 
-    fn build_pipeline(&mut self) {
+    fn build_pipeline(&mut self,
+        path: &Path,
+        video_sink: Option<gst::Element>,
+        ctx_tx: &Sender<ContextMessage>,
+    ) {
         // From decodebin3's documentation: "Children: multiqueue0"
         let decodebin_as_bin = self.decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
         let decodebin_multiqueue = &decodebin_as_bin.get_children()[0];
@@ -290,7 +272,7 @@ impl PlaybackContext {
 
         let file_src = gst::ElementFactory::make("filesrc", "filesrc").unwrap();
         file_src
-            .set_property("location", &gst::Value::from(self.path.to_str().unwrap()))
+            .set_property("location", &gst::Value::from(path.to_str().unwrap()))
             .unwrap();
         self.pipeline.add(&file_src).unwrap();
         file_src.link(&self.decodebin).unwrap();
@@ -300,8 +282,8 @@ impl PlaybackContext {
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
         let dbl_audio_buffer_mtx = Arc::clone(&self.dbl_audio_buffer_mtx);
-        let video_sink = self.video_sink.clone();
-        let ctx_tx_mtx = Arc::new(Mutex::new(self.ctx_tx.clone()));
+        let video_sink = video_sink.clone();
+        let ctx_tx_mtx = Arc::new(Mutex::new(ctx_tx.clone()));
         self.decodebin
             .connect_pad_added(move |_decodebin, src_pad| {
                 let pipeline = &pipeline_clone;
@@ -312,8 +294,8 @@ impl PlaybackContext {
                         pipeline,
                         src_pad,
                         &audio_sink,
-                        Arc::clone(&ctx_tx_mtx),
-                        Arc::clone(&dbl_audio_buffer_mtx),
+                        &dbl_audio_buffer_mtx,
+                        &ctx_tx_mtx,
                     );
                 } else if name.starts_with("video_") {
                     if let Some(ref video_sink) = video_sink {
@@ -334,8 +316,8 @@ impl PlaybackContext {
         pipeline: &gst::Pipeline,
         src_pad: &gst::Pad,
         audio_sink: &gst::Element,
-        ctx_tx_mtx: Arc<Mutex<Sender<ContextMessage>>>,
-        dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
+        dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer>>,
+        ctx_tx_mtx: &Arc<Mutex<Sender<ContextMessage>>>,
     ) {
         let playback_queue = gst::ElementFactory::make("queue", "audio_playback_queue").unwrap();
         PlaybackContext::setup_queue(&playback_queue);
@@ -410,6 +392,8 @@ impl PlaybackContext {
         // Pull samples directly off the queue in order to get them as soon as they are available
         // We can't use intermediate elements such as audioconvert because they get paused
         // and block the buffers
+        let dbl_audio_buffer_mtx = Arc::clone(dbl_audio_buffer_mtx);
+        let ctx_tx_mtx = Arc::clone(ctx_tx_mtx);
         let pad_probe_filter = gst::PadProbeType::BUFFER | gst::PadProbeType::EVENT_BOTH;
         waveform_sink_pad.add_probe(pad_probe_filter, move |_pad, probe_info| {
             if let Some(ref mut data) = probe_info.data {
@@ -492,11 +476,11 @@ impl PlaybackContext {
     }
 
     // Uses ctx_tx to notify the UI controllers about the inspection process
-    fn register_bus_inspector(&self) {
+    fn register_bus_inspector(&self, ctx_tx: &Sender<ContextMessage>) {
         let mut pipeline_state = PipelineState::None;
         let info_arc_mtx = Arc::clone(&self.info);
         let dbl_audio_buffer_mtx = Arc::clone(&self.dbl_audio_buffer_mtx);
-        let ctx_tx = self.ctx_tx.clone();
+        let ctx_tx = ctx_tx.clone();
         let pipeline = self.pipeline.clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {

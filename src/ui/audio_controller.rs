@@ -84,7 +84,7 @@ pub struct AudioController {
     boundaries: Rc<RefCell<ChaptersBoundaries>>,
 
     waveform_mtx: Arc<Mutex<Box<SampleExtractor>>>,
-    dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
+    pub dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
 
     tick_cb_id: Option<u32>,
     // Add a RefCell to self in order to
@@ -271,10 +271,6 @@ impl AudioController {
         // clearing it is under the responsiblity of ChapterTreeManager
         self.update_conditions();
         self.redraw();
-    }
-
-    pub fn get_dbl_buffer_mtx(&self) -> Arc<Mutex<DoubleAudioBuffer>> {
-        Arc::clone(&self.dbl_buffer_mtx)
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {

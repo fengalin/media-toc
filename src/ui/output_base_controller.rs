@@ -54,21 +54,17 @@ impl OutputBaseController {
         self.switch_to_busy();
 
         self.extension = metadata::Factory::get_extension(format, is_audio_only).to_owned();
-        self.media_path = self.playback_ctx.as_ref().unwrap().path.clone();
-        self.target_path = self.media_path.with_extension(&self.extension);
 
         if self.listener_src.is_some() {
             self.remove_listener();
         }
 
-        let duration = self.playback_ctx
-            .as_ref()
-            .unwrap()
-            .info
-            .read()
-            .unwrap()
-            .duration;
-        self.duration = duration;
+        {
+            let info = self.playback_ctx.as_ref().unwrap().info.read().unwrap();
+            self.media_path = info.path.clone();
+            self.duration = info.duration;
+        }
+        self.target_path = self.media_path.with_extension(&self.extension);
     }
 
     pub fn show_message(&self, type_: gtk::MessageType, message: &str) {

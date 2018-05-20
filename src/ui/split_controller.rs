@@ -221,17 +221,13 @@ impl SplitController {
         // because the chapter is also owned by the self.toc
         // and the TocVisitor so the chapters entries ref_count is > 1
         let chapter = self.update_tags(&mut chapter);
-
         let output_path = self.get_split_path(&chapter);
-        let media_path = self.media_path.clone();
-        let stream_id = self.selected_audio.as_ref().unwrap().id.to_owned();
-
         let (ctx_tx, ui_rx) = channel();
         self.register_listener(format, LISTENER_PERIOD, ui_rx);
         match SplitterContext::new(
-            &media_path,
+            &self.media_path,
             &output_path,
-            stream_id,
+            &self.selected_audio.as_ref().unwrap().id,
             format,
             chapter,
             ctx_tx,

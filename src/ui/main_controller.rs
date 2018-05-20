@@ -530,7 +530,7 @@ impl MainController {
                         let mut context = this.context.take().unwrap();
 
                         this.header_bar
-                            .set_subtitle(Some(context.file_name.as_str()));
+                            .set_subtitle(Some(context.info.read().unwrap().file_name.as_str()));
 
                         this.audio_ctrl.borrow_mut().new_media(&context);
                         this.export_ctrl.borrow_mut().new_media();
@@ -688,10 +688,10 @@ impl MainController {
         self.keep_going = true;
         self.register_listener(LISTENER_PERIOD, ui_rx);
 
-        let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.borrow().get_dbl_buffer_mtx());
+        let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.borrow().dbl_buffer_mtx);
         match PlaybackContext::new(
-            filepath,
-            dbl_buffer_mtx,
+            &filepath,
+            &dbl_buffer_mtx,
             self.video_ctrl.get_video_sink(),
             ctx_tx,
         ) {

@@ -2,6 +2,7 @@ use gettextrs::gettext;
 use gstreamer as gst;
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 pub fn get_default_chapter_title() -> String {
     gettext("untitled")
@@ -191,7 +192,9 @@ impl Streams {
 
 #[derive(Default)]
 pub struct MediaInfo {
+    pub name: String,
     pub file_name: String,
+    pub path: PathBuf,
     pub tags: gst::TagList,
     pub toc: Option<gst::Toc>,
     pub chapter_count: Option<usize>,
@@ -203,8 +206,13 @@ pub struct MediaInfo {
 }
 
 impl MediaInfo {
-    pub fn new() -> Self {
-        MediaInfo::default()
+    pub fn new(path: &Path) -> Self {
+        MediaInfo {
+            name: path.file_stem().unwrap().to_str().unwrap().to_owned(),
+            file_name: path.file_name().unwrap().to_str().unwrap().to_owned(),
+            path: path.to_owned(),
+            .. MediaInfo::default()
+        }
     }
 
     pub fn get_file_name(&self) -> &str {

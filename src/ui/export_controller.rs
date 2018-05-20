@@ -192,8 +192,7 @@ impl ExportController {
 
         self.register_listener(LISTENER_PERIOD, ui_rx);
 
-        let media_path = self.media_path.clone();
-        match TocSetterContext::new(&media_path, export_path, streams, ctx_tx) {
+        match TocSetterContext::new(&self.media_path, export_path, streams, ctx_tx) {
             Ok(toc_setter_ctx) => {
                 self.switch_to_busy();
                 self.toc_setter_ctx = Some(toc_setter_ctx);
