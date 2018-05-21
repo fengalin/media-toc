@@ -41,7 +41,7 @@ fn main() {
 
     init_locale();
 
-    // Messages are not translated unless gtk (glib) is initialized
+    // Character encoding is broken unless gtk (glib) is initialized
     let is_gtk_ok = gtk::init().is_ok();
 
     let args = handle_command_line();

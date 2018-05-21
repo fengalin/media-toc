@@ -10,17 +10,17 @@ pub fn init_locale() {
 
     // Add user's data dir in the search path
     let project_dirs = ProjectDirs::from(TLD, SLD, env!("CARGO_PKG_NAME"));
-    let app_data_dir = project_dirs.data_dir();
+    let _app_data_dir = project_dirs.data_dir();
 
     // FIXME: figure out macOS conventions
     #[cfg(all(target_family = "unix", not(target_os = "macos")))]
-    let text_domain = match app_data_dir.parent() {
+    let text_domain = match _app_data_dir.parent() {
         Some(data_dir) => text_domain.prepend(data_dir),
         None => text_domain,
     };
 
     #[cfg(target_os = "windows")]
-    let text_domain = text_domain.prepend(app_data_dir);
+    let text_domain = text_domain.prepend(_app_data_dir);
 
     match text_domain.init() {
         Ok(locale) => info!("Translation found, `setlocale` returned {:?}", locale),
