@@ -196,14 +196,19 @@ When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
   - Restart the MSYS2 shell before using `cargo`.
 
 # Build and run
-Use Cargo (from the root of the project directory):
+Use Cargo (from the root of the project):
 ```
 cargo run --release
 ```
 
-On most Unix systems, you can install the application executable and related files
-(icons, translations and desktop file) for current user by executing the
-following command:
+On XDG compliant systems, you can install the application executable and related
+files (icons, translations and desktop file) for current user by executing the
+following command (from the root of the project):
 ```
 bash target/install
+```
+
+You can uninstall with:
+```
+bash target/uninstall
 ```

@@ -186,10 +186,111 @@ fn generate_install_script() {
     }
 }
 
+// FIXME: figure out macOS conventions for icons & translations
+#[cfg(target_family = "unix")]
+fn generate_uninstall_script() {
+    let base_dirs = BaseDirs::new();
+    // Note: `base_dirs.executable_dir()` is `None` on macOS
+    if let Some(exe_dir) = base_dirs.executable_dir() {
+        let project_dirs = ProjectDirs::from("org", "fengalin", env!("CARGO_PKG_NAME"));
+        let app_data_dir = project_dirs.data_dir();
+        let data_dir = app_data_dir.parent().unwrap();
+
+        match File::create(&PathBuf::from("target").join("uninstall")) {
+            Ok(mut install_file) => {
+                install_file.write_all(format!("# User uninstall script for {}\n",
+                    env!("CARGO_PKG_NAME"),
+                ).as_bytes()).unwrap();
+
+                install_file.write_all(b"\n# Uninstall executable\n").unwrap();
+                install_file.write_all(format!("rm {}\n",
+                    exe_dir.join(env!("CARGO_PKG_NAME")).to_str().unwrap(),
+                ).as_bytes()).unwrap();
+                install_file.write_all(format!("rmdir -p {}\n",
+                    exe_dir.to_str().unwrap(),
+                ).as_bytes()).unwrap();
+
+                install_file.write_all(b"\n# Uninstall icons\n").unwrap();
+                let icon_target_dir = data_dir.join("icons").join("hicolor");
+                let mut entry_iter = read_dir(
+                        PathBuf::from("assets")
+                            .join("icons")
+                            .join("hicolor"),
+                    ).unwrap();
+                for entry in entry_iter {
+                    let entry = entry.unwrap();
+                    let entry_path = entry.path();
+                    if entry_path.is_dir() {
+                        let icon_target_dir = icon_target_dir
+                            .join(entry_path.file_name().unwrap())
+                            .join("apps");
+                        let mut icons_subdir_iter = read_dir(entry_path.join("apps")).unwrap();
+                        for icon_subdir_entry in icons_subdir_iter {
+                            let icon_subdir_entry = icon_subdir_entry.unwrap();
+                            install_file.write_all(format!("rm {}\n",
+                                icon_target_dir
+                                    .join(icon_subdir_entry.file_name())
+                                    .to_str()
+                                    .unwrap(),
+                            ).as_bytes()).unwrap();
+                        }
+
+                        install_file.write_all(format!("rmdir -p {}\n",
+                            icon_target_dir.to_str().unwrap(),
+                        ).as_bytes()).unwrap();
+                    }
+                }
+
+                if let Ok(mut linguas_file) = File::open(&PathBuf::from("po").join("LINGUAS")) {
+                    let mut linguas = String::new();
+                    linguas_file
+                        .read_to_string(&mut linguas)
+                        .expect("Couldn't read po/LINGUAS as string");
+
+                    install_file.write_all(b"\n# Uninstall translations\n").unwrap();
+                    let locale_base_dir = data_dir.join("locale");
+                    for lingua in linguas.lines() {
+                        let lingua_dir = locale_base_dir
+                            .join(lingua)
+                            .join("LC_MESSAGES");
+                        install_file.write_all(format!("rm {}\n",
+                            lingua_dir
+                                .join(&format!("{}.mo", env!("CARGO_PKG_NAME")))
+                                .to_str()
+                                .unwrap(),
+                        ).as_bytes()).unwrap();
+
+                        install_file.write_all(format!("rmdir -p {}\n",
+                            lingua_dir.to_str().unwrap(),
+                        ).as_bytes()).unwrap();
+                    }
+                }
+
+
+                install_file.write_all(b"\n# Uninstall desktop file\n").unwrap();
+                let desktop_target_dir = data_dir.join("applications");
+                install_file.write_all(format!("rm {}\n",
+                    desktop_target_dir
+                            .join(&format!("org.fengalin.{}.desktop", env!("CARGO_PKG_NAME")))
+                            .to_str()
+                            .unwrap(),
+                ).as_bytes()).unwrap();
+                install_file.write_all(format!("rmdir -p {}\n",
+                    desktop_target_dir.to_str().unwrap(),
+                ).as_bytes()).unwrap();
+            }
+            Err(err) => panic!("Couldn't create file `target/uninstall`: {:?}", err),
+        }
+    }
+}
+
 fn main() {
     generate_resources();
     generate_translations();
 
     #[cfg(target_family = "unix")]
     generate_install_script();
+
+    #[cfg(target_family = "unix")]
+    generate_uninstall_script();
 }
