@@ -1,21 +1,41 @@
 # media-toc [![Build Status](https://travis-ci.org/fengalin/media-toc.svg?branch=master)](https://travis-ci.org/fengalin/media-toc) [![Build status](https://ci.appveyor.com/api/projects/status/eu9p6ggcflj89h3v?svg=true)](https://ci.appveyor.com/project/fengalin/media-toc)
+
+![media-toc logo](assets/icons/hicolor/512x512/apps/org.fengalin.media-toc.png "media-toc logo")
+
 **media-toc** is an application to build a table of contents from a media file or to split a media
 file into chapters. It runs on Linux and Windows and should also work on macOS.
 
 You might also be interested in [media-toc-player](https://github.com/fengalin/media-toc-player):
 a media player with a table of contents.
 
+## Table of contents
+- [Screenshots](#ui)
+- [Features](#features)
+- [Accelerators](#accelerators)
+- [How-tos](#how-tos)
+  * [Create the table of contents](#how-to-create-the-toc)
+  * [Save the table of contents](#how-to-save-the-toc)
+  * [Export the resulting media with its table of contents in a Matroska container](#export-to-mkv)
+  * [Split the audio stream into one file per chapter](#split-to-audio)
+  * [Use `mkvmerge` to add the toc to an existing Matrsoka media](#use-mkvmerge)
+- [Technologies](#technologies)
+- [Build environment](#build-env)
+- [Build and run](#build-run)
+
 ## <a name='ui'></a>Screenshots
 ### media-toc playing a video
-![media-toc UI Video](assets/screenshots/media-toc_video.png)
+
+![media-toc UI Video](assets/screenshots/media-toc_video.png "media-toc UI Video")
 
 ### media-toc playing an audio file, French localization
-![media-toc UI Audio](assets/screenshots/media-toc_audio.png)
+
+![media-toc UI Audio](assets/screenshots/media-toc_audio.png "media-toc UI Audio")
 
 ### Waveform showing 5.1 audio channels
-![media-toc Waveform 5.1 audio channels](assets/screenshots/waveform_5.1_audio_channels.png)
 
-## Features
+![media-toc Waveform 5.1 audio channels](assets/screenshots/waveform_5.1_audio_channels.png "media-toc Waveform 5.1 audio channels")
+
+## <a name='features'></a>Features
 
 - Play/Pause an audio/video media
 - Select the streams to play.
@@ -39,31 +59,33 @@ files: one file per chapter.
 	* A Matroska container.
 	* [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
 
-## Accelerator list
+## <a name='accelerators'></a>Accelerators
 
 The following functions are bound to one or multiple key accelerators:
 
-- Open media dialog: <Ctrl> + O
-- Quit the application: <Ctrl> + Q
-- Play/Pause (and open media dialog when no media is loaded): Space or Play key
-- Step forward: Right
-- Step back: Left
-- Go to next chapter: Down or Next key
-- Go to the beginning of current chapter or previous chapter: Up or Prev key
-- Zoom the waveform in: Z
-- Zoom the waveform out: <Shitf> + Z
-- Close the notification: Escape
-- Add a chapter at current position: +
-- Remove the chapter at current position: -
-- Toggle show/hide chapters list: L
-- Toggle repeat current chapter: R
-- Show the Display perspective: F5
-- Show the Streams perspective: F6
-- Show the Export perspective: F7
-- Show the Split perspective: F8
-- Open the about dialog: <Ctrl> + A
+| Function                                                   | keys              |
+| ---------------------------------------------------------- | :---------------: |
+| Open media dialog                                          | <Ctrl> + O        |
+| Quit the application                                       | <Ctrl> + Q        |
+| Play/Pause (and open media dialog when no media is loaded) | Space or Play key |
+| Step forward                                               | Right             |
+| Step back                                                  | Left              |
+| Go to next chapter                                         | Down or Next key  |
+| Go to the beginning of current chapter or previous chapter | Up or Prev key    |
+| Zoom the waveform in                                       | Z                 |
+| Zoom the waveform out                                      | <Shitf> + Z       |
+| Close the info bar                                         | Escape            |
+| Add a chapter at current position                          | +                 |
+| Remove the chapter at current position                     | -                 |
+| Toggle show/hide chapters list                             | L                 |
+| Toggle repeat current chapter                              | R                 | 
+| Show the Display perspective                               | F5                |
+| Show the Streams perspective                               | F6                |
+| Show the Export perspective                                | F7                |
+| Show the Split perspective                                 | F8                |
+| Open the about dialog                                      | <Ctrl> + A        |
 
-# How-to
+# <a name='how-tos'></a>How-tos
 
 ## <a name='how-to-create-the-toc'></a>Create the table of contents
 
@@ -99,7 +121,7 @@ next time you open this media.
 4. Click on `Export`. When the export is complete, a new file with the same name as your media and
 with a `txt` extension will be created in the media's folder.
 
-## Export the resulting media with its table of contents in a Matroska container
+## <a name='export-to-mkv'></a>Export the resulting media with its table of contents in a Matroska container
 
 Currently, this is possible only for media with streams compatible with Matroska containers.
 Warning: this also requires [`gst-plugins-good` 1.14](https://gstreamer.freedesktop.org/releases/1.14/)
@@ -114,7 +136,7 @@ or open a media for which you already defined a table of contents (see [this how
 6. Click on `Export`. When the export is complete, a new file with the same name as your media and
 ending with `.toc.mkv` will be created in the media's folder.
 
-## Split the audio stream into one file per chapter
+## <a name='split-to-audio'></a>Split the audio stream into one file per chapter
 
 1. Open a media with a table of contents, define the chapters as explained in [this how-to](#how-to-create-the-toc)
 or open a media for which you already defined a table of contents (see [this how-to](#how-to-save-the-toc)).
@@ -125,7 +147,7 @@ or open a media for which you already defined a table of contents (see [this how
 6. Click on `Split`. When the split is complete, audio files will be created in the media's folder.
 The files are named after the artist, media title, chapter number and chapter title.
 
-## Use `mkvmerge` to add the toc to an existing Matrsoka media
+## <a name='use-mkvmerge'></a>Use `mkvmerge` to add the toc to an existing Matrsoka media
 
 Exporting the table of contents to a Matroska container requires [`gst-plugins-good` 1.14](https://gstreamer.freedesktop.org/releases/1.14/)
 or above. If you use an ealier version, follow these instructions:
@@ -140,7 +162,7 @@ or above. If you use an ealier version, follow these instructions:
 
 The file `output_file.mkv` will now contain the media with the chapters you defined.
 
-# Technologies
+# <a name='technologies'></a>Technologies
 **media-toc** is developed in Rust and uses the following technologies:
 - **GTK-3** ([official documentation](https://developer.gnome.org/gtk3/stable/),
 [Rust binding](http://gtk-rs.org/docs/gtk/)) and [Glade](https://glade.gnome.org/).
@@ -149,7 +171,7 @@ The file `output_file.mkv` will now contain the media with the chapters you defi
 - **GStreamer** ([official documentation](https://gstreamer.freedesktop.org/documentation/),
 [Rust binding](https://sdroege.github.io/rustdoc/gstreamer/gstreamer/)).
 
-# <a name='generation'></a>Generation
+# <a name='build-env'></a>Build environment
 ## Toolchain
 ```
 $ curl https://sh.rustup.rs -sSf | sh
@@ -219,7 +241,7 @@ When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
   ```
   - Restart the MSYS2 shell before using `cargo`.
 
-# Build and run
+# <a name='build-run'></a>Build and run
 Use Cargo (from the root of the project):
 ```
 cargo run --release
