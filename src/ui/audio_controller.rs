@@ -30,6 +30,8 @@ const MAX_REQ_DURATION: f64 = 32_000_000_000f64; // 32 s / 1000 px
 const INIT_REQ_DURATION: f64 = 4_000_000_000f64; // 4 s / 1000 px
 const STEP_REQ_DURATION: f64 = 2f64;
 
+const SEEK_STEP_DURATION_DIVISOR: u64 = 2;
+
 // Other UI components refresh period
 const OTHER_UI_REFRESH_PERIOD: u64 = 50_000_000; // 50 ms
 
@@ -77,6 +79,7 @@ pub struct AudioController {
     playback_needs_refresh: bool,
 
     requested_duration: f64,
+    seek_step: u64,
     current_position: u64,
     last_other_ui_refresh: u64,
     first_visible_pos: u64,
@@ -125,6 +128,8 @@ impl AudioController {
             playback_needs_refresh: false,
 
             requested_duration: INIT_REQ_DURATION,
+            seek_step: INIT_REQ_DURATION as u64 / SEEK_STEP_DURATION_DIVISOR,
+
             current_position: 0,
             last_other_ui_refresh: 0,
             first_visible_pos: 0,
@@ -239,6 +244,7 @@ impl AudioController {
             } else {
                 this.requested_duration = MIN_REQ_DURATION;
             }
+            this.seek_step = this.requested_duration as u64 / SEEK_STEP_DURATION_DIVISOR;
         });
         gtk_app.set_accels_for_action("app.zoom_in", &["z"]);
 
@@ -254,8 +260,41 @@ impl AudioController {
             } else {
                 this.requested_duration = MAX_REQ_DURATION;
             }
+            this.seek_step = this.requested_duration as u64 / SEEK_STEP_DURATION_DIVISOR;
         });
         gtk_app.set_accels_for_action("app.zoom_out", &["<Shift>z"]);
+
+        // Register Step forward action
+        let step_forward = gio::SimpleAction::new("step_forward", None);
+        gtk_app.add_action(&step_forward);
+        let this_clone = Rc::clone(&this_rc);
+        let main_ctrl_clone = Rc::clone(main_ctrl);
+        step_forward.connect_activate(move |_, _| {
+            let seek_pos = {
+                let this = this_clone.borrow_mut();
+                this.current_position + this.seek_step
+            };
+            main_ctrl_clone.borrow_mut().seek(seek_pos, true); // accurate (slow)
+        });
+        gtk_app.set_accels_for_action("app.step_forward", &["Right"]);
+
+        // Register Step back action
+        let step_back = gio::SimpleAction::new("step_back", None);
+        gtk_app.add_action(&step_back);
+        let this_clone = Rc::clone(&this_rc);
+        let main_ctrl_clone = Rc::clone(main_ctrl);
+        step_back.connect_activate(move |_, _| {
+            let seek_pos = {
+                let this = this_clone.borrow_mut();
+                if this.current_position > this.seek_step {
+                    this.current_position - this.seek_step
+                } else {
+                    0
+                }
+            };
+            main_ctrl_clone.borrow_mut().seek(seek_pos, true); // accurate (slow)
+        });
+        gtk_app.set_accels_for_action("app.step_back", &["Left"]);
     }
 
     pub fn redraw(&self) {
