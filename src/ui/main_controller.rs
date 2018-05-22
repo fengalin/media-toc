@@ -169,7 +169,7 @@ impl MainController {
                     &this,
                 );
                 InfoController::register_callbacks(&this_mut.info_ctrl, &this);
-                AudioController::register_callbacks(&this_mut.audio_ctrl, &this);
+                AudioController::register_callbacks(&this_mut.audio_ctrl, gtk_app, &this);
                 ExportController::register_callbacks(&this_mut.export_ctrl, &this);
                 SplitController::register_callbacks(&this_mut.split_ctrl, &this);
                 StreamsController::register_callbacks(&this_mut.streams_ctrl, &this);

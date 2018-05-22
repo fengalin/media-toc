@@ -637,6 +637,7 @@ Author: François Laignel <fengalin@free.fr>
                                     <property name="can_focus">False</property>
                                     <property name="tooltip_text" translatable="yes" comments="Button tooltip">Zoom in</property>
                                     <property name="halign">center</property>
+                                    <property name="action_name">app.zoom_in</property>
                                     <property name="use_underline">True</property>
                                     <property name="icon_name">zoom-in-symbolic</property>
                                   </object>
@@ -652,6 +653,7 @@ Author: François Laignel <fengalin@free.fr>
                                     <property name="can_focus">False</property>
                                     <property name="tooltip_text" translatable="yes" comments="Button tooltip">Zoom out</property>
                                     <property name="halign">center</property>
+                                    <property name="action_name">app.zoom_out</property>
                                     <property name="use_underline">True</property>
                                     <property name="icon_name">zoom-out-symbolic</property>
                                   </object>

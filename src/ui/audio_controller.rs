@@ -1,9 +1,11 @@
 use cairo;
 use gdk;
 use gdk::{Cursor, CursorType, FrameClockExt, WindowExt};
+use gio;
+use gio::prelude::*;
 use glib;
 use gtk;
-use gtk::{Inhibit, LabelExt, ToolButtonExt, WidgetExt, WidgetExtManual};
+use gtk::prelude::*;
 use pango;
 use pango::{ContextExt, LayoutExt};
 
@@ -149,6 +151,7 @@ impl AudioController {
 
     pub fn register_callbacks(
         this_rc: &Rc<RefCell<Self>>,
+        gtk_app: &gtk::Application,
         main_ctrl: &Rc<RefCell<MainController>>,
     ) {
         let this = this_rc.borrow();
@@ -224,9 +227,11 @@ impl AudioController {
                 Inhibit(true)
             });
 
-        // click zoom in
-        let this_clone = Rc::clone(this_rc);
-        this.zoom_in_btn.connect_clicked(move |_| {
+        // Register Zoom in action
+        let zoom_in = gio::SimpleAction::new("zoom_in", None);
+        gtk_app.add_action(&zoom_in);
+        let this_clone = Rc::clone(&this_rc);
+        zoom_in.connect_activate(move |_, _| {
             let mut this = this_clone.borrow_mut();
             this.requested_duration /= STEP_REQ_DURATION;
             if this.requested_duration >= MIN_REQ_DURATION {
@@ -235,10 +240,13 @@ impl AudioController {
                 this.requested_duration = MIN_REQ_DURATION;
             }
         });
+        gtk_app.set_accels_for_action("app.zoom_in", &["z"]);
 
-        // click zoom out
-        let this_clone = Rc::clone(this_rc);
-        this.zoom_out_btn.connect_clicked(move |_| {
+        // Register Zoom out action
+        let zoom_out = gio::SimpleAction::new("zoom_out", None);
+        gtk_app.add_action(&zoom_out);
+        let this_clone = Rc::clone(&this_rc);
+        zoom_out.connect_activate(move |_, _| {
             let mut this = this_clone.borrow_mut();
             this.requested_duration *= STEP_REQ_DURATION;
             if this.requested_duration <= MAX_REQ_DURATION {
@@ -247,6 +255,7 @@ impl AudioController {
                 this.requested_duration = MAX_REQ_DURATION;
             }
         });
+        gtk_app.set_accels_for_action("app.zoom_out", &["<Shift>z"]);
     }
 
     pub fn redraw(&self) {
