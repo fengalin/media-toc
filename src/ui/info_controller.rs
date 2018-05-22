@@ -118,14 +118,14 @@ impl InfoController {
             this.info_container.hide();
         }
 
-        // Register Show chapters list action
-        let show_list = gio::SimpleAction::new("show_list", None);
-        gtk_app.add_action(&show_list);
+        // Register Toggle show chapters list action
+        let toggle_show_list = gio::SimpleAction::new("toggle_show_list", None);
+        gtk_app.add_action(&toggle_show_list);
         let show_chapters_btn = this.show_chapters_btn.clone();
-        show_list.connect_activate(move |_, _| {
+        toggle_show_list.connect_activate(move |_, _| {
             show_chapters_btn.set_active(!show_chapters_btn.get_active());
         });
-        gtk_app.set_accels_for_action("app.show_list", &["l"]);
+        gtk_app.set_accels_for_action("app.toggle_show_list", &["l"]);
 
         let this_clone = Rc::clone(this_rc);
         this.show_chapters_btn
@@ -195,19 +195,33 @@ impl InfoController {
             });
         }
 
-        // add chapter
+        // Register add chapter action
+        let add_chapter = gio::SimpleAction::new("add_chapter", None);
+        gtk_app.add_action(&add_chapter);
         let this_clone = Rc::clone(this_rc);
-        this.add_chapter_btn.connect_clicked(move |_| {
+        add_chapter.connect_activate(move |_, _| {
             this_clone.borrow_mut().add_chapter();
         });
+        gtk_app.set_accels_for_action("app.add_chapter", &["plus"]);
 
-        // remove chapter
+        // Register remove chapter action
+        let remove_chapter = gio::SimpleAction::new("remove_chapter", None);
+        gtk_app.add_action(&remove_chapter);
         let this_clone = Rc::clone(this_rc);
-        this.del_chapter_btn.connect_clicked(move |_| {
+        remove_chapter.connect_activate(move |_, _| {
             this_clone.borrow_mut().remove_chapter();
         });
+        gtk_app.set_accels_for_action("app.remove_chapter", &["minus"]);
 
-        // repeat button
+        // Register Toggle repeat current chapter action
+        let toggle_repeat_chapter = gio::SimpleAction::new("toggle_repeat_chapter", None);
+        gtk_app.add_action(&toggle_repeat_chapter);
+        let repeat_btn = this.repeat_btn.clone();
+        toggle_repeat_chapter.connect_activate(move |_, _| {
+            repeat_btn.set_active(!repeat_btn.get_active());
+        });
+        gtk_app.set_accels_for_action("app.toggle_repeat_chapter", &["r"]);
+
         let this_clone = Rc::clone(this_rc);
         this.repeat_btn.connect_clicked(move |button| {
             this_clone.borrow_mut().repeat_chapter = button.get_active();
