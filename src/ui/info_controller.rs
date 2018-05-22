@@ -1,5 +1,7 @@
 use cairo;
 use gettextrs::gettext;
+use gio;
+use gio::prelude::*;
 use gtk;
 use gtk::prelude::*;
 use glib;
@@ -103,6 +105,7 @@ impl InfoController {
 
     pub fn register_callbacks(
         this_rc: &Rc<RefCell<Self>>,
+        gtk_app: &gtk::Application,
         main_ctrl: &Rc<RefCell<MainController>>,
     ) {
         let mut this = this_rc.borrow_mut();
@@ -115,6 +118,15 @@ impl InfoController {
             this.info_container.hide();
         }
 
+        // Register Show chapters list action
+        let show_list = gio::SimpleAction::new("show_list", None);
+        gtk_app.add_action(&show_list);
+        let show_chapters_btn = this.show_chapters_btn.clone();
+        show_list.connect_activate(move |_, _| {
+            show_chapters_btn.set_active(!show_chapters_btn.get_active());
+        });
+        gtk_app.set_accels_for_action("app.show_list", &["l"]);
+
         let this_clone = Rc::clone(this_rc);
         this.show_chapters_btn
             .connect_toggled(move |toggle_button| {
@@ -125,7 +137,7 @@ impl InfoController {
                     CONFIG.write().unwrap().ui.is_chapters_list_hidden = true;
                     this_clone.borrow().info_container.hide();
                 }
-            });
+        });
         this.show_chapters_btn.set_sensitive(true);
 
         // Draw thumnail image
