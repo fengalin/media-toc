@@ -175,6 +175,7 @@ Author: François Laignel <fengalin@free.fr>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
             <property name="tooltip_text" translatable="yes" comments="Button tooltip">Open media</property>
+            <property name="action_name">app.open</property>
             <child>
               <object class="GtkImage">
                 <property name="visible">True</property>

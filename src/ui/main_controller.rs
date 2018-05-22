@@ -127,21 +127,24 @@ impl MainController {
             let app_menu = gio::Menu::new();
             gtk_app.set_app_menu(&app_menu);
 
+            let app_section = gio::Menu::new();
+            app_menu.append_section(None, &app_section);
+
             // Register About action
             let about = gio::SimpleAction::new("about", None);
             gtk_app.add_action(&about);
             let this_rc = Rc::clone(&this);
             about.connect_activate(move |_, _| this_rc.borrow().about());
             gtk_app.set_accels_for_action("app.about", &["<Ctrl>A"]);
-            app_menu.append(&gettext("About")[..], "app.about");
+            app_section.append(&gettext("About")[..], "app.about");
 
             // Register Quit action
             let quit = gio::SimpleAction::new("quit", None);
             gtk_app.add_action(&quit);
             let this_rc = Rc::clone(&this);
             quit.connect_activate(move |_, _| this_rc.borrow_mut().quit());
-            gtk_app.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
-            app_menu.append(&gettext("Quit")[..], "app.quit");
+            gtk_app.set_accels_for_action("app.quit", &["<Ctrl>Q", "Escape"]);
+            app_section.append(&gettext("Quit")[..], "app.quit");
 
             let this_rc = Rc::clone(&this);
             this_mut.window.connect_delete_event(move |_, _| {
@@ -182,8 +185,14 @@ impl MainController {
                     });
                 });
 
+                let main_section = gio::Menu::new();
+                app_menu.insert_section(0, None, &main_section);
+
+                // Register Open action
+                let open = gio::SimpleAction::new("open", None);
+                gtk_app.add_action(&open);
                 let this_rc = Rc::clone(&this);
-                this_mut.open_btn.connect_clicked(move |_| {
+                open.connect_activate(move |_, _| {
                     let mut this = this_rc.borrow_mut();
 
                     if this.state == ControllerState::Playing || this.state == ControllerState::EOS
@@ -194,6 +203,9 @@ impl MainController {
                         this.select_media();
                     }
                 });
+                gtk_app.set_accels_for_action("app.open", &["<Ctrl>O"]);
+                main_section.append(&gettext("Open media file")[..], "app.open");
+
                 this_mut.open_btn.set_sensitive(true);
 
                 // Register Play/Pause action
