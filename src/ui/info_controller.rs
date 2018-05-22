@@ -17,6 +17,8 @@ use metadata::{MediaInfo, Timestamp};
 
 use super::{ChapterTreeManager, ChaptersBoundaries, ControllerState, ImageSurface, MainController};
 
+const GO_TO_PREV_CHAPTER_THRESHOLD: u64 = 1_000_000_000; // 1 s
+
 lazy_static! {
     static ref EMPTY_REPLACEMENT: String = "-".to_owned();
 }
@@ -226,6 +228,57 @@ impl InfoController {
         this.repeat_btn.connect_clicked(move |button| {
             this_clone.borrow_mut().repeat_chapter = button.get_active();
         });
+
+        // Register next chapter action
+        let next_chapter = gio::SimpleAction::new("next_chapter", None);
+        gtk_app.add_action(&next_chapter);
+        let this_clone = Rc::clone(this_rc);
+        let main_ctrl_clone = Rc::clone(main_ctrl);
+        next_chapter.connect_activate(move |_, _| {
+            let seek_pos = {
+                let this = this_clone.borrow();
+                this.chapter_manager.next_iter().map(|next_iter| {
+                    this.chapter_manager.get_chapter_at_iter(&next_iter).start()
+                })
+            };
+
+            if let Some(seek_pos) = seek_pos {
+                main_ctrl_clone.borrow_mut().seek(seek_pos, true); // accurate (slow)
+            }
+        });
+        gtk_app.set_accels_for_action("app.next_chapter", &["Down", "AudioNext"]);
+
+        // Register previous chapter action
+        let previous_chapter = gio::SimpleAction::new("previous_chapter", None);
+        gtk_app.add_action(&previous_chapter);
+        let this_clone = Rc::clone(this_rc);
+        let main_ctrl_clone = Rc::clone(main_ctrl);
+        previous_chapter.connect_activate(move |_, _| {
+            let seek_pos = {
+                let this = this_clone.borrow();
+                let position = this.get_position();
+                let cur_start = this.chapter_manager.get_selected_iter().map(|cur_iter| {
+                    this.chapter_manager.get_chapter_at_iter(&cur_iter).start()
+                });
+                let prev_start = this.chapter_manager.prev_iter().map(|prev_iter| {
+                    this.chapter_manager.get_chapter_at_iter(&prev_iter).start()
+                });
+
+                match (cur_start, prev_start) {
+                    (Some(cur_start), prev_start_opt) => {
+                        if cur_start + GO_TO_PREV_CHAPTER_THRESHOLD < position {
+                            Some(cur_start)
+                        } else {
+                            prev_start_opt
+                        }
+                    }
+                    (None, prev_start_opt) => prev_start_opt,
+                }
+            }.unwrap_or(0);
+
+            main_ctrl_clone.borrow_mut().seek(seek_pos, true); // accurate (slow)
+        });
+        gtk_app.set_accels_for_action("app.previous_chapter", &["Up", "AudioPrev"]);
     }
 
     fn draw_thumbnail(

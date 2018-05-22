@@ -580,4 +580,42 @@ impl ChapterTreeManager {
             None => None,
         }
     }
+
+    pub fn next_iter(&self) -> Option<gtk::TreeIter> {
+        match self.selected_iter.as_ref() {
+            Some(selected_iter) => {
+                let prev_iter = selected_iter.clone();
+                if self.store.iter_next(&prev_iter) {
+                    Some(prev_iter)
+                } else {
+                    // FIXME: with hierarchical tocs, this might be a case where
+                    // we should check whether the parent node contains something
+                    None
+                }
+            }
+            None => self.store.get_iter_first(),
+        }
+    }
+
+    pub fn prev_iter(&self) -> Option<gtk::TreeIter> {
+        match self.selected_iter.as_ref() {
+            Some(selected_iter) => {
+                let prev_iter = selected_iter.clone();
+                if self.store.iter_previous(&prev_iter) {
+                    Some(prev_iter)
+                } else {
+                    // FIXME: with hierarchical tocs, this might be a case where
+                    // we should check whether the parent node contains something
+                    None
+                }
+            }
+            None => self.store.get_iter_first().map(|cur_iter| {
+                let mut last_iter = cur_iter.clone();
+                while self.store.iter_next(&cur_iter) {
+                    last_iter = cur_iter.clone();
+                }
+                last_iter
+            }),
+        }
+    }
 }
