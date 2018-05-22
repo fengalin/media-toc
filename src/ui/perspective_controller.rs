@@ -1,6 +1,6 @@
-use glib::Cast;
 use gio;
 use gio::prelude::*;
+use glib::Cast;
 use gtk;
 use gtk::prelude::*;
 
@@ -124,12 +124,12 @@ impl PerspectiveController {
             let stack = this.stack.clone();
             let popover = this.popover.clone();
             let event = move || {
-                    menu_btn_image.set_property_icon_name(Some(&perspective_icon_name));
-                    stack.set_visible_child_name(&stack_child_name);
-                    // popdown is available from GTK 3.22
-                    // current package used on package is GTK .18
-                    popover.hide();
-                };
+                menu_btn_image.set_property_icon_name(Some(&perspective_icon_name));
+                stack.set_visible_child_name(&stack_child_name);
+                // popdown is available from GTK 3.22
+                // current package used on package is GTK .18
+                popover.hide();
+            };
 
             match button.get_action_name() {
                 Some(action_name) => {
@@ -141,7 +141,8 @@ impl PerspectiveController {
                         ));
                     let action_splits: Vec<&str> = action_name.splitn(2, ".").collect();
                     if action_splits.len() != 2 {
-                        panic!("PerspectiveController unexpected action name for button {:?}",
+                        panic!(
+                            "PerspectiveController unexpected action name for button {:?}",
                             button_name,
                         );
                     }

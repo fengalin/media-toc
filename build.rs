@@ -7,8 +7,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn generate_resources() {
-    let target_path = PathBuf::from("target")
-        .join("resources");
+    let target_path = PathBuf::from("target").join("resources");
     create_dir_all(&target_path).unwrap();
 
     // Icons
@@ -18,8 +17,9 @@ fn generate_resources() {
     compile_res
         .arg("--generate")
         .arg(format!("--sourcedir={}", input_path.to_str().unwrap()))
-        .arg(format!("--target={}",
-            target_path.join("icons.gresource").to_str().unwrap()
+        .arg(format!(
+            "--target={}",
+            target_path.join("icons.gresource").to_str().unwrap(),
         ))
         .arg(input_path.join("icons.gresource.xml").to_str().unwrap());
 
@@ -45,8 +45,9 @@ fn generate_resources() {
     compile_res
         .arg("--generate")
         .arg(format!("--sourcedir={}", input_path.to_str().unwrap()))
-        .arg(format!("--target={}",
-            target_path.join("ui.gresource").to_str().unwrap()
+        .arg(format!(
+            "--target={}",
+            target_path.join("ui.gresource").to_str().unwrap(),
         ))
         .arg(input_path.join("ui.gresource.xml").to_str().unwrap());
 
@@ -120,66 +121,94 @@ fn generate_install_script() {
 
         match File::create(&PathBuf::from("target").join("install")) {
             Ok(mut install_file) => {
-                install_file.write_all(format!("# User install script for {}\n",
-                    env!("CARGO_PKG_NAME"),
-                ).as_bytes()).unwrap();
+                install_file
+                    .write_all(
+                        format!("# User install script for {}\n", env!("CARGO_PKG_NAME"))
+                            .as_bytes(),
+                    )
+                    .unwrap();
 
                 install_file.write_all(b"\n# Install executable\n").unwrap();
                 let exe_source_path = PathBuf::from("target")
                     .join("release")
                     .join(env!("CARGO_PKG_NAME"));
-                install_file.write_all(format!("mkdir -p {}\n",
-                    exe_dir.to_str().unwrap(),
-                ).as_bytes()).unwrap();
-                install_file.write_all(format!("cp {} {}\n",
-                    exe_source_path.to_str().unwrap(),
-                    exe_dir.join(env!("CARGO_PKG_NAME")).to_str().unwrap(),
-                ).as_bytes()).unwrap();
+                install_file
+                    .write_all(format!("mkdir -p {}\n", exe_dir.to_str().unwrap()).as_bytes())
+                    .unwrap();
+                install_file
+                    .write_all(
+                        format!(
+                            "cp {} {}\n",
+                            exe_source_path.to_str().unwrap(),
+                            exe_dir.join(env!("CARGO_PKG_NAME")).to_str().unwrap(),
+                        ).as_bytes(),
+                    )
+                    .unwrap();
 
                 install_file.write_all(b"\n# Install icons\n").unwrap();
                 let icon_target_dir = data_dir.join("icons").join("hicolor");
-                let mut entry_iter = read_dir(
-                        PathBuf::from("assets")
-                            .join("icons")
-                            .join("hicolor")
-                    ).unwrap();
+                let mut entry_iter =
+                    read_dir(PathBuf::from("assets").join("icons").join("hicolor")).unwrap();
                 for entry in entry_iter {
                     let entry = entry.unwrap();
                     let entry_path = entry.path();
                     if entry_path.is_dir() {
                         let target_dir = icon_target_dir.join(&entry.file_name());
-                        install_file.write_all(format!("mkdir -p {}\n",
-                            target_dir.to_str().unwrap()
-                        ).as_bytes()).unwrap();
+                        install_file
+                            .write_all(
+                                format!("mkdir -p {}\n", target_dir.to_str().unwrap()).as_bytes(),
+                            )
+                            .unwrap();
 
-                        install_file.write_all(format!("cp -r {:?}/* {:?}\n",
-                            entry_path.to_str().unwrap(),
-                            target_dir,
-                        ).as_bytes()).unwrap();
+                        install_file
+                            .write_all(
+                                format!(
+                                    "cp -r {:?}/* {:?}\n",
+                                    entry_path.to_str().unwrap(),
+                                    target_dir,
+                                ).as_bytes(),
+                            )
+                            .unwrap();
                     }
                 }
 
-                install_file.write_all(b"\n# Install translations\n").unwrap();
-                install_file.write_all(format!("mkdir -p {}\n",
-                    data_dir.to_str().unwrap(),
-                ).as_bytes()).unwrap();
-                install_file.write_all(format!("cp -r {} {}\n",
-                    PathBuf::from("target").join("locale").to_str().unwrap(),
-                    data_dir.to_str().unwrap(),
-                ).as_bytes()).unwrap();
+                install_file
+                    .write_all(b"\n# Install translations\n")
+                    .unwrap();
+                install_file
+                    .write_all(format!("mkdir -p {}\n", data_dir.to_str().unwrap()).as_bytes())
+                    .unwrap();
+                install_file
+                    .write_all(
+                        format!(
+                            "cp -r {} {}\n",
+                            PathBuf::from("target").join("locale").to_str().unwrap(),
+                            data_dir.to_str().unwrap(),
+                        ).as_bytes(),
+                    )
+                    .unwrap();
 
-                install_file.write_all(b"\n# Install desktop file\n").unwrap();
+                install_file
+                    .write_all(b"\n# Install desktop file\n")
+                    .unwrap();
                 let desktop_target_dir = data_dir.join("applications");
-                install_file.write_all(format!("mkdir -p {}\n",
-                    desktop_target_dir.to_str().unwrap(),
-                ).as_bytes()).unwrap();
-                install_file.write_all(format!("cp {} {}\n",
-                    PathBuf::from("assets")
-                            .join(&format!("org.fengalin.{}.desktop", env!("CARGO_PKG_NAME")))
-                            .to_str()
-                            .unwrap(),
-                    desktop_target_dir.to_str().unwrap(),
-                ).as_bytes()).unwrap();
+                install_file
+                    .write_all(
+                        format!("mkdir -p {}\n", desktop_target_dir.to_str().unwrap()).as_bytes(),
+                    )
+                    .unwrap();
+                install_file
+                    .write_all(
+                        format!(
+                            "cp {} {}\n",
+                            PathBuf::from("assets")
+                                .join(&format!("org.fengalin.{}.desktop", env!("CARGO_PKG_NAME")))
+                                .to_str()
+                                .unwrap(),
+                            desktop_target_dir.to_str().unwrap(),
+                        ).as_bytes(),
+                    )
+                    .unwrap();
             }
             Err(err) => panic!("Couldn't create file `target/install`: {:?}", err),
         }
@@ -198,25 +227,32 @@ fn generate_uninstall_script() {
 
         match File::create(&PathBuf::from("target").join("uninstall")) {
             Ok(mut install_file) => {
-                install_file.write_all(format!("# User uninstall script for {}\n",
-                    env!("CARGO_PKG_NAME"),
-                ).as_bytes()).unwrap();
+                install_file
+                    .write_all(
+                        format!("# User uninstall script for {}\n", env!("CARGO_PKG_NAME"))
+                            .as_bytes(),
+                    )
+                    .unwrap();
 
-                install_file.write_all(b"\n# Uninstall executable\n").unwrap();
-                install_file.write_all(format!("rm {}\n",
-                    exe_dir.join(env!("CARGO_PKG_NAME")).to_str().unwrap(),
-                ).as_bytes()).unwrap();
-                install_file.write_all(format!("rmdir -p {}\n",
-                    exe_dir.to_str().unwrap(),
-                ).as_bytes()).unwrap();
+                install_file
+                    .write_all(b"\n# Uninstall executable\n")
+                    .unwrap();
+                install_file
+                    .write_all(
+                        format!(
+                            "rm {}\n",
+                            exe_dir.join(env!("CARGO_PKG_NAME")).to_str().unwrap(),
+                        ).as_bytes(),
+                    )
+                    .unwrap();
+                install_file
+                    .write_all(format!("rmdir -p {}\n", exe_dir.to_str().unwrap()).as_bytes())
+                    .unwrap();
 
                 install_file.write_all(b"\n# Uninstall icons\n").unwrap();
                 let icon_target_dir = data_dir.join("icons").join("hicolor");
-                let mut entry_iter = read_dir(
-                        PathBuf::from("assets")
-                            .join("icons")
-                            .join("hicolor"),
-                    ).unwrap();
+                let mut entry_iter =
+                    read_dir(PathBuf::from("assets").join("icons").join("hicolor")).unwrap();
                 for entry in entry_iter {
                     let entry = entry.unwrap();
                     let entry_path = entry.path();
@@ -227,17 +263,25 @@ fn generate_uninstall_script() {
                         let mut icons_subdir_iter = read_dir(entry_path.join("apps")).unwrap();
                         for icon_subdir_entry in icons_subdir_iter {
                             let icon_subdir_entry = icon_subdir_entry.unwrap();
-                            install_file.write_all(format!("rm {}\n",
-                                icon_target_dir
-                                    .join(icon_subdir_entry.file_name())
-                                    .to_str()
-                                    .unwrap(),
-                            ).as_bytes()).unwrap();
+                            install_file
+                                .write_all(
+                                    format!(
+                                        "rm {}\n",
+                                        icon_target_dir
+                                            .join(icon_subdir_entry.file_name())
+                                            .to_str()
+                                            .unwrap(),
+                                    ).as_bytes(),
+                                )
+                                .unwrap();
                         }
 
-                        install_file.write_all(format!("rmdir -p {}\n",
-                            icon_target_dir.to_str().unwrap(),
-                        ).as_bytes()).unwrap();
+                        install_file
+                            .write_all(
+                                format!("rmdir -p {}\n", icon_target_dir.to_str().unwrap())
+                                    .as_bytes(),
+                            )
+                            .unwrap();
                     }
                 }
 
@@ -247,37 +291,52 @@ fn generate_uninstall_script() {
                         .read_to_string(&mut linguas)
                         .expect("Couldn't read po/LINGUAS as string");
 
-                    install_file.write_all(b"\n# Uninstall translations\n").unwrap();
+                    install_file
+                        .write_all(b"\n# Uninstall translations\n")
+                        .unwrap();
                     let locale_base_dir = data_dir.join("locale");
                     for lingua in linguas.lines() {
-                        let lingua_dir = locale_base_dir
-                            .join(lingua)
-                            .join("LC_MESSAGES");
-                        install_file.write_all(format!("rm {}\n",
-                            lingua_dir
-                                .join(&format!("{}.mo", env!("CARGO_PKG_NAME")))
-                                .to_str()
-                                .unwrap(),
-                        ).as_bytes()).unwrap();
+                        let lingua_dir = locale_base_dir.join(lingua).join("LC_MESSAGES");
+                        install_file
+                            .write_all(
+                                format!(
+                                    "rm {}\n",
+                                    lingua_dir
+                                        .join(&format!("{}.mo", env!("CARGO_PKG_NAME")))
+                                        .to_str()
+                                        .unwrap(),
+                                ).as_bytes(),
+                            )
+                            .unwrap();
 
-                        install_file.write_all(format!("rmdir -p {}\n",
-                            lingua_dir.to_str().unwrap(),
-                        ).as_bytes()).unwrap();
+                        install_file
+                            .write_all(
+                                format!("rmdir -p {}\n", lingua_dir.to_str().unwrap()).as_bytes(),
+                            )
+                            .unwrap();
                     }
                 }
 
-
-                install_file.write_all(b"\n# Uninstall desktop file\n").unwrap();
+                install_file
+                    .write_all(b"\n# Uninstall desktop file\n")
+                    .unwrap();
                 let desktop_target_dir = data_dir.join("applications");
-                install_file.write_all(format!("rm {}\n",
-                    desktop_target_dir
-                            .join(&format!("org.fengalin.{}.desktop", env!("CARGO_PKG_NAME")))
-                            .to_str()
-                            .unwrap(),
-                ).as_bytes()).unwrap();
-                install_file.write_all(format!("rmdir -p {}\n",
-                    desktop_target_dir.to_str().unwrap(),
-                ).as_bytes()).unwrap();
+                install_file
+                    .write_all(
+                        format!(
+                            "rm {}\n",
+                            desktop_target_dir
+                                .join(&format!("org.fengalin.{}.desktop", env!("CARGO_PKG_NAME")))
+                                .to_str()
+                                .unwrap(),
+                        ).as_bytes(),
+                    )
+                    .unwrap();
+                install_file
+                    .write_all(
+                        format!("rmdir -p {}\n", desktop_target_dir.to_str().unwrap()).as_bytes(),
+                    )
+                    .unwrap();
             }
             Err(err) => panic!("Couldn't create file `target/uninstall`: {:?}", err),
         }

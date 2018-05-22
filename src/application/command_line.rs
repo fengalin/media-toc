@@ -27,7 +27,7 @@ pub fn handle_command_line() -> CommandLineArguments {
             Arg::with_name(&disable_gl_arg[..])
                 .short("d")
                 .long("disable-gl")
-                .help(&gettext("Disable video rendering hardware acceleration"))
+                .help(&gettext("Disable video rendering hardware acceleration")),
         )
         .arg(
             Arg::with_name(&input_arg[..])
@@ -37,7 +37,8 @@ pub fn handle_command_line() -> CommandLineArguments {
         .get_matches();
 
     CommandLineArguments {
-        input_file: matches.value_of(input_arg.as_str())
+        input_file: matches
+            .value_of(input_arg.as_str())
             .map(|input_file| input_file.into()),
         disable_gl: matches.is_present(disable_gl_arg),
     }

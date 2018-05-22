@@ -1,8 +1,8 @@
 use gdk;
 use gettextrs::gettext;
 use glib;
-use glib::{ObjectExt, ToValue};
 use glib::signal::SignalHandlerId;
+use glib::{ObjectExt, ToValue};
 use gstreamer as gst;
 use gtk;
 use gtk::{BoxExt, ContainerExt, Inhibit, WidgetExt};
@@ -10,10 +10,10 @@ use gtk::{BoxExt, ContainerExt, Inhibit, WidgetExt};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use super::MainController;
 use application::CONFIG;
 use media::PlaybackContext;
 use metadata::MediaInfo;
-use super::MainController;
 
 struct VideoOutput {
     sink: gst::Element,
@@ -39,44 +39,47 @@ impl VideoController {
 
     pub fn register_callbacks(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
         let video_output = if !self.disable_gl && !CONFIG.read().unwrap().media.is_gl_disabled {
-                gst::ElementFactory::make("gtkglsink", "gtkglsink").map(|gtkglsink| {
-                    let glsinkbin = gst::ElementFactory::make("glsinkbin", "video_sink")
-                        .expect("PlaybackContext: couldn't get `glsinkbin` from `gtkglsink`");
-                    glsinkbin.set_property("sink", &gtkglsink.to_value())
-                        .expect("VideoController: couldn't set `sink` for `glsinkbin`");
+            gst::ElementFactory::make("gtkglsink", "gtkglsink").map(|gtkglsink| {
+                let glsinkbin = gst::ElementFactory::make("glsinkbin", "video_sink")
+                    .expect("PlaybackContext: couldn't get `glsinkbin` from `gtkglsink`");
+                glsinkbin
+                    .set_property("sink", &gtkglsink.to_value())
+                    .expect("VideoController: couldn't set `sink` for `glsinkbin`");
 
-                    debug!("Using gtkglsink");
-                    VideoOutput {
-                        sink: glsinkbin,
-                        widget: gtkglsink.get_property("widget")
-                            .expect("VideoController: couldn't get `widget` from `gtkglsink`")
-                            .get::<gtk::Widget>()
-                            .expect("VideoController: unexpected type for `widget` in `gtkglsink`"),
-                    }
-                })
-            } else {
-                None
-            }.or_else(|| {
-                gst::ElementFactory::make("gtksink", "video_sink").map(|sink| {
-                    debug!("Using gtksink");
-                    VideoOutput {
-                        sink: sink.clone(),
-                        widget: sink.get_property("widget")
-                            .expect("PlaybackContext: couldn't get `widget` from `gtksink`")
-                            .get::<gtk::Widget>()
-                            .expect(
-                                "PlaybackContext: unexpected type for `widget` in `gtksink`"
-                            ),
-                    }
-                })
-            });
+                debug!("Using gtkglsink");
+                VideoOutput {
+                    sink: glsinkbin,
+                    widget: gtkglsink
+                        .get_property("widget")
+                        .expect("VideoController: couldn't get `widget` from `gtkglsink`")
+                        .get::<gtk::Widget>()
+                        .expect("VideoController: unexpected type for `widget` in `gtkglsink`"),
+                }
+            })
+        } else {
+            None
+        }.or_else(|| {
+            gst::ElementFactory::make("gtksink", "video_sink").map(|sink| {
+                debug!("Using gtksink");
+                VideoOutput {
+                    sink: sink.clone(),
+                    widget: sink.get_property("widget")
+                        .expect("PlaybackContext: couldn't get `widget` from `gtksink`")
+                        .get::<gtk::Widget>()
+                        .expect("PlaybackContext: unexpected type for `widget` in `gtksink`"),
+                }
+            })
+        });
 
         match video_output {
             Some(ref video_output) => {
                 // discard GStreamer defined navigation events on widget
-                video_output.widget.set_events(gdk::EventMask::BUTTON_PRESS_MASK.bits() as i32);
+                video_output
+                    .widget
+                    .set_events(gdk::EventMask::BUTTON_PRESS_MASK.bits() as i32);
 
-                self.container.pack_start(&video_output.widget, true, true, 0);
+                self.container
+                    .pack_start(&video_output.widget, true, true, 0);
                 self.container.reorder_child(&video_output.widget, 0);
                 video_output.widget.show();
                 self.cleanup();
@@ -101,17 +104,15 @@ impl VideoController {
     }
 
     pub fn get_video_sink(&self) -> Option<gst::Element> {
-        self.video_output.as_ref()
-            .map(|video_output| {
-                video_output.sink.clone()
-            })
+        self.video_output
+            .as_ref()
+            .map(|video_output| video_output.sink.clone())
     }
 
     fn get_video_widget(&self) -> Option<gtk::Widget> {
-        self.video_output.as_ref()
-            .map(|video_output| {
-                video_output.widget.clone()
-            })
+        self.video_output
+            .as_ref()
+            .map(|video_output| video_output.widget.clone())
     }
 
     pub fn cleanup(&mut self) {

@@ -1,7 +1,7 @@
 use directories::ProjectDirs;
 use gettextrs::{TextDomain, TextDomainError};
 
-use super::{TLD, SLD};
+use super::{SLD, TLD};
 
 pub fn init_locale() {
     // Search translations under `target` first

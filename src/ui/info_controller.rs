@@ -2,12 +2,12 @@ use cairo;
 use gettextrs::gettext;
 use gio;
 use gio::prelude::*;
+use glib;
 use gtk;
 use gtk::prelude::*;
-use glib;
 
-use std::fs::File;
 use std::cell::RefCell;
+use std::fs::File;
 use std::rc::{Rc, Weak};
 
 use application::CONFIG;
@@ -139,7 +139,7 @@ impl InfoController {
                     CONFIG.write().unwrap().ui.is_chapters_list_hidden = true;
                     this_clone.borrow().info_container.hide();
                 }
-        });
+            });
         this.show_chapters_btn.set_sensitive(true);
 
         // Draw thumnail image
@@ -237,9 +237,9 @@ impl InfoController {
         next_chapter.connect_activate(move |_, _| {
             let seek_pos = {
                 let this = this_clone.borrow();
-                this.chapter_manager.next_iter().map(|next_iter| {
-                    this.chapter_manager.get_chapter_at_iter(&next_iter).start()
-                })
+                this.chapter_manager
+                    .next_iter()
+                    .map(|next_iter| this.chapter_manager.get_chapter_at_iter(&next_iter).start())
             };
 
             if let Some(seek_pos) = seek_pos {
@@ -257,12 +257,12 @@ impl InfoController {
             let seek_pos = {
                 let this = this_clone.borrow();
                 let position = this.get_position();
-                let cur_start = this.chapter_manager.get_selected_iter().map(|cur_iter| {
-                    this.chapter_manager.get_chapter_at_iter(&cur_iter).start()
-                });
-                let prev_start = this.chapter_manager.prev_iter().map(|prev_iter| {
-                    this.chapter_manager.get_chapter_at_iter(&prev_iter).start()
-                });
+                let cur_start = this.chapter_manager
+                    .get_selected_iter()
+                    .map(|cur_iter| this.chapter_manager.get_chapter_at_iter(&cur_iter).start());
+                let prev_start = this.chapter_manager
+                    .prev_iter()
+                    .map(|prev_iter| this.chapter_manager.get_chapter_at_iter(&prev_iter).start());
 
                 match (cur_start, prev_start) {
                     (Some(cur_start), prev_start_opt) => {
@@ -333,9 +333,8 @@ impl InfoController {
             let info = context.info.read().unwrap();
 
             // check the presence of a toc file
-            let mut toc_candidates = toc_extensions
-                .into_iter()
-                .filter_map(|(extension, format)| {
+            let mut toc_candidates = toc_extensions.into_iter().filter_map(
+                |(extension, format)| {
                     let path = info.path
                         .with_file_name(&format!("{}.{}", info.name, extension));
                     if path.is_file() {
@@ -343,7 +342,8 @@ impl InfoController {
                     } else {
                         None
                     }
-                });
+                },
+            );
 
             self.duration = info.duration;
             self.timeline_scale.set_range(0f64, info.duration as f64);

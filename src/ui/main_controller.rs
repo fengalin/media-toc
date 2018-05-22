@@ -10,8 +10,8 @@ use std::sync::mpsc::{channel, Receiver};
 
 use gettextrs::{gettext, ngettext};
 use gio;
-use gio::prelude::*;
 use gio::MenuExt;
+use gio::prelude::*;
 
 use glib;
 use gstreamer as gst;
@@ -79,11 +79,7 @@ pub struct MainController {
 }
 
 impl MainController {
-    pub fn new(
-        gtk_app: &gtk::Application,
-        is_gst_ok: bool,
-        disable_gl: bool,
-    ) -> Rc<RefCell<Self>> {
+    pub fn new(gtk_app: &gtk::Application, is_gst_ok: bool, disable_gl: bool) -> Rc<RefCell<Self>> {
         let builder = gtk::Builder::new_from_resource(&format!("{}/{}", *APP_PATH, "media-toc.ui"));
         let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
         window.set_application(gtk_app);
@@ -241,7 +237,9 @@ impl MainController {
                 gtk_app.set_accels_for_action("app.close_info_bar", &["Escape"]);
 
                 let this_rc = Rc::clone(&this);
-                this_mut.info_bar.connect_response(move |_, _| this_rc.borrow_mut().quit());
+                this_mut
+                    .info_bar
+                    .connect_response(move |_, _| this_rc.borrow_mut().quit());
 
                 let msg = gettext("Failed to initialize GStreamer, the application can't be used.");
                 this_mut.show_message(gtk::MessageType::Error, &msg);
@@ -264,9 +262,11 @@ impl MainController {
 
         dialog.set_program_name(env!("CARGO_PKG_NAME"));
         dialog.set_logo_icon_name(&APP_ID[..]);
-        dialog.set_comments(&gettext(
-            "Build a table of contents from a media file\nor split a media file into chapters"
-        )[..]);
+        dialog.set_comments(
+            &gettext(
+                "Build a table of contents from a media file\nor split a media file into chapters",
+            )[..],
+        );
         dialog.set_copyright(&gettext("© 2017–2018 François Laignel")[..]);
         dialog.set_license_type(gtk::License::MitX11);
         dialog.set_version(env!("CARGO_PKG_VERSION"));
@@ -628,7 +628,8 @@ impl MainController {
                         this.keep_going = false;
                         keep_going = false;
 
-                        let mut error = gettext("Error opening file.\n\n{}").replacen("{}", &error, 1);
+                        let mut error =
+                            gettext("Error opening file.\n\n{}").replacen("{}", &error, 1);
                         if let Some(message) = this.check_missing_plugins() {
                             error += "\n\n";
                             error += &message;
@@ -735,10 +736,8 @@ impl MainController {
             ctx_tx,
         ) {
             Ok(context) => {
-                CONFIG
-                    .write()
-                    .unwrap()
-                    .media.last_path = filepath.parent().map(|path| path.to_owned());
+                CONFIG.write().unwrap().media.last_path =
+                    filepath.parent().map(|path| path.to_owned());
                 self.context = Some(context);
             }
             Err(error) => {

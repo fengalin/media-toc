@@ -8,7 +8,7 @@ use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 use std::sync::RwLock;
 
-use super::{TLD, SLD};
+use super::{SLD, TLD};
 
 const CONFIG_FILENAME: &str = "config.ron";
 
@@ -58,9 +58,13 @@ impl GlobalConfig {
                         config
                     }
                     Err(err) => {
-                        error!("{}",
-                            &gettext("couldn't load configuration: {}")
-                                .replacen("{}", &format!("{:?}", err), 1),
+                        error!(
+                            "{}",
+                            &gettext("couldn't load configuration: {}").replacen(
+                                "{}",
+                                &format!("{:?}", err),
+                                1
+                            ),
                         );
                         Config::default()
                     }
@@ -84,34 +88,43 @@ impl GlobalConfig {
 
         match File::create(&self.path) {
             Ok(mut config_file) => {
-                match ron::ser::to_string_pretty(
-                    &self.current,
-                    ron::ser::PrettyConfig::default(),
-                ) {
+                match ron::ser::to_string_pretty(&self.current, ron::ser::PrettyConfig::default()) {
                     Ok(config_str) => match config_file.write_all(config_str.as_bytes()) {
                         Ok(()) => {
                             self.last = self.current.clone();
                             debug!("saved config: {:?}", self.current);
                         }
                         Err(err) => {
-                            error!("{}",
-                                &gettext("couldn't write configuration: {}")
-                                    .replacen("{}", &format!("{:?}", err), 1),
+                            error!(
+                                "{}",
+                                &gettext("couldn't write configuration: {}").replacen(
+                                    "{}",
+                                    &format!("{:?}", err),
+                                    1
+                                ),
                             );
                         }
-                    }
+                    },
                     Err(err) => {
-                        error!("{}",
-                            &gettext("couldn't serialize configuration: {}")
-                                .replacen("{}", &format!("{:?}", err), 1),
+                        error!(
+                            "{}",
+                            &gettext("couldn't serialize configuration: {}").replacen(
+                                "{}",
+                                &format!("{:?}", err),
+                                1
+                            ),
                         );
                     }
                 }
             }
             Err(err) => {
-                error!("{}",
-                    &gettext("couldn't create configuration file: {}")
-                        .replacen("{}", &format!("{:?}", err), 1),
+                error!(
+                    "{}",
+                    &gettext("couldn't create configuration file: {}").replacen(
+                        "{}",
+                        &format!("{:?}", err),
+                        1
+                    ),
                 );
             }
         }

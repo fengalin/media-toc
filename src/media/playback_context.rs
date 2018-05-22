@@ -256,7 +256,8 @@ impl PlaybackContext {
             .unwrap();
     }
 
-    fn build_pipeline(&mut self,
+    fn build_pipeline(
+        &mut self,
         path: &Path,
         video_sink: Option<gst::Element>,
         ctx_tx: &Sender<ContextMessage>,
@@ -497,9 +498,7 @@ impl PlaybackContext {
                     let msg = if "sink" == err.get_src().unwrap().get_name() {
                         // TODO: make sure this only occurs in this particular case
                         {
-                            let mut config = CONFIG
-                                .write()
-                                .expect("Failed to get CONFIG as mut");
+                            let mut config = CONFIG.write().expect("Failed to get CONFIG as mut");
                             config.media.is_gl_disabled = true;
                             // Save the config as soon as possible in case something bad occurs
                             // due to the gl sink
@@ -512,9 +511,7 @@ impl PlaybackContext {
                     } else {
                         err.get_error().description().to_owned()
                     };
-                    ctx_tx
-                        .send(ContextMessage::FailedToOpenMedia(msg))
-                        .unwrap();
+                    ctx_tx.send(ContextMessage::FailedToOpenMedia(msg)).unwrap();
                     return glib::Continue(false);
                 }
                 gst::MessageView::Element(element_msg) => {

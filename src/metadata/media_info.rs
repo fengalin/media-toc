@@ -211,7 +211,7 @@ impl MediaInfo {
             name: path.file_stem().unwrap().to_str().unwrap().to_owned(),
             file_name: path.file_name().unwrap().to_str().unwrap().to_owned(),
             path: path.to_owned(),
-            .. MediaInfo::default()
+            ..MediaInfo::default()
         }
     }
 
