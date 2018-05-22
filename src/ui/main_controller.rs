@@ -143,7 +143,7 @@ impl MainController {
             gtk_app.add_action(&quit);
             let this_rc = Rc::clone(&this);
             quit.connect_activate(move |_, _| this_rc.borrow_mut().quit());
-            gtk_app.set_accels_for_action("app.quit", &["<Ctrl>Q", "Escape"]);
+            gtk_app.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
             app_section.append(&gettext("Quit")[..], "app.quit");
 
             let this_rc = Rc::clone(&this);
@@ -219,13 +219,29 @@ impl MainController {
 
                 this_mut.play_pause_btn.set_sensitive(true);
 
+                // Register Close info bar action
+                let close_info_bar = gio::SimpleAction::new("close_info_bar", None);
+                gtk_app.add_action(&close_info_bar);
+                let revealer = this_mut.info_bar_revealer.clone();
+                close_info_bar.connect_activate(move |_, _| revealer.set_reveal_child(false));
+                gtk_app.set_accels_for_action("app.close_info_bar", &["Escape"]);
+
                 let revealer = this_mut.info_bar_revealer.clone();
                 this_mut
                     .info_bar
                     .connect_response(move |_, _| revealer.set_reveal_child(false));
             } else {
                 // GStreamer initialization failed
-                this_mut.info_bar.connect_response(|_, _| gtk::main_quit());
+
+                // Register Close info bar action
+                let close_info_bar = gio::SimpleAction::new("close_info_bar", None);
+                gtk_app.add_action(&close_info_bar);
+                let this_rc = Rc::clone(&this);
+                close_info_bar.connect_activate(move |_, _| this_rc.borrow_mut().quit());
+                gtk_app.set_accels_for_action("app.close_info_bar", &["Escape"]);
+
+                let this_rc = Rc::clone(&this);
+                this_mut.info_bar.connect_response(move |_, _| this_rc.borrow_mut().quit());
 
                 let msg = gettext("Failed to initialize GStreamer, the application can't be used.");
                 this_mut.show_message(gtk::MessageType::Error, &msg);
