@@ -273,6 +273,7 @@ impl MainController {
         dialog.set_website(env!("CARGO_PKG_HOMEPAGE"));
         dialog.set_website_label(&gettext("Learn more about media-toc")[..]);
 
+        dialog.connect_response(|dialog, _| dialog.close());
         dialog.show();
     }
 
