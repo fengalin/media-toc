@@ -204,7 +204,7 @@ impl InfoController {
         add_chapter.connect_activate(move |_, _| {
             this_clone.borrow_mut().add_chapter();
         });
-        gtk_app.set_accels_for_action("app.add_chapter", &["plus"]);
+        gtk_app.set_accels_for_action("app.add_chapter", &["plus", "KP_Add"]);
 
         // Register remove chapter action
         let remove_chapter = gio::SimpleAction::new("remove_chapter", None);
@@ -213,7 +213,7 @@ impl InfoController {
         remove_chapter.connect_activate(move |_, _| {
             this_clone.borrow_mut().remove_chapter();
         });
-        gtk_app.set_accels_for_action("app.remove_chapter", &["minus"]);
+        gtk_app.set_accels_for_action("app.remove_chapter", &["minus", "KP_Subtract"]);
 
         // Register Toggle repeat current chapter action
         let toggle_repeat_chapter = gio::SimpleAction::new("toggle_repeat_chapter", None);
