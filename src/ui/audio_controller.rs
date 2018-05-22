@@ -270,11 +270,12 @@ impl AudioController {
         let this_clone = Rc::clone(&this_rc);
         let main_ctrl_clone = Rc::clone(main_ctrl);
         step_forward.connect_activate(move |_, _| {
+            let mut main_ctrl = main_ctrl_clone.borrow_mut();
             let seek_pos = {
                 let this = this_clone.borrow_mut();
-                this.current_position + this.seek_step
+                main_ctrl.get_position() + this.seek_step
             };
-            main_ctrl_clone.borrow_mut().seek(seek_pos, true); // accurate (slow)
+            main_ctrl.seek(seek_pos, true); // accurate (slow)
         });
         gtk_app.set_accels_for_action("app.step_forward", &["Right"]);
 
@@ -284,15 +285,16 @@ impl AudioController {
         let this_clone = Rc::clone(&this_rc);
         let main_ctrl_clone = Rc::clone(main_ctrl);
         step_back.connect_activate(move |_, _| {
+            let mut main_ctrl = main_ctrl_clone.borrow_mut();
             let seek_pos = {
                 let this = this_clone.borrow_mut();
                 if this.current_position > this.seek_step {
-                    this.current_position - this.seek_step
+                    main_ctrl.get_position() - this.seek_step
                 } else {
                     0
                 }
             };
-            main_ctrl_clone.borrow_mut().seek(seek_pos, true); // accurate (slow)
+            main_ctrl.seek(seek_pos, true); // accurate (slow)
         });
         gtk_app.set_accels_for_action("app.step_back", &["Left"]);
     }
@@ -309,6 +311,7 @@ impl AudioController {
         self.playback_needs_refresh = false;
         self.dbl_buffer_mtx.lock().unwrap().cleanup();
         self.requested_duration = INIT_REQ_DURATION;
+        self.seek_step = INIT_REQ_DURATION as u64 / SEEK_STEP_DURATION_DIVISOR;
         self.current_position = 0;
         self.last_other_ui_refresh = 0;
         self.first_visible_pos = 0;
@@ -322,20 +325,23 @@ impl AudioController {
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
-        {
+        let is_audio_selected = {
             let info = context.info.read().unwrap();
             self.streams_changed(&info);
-        }
+            info.streams.is_audio_selected()
+        };
 
-        // Refresh conditions asynchronously so that
-        // all widget are arranged to their target positions
-        let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
-        gtk::idle_add(move || {
-            let mut this = this_rc.borrow_mut();
-            this.state = ControllerState::Paused;
-            this.update_conditions();
-            glib::Continue(false)
-        });
+        if is_audio_selected {
+            // Refresh conditions asynchronously so that
+            // all widget are arranged to their target positions
+            let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
+            gtk::idle_add(move || {
+                let mut this = this_rc.borrow_mut();
+                this.state = ControllerState::Paused;
+                this.update_conditions();
+                glib::Continue(false)
+            });
+        }
     }
 
     pub fn streams_changed(&mut self, info: &MediaInfo) {
@@ -376,6 +382,10 @@ impl AudioController {
     }
 
     pub fn seek(&mut self, position: u64) {
+        if self.state == ControllerState::Disabled {
+            return;
+        }
+
         let is_playing = self.state == ControllerState::Playing;
         {
             self.waveform_mtx
