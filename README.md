@@ -21,6 +21,7 @@ a media player with a table of contents.
 - [Technologies](#technologies)
 - [Build environment](#build-env)
 - [Build and run](#build-run)
+- [Troubleshooting](#troubleshooting)
 
 ## <a name='ui'></a>Screenshots
 ### media-toc playing a video
@@ -227,8 +228,9 @@ PATH="/usr/local/opt/gettext/bin:$PATH" cargo build --release
 - Install the development toolchain, GTK and GStreamer<br>
 Note: for a 32bits system, use `mingw-w64-i686-...`
 ```
-pacman --noconfirm -S gettext-devel mingw-w64-x86_64-gtk3 mingw-w64-x86_64-gstreamer \
-	mingw-w64-x86_64-gst-plugins-{base,good,bad,ugly} mingw-w64-x86_64-gst-libav
+pacman --noconfirm -S gettext-devel mingw-w64-x86_64-gtk3 mingw-w64-x86_64-gstreamer
+pacman --noconfirm -S mingw-w64-x86_64-gst-plugins-{base,good,bad,ugly} mingw-w64-x86_64-gst-libav
+pacman --noconfirm -S mingw-w64-x86_64-adwaita-icon-theme
 ```
 
 - Launch the [rustup installer](https://www.rustup.rs/).
@@ -257,4 +259,36 @@ bash target/install
 You can uninstall with:
 ```
 bash target/uninstall
+```
+
+# <a name='troubleshooting'></a>Troubleshooting
+
+## Can't play a video file or the UI doesn't refresh properly
+
+This might be caused by the hardware acceleration which is enabled by default.
+In some cases, the application will detect the issue and disable it automatically
+(a restart is required). But in other cases, you may have to disable it by hand.
+First check that hardware acceleration is indeed the issue:
+```
+cargo run -- --disable-gl
+```
+
+If it solves the problem, you can permanently disable hardware acceleration by editing
+the configuration file. The configuration location depends on the operating system:
+
+
+| OS          | Configuration location                                                       |
+| ----------- | ---------------------------------------------------------------------------- |
+| Linux based | ~/.config/media-toc/config.ron                                               |
+| macOS       | /Users/_user_/Library/Preferences/org.fengalin.media-toc/config.ron          |
+| Windows     | C:\\Users\\_user_\\AppData\\Roaming\\fengalin\\media-toc\\config\\config.ron |
+
+
+Open the configuration file and replace the following line:
+```
+        is_gl_disabled: false,
+```
+with:
+```
+        is_gl_disabled: true,
 ```
