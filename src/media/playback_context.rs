@@ -594,11 +594,11 @@ impl PlaybackContext {
                 gst::MessageView::Tag(msg_tag) => match pipeline_state {
                     PipelineState::Initialized(_) => (),
                     _ => {
-                        info_arc_mtx
+                        let mut tags = &mut info_arc_mtx
                             .write()
-                            .expect("Failed to lock media info while reading tags")
-                            .tags
-                            .merge(&msg_tag.get_tags(), gst::TagMergeMode::Replace);
+                            .expect("Failed to lock media info while receiving tags")
+                            .tags;
+                        *tags = tags.merge(&msg_tag.get_tags(), gst::TagMergeMode::Append);
                     }
                 },
                 gst::MessageView::Toc(msg_toc) => {
