@@ -496,10 +496,15 @@ impl PlaybackContext {
                 gst::MessageView::Error(err) => {
                     let msg = if "sink" == err.get_src().unwrap().get_name() {
                         // TODO: make sure this only occurs in this particular case
-                        CONFIG
-                            .write()
-                            .expect("Failed to get CONFIG as mut")
-                            .media.is_gl_disabled = true;
+                        {
+                            let mut config = CONFIG
+                                .write()
+                                .expect("Failed to get CONFIG as mut");
+                            config.media.is_gl_disabled = true;
+                            // Save the config as soon as possible in case something bad occurs
+                            // due to the gl sink
+                            config.save();
+                        }
 
                         gettext(
 "Video rendering hardware acceleration seems broken and has been disabled.\nPlease restart the application.",
