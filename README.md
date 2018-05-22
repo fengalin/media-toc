@@ -65,15 +65,15 @@ The following functions are bound to one or multiple key accelerators:
 
 | Function                                                   | keys              |
 | ---------------------------------------------------------- | :---------------: |
-| Open media dialog                                          | <Ctrl> + O        |
-| Quit the application                                       | <Ctrl> + Q        |
+| Open media dialog                                          | <Ctrl\> + O       |
+| Quit the application                                       | <Ctrl\> + Q       |
 | Play/Pause (and open media dialog when no media is loaded) | Space or Play key |
 | Step forward                                               | Right             |
 | Step back                                                  | Left              |
 | Go to next chapter                                         | Down or Next key  |
 | Go to the beginning of current chapter or previous chapter | Up or Prev key    |
 | Zoom the waveform in                                       | Z                 |
-| Zoom the waveform out                                      | <Shitf> + Z       |
+| Zoom the waveform out                                      | <Shitf\> + Z      |
 | Close the info bar                                         | Escape            |
 | Add a chapter at current position                          | +                 |
 | Remove the chapter at current position                     | -                 |
@@ -83,7 +83,7 @@ The following functions are bound to one or multiple key accelerators:
 | Show the Streams perspective                               | F6                |
 | Show the Export perspective                                | F7                |
 | Show the Split perspective                                 | F8                |
-| Open the about dialog                                      | <Ctrl> + A        |
+| Open the about dialog                                      | <Ctrl\> + A       |
 
 # <a name='how-tos'></a>How-tos
 
