@@ -1,6 +1,6 @@
 # media-toc [![Build Status](https://travis-ci.org/fengalin/media-toc.svg?branch=master)](https://travis-ci.org/fengalin/media-toc) [![Build status](https://ci.appveyor.com/api/projects/status/eu9p6ggcflj89h3v?svg=true)](https://ci.appveyor.com/project/fengalin/media-toc)
 
-![media-toc logo](assets/icons/hicolor/512x512/apps/org.fengalin.media-toc.png "media-toc logo")
+![media-toc logo](assets/icons/banner/org.fengalin.media-toc.png "media-toc logo")
 
 **media-toc** is an application to build a table of contents from a media file or to split a media
 file into chapters. It runs on Linux and Windows and should also work on macOS.
@@ -15,7 +15,7 @@ a media player with a table of contents.
 - [How-tos](#how-tos)
   * [Create the table of contents](#how-to-create-the-toc)
   * [Save the table of contents](#how-to-save-the-toc)
-  * [Export the resulting media with its table of contents in a Matroska container](#export-to-mkv)
+  * [Export the resulting media with its table of contents to a Matroska container](#export-to-mkv)
   * [Split the audio stream into one file per chapter](#split-to-audio)
   * [Use `mkvmerge` to add the toc to an existing Matrsoka media](#use-mkvmerge)
 - [Technologies](#technologies)
@@ -49,7 +49,7 @@ at the starting position in paused mode.
 - Drag chapters' boundaries in order to adjust their position.
 - Play current chapter in a loop.
 - Export the table of contents to:
-	* A Matroska container. Currently, this is possible only if the input streams are compatible
+	* A Matroska container. Currently, this is only possible if the input streams are compatible
 	with Matroska containers. I'll add an UI to allow converting streams later. This requires
 	[`gst-plugins-good` 1.14](https://gstreamer.freedesktop.org/releases/1.14/) or above.
 	* [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
@@ -122,9 +122,10 @@ next time you open this media.
 4. Click on `Export`. When the export is complete, a new file with the same name as your media and
 with a `txt` extension will be created in the media's folder.
 
-## <a name='export-to-mkv'></a>Export the resulting media with its table of contents in a Matroska container
+## <a name='export-to-mkv'></a>Export the resulting media with its table of contents to a Matroska container
 
-Currently, this is possible only for media with streams compatible with Matroska containers.
+Currently, this is only possible if the input streams are compatible with Matroska containers.
+
 Warning: this also requires [`gst-plugins-good` 1.14](https://gstreamer.freedesktop.org/releases/1.14/)
 or above.
 
