@@ -18,6 +18,7 @@ chrono = "^0.4.1"
 directories = "^0.10.0"
 env_logger = "^0.5.6"
 gdk = "^0.8.0"
+gettext-rs = { version = "^0.4.0", features = ["gettext-system"] }
 gio = "^0.4.0"
 glib = "^0.5.0"
 gstreamer = { version = "^0.11.0", features = ["v1_10"] }
@@ -32,13 +33,8 @@ sample = "^0.9.1"
 serde = "1.0"
 serde_derive = "1.0"
 
-gettext-rs = { git = "https://github.com/Koka/gettext-rs", features = ["gettext-system"] }
-#gettext-rs = { git = "https://github.com/fengalin/gettext-rs", features = ["gettext-system"] }
-#gettext-rs = { path = "../gettext-rs", features = ["gettext-system"] }
-
 #nom = { git = "https://github.com/Geal/nom" }
 nom = { git = "https://github.com/fengalin/nom", branch = "parse_to_error_kind" }
-#nom = { path = "../nom" }
 
 [features]
 dump-waveform = ["cairo-rs/png"]

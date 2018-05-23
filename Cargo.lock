@@ -283,17 +283,17 @@ dependencies = [
 
 [[package]]
 name = "gettext-rs"
-version = "0.3.0"
-source = "git+https://github.com/Koka/gettext-rs#78aa1e84baa8f47a05d3fd60fe2dc8de9a36772b"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "gettext-sys 0.19.8 (git+https://github.com/Koka/gettext-rs)",
+ "gettext-sys 0.19.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "locale_config 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "gettext-sys"
 version = "0.19.8"
-source = "git+https://github.com/Koka/gettext-rs#78aa1e84baa8f47a05d3fd60fe2dc8de9a36772b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "cc 1.0.15 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -579,7 +579,7 @@ dependencies = [
  "directories 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.5.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "gdk 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "gettext-rs 0.3.0 (git+https://github.com/Koka/gettext-rs)",
+ "gettext-rs 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "gio 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "gstreamer 0.11.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1029,8 +1029,8 @@ dependencies = [
 "checksum gdk-pixbuf 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c2d2199eba47ebcb9977ce28179649bdd59305ef465c4e6f9b65aaa41c24e6b5"
 "checksum gdk-pixbuf-sys 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "df6a3b73e04fafc07f5ebc083f1096a773412e627828e1103a55e921f81187d8"
 "checksum gdk-sys 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3162ff940526ddff71bf1f630facee6b5e05d282d125ba0c4c803842819b80c3"
-"checksum gettext-rs 0.3.0 (git+https://github.com/Koka/gettext-rs)" = "<none>"
-"checksum gettext-sys 0.19.8 (git+https://github.com/Koka/gettext-rs)" = "<none>"
+"checksum gettext-rs 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3b8c2412d5758f68a9eeba161f9ecb9a55f56bfdbf17857650b98f2b9b281a47"
+"checksum gettext-sys 0.19.8 (registry+https://github.com/rust-lang/crates.io-index)" = "62c644c0b8b73706fb8c7420533fd30abf6f41c2703994bc6f0826fceb7fb3d6"
 "checksum gif 0.9.2 (registry+https://github.com/rust-lang/crates.io-index)" = "e2e41945ba23db3bf51b24756d73d81acb4f28d85c3dccc32c6fae904438c25f"
 "checksum gio 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "071fd4e5592b39fdc31318e32d2497842501f539bcedb60c75cd365946642adc"
 "checksum gio-sys 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "2a57872499171d279f8577ce83837da4cae62b08dd32892236ed67ab7ea61030"
