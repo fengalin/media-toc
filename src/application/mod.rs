@@ -26,7 +26,7 @@ pub use self::locale::init_locale;
 
 fn register_resource(resource: &[u8]) {
     let gbytes = glib::Bytes::from(resource);
-    let _res = gio::Resource::new_from_data(&gbytes)
+    gio::Resource::new_from_data(&gbytes)
         .and_then(|resource| {
             gio::resources_register(&resource);
             Ok(())
@@ -49,9 +49,7 @@ pub fn run(is_gst_ok: bool, args: CommandLineArguments) {
 
         if is_gst_ok {
             if let Some(ref input_file) = args.input_file {
-                // FIXME: there must be a lifetime way to avoid
-                // all these duplications
-                main_ctrl.borrow_mut().open_media(input_file.clone());
+                main_ctrl.borrow_mut().open_media(input_file);
             }
         }
     });

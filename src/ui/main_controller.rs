@@ -3,11 +3,12 @@ use std::rc::Rc;
 
 use std::collections::HashSet;
 
-use std::path::PathBuf;
+use std::path::Path;
 
 use std::sync::Arc;
 use std::sync::mpsc::{channel, Receiver};
 
+use gdk::{Cursor, CursorType, WindowExt};
 use gettextrs::{gettext, ngettext};
 use gio;
 use gio::MenuExt;
@@ -17,8 +18,6 @@ use glib;
 use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
-
-use gdk::{Cursor, CursorType, WindowExt};
 
 use application::{APP_ID, APP_PATH, CONFIG};
 use media::ContextMessage::*;
@@ -698,7 +697,7 @@ impl MainController {
             if let Some(ref context) = self.context.take() {
                 context.stop();
             }
-            self.open_media(file_dlg.get_filename().unwrap());
+            self.open_media(&file_dlg.get_filename().unwrap());
         } else {
             if self.context.is_some() {
                 self.state = ControllerState::Paused;
@@ -709,7 +708,7 @@ impl MainController {
         file_dlg.close();
     }
 
-    pub fn open_media(&mut self, filepath: PathBuf) {
+    pub fn open_media(&mut self, filepath: &Path) {
         self.remove_listener();
 
         self.info_ctrl.borrow_mut().cleanup();
@@ -730,10 +729,10 @@ impl MainController {
 
         let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.borrow().dbl_buffer_mtx);
         match PlaybackContext::new(
-            &filepath,
+            filepath,
             &dbl_buffer_mtx,
-            self.video_ctrl.get_video_sink(),
-            ctx_tx,
+            &self.video_ctrl.get_video_sink(),
+            &ctx_tx,
         ) {
             Ok(context) => {
                 CONFIG.write().unwrap().media.last_path =

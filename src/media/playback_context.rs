@@ -57,8 +57,8 @@ impl PlaybackContext {
     pub fn new(
         path: &Path,
         dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer>>,
-        video_sink: Option<gst::Element>,
-        ctx_tx: Sender<ContextMessage>,
+        video_sink: &Option<gst::Element>,
+        ctx_tx: &Sender<ContextMessage>,
     ) -> Result<PlaybackContext, String> {
         info!(
             "{}",
@@ -259,7 +259,7 @@ impl PlaybackContext {
     fn build_pipeline(
         &mut self,
         path: &Path,
-        video_sink: Option<gst::Element>,
+        video_sink: &Option<gst::Element>,
         ctx_tx: &Sender<ContextMessage>,
     ) {
         // From decodebin3's documentation: "Children: multiqueue0"

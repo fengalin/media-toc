@@ -139,7 +139,7 @@ impl PerspectiveController {
                             "PerspectiveController no acceleration label for button {:?}",
                             button_name,
                         ));
-                    let action_splits: Vec<&str> = action_name.splitn(2, ".").collect();
+                    let action_splits: Vec<&str> = action_name.splitn(2, '.').collect();
                     if action_splits.len() != 2 {
                         panic!(
                             "PerspectiveController unexpected action name for button {:?}",
