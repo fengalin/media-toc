@@ -41,3 +41,6 @@ for XY in 128 256 512; do
     	--export-png=assets/icons/hicolor/"$XY"x"$XY"/apps/$APP_ID-symbolic.symbolic.png \
     	assets/icons/src/media-toc-symbolic.svg
 done
+
+mkdir -p assets/icons/banner
+convert -trim assets/icons/hicolor/512x512/apps/$APP_ID.png assets/icons/banner/$APP_ID.png
