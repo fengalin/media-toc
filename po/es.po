@@ -3,13 +3,14 @@
 # Copyright (C) 2018 François Laignel
 # This file is distributed under the same license as the media-toc package.
 # Esther <xther81@hotmail.com>, 2018.
+# Xther <xther81@hotmail.com>, 2018.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: media-toc\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
 "POT-Creation-Date: 2018-05-23 22:12+0200\n"
-"PO-Revision-Date: 2018-05-13 21:40+0200\n"
+"PO-Revision-Date: 2018-05-24 23:50+0200\n"
 "Last-Translator: Xther <xther81@hotmail.com>\n"
 "Language-Team: castillan <>\n"
 "Language: es\n"
@@ -21,62 +22,62 @@ msgstr ""
 
 #: assets/ui/media-toc.ui:158
 msgid "Perspective selector"
-msgstr ""
+msgstr "Selector de perspectiva"
 
 #. Button tooltip
 #: assets/ui/media-toc.ui:177
 msgid "Open media"
-msgstr ""
+msgstr "Abrir un archivo multimedia"
 
 #. Button tooltip
 #: assets/ui/media-toc.ui:200
 msgid "Show / hide chapters list"
-msgstr ""
+msgstr "Mostrar / ocultar la lista de capítulos"
 
 #. Label
 #: assets/ui/media-toc.ui:238
 msgid "Title:"
-msgstr ""
+msgstr "Título:"
 
 #. Label
 #: assets/ui/media-toc.ui:250
 msgid "Artist:"
-msgstr ""
+msgstr "Artista:"
 
 #. Label
 #: assets/ui/media-toc.ui:262
 msgid "Container:"
-msgstr ""
+msgstr "Contenedor:"
 
 #. Label
 #: assets/ui/media-toc.ui:274
 msgid "Video Codec:"
-msgstr ""
+msgstr "Códec Vídeo:"
 
 #. Label
 #: assets/ui/media-toc.ui:286
 msgid "Audio Codec:"
-msgstr ""
+msgstr "Códec Audio:"
 
 #. Label
 #: assets/ui/media-toc.ui:298
 msgid "Duration:"
-msgstr ""
+msgstr "Duración:"
 
 #. Button tooltip
 #: assets/ui/media-toc.ui:465
 msgid "Repeat current chapter"
-msgstr ""
+msgstr "Repetir el capítulo actual"
 
 #. Button tooltip
 #: assets/ui/media-toc.ui:491
 msgid "Remove current chapter"
-msgstr ""
+msgstr "Suprimir el capítulo actual"
 
 #. Button tooltip
 #: assets/ui/media-toc.ui:507
 msgid "Add a new chapter"
-msgstr ""
+msgstr "Añadir un nuevo capítulo"
 
 #. Button tooltip
 #: assets/ui/media-toc.ui:640
@@ -129,7 +130,7 @@ msgstr ""
 
 #: assets/ui/media-toc.ui:1067
 msgid "Matroska Container"
-msgstr ""
+msgstr "Contenedor Matroska"
 
 #: assets/ui/media-toc.ui:1083
 msgid ""
@@ -141,7 +142,7 @@ msgstr ""
 #. Button label
 #: assets/ui/media-toc.ui:1127
 msgid "Export"
-msgstr ""
+msgstr "Exportar"
 
 #. Button tooltip
 #: assets/ui/media-toc.ui:1131
@@ -150,11 +151,11 @@ msgstr ""
 
 #: assets/ui/media-toc.ui:1149
 msgid "Export Formats"
-msgstr ""
+msgstr "Formatos de exportación"
 
 #: assets/ui/media-toc.ui:1267
 msgid "Flac"
-msgstr ""
+msgstr "Flac"
 
 #: assets/ui/media-toc.ui:1283
 msgid ""
@@ -174,7 +175,7 @@ msgstr ""
 
 #: assets/ui/media-toc.ui:1403
 msgid "Opus"
-msgstr ""
+msgstr "Opus"
 
 #: assets/ui/media-toc.ui:1419 assets/ui/media-toc.ui:1487
 #: assets/ui/media-toc.ui:1555
@@ -189,7 +190,7 @@ msgstr ""
 
 #: assets/ui/media-toc.ui:1539
 msgid "MP3"
-msgstr ""
+msgstr "MP3"
 
 #. Button label
 #. Name of the perspective
@@ -209,17 +210,17 @@ msgstr ""
 #. Name of the perspective
 #: assets/ui/media-toc.ui:1794
 msgid "Display"
-msgstr ""
+msgstr "Visualización"
 
 #. Name of the perspective
 #: assets/ui/media-toc.ui:1856
 msgid "Streams"
-msgstr ""
+msgstr "Flujos"
 
 #. Name of the perspective
 #: assets/ui/media-toc.ui:1918
 msgid "Export\t"
-msgstr ""
+msgstr "Exportar"
 
 #: src/application/command_line.rs:13 src/ui/main_controller.rs:266
 msgid ""
@@ -239,7 +240,7 @@ msgstr "Muestra la versión"
 
 #: src/application/command_line.rs:18
 msgid "MEDIA"
-msgstr "MULTIMEDIA"
+msgstr "ARCHIVO MULTIMEDIA"
 
 #: src/application/command_line.rs:30
 msgid "Disable video rendering hardware acceleration"
@@ -441,7 +442,7 @@ msgstr "Título"
 
 #: src/ui/chapter_tree_manager.rs:135
 msgid "Start"
-msgstr "Principio"
+msgstr "Inicio"
 
 #: src/ui/chapter_tree_manager.rs:136
 msgid "End"
@@ -453,7 +454,7 @@ msgstr "Tabla de contenidos exportada con éxito"
 
 #: src/ui/export_controller.rs:145
 msgid "Failed to create the file for the table of contents"
-msgstr "No se pudo crear el archive para la tabla de contenidos"
+msgstr "No se pudo crear el archivo para la tabla de contenidos"
 
 #: src/ui/export_controller.rs:204
 msgid "Failed to prepare for export. {}"
@@ -487,12 +488,11 @@ msgstr ""
 
 #: src/ui/main_controller.rs:142
 msgid "Quit"
-msgstr ""
+msgstr "Salir"
 
 #: src/ui/main_controller.rs:202
-#, fuzzy
 msgid "Open media file"
-msgstr "Ruta al archivo multimedia"
+msgstr "Abrir el archivo multimedia"
 
 #: src/ui/main_controller.rs:243
 msgid "Failed to initialize GStreamer, the application can't be used."
@@ -500,7 +500,7 @@ msgstr ""
 
 #: src/ui/main_controller.rs:269
 msgid "© 2017–2018 François Laignel"
-msgstr ""
+msgstr "© 2017–2018 François Laignel"
 
 #: src/ui/main_controller.rs:273
 msgid "Learn more about media-toc"
@@ -525,11 +525,11 @@ msgstr ""
 
 #: src/ui/main_controller.rs:688
 msgid "Cancel"
-msgstr ""
+msgstr "Anular"
 
 #: src/ui/main_controller.rs:689
 msgid "Open"
-msgstr ""
+msgstr "Abrir"
 
 #: src/ui/split_controller.rs:244
 msgid "Failed to prepare for split. {}"
@@ -549,19 +549,19 @@ msgstr "desconocido"
 
 #: src/ui/streams_controller.rs:373
 msgid "Export?"
-msgstr ""
+msgstr "Exportar?"
 
 #: src/ui/streams_controller.rs:374
 msgid "Stream id"
-msgstr ""
+msgstr "Id. del flujo"
 
 #: src/ui/streams_controller.rs:375
 msgid "Language"
-msgstr ""
+msgstr "Idioma"
 
 #: src/ui/streams_controller.rs:376
 msgid "Codec"
-msgstr ""
+msgstr "Códec"
 
 #: src/ui/streams_controller.rs:377
 msgid "Comment"
@@ -569,11 +569,11 @@ msgstr "Comentario"
 
 #: src/ui/streams_controller.rs:409
 msgid "Width"
-msgstr ""
+msgstr "Ancho"
 
 #: src/ui/streams_controller.rs:416
 msgid "Height"
-msgstr ""
+msgstr "Alto"
 
 #: src/ui/streams_controller.rs:460
 msgid "Rate"
