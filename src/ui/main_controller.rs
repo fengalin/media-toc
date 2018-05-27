@@ -433,7 +433,7 @@ impl MainController {
         }
     }
 
-    pub fn select_streams(&mut self, stream_ids: &[String]) {
+    pub fn select_streams(&mut self, stream_ids: &[Arc<str>]) {
         self.context.as_ref().unwrap().select_streams(stream_ids);
         // In Playing state, wait for the notification from the Context
         // Otherwise, update immediately

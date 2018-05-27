@@ -3,6 +3,7 @@ use gstreamer as gst;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 pub fn get_default_chapter_title() -> String {
     gettext("untitled")
@@ -10,7 +11,7 @@ pub fn get_default_chapter_title() -> String {
 
 #[derive(Clone)]
 pub struct Stream {
-    pub id: String,
+    pub id: Arc<str>,
     pub codec_printable: String,
     pub caps: gst::Caps,
     pub tags: Option<gst::TagList>,
@@ -80,7 +81,7 @@ impl Stream {
         };
 
         Stream {
-            id: stream.get_stream_id().unwrap(),
+            id: stream.get_stream_id().unwrap().into(),
             codec_printable,
             caps,
             tags,
@@ -92,16 +93,15 @@ impl Stream {
 
 #[derive(Default)]
 pub struct Streams {
-    pub audio: HashMap<String, Stream>,
-    pub video: HashMap<String, Stream>,
-    pub text: HashMap<String, Stream>,
+    pub audio: HashMap<Arc<str>, Stream>,
+    pub video: HashMap<Arc<str>, Stream>,
+    pub text: HashMap<Arc<str>, Stream>,
 
-    // FIXME: see if a self ref Stream could be used instead
-    cur_audio_id: Option<String>,
+    cur_audio_id: Option<Arc<str>>,
     pub audio_changed: bool,
-    cur_video_id: Option<String>,
+    cur_video_id: Option<Arc<str>>,
     pub video_changed: bool,
-    cur_text_id: Option<String>,
+    cur_text_id: Option<Arc<str>>,
     pub text_changed: bool,
 }
 
@@ -110,15 +110,15 @@ impl Streams {
         let stream = Stream::new(gst_stream);
         match stream.type_ {
             gst::StreamType::AUDIO => {
-                self.cur_audio_id.get_or_insert(stream.id.clone());
+                self.cur_audio_id.get_or_insert(Arc::clone(&stream.id));
                 self.audio.insert(stream.id.clone(), stream);
             }
             gst::StreamType::VIDEO => {
-                self.cur_video_id.get_or_insert(stream.id.clone());
+                self.cur_video_id.get_or_insert(Arc::clone(&stream.id));
                 self.video.insert(stream.id.clone(), stream);
             }
             gst::StreamType::TEXT => {
-                self.cur_text_id.get_or_insert(stream.id.clone());
+                self.cur_text_id.get_or_insert(Arc::clone(&stream.id));
                 self.text.insert(stream.id.clone(), stream);
             }
             _ => panic!("MediaInfo::add_stream can't handle {:?}", stream.type_),
@@ -151,8 +151,20 @@ impl Streams {
             .map(|stream_id| &self.text[stream_id])
     }
 
+    pub fn get_audio_mut<'a, S: AsRef<str>>(&'a mut self, id: S) -> Option<&'a mut Stream> {
+        self.audio.get_mut(id.as_ref())
+    }
+
+    pub fn get_video_mut<'a, S: AsRef<str>>(&'a mut self, id: S) -> Option<&'a mut Stream> {
+        self.video.get_mut(id.as_ref())
+    }
+
+    pub fn get_text_mut<'a, S: AsRef<str>>(&'a mut self, id: S) -> Option<&'a mut Stream> {
+        self.text.get_mut(id.as_ref())
+    }
+
     // Returns the streams which changed
-    pub fn select_streams(&mut self, ids: &[String]) {
+    pub fn select_streams(&mut self, ids: &[Arc<str>]) {
         let mut is_audio_selected = false;
         let mut is_text_selected = false;
         let mut is_video_selected = false;
@@ -161,20 +173,20 @@ impl Streams {
             if self.audio.contains_key(id) {
                 is_audio_selected = true;
                 self.audio_changed = self.selected_audio()
-                    .map_or(true, |prev_stream| *id != prev_stream.id.as_str());
-                self.cur_audio_id = Some(id.to_string());
+                    .map_or(true, |prev_stream| *id != prev_stream.id);
+                self.cur_audio_id = Some(Arc::clone(id));
             } else if self.text.contains_key(id) {
                 is_text_selected = true;
                 self.text_changed = self.selected_text()
-                    .map_or(true, |prev_stream| *id != prev_stream.id.as_str());
-                self.cur_text_id = Some(id.to_string());
+                    .map_or(true, |prev_stream| *id != prev_stream.id);
+                self.cur_text_id = Some(Arc::clone(id));
             } else if self.video.contains_key(id) {
                 is_video_selected = true;
                 self.video_changed = self.selected_video()
-                    .map_or(true, |prev_stream| *id != prev_stream.id.as_str());
-                self.cur_video_id = Some(id.to_string());
+                    .map_or(true, |prev_stream| *id != prev_stream.id);
+                self.cur_video_id = Some(Arc::clone(id));
             } else {
-                panic!("MediaInfo::select_streams unknown stream id {}", id);
+                panic!("MediaInfo::select_streams unknown stream id {}", id.as_ref());
             }
         }
 

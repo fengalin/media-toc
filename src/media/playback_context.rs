@@ -184,8 +184,8 @@ impl PlaybackContext {
         }
     }
 
-    pub fn select_streams(&self, stream_ids: &[String]) {
-        let stream_id_vec: Vec<&str> = stream_ids.iter().map(|id| id.as_str()).collect();
+    pub fn select_streams(&self, stream_ids: &[Arc<str>]) {
+        let stream_id_vec: Vec<&str> = stream_ids.iter().map(|id| id.as_ref()).collect();
         let select_streams_evt = gst::Event::new_select_streams(&stream_id_vec).build();
         self.decodebin.send_event(select_streams_evt);
 

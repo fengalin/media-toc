@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
+use std::sync::Arc;
 
 use gettextrs::gettext;
 use glib;
@@ -59,15 +60,15 @@ macro_rules! on_stream_selected(
 pub struct StreamsController {
     video_treeview: gtk::TreeView,
     video_store: gtk::ListStore,
-    video_selected: Option<String>,
+    video_selected: Option<Arc<str>>,
 
     audio_treeview: gtk::TreeView,
     audio_store: gtk::ListStore,
-    audio_selected: Option<String>,
+    audio_selected: Option<Arc<str>>,
 
     text_treeview: gtk::TreeView,
     text_store: gtk::ListStore,
-    text_selected: Option<String>,
+    text_selected: Option<Arc<str>>,
 
     main_ctrl: Option<Weak<RefCell<MainController>>>,
 }
@@ -158,8 +159,7 @@ impl StreamsController {
                         .write()
                         .unwrap()
                         .streams
-                        .video
-                        .get_mut(&stream_id)
+                        .get_video_mut(stream_id)
                         .as_mut()
                         .unwrap()
                         .must_export = value;
@@ -178,8 +178,7 @@ impl StreamsController {
                         .write()
                         .unwrap()
                         .streams
-                        .audio
-                        .get_mut(&stream_id)
+                        .get_audio_mut(stream_id)
                         .as_mut()
                         .unwrap()
                         .must_export = value;
@@ -197,8 +196,7 @@ impl StreamsController {
                         .write()
                         .unwrap()
                         .streams
-                        .text
-                        .get_mut(&stream_id)
+                        .get_text_mut(stream_id)
                         .as_mut()
                         .unwrap()
                         .must_export = value;
@@ -224,11 +222,11 @@ impl StreamsController {
             let mut sorted_ids = info.streams
                 .video
                 .keys()
-                .map(|key| key.to_string())
-                .collect::<Vec<String>>();
+                .map(|key| Arc::clone(key))
+                .collect::<Vec<Arc<str>>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let mut stream = info.streams.video.get_mut(&stream_id).unwrap();
+                let mut stream = info.streams.get_video_mut(stream_id).unwrap();
                 stream.must_export = true;
                 let iter = self.add_stream(&self.video_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
@@ -246,11 +244,11 @@ impl StreamsController {
             let mut sorted_ids = info.streams
                 .audio
                 .keys()
-                .map(|key| key.to_string())
-                .collect::<Vec<String>>();
+                .map(|key| Arc::clone(key))
+                .collect::<Vec<Arc<str>>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let mut stream = info.streams.audio.get_mut(&stream_id).unwrap();
+                let mut stream = info.streams.get_audio_mut(stream_id).unwrap();
                 stream.must_export = true;
                 let iter = self.add_stream(&self.audio_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
@@ -271,11 +269,11 @@ impl StreamsController {
             let mut sorted_ids = info.streams
                 .text
                 .keys()
-                .map(|key| key.to_string())
-                .collect::<Vec<String>>();
+                .map(|key| Arc::clone(key))
+                .collect::<Vec<Arc<str>>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let mut stream = info.streams.text.get_mut(&stream_id).unwrap();
+                let mut stream = info.streams.get_text_mut(stream_id).unwrap();
                 stream.must_export = true;
                 let iter = self.add_stream(&self.text_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
@@ -305,15 +303,15 @@ impl StreamsController {
     pub fn trigger_stream_selection(&self) {
         // Asynchronoulsy notify the main controller
         let main_ctrl_weak = Weak::clone(self.main_ctrl.as_ref().unwrap());
-        let mut streams: Vec<String> = Vec::new();
+        let mut streams: Vec<Arc<str>> = Vec::new();
         if let Some(stream) = self.video_selected.as_ref() {
-            streams.push(stream.clone());
+            streams.push(Arc::clone(stream));
         }
         if let Some(stream) = self.audio_selected.as_ref() {
-            streams.push(stream.clone());
+            streams.push(Arc::clone(stream));
         }
         if let Some(stream) = self.text_selected.as_ref() {
-            streams.push(stream.clone());
+            streams.push(Arc::clone(stream));
         }
         gtk::idle_add(move || {
             let main_ctrl_rc = main_ctrl_weak.upgrade().unwrap();
@@ -333,7 +331,7 @@ impl StreamsController {
         let iter = store.insert_with_values(
             None,
             &[EXPORT_FLAG_COL, STREAM_ID_COL, STREAM_ID_DISPLAY_COL],
-            &[&true, &stream.id, &stream_id_display],
+            &[&true, &stream.id.as_ref(), &stream_id_display],
         );
 
         if let Some(ref tags) = stream.tags {
@@ -360,11 +358,12 @@ impl StreamsController {
         iter
     }
 
-    fn get_stream_at(&self, store: &gtk::ListStore, iter: &gtk::TreeIter) -> String {
+    fn get_stream_at(&self, store: &gtk::ListStore, iter: &gtk::TreeIter) -> Arc<str> {
         store
             .get_value(iter, STREAM_ID_COL as i32)
             .get::<String>()
             .unwrap()
+            .into()
     }
 
     fn init_treeviews(&self, this_rc: &Rc<RefCell<Self>>) {
