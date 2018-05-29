@@ -9,8 +9,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-05-23 22:12+0200\n"
-"PO-Revision-Date: 2018-05-24 23:50+0200\n"
+"POT-Creation-Date: 2018-05-29 21:22+0200\n"
+"PO-Revision-Date: 2018-05-29 22:31+0200\n"
 "Last-Translator: Xther <xther81@hotmail.com>\n"
 "Language-Team: castillan <>\n"
 "Language: es\n"
@@ -82,33 +82,33 @@ msgstr "Añadir un nuevo capítulo"
 #. Button tooltip
 #: assets/ui/media-toc.ui:640
 msgid "Zoom in"
-msgstr ""
+msgstr "Aumentar el zoom"
 
 #. Button tooltip
 #: assets/ui/media-toc.ui:656
 msgid "Zoom out"
-msgstr ""
+msgstr "Disminuir el zoom"
 
 #. Button tooltip
 #: assets/ui/media-toc.ui:721
 msgid "Play / Pause"
-msgstr ""
+msgstr "Interpretar / Pausa"
 
 #: assets/ui/media-toc.ui:771
 msgid "Video Streams"
-msgstr ""
+msgstr "Secuencias de vídeo"
 
 #: assets/ui/media-toc.ui:804
 msgid "Audio Streams"
-msgstr ""
+msgstr "Secuencias de audio"
 
 #: assets/ui/media-toc.ui:837
 msgid "Text Streams"
-msgstr ""
+msgstr "Secuencias de texto"
 
 #: assets/ui/media-toc.ui:967
 msgid "mkvmerge text format"
-msgstr ""
+msgstr "Formato de texto de mkvmerge"
 
 #: assets/ui/media-toc.ui:983
 msgid ""
@@ -116,10 +116,13 @@ msgid ""
 "Flat table of contents.\n"
 "Time resolution: 1 ms."
 msgstr ""
+"Formato de texto compatible mkvmerge.\n"
+"Tabla de contenido plana. \n"
+"Unidad de tiempo: 1 ms."
 
 #: assets/ui/media-toc.ui:1017
 msgid "Cue Sheet format"
-msgstr ""
+msgstr "Formato Cue Sheet"
 
 #: assets/ui/media-toc.ui:1033
 msgid ""
@@ -127,6 +130,9 @@ msgid ""
 "Hierachical table of contents.\n"
 "Time resolution: 1 frame (1/75 s)."
 msgstr ""
+"Formato de texto compatible Cue Sheet.\n"
+"Tabla de contenido jerárquica.\n"
+"Unidad de tiempo: 1 trama (1/75 s)."
 
 #: assets/ui/media-toc.ui:1067
 msgid "Matroska Container"
@@ -138,6 +144,9 @@ msgid ""
 "Hierachical table of contents.\n"
 "Time resolution: 1 ns."
 msgstr ""
+"Contenedor binario de audio, vídeo y texto.\n"
+"Tabla de contenido jerárquica.\n"
+"Unidad de tiempo: 1 ns.\n"
 
 #. Button label
 #: assets/ui/media-toc.ui:1127
@@ -147,7 +156,7 @@ msgstr "Exportar"
 #. Button tooltip
 #: assets/ui/media-toc.ui:1131
 msgid "Export media to selected format"
-msgstr ""
+msgstr "Exportar archivo multimedia al formato seleccionado"
 
 #: assets/ui/media-toc.ui:1149
 msgid "Export Formats"
@@ -162,16 +171,20 @@ msgid ""
 "Audio lossless compression.\n"
 "Tags support."
 msgstr ""
+"Compresión de audio sin pérdidas.\n"
+"Gestión de etiquetas."
 
 #: assets/ui/media-toc.ui:1335
 msgid "Wave / PCM"
-msgstr ""
+msgstr "Wave / PCM"
 
 #: assets/ui/media-toc.ui:1351
 msgid ""
 "No compression.\n"
 "Tags support."
 msgstr ""
+"Sin compresión.\n"
+"Gestión de etiquetas."
 
 #: assets/ui/media-toc.ui:1403
 msgid "Opus"
@@ -183,10 +196,12 @@ msgid ""
 "Audio lossy compression.\n"
 "Tags support."
 msgstr ""
+"Compresión de audio con pérdidas.\n"
+"Gestión de etiquetas."
 
 #: assets/ui/media-toc.ui:1471
 msgid "Vorbis"
-msgstr ""
+msgstr "Vorbis"
 
 #: assets/ui/media-toc.ui:1539
 msgid "MP3"
@@ -196,16 +211,16 @@ msgstr "MP3"
 #. Name of the perspective
 #: assets/ui/media-toc.ui:1598 assets/ui/media-toc.ui:1979
 msgid "Split"
-msgstr ""
+msgstr "Dividir"
 
 #. Button tooltip
 #: assets/ui/media-toc.ui:1602
 msgid "Split audio stream and encode to selected format"
-msgstr ""
+msgstr "Dividir la secuencia de audio y codificarla al formato seleccionado"
 
 #: assets/ui/media-toc.ui:1620
 msgid "Split Formats"
-msgstr ""
+msgstr "Formatos de corte"
 
 #. Name of the perspective
 #: assets/ui/media-toc.ui:1794
@@ -252,19 +267,19 @@ msgstr "Ruta al archivo multimedia"
 
 #: src/application/configuration.rs:63
 msgid "couldn't load configuration: {}"
-msgstr ""
+msgstr "No se pudo cargar la configuración: {}"
 
 #: src/application/configuration.rs:100
 msgid "couldn't write configuration: {}"
-msgstr ""
+msgstr "No se pudo escribir la configuración: {}"
 
 #: src/application/configuration.rs:111
 msgid "couldn't serialize configuration: {}"
-msgstr ""
+msgstr "No se pudo serializar la configuración: {}"
 
 #: src/application/configuration.rs:123
 msgid "couldn't create configuration file: {}"
-msgstr ""
+msgstr "No se pudo crear el archivo de configuración: {}"
 
 #: src/main.rs:52
 msgid "Failed to initialize GTK"
@@ -407,7 +422,7 @@ msgstr "Error al escribir en el fichero Cue Sheet"
 msgid "The table of contents is empty"
 msgstr "La tabla de contenidos está vacía"
 
-#: src/metadata/media_info.rs:8
+#: src/metadata/media_info.rs:9
 msgid "untitled"
 msgstr "sin título"
 
@@ -543,47 +558,47 @@ msgstr ""
 msgid "Failed to split media. {}"
 msgstr ""
 
-#: src/ui/streams_controller.rs:330
+#: src/ui/streams_controller.rs:328
 msgid "unknown"
 msgstr "desconocido"
 
-#: src/ui/streams_controller.rs:373
+#: src/ui/streams_controller.rs:372
 msgid "Export?"
 msgstr "Exportar?"
 
-#: src/ui/streams_controller.rs:374
+#: src/ui/streams_controller.rs:373
 msgid "Stream id"
 msgstr "Id. del flujo"
 
-#: src/ui/streams_controller.rs:375
+#: src/ui/streams_controller.rs:374
 msgid "Language"
 msgstr "Idioma"
 
-#: src/ui/streams_controller.rs:376
+#: src/ui/streams_controller.rs:375
 msgid "Codec"
 msgstr "Códec"
 
-#: src/ui/streams_controller.rs:377
+#: src/ui/streams_controller.rs:376
 msgid "Comment"
 msgstr "Comentario"
 
-#: src/ui/streams_controller.rs:409
+#: src/ui/streams_controller.rs:408
 msgid "Width"
 msgstr "Ancho"
 
-#: src/ui/streams_controller.rs:416
+#: src/ui/streams_controller.rs:415
 msgid "Height"
 msgstr "Alto"
 
-#: src/ui/streams_controller.rs:460
+#: src/ui/streams_controller.rs:459
 msgid "Rate"
 msgstr ""
 
-#: src/ui/streams_controller.rs:467
+#: src/ui/streams_controller.rs:466
 msgid "Channels"
 msgstr "Canales"
 
-#: src/ui/streams_controller.rs:505
+#: src/ui/streams_controller.rs:504
 msgid "Format"
 msgstr "Formato"
 
