@@ -1,10 +1,17 @@
 extern crate directories;
+
+#[cfg(target_family = "unix")]
 use directories::{BaseDirs, ProjectDirs};
 
-use std::fs::{create_dir_all, read_dir, File};
-use std::io::{ErrorKind, Read, Write};
+use std::fs::{create_dir_all, File};
+use std::io::{ErrorKind, Read};
 use std::path::PathBuf;
 use std::process::Command;
+
+#[cfg(target_family = "unix")]
+use std::fs::read_dir;
+#[cfg(target_family = "unix")]
+use std::io::Write;
 
 fn generate_resources() {
     let target_path = PathBuf::from("target").join("resources");
