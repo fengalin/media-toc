@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-05-23 10:17+0200\n"
+"POT-Creation-Date: 2018-05-29 23:14+0200\n"
 "PO-Revision-Date: 2018-05-23 10:18+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
@@ -148,7 +148,8 @@ msgstr ""
 "Résolution temporelle : 1 ns."
 
 #. Button label
-#: assets/ui/media-toc.ui:1127
+#. Name of the perspective
+#: assets/ui/media-toc.ui:1127 assets/ui/media-toc.ui:1918
 msgid "Export"
 msgstr "Exporter"
 
@@ -230,11 +231,6 @@ msgstr "Affichage"
 #: assets/ui/media-toc.ui:1856
 msgid "Streams"
 msgstr "Flux"
-
-#. Name of the perspective
-#: assets/ui/media-toc.ui:1918
-msgid "Export\t"
-msgstr "Exporter"
 
 #: src/application/command_line.rs:13 src/ui/main_controller.rs:266
 msgid ""
@@ -423,7 +419,7 @@ msgstr "Échec à l'écriture du fichier Cue Sheet."
 msgid "The table of contents is empty"
 msgstr "La table des matières est vide"
 
-#: src/metadata/media_info.rs:8
+#: src/metadata/media_info.rs:9
 msgid "untitled"
 msgstr "sans titre"
 
@@ -564,46 +560,46 @@ msgstr "Média découpé avec succès"
 msgid "Failed to split media. {}"
 msgstr "Échec lors du découpage du média. {}"
 
-#: src/ui/streams_controller.rs:330
+#: src/ui/streams_controller.rs:328
 msgid "unknown"
 msgstr "inconnu"
 
-#: src/ui/streams_controller.rs:373
+#: src/ui/streams_controller.rs:372
 msgid "Export?"
 msgstr "Exporter ?"
 
-#: src/ui/streams_controller.rs:374
+#: src/ui/streams_controller.rs:373
 msgid "Stream id"
 msgstr "Id. du flux"
 
-#: src/ui/streams_controller.rs:375
+#: src/ui/streams_controller.rs:374
 msgid "Language"
 msgstr "Langue"
 
-#: src/ui/streams_controller.rs:376
+#: src/ui/streams_controller.rs:375
 msgid "Codec"
 msgstr "Codec"
 
-#: src/ui/streams_controller.rs:377
+#: src/ui/streams_controller.rs:376
 msgid "Comment"
 msgstr "Commentaire"
 
-#: src/ui/streams_controller.rs:409
+#: src/ui/streams_controller.rs:408
 msgid "Width"
 msgstr "Largeur"
 
-#: src/ui/streams_controller.rs:416
+#: src/ui/streams_controller.rs:415
 msgid "Height"
 msgstr "Hauteur"
 
-#: src/ui/streams_controller.rs:460
+#: src/ui/streams_controller.rs:459
 msgid "Rate"
 msgstr "Débit"
 
-#: src/ui/streams_controller.rs:467
+#: src/ui/streams_controller.rs:466
 msgid "Channels"
 msgstr "Canaux"
 
-#: src/ui/streams_controller.rs:505
+#: src/ui/streams_controller.rs:504
 msgid "Format"
 msgstr "Format"

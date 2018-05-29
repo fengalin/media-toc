@@ -1915,7 +1915,7 @@ Tags support.</property>
                   <object class="GtkLabel" id="perspective-export-lbl">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="label" translatable="yes" comments="Name of the perspective">Export	</property>
+                    <property name="label" translatable="yes" comments="Name of the perspective">Export</property>
                   </object>
                   <packing>
                     <property name="expand">False</property>
