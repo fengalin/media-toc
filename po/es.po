@@ -9,8 +9,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-05-29 21:22+0200\n"
-"PO-Revision-Date: 2018-05-29 22:31+0200\n"
+"POT-Creation-Date: 2018-05-30 21:35+0200\n"
+"PO-Revision-Date: 2018-05-30 22:14+0200\n"
 "Last-Translator: Xther <xther81@hotmail.com>\n"
 "Language-Team: castillan <>\n"
 "Language: es\n"
@@ -92,19 +92,19 @@ msgstr "Disminuir el zoom"
 #. Button tooltip
 #: assets/ui/media-toc.ui:721
 msgid "Play / Pause"
-msgstr "Interpretar / Pausa"
+msgstr "Reproducción / Pausa"
 
 #: assets/ui/media-toc.ui:771
 msgid "Video Streams"
-msgstr "Secuencias de vídeo"
+msgstr "Flujos de vídeo"
 
 #: assets/ui/media-toc.ui:804
 msgid "Audio Streams"
-msgstr "Secuencias de audio"
+msgstr "Flujos de audio"
 
 #: assets/ui/media-toc.ui:837
 msgid "Text Streams"
-msgstr "Secuencias de texto"
+msgstr "Flujos de texto"
 
 #: assets/ui/media-toc.ui:967
 msgid "mkvmerge text format"
@@ -146,10 +146,11 @@ msgid ""
 msgstr ""
 "Contenedor binario de audio, vídeo y texto.\n"
 "Tabla de contenido jerárquica.\n"
-"Unidad de tiempo: 1 ns.\n"
+"Unidad de tiempo: 1 ns."
 
 #. Button label
-#: assets/ui/media-toc.ui:1127
+#. Name of the perspective
+#: assets/ui/media-toc.ui:1127 assets/ui/media-toc.ui:1918
 msgid "Export"
 msgstr "Exportar"
 
@@ -216,7 +217,7 @@ msgstr "Dividir"
 #. Button tooltip
 #: assets/ui/media-toc.ui:1602
 msgid "Split audio stream and encode to selected format"
-msgstr "Dividir la secuencia de audio y codificarla al formato seleccionado"
+msgstr "Dividir el flujo de audio y codificarlo al formato seleccionado"
 
 #: assets/ui/media-toc.ui:1620
 msgid "Split Formats"
@@ -231,11 +232,6 @@ msgstr "Visualización"
 #: assets/ui/media-toc.ui:1856
 msgid "Streams"
 msgstr "Flujos"
-
-#. Name of the perspective
-#: assets/ui/media-toc.ui:1918
-msgid "Export\t"
-msgstr "Exportar"
 
 #: src/application/command_line.rs:13 src/ui/main_controller.rs:266
 msgid ""
@@ -310,13 +306,11 @@ msgid "Please install {} or {}, depending on your distribution."
 msgstr "Por favor installe {} o {} en función de su distribución."
 
 #: src/media/playback_context.rs:132 src/media/toc_setter_context.rs:74
-#, fuzzy
 msgid "Could not set media in Playing mode"
 msgstr "No se pudo pasar en modo reproducción."
 
 #: src/media/playback_context.rs:139 src/media/splitter_context.rs:118
 #: src/media/toc_setter_context.rs:63
-#, fuzzy
 msgid "Could not set media in Paused mode"
 msgstr "No se pudo pasar en modo pausa."
 
@@ -328,7 +322,7 @@ msgstr ""
 
 #: src/media/playback_context.rs:650
 msgid "No usable streams could be found."
-msgstr ""
+msgstr "No se encontraron flujos utilizables."
 
 #: src/media/splitter_context.rs:31
 msgid ""
@@ -499,7 +493,7 @@ msgstr ""
 
 #: src/ui/main_controller.rs:134
 msgid "About"
-msgstr ""
+msgstr "Acerca de"
 
 #: src/ui/main_controller.rs:142
 msgid "Quit"
@@ -512,6 +506,7 @@ msgstr "Abrir el archivo multimedia"
 #: src/ui/main_controller.rs:243
 msgid "Failed to initialize GStreamer, the application can't be used."
 msgstr ""
+"No se pudo inicializar GStreamer, la aplicación no puede ser utilizada."
 
 #: src/ui/main_controller.rs:269
 msgid "© 2017–2018 François Laignel"
@@ -519,13 +514,13 @@ msgstr "© 2017–2018 François Laignel"
 
 #: src/ui/main_controller.rs:273
 msgid "Learn more about media-toc"
-msgstr ""
+msgstr "Más información acerca de media-toc"
 
 #: src/ui/main_controller.rs:518 src/ui/main_controller.rs:587
 msgid "Missing plugin: {}"
 msgid_plural "Missing plugins: {}"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "No se encontró el plugin: {}"
+msgstr[1] "No se encontraron los plugins: {}"
 
 #: src/ui/main_controller.rs:631 src/ui/main_controller.rs:744
 msgid ""
@@ -533,10 +528,13 @@ msgid ""
 "\n"
 "{}"
 msgstr ""
+"Error al abrir el archivo.\n"
+"\n"
+"{}"
 
 #: src/ui/main_controller.rs:684
 msgid "Open a media file"
-msgstr ""
+msgstr "Abrir un archivo multimedia"
 
 #: src/ui/main_controller.rs:688
 msgid "Cancel"
@@ -548,15 +546,15 @@ msgstr "Abrir"
 
 #: src/ui/split_controller.rs:244
 msgid "Failed to prepare for split. {}"
-msgstr ""
+msgstr "No se pudo preparar la división. {}"
 
 #: src/ui/split_controller.rs:472
 msgid "Media split succesfully"
-msgstr ""
+msgstr "Archivo multimedia dividido con éxito"
 
 #: src/ui/split_controller.rs:488
 msgid "Failed to split media. {}"
-msgstr ""
+msgstr "No se pudo dividir el archivo multimedia. {}"
 
 #: src/ui/streams_controller.rs:328
 msgid "unknown"
@@ -564,7 +562,7 @@ msgstr "desconocido"
 
 #: src/ui/streams_controller.rs:372
 msgid "Export?"
-msgstr "Exportar?"
+msgstr "¿Exportar?"
 
 #: src/ui/streams_controller.rs:373
 msgid "Stream id"
@@ -604,3 +602,6 @@ msgstr "Formato"
 
 #~ msgid "Failed to get Video Widget."
 #~ msgstr "No se pudo obtener la visualización de vídeo"
+
+#~ msgid "Export\t"
+#~ msgstr "Exportar"
