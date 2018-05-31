@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-05-29 23:14+0200\n"
-"PO-Revision-Date: 2018-05-23 10:18+0200\n"
+"POT-Creation-Date: 2018-06-01 00:20+0200\n"
+"PO-Revision-Date: 2018-06-01 00:21+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -516,17 +516,21 @@ msgstr "Échec à l'initialisation de GStreamer, l'application est inutilisable.
 msgid "© 2017–2018 François Laignel"
 msgstr "© 2017–2018 François Laignel"
 
-#: src/ui/main_controller.rs:273
+#: src/ui/main_controller.rs:270
+msgid "translator-credits"
+msgstr "François Laignel"
+
+#: src/ui/main_controller.rs:274
 msgid "Learn more about media-toc"
 msgstr "En apprendre plus sur media-toc"
 
-#: src/ui/main_controller.rs:518 src/ui/main_controller.rs:587
+#: src/ui/main_controller.rs:519 src/ui/main_controller.rs:588
 msgid "Missing plugin: {}"
 msgid_plural "Missing plugins: {}"
 msgstr[0] "Greffon manquant : {}"
 msgstr[1] "Greffons manquants : {}"
 
-#: src/ui/main_controller.rs:631 src/ui/main_controller.rs:744
+#: src/ui/main_controller.rs:632 src/ui/main_controller.rs:745
 msgid ""
 "Error opening file.\n"
 "\n"
@@ -536,15 +540,15 @@ msgstr ""
 "\n"
 "{}"
 
-#: src/ui/main_controller.rs:684
+#: src/ui/main_controller.rs:685
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:688
+#: src/ui/main_controller.rs:689
 msgid "Cancel"
 msgstr "Annuler"
 
-#: src/ui/main_controller.rs:689
+#: src/ui/main_controller.rs:690
 msgid "Open"
 msgstr "Ouvrir"
 

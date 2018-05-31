@@ -267,6 +267,7 @@ impl MainController {
             )[..],
         );
         dialog.set_copyright(&gettext("© 2017–2018 François Laignel")[..]);
+        dialog.set_translator_credits(&gettext("translator-credits")[..]);
         dialog.set_license_type(gtk::License::MitX11);
         dialog.set_version(env!("CARGO_PKG_VERSION"));
         dialog.set_website(env!("CARGO_PKG_HOMEPAGE"));

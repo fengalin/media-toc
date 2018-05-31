@@ -4,20 +4,21 @@
 # This file is distributed under the same license as the media-toc package.
 # Esther <xther81@hotmail.com>, 2018.
 # Xther <xther81@hotmail.com>, 2018.
+# François Laignel <fengalin@free.fr>, 2018.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: media-toc\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-05-31 21:12+0200\n"
-"PO-Revision-Date: 2018-05-31 21:43+0200\n"
-"Last-Translator: Xther <xther81@hotmail.com>\n"
-"Language-Team: castillan <>\n"
+"POT-Creation-Date: 2018-06-01 00:22+0200\n"
+"PO-Revision-Date: 2018-06-01 00:24+0200\n"
+"Last-Translator: François Laignel <fengalin@free.fr>\n"
+"Language-Team: français <>\n"
 "Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "X-Generator: Gtranslator 2.91.7\n"
 
 #: assets/ui/media-toc.ui:158
@@ -517,17 +518,21 @@ msgstr ""
 msgid "© 2017–2018 François Laignel"
 msgstr "© 2017–2018 François Laignel"
 
-#: src/ui/main_controller.rs:273
+#: src/ui/main_controller.rs:270
+msgid "translator-credits"
+msgstr "Xther"
+
+#: src/ui/main_controller.rs:274
 msgid "Learn more about media-toc"
 msgstr "Más información acerca de media-toc"
 
-#: src/ui/main_controller.rs:518 src/ui/main_controller.rs:587
+#: src/ui/main_controller.rs:519 src/ui/main_controller.rs:588
 msgid "Missing plugin: {}"
 msgid_plural "Missing plugins: {}"
 msgstr[0] "No se encontró el plugin: {}"
 msgstr[1] "No se encontraron los plugins: {}"
 
-#: src/ui/main_controller.rs:631 src/ui/main_controller.rs:744
+#: src/ui/main_controller.rs:632 src/ui/main_controller.rs:745
 msgid ""
 "Error opening file.\n"
 "\n"
@@ -537,15 +542,15 @@ msgstr ""
 "\n"
 "{}"
 
-#: src/ui/main_controller.rs:684
+#: src/ui/main_controller.rs:685
 msgid "Open a media file"
 msgstr "Abrir un archivo multimedia"
 
-#: src/ui/main_controller.rs:688
+#: src/ui/main_controller.rs:689
 msgid "Cancel"
 msgstr "Anular"
 
-#: src/ui/main_controller.rs:689
+#: src/ui/main_controller.rs:690
 msgid "Open"
 msgstr "Abrir"
 
@@ -604,9 +609,3 @@ msgstr "Canales"
 #: src/ui/streams_controller.rs:504
 msgid "Format"
 msgstr "Formato"
-
-#~ msgid "Export\t"
-#~ msgstr "Exportar"
-
-#~ msgid "Failed to get Video Widget."
-#~ msgstr "No se pudo obtener la visualización de vídeo"
