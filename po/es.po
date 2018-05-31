@@ -9,8 +9,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-05-30 21:35+0200\n"
-"PO-Revision-Date: 2018-05-30 22:14+0200\n"
+"POT-Creation-Date: 2018-05-31 21:12+0200\n"
+"PO-Revision-Date: 2018-05-31 21:43+0200\n"
 "Last-Translator: Xther <xther81@hotmail.com>\n"
 "Language-Team: castillan <>\n"
 "Language: es\n"
@@ -255,7 +255,7 @@ msgstr "ARCHIVO MULTIMEDIA"
 
 #: src/application/command_line.rs:30
 msgid "Disable video rendering hardware acceleration"
-msgstr ""
+msgstr "Desactiva la aceleración de hardware de reproducción de video "
 
 #: src/application/command_line.rs:34
 msgid "Path to the input media file"
@@ -319,6 +319,9 @@ msgid ""
 "Video rendering hardware acceleration seems broken and has been disabled.\n"
 "Please restart the application."
 msgstr ""
+"La aceleración de hardware de reproducción de video ha sido desactivada ya "
+"que no parece funcionar correctamente.\n"
+"Reinicie la aplicación por favor."
 
 #: src/media/playback_context.rs:650
 msgid "No usable streams could be found."
@@ -439,11 +442,11 @@ msgstr "los números de capítulo no corresponden para: {}"
 
 #: src/metadata/mkvmerge_text_format.rs:194
 msgid "couldn't update last start position"
-msgstr ""
+msgstr "no se puede actualizar la última posición de inicio"
 
 #: src/metadata/mkvmerge_text_format.rs:223
 msgid "Failed to write mkvmerge text file"
-msgstr ""
+msgstr "No se pudo escribir en el archivo de texto mkvmerge"
 
 #: src/ui/chapter_tree_manager.rs:134
 msgid "Title"
@@ -467,29 +470,31 @@ msgstr "No se pudo crear el archivo para la tabla de contenidos"
 
 #: src/ui/export_controller.rs:204
 msgid "Failed to prepare for export. {}"
-msgstr ""
+msgstr "No se pudo preparar la exportación. {}"
 
 #: src/ui/export_controller.rs:270 src/ui/export_controller.rs:284
 msgid "Failed to export media. {}"
-msgstr ""
+msgstr "No se pudo exportar el archivo multimedia. {}"
 
 #: src/ui/export_controller.rs:278
 msgid "Media exported succesfully"
-msgstr ""
+msgstr "Archivo multimedia exportado con éxito"
 
 #: src/ui/info_controller.rs:378
 msgid "No toc in file \"{}\""
-msgstr ""
+msgstr "Ninguna tabla de contenido en el archivo \"{}\""
 
 #: src/ui/info_controller.rs:389
 msgid ""
 "Error opening toc file \"{}\":\n"
 "{}"
 msgstr ""
+"Error al abrir el fichero \"{}\":\n"
+"{}"
 
 #: src/ui/info_controller.rs:402
 msgid "Failed to open toc file."
-msgstr ""
+msgstr "No se pudo abrir el archivo de la tabla de contenidos."
 
 #: src/ui/main_controller.rs:134
 msgid "About"
@@ -590,7 +595,7 @@ msgstr "Alto"
 
 #: src/ui/streams_controller.rs:459
 msgid "Rate"
-msgstr ""
+msgstr "Velocidad"
 
 #: src/ui/streams_controller.rs:466
 msgid "Channels"
@@ -600,8 +605,8 @@ msgstr "Canales"
 msgid "Format"
 msgstr "Formato"
 
-#~ msgid "Failed to get Video Widget."
-#~ msgstr "No se pudo obtener la visualización de vídeo"
-
 #~ msgid "Export\t"
 #~ msgstr "Exportar"
+
+#~ msgid "Failed to get Video Widget."
+#~ msgstr "No se pudo obtener la visualización de vídeo"
