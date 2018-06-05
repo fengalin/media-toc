@@ -15,26 +15,24 @@ cairo-rs = "^0.4.1"
 clap = "^2.31.2"
 byteorder = "^1.2.1"
 chrono = "^0.4.1"
-directories = "^0.10.0"
+directories = "0.10"
 env_logger = "^0.5.6"
-gdk = "^0.8.0"
-gettext-rs = { version = "^0.4.0", features = ["gettext-system"] }
-gio = "^0.4.0"
-glib = "^0.5.0"
-gstreamer = { version = "^0.11.0", features = ["v1_10"] }
-gstreamer-audio = { version = "^0.11.0", features = ["v1_10"] }
-gtk = { version = "^0.4.0", features = ["v3_18"] }
-image = "^0.18.0"
-lazy_static = "^1.0.0"
+gdk = "0.8"
+gettext-rs = { version = "0.4", features = ["gettext-system"] }
+gio = "0.4"
+glib = "0.5"
+gstreamer = { version = "0.11", features = ["v1_10"] }
+gstreamer-audio = { version = "0.11", features = ["v1_10"] }
+gtk = { version = "0.4", features = ["v3_18"] }
+image = "0.18"
+lazy_static = "1.0"
 log = { version = "^0.4.1", features = ["max_level_debug", "release_max_level_warn"] }
-pango = "^0.4.0"
+nom = "4.0"
+pango = "0.4"
 ron = "^0.2.1"
 sample = "^0.9.1"
 serde = "1.0"
 serde_derive = "1.0"
-
-#nom = { git = "https://github.com/Geal/nom" }
-nom = { git = "https://github.com/fengalin/nom", branch = "parse_to_error_kind" }
 
 [features]
 dump-waveform = ["cairo-rs/png"]
@@ -42,7 +40,7 @@ trace-playback-queues = []
 default-features = []
 
 [build-dependencies]
-directories = "^0.10.0"
+directories = "0.10"
 
 [dev-dependencies]
 cairo-rs = { version = "^0.4.1", features = ["png"] }
