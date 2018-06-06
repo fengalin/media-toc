@@ -293,3 +293,12 @@ with:
 ```
         is_gl_disabled: true,
 ```
+
+## Issue with translations
+
+When you launch the application, if the labels are broken, you can disable the
+translation using the following command:
+
+```
+LC_MESSAGES=C cargo run
+```
