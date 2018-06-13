@@ -294,11 +294,13 @@ with:
         is_gl_disabled: true,
 ```
 
-## Issue with translations
+## Discarding the translations
 
-When you launch the application, if the labels are broken, you can disable the
-translation using the following command:
+*media-toc* is currently available in English, French and Spanish. The user's
+locale should be automatically detected. If you want to use the English version
+or if you want to submit logs, you can discard the translations using the
+following command:
 
 ```
-LC_MESSAGES=C cargo run
+LC_MESSAGES=C cargo run --release
 ```

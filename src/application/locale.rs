@@ -6,7 +6,9 @@ use super::{SLD, TLD};
 pub fn init_locale() {
     // Search translations under `target` first
     // in order to reflect latest changes during development
-    let text_domain = TextDomain::new(env!("CARGO_PKG_NAME")).prepend("target");
+    let text_domain = TextDomain::new(env!("CARGO_PKG_NAME"))
+        .codeset("UTF-8")
+        .prepend("target");
 
     // Add user's data dir in the search path
     let project_dirs = ProjectDirs::from(TLD, SLD, env!("CARGO_PKG_NAME"));
