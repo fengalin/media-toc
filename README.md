@@ -231,7 +231,6 @@ Note: for a 32bits system, use `mingw-w64-i686-...`
 ```
 pacman --noconfirm -S gettext-devel mingw-w64-x86_64-gtk3 mingw-w64-x86_64-gstreamer
 pacman --noconfirm -S mingw-w64-x86_64-gst-plugins-{base,good,bad,ugly} mingw-w64-x86_64-gst-libav
-pacman --noconfirm -S mingw-w64-x86_64-adwaita-icon-theme
 ```
 
 - Launch the [rustup installer](https://www.rustup.rs/).
