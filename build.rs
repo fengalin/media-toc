@@ -38,9 +38,9 @@ fn generate_resources() {
             ));
         },
         Err(ref error) => match error.kind() {
-            ErrorKind::NotFound => {
-                panic!("Can't generate translations: command `compile_res` not available");
-            }
+            ErrorKind::NotFound => panic!(
+                "Can't generate icon resources: command `glib-compile-resources` not available"
+            ),
             _ => panic!("Error invoking `compile_res`: {}", error),
         },
     }
@@ -66,9 +66,9 @@ fn generate_resources() {
             ));
         },
         Err(ref error) => match error.kind() {
-            ErrorKind::NotFound => {
-                panic!("Can't generate translations: command `compile_res` not available");
-            }
+            ErrorKind::NotFound => panic!(
+                "Can't generate UI resources: command `glib-compile-resources` not available"
+            ),
             _ => panic!("Error invoking `compile_res`: {}", error),
         },
     }
