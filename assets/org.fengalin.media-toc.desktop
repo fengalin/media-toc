@@ -1,6 +1,7 @@
 [Desktop Entry]
 Name=media-toc
 Comment=Build a table of contents from a media file or split a media file into chapters.
+Comment[es]=Construye una tabla de contenido a partir de un archivo multimedia o divide un archivo multimedia en capítulos.
 Comment[fr]=Construit une table des matières à partir d'un fichier multimédia ou découpe un fichier multimédia en chapitres.
 GenericName=Media Table Of Contents manager
 Exec=media-toc
@@ -10,4 +11,5 @@ StartupNotify=true
 X-GNOME-UsesNotifications=true
 Categories=GStreamer;GTK;Multimedia;
 Keywords=Multimedia;table of contents;
+Keywords[es]=Multimedia;tabla de contenido;
 Keywords[fr]=Multimédia;table des matières;
