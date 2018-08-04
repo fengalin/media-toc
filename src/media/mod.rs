@@ -1,5 +1,5 @@
 pub mod audio_channel;
-pub use self::audio_channel::{AudioChannel, AudioChannelSide};
+pub use self::audio_channel::{AudioChannel, AudioChannelSide, INLINE_CHANNELS};
 
 pub mod audio_buffer;
 pub use self::audio_buffer::AudioBuffer;

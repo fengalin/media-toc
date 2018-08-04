@@ -25,6 +25,8 @@ extern crate nom;
 #[macro_use]
 extern crate serde_derive;
 
+extern crate smallvec;
+
 #[cfg(feature = "dump-waveform")]
 extern crate chrono;
 

@@ -1,4 +1,5 @@
 use cairo;
+use smallvec::SmallVec;
 
 #[cfg(feature = "dump-waveform")]
 use chrono::Utc;
@@ -8,7 +9,7 @@ use std::fs::{create_dir, File};
 #[cfg(feature = "dump-waveform")]
 use std::io::ErrorKind;
 
-use media::{AudioBuffer, AudioChannel, AudioChannelSide};
+use media::{AudioBuffer, AudioChannel, AudioChannelSide, INLINE_CHANNELS};
 
 pub const BACKGROUND_COLOR: (f64, f64, f64) = (0.2f64, 0.2235f64, 0.2314f64);
 pub const AMPLITUDE_0_COLOR: (f64, f64, f64) = (0.5f64, 0.5f64, 0f64);
@@ -24,7 +25,7 @@ const WAVEFORM_DUMP_DIR: &str = "target/waveforms";
 #[derive(Debug, Clone)]
 pub struct WaveformSample {
     pub x: f64,
-    pub values: Vec<f64>,
+    pub values: SmallVec<[f64; INLINE_CHANNELS]>,
 }
 
 pub struct WaveformImage {
@@ -33,7 +34,7 @@ pub struct WaveformImage {
     pub is_ready: bool,
     pub shareable_state_changed: bool,
 
-    channel_colors: Vec<(f64, f64, f64)>,
+    channel_colors: SmallVec<[(f64, f64, f64); INLINE_CHANNELS]>,
 
     exposed_image: Option<cairo::ImageSurface>,
     secondary_image: Option<cairo::ImageSurface>,
@@ -78,7 +79,7 @@ impl WaveformImage {
             is_ready: false,
             shareable_state_changed: false,
 
-            channel_colors: Vec::new(),
+            channel_colors: SmallVec::new(),
 
             exposed_image: Some(
                 cairo::ImageSurface::create(cairo::Format::Rgb24, INIT_WIDTH, INIT_HEIGHT).unwrap(),
@@ -706,7 +707,7 @@ impl WaveformImage {
         &self,
         x: f64,
         audio_buffer: &AudioBuffer,
-    ) -> Option<(usize, Vec<f64>)> {
+    ) -> Option<(usize, SmallVec<[f64; INLINE_CHANNELS]>)> {
         let sample = self.lower + (x as usize) / self.x_step * self.sample_step;
 
         #[cfg(test)]
@@ -780,8 +781,8 @@ impl WaveformImage {
         value * self.half_range
     }
 
-    fn convert_sample_values(&self, values: &[f64]) -> Vec<f64> {
-        let mut result: Vec<f64> = Vec::with_capacity(values.len());
+    fn convert_sample_values(&self, values: &[f64]) -> SmallVec<[f64; INLINE_CHANNELS]> {
+        let mut result: SmallVec<[f64; INLINE_CHANNELS]> = SmallVec::with_capacity(values.len());
         for value in values {
             result.push(self.convert_sample(value));
         }
@@ -852,8 +853,10 @@ impl WaveformImage {
             cr.stroke();
         }
 
-        let mut first_values: Vec<f64> = Vec::with_capacity(audio_buffer.channels);
-        let mut last_values: Vec<f64> = Vec::with_capacity(audio_buffer.channels);
+        let mut first_values: SmallVec<[f64; INLINE_CHANNELS]> =
+            SmallVec::with_capacity(audio_buffer.channels);
+        let mut last_values: SmallVec<[f64; INLINE_CHANNELS]> =
+            SmallVec::with_capacity(audio_buffer.channels);
 
         let sample = sample_iter.next();
         for channel_value in sample.unwrap() {
@@ -955,6 +958,8 @@ mod tests {
     use gstreamer_audio as gst_audio;
     use gstreamer_audio::AUDIO_FORMAT_S16;
 
+    use smallvec::SmallVec;
+
     use std::fs::{create_dir, File};
     use std::io::ErrorKind;
 
@@ -1010,8 +1015,8 @@ mod tests {
     // which would be rendered as a diagonal on a Waveform image
     // from left top corner to right bottom of the target image
     // if all samples are rendered in the range [0:SAMPLE_RATE]
-    fn build_buffer(lower_value: usize, upper_value: usize) -> Vec<i16> {
-        let mut buffer: Vec<i16> = Vec::new();
+    fn build_buffer(lower_value: usize, upper_value: usize) -> SmallVec<[i16; 2]> {
+        let mut buffer: SmallVec<[i16; 2]> = SmallVec::new();
         for index in lower_value..upper_value {
             let value = (index as f64 / SAMPLE_RATE as f64 * f64::from(i16::MAX)) as i16;
             buffer.push(value as i16);

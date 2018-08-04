@@ -1,11 +1,13 @@
 use gstreamer as gst;
 use gstreamer_audio as gst_audio;
 
+use smallvec::SmallVec;
+
 use std::mem;
 
 use std::sync::{Arc, Mutex};
 
-use super::{AudioBuffer, AudioChannel, SampleExtractor, QUEUE_SIZE_NS};
+use super::{AudioBuffer, AudioChannel, SampleExtractor, INLINE_CHANNELS, QUEUE_SIZE_NS};
 
 const EXTRACTION_THRESHOLD: usize = 1024;
 
@@ -117,7 +119,8 @@ impl DoubleAudioBuffer {
         self.max_sample_window = (QUEUE_SIZE_NS / sample_duration) as usize;
         let duration_for_1000_samples = 1_000_000_000_000f64 / (rate as f64);
 
-        let mut channels: Vec<AudioChannel> = Vec::with_capacity(channels);
+        let mut channels: SmallVec<[AudioChannel; INLINE_CHANNELS]> =
+            SmallVec::with_capacity(channels);
         if let Some(positions) = audio_info.positions() {
             for position in positions {
                 channels.push(AudioChannel::new(position));

@@ -571,6 +571,8 @@ mod tests {
     use gstreamer_audio as gst_audio;
     use gstreamer_audio::AUDIO_FORMAT_S16;
 
+    use smallvec::SmallVec;
+
     use media::AudioBuffer;
 
     const SAMPLE_RATE: u32 = 300;
@@ -579,8 +581,8 @@ mod tests {
     // which would be rendered as a diagonal on a Waveform image
     // from left top corner to right bottom of the target image
     // if all samples are rendered in the range [0:SAMPLE_RATE]
-    fn build_buffer(lower_value: usize, upper_value: usize) -> Vec<i16> {
-        let mut buffer: Vec<i16> = Vec::new();
+    fn build_buffer(lower_value: usize, upper_value: usize) -> SmallVec<[i16; 2]> {
+        let mut buffer: SmallVec<[i16; 2]> = SmallVec::new();
         for index in lower_value..upper_value {
             buffer.push(index as i16);
             buffer.push(-(index as i16)); // second channel <= opposite value

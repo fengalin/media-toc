@@ -31,6 +31,7 @@ nom = "4.0"
 pango = "0.4"
 ron = "^0.2.1"
 sample = "^0.9.1"
+smallvec = "0.6"
 serde = "1.0"
 serde_derive = "1.0"
 
