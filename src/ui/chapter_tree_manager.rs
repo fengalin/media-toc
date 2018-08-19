@@ -7,7 +7,7 @@ use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 
-use metadata::{get_default_chapter_title, Timestamp, TocVisitor};
+use crate::metadata::{get_default_chapter_title, Timestamp, TocVisitor};
 
 use super::ChaptersBoundaries;
 

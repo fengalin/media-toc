@@ -33,7 +33,7 @@ extern crate chrono;
 use gettextrs::gettext;
 
 mod application;
-use application::{handle_command_line, init_locale, run};
+use crate::application::{handle_command_line, init_locale, run};
 mod media;
 mod metadata;
 mod ui;

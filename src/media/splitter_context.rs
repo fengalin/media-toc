@@ -11,7 +11,7 @@ use std::path::Path;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
-use metadata::Format;
+use crate::metadata::Format;
 
 use super::ContextMessage;
 

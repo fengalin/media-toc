@@ -9,7 +9,7 @@ use std::fs::{create_dir, File};
 #[cfg(feature = "dump-waveform")]
 use std::io::ErrorKind;
 
-use media::{AudioBuffer, AudioChannel, AudioChannelSide, INLINE_CHANNELS};
+use crate::media::{AudioBuffer, AudioChannel, AudioChannelSide, INLINE_CHANNELS};
 
 pub const BACKGROUND_COLOR: (f64, f64, f64) = (0.2f64, 0.2235f64, 0.2314f64);
 pub const AMPLITUDE_0_COLOR: (f64, f64, f64) = (0.5f64, 0.5f64, 0f64);
@@ -973,8 +973,8 @@ mod tests {
 
     use std::i16;
 
-    use media::{AudioBuffer, AudioChannel, AudioChannelSide};
-    use ui::WaveformImage;
+    use crate::media::{AudioBuffer, AudioChannel, AudioChannelSide};
+    use crate::ui::WaveformImage;
 
     const OUT_DIR: &'static str = "target/test";
     const SAMPLE_RATE: u32 = 300;

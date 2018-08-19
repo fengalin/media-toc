@@ -10,10 +10,10 @@ use std::cell::RefCell;
 use std::fs::File;
 use std::rc::{Rc, Weak};
 
-use application::CONFIG;
-use media::PlaybackContext;
-use metadata;
-use metadata::{MediaInfo, Timestamp};
+use crate::application::CONFIG;
+use crate::media::PlaybackContext;
+use crate::metadata;
+use crate::metadata::{MediaInfo, Timestamp};
 
 use super::{
     ChapterTreeManager, ChaptersBoundaries, ControllerState, ImageSurface, MainController,

@@ -11,9 +11,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::MainController;
-use application::CONFIG;
-use media::PlaybackContext;
-use metadata::MediaInfo;
+use crate::application::CONFIG;
+use crate::media::PlaybackContext;
+use crate::metadata::MediaInfo;
 
 struct VideoOutput {
     sink: gst::Element,

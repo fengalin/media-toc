@@ -7,8 +7,8 @@ use gtk::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use media::PlaybackContext;
-use metadata::MediaInfo;
+use crate::media::PlaybackContext;
+use crate::metadata::MediaInfo;
 
 use super::MainController;
 

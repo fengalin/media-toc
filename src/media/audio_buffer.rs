@@ -568,7 +568,7 @@ mod tests {
 
     use smallvec::SmallVec;
 
-    use media::AudioBuffer;
+    use crate::media::AudioBuffer;
 
     const SAMPLE_RATE: u32 = 300;
 

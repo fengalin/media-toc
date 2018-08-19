@@ -17,9 +17,9 @@ use std::rc::{Rc, Weak};
 
 use std::sync::{Arc, Mutex};
 
-use media::{DoubleAudioBuffer, PlaybackContext, SampleExtractor, QUEUE_SIZE_NS};
+use crate::media::{DoubleAudioBuffer, PlaybackContext, SampleExtractor, QUEUE_SIZE_NS};
 
-use metadata::{MediaInfo, Timestamp};
+use crate::metadata::{MediaInfo, Timestamp};
 
 use super::{
     ChaptersBoundaries, DoubleWaveformBuffer, MainController, WaveformBuffer, BACKGROUND_COLOR,
@@ -796,7 +796,7 @@ impl AudioController {
 
         match state {
             ControllerState::Paused => {
-                let mut this = this_rc.borrow_mut();
+                let this = this_rc.borrow();
 
                 match this.get_boundary_at(x) {
                     Some(_boundary) => this.set_cursor(CursorType::SbHDoubleArrow),
