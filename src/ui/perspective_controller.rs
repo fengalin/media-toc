@@ -81,15 +81,14 @@ impl PerspectiveController {
         let stack_children = this.stack.get_children();
         #[cfg_attr(feature = "cargo-clippy", allow(explicit_counter_loop))]
         for perspective_box_child in popover_box.get_children() {
-            let stack_child = stack_children.get(index).expect(&format!(
-                "PerspectiveController no stack child for index {:?}",
-                index
-            ));
+            let stack_child = stack_children.get(index).unwrap_or_else(|| {
+                panic!("PerspectiveController no stack child for index {:?}", index)
+            });
 
             let button = gtk_downcast!(perspective_box_child, gtk::Button, "popover box");
             let button_name = gtk::WidgetExt::get_name(&button);
             let button_box = gtk_downcast!(
-                button.get_child().expect(&format!(
+                button.get_child().unwrap_or_else(|| panic!(
                     "PerspectiveController no box for button {:?}",
                     button_name
                 )),
@@ -99,18 +98,22 @@ impl PerspectiveController {
 
             let perspective_icon_name = gtk_downcast!(button_box, 0, gtk::Image, button_name)
                 .get_property_icon_name()
-                .expect(&format!(
-                    "PerspectiveController no icon name for button {:?}",
-                    button_name,
-                ));
+                .unwrap_or_else(|| {
+                    panic!(
+                        "PerspectiveController no icon name for button {:?}",
+                        button_name,
+                    )
+                });
 
-            let stack_child_name = this.stack
+            let stack_child_name = this
+                .stack
                 .get_child_name(stack_child)
-                .expect(&format!(
-                    "PerspectiveController no name for stack page matching {:?}",
-                    button_name,
-                ))
-                .to_owned();
+                .unwrap_or_else(|| {
+                    panic!(
+                        "PerspectiveController no name for stack page matching {:?}",
+                        button_name,
+                    )
+                }).to_owned();
 
             if index == 0 {
                 // set the default perspective
@@ -135,10 +138,12 @@ impl PerspectiveController {
                 Some(action_name) => {
                     let accel_key = gtk_downcast!(button_box, 2, gtk::Label, button_name)
                         .get_text()
-                        .expect(&format!(
-                            "PerspectiveController no acceleration label for button {:?}",
-                            button_name,
-                        ));
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "PerspectiveController no acceleration label for button {:?}",
+                                button_name,
+                            )
+                        });
                     let action_splits: Vec<&str> = action_name.splitn(2, '.').collect();
                     if action_splits.len() != 2 {
                         panic!(

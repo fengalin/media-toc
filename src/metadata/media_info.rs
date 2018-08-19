@@ -151,15 +151,15 @@ impl Streams {
             .map(|stream_id| &self.text[stream_id])
     }
 
-    pub fn get_audio_mut<'a, S: AsRef<str>>(&'a mut self, id: S) -> Option<&'a mut Stream> {
+    pub fn get_audio_mut<S: AsRef<str>>(&mut self, id: S) -> Option<&mut Stream> {
         self.audio.get_mut(id.as_ref())
     }
 
-    pub fn get_video_mut<'a, S: AsRef<str>>(&'a mut self, id: S) -> Option<&'a mut Stream> {
+    pub fn get_video_mut<S: AsRef<str>>(&mut self, id: S) -> Option<&mut Stream> {
         self.video.get_mut(id.as_ref())
     }
 
-    pub fn get_text_mut<'a, S: AsRef<str>>(&'a mut self, id: S) -> Option<&'a mut Stream> {
+    pub fn get_text_mut<S: AsRef<str>>(&mut self, id: S) -> Option<&mut Stream> {
         self.text.get_mut(id.as_ref())
     }
 
@@ -172,21 +172,27 @@ impl Streams {
         for id in ids {
             if self.audio.contains_key(id) {
                 is_audio_selected = true;
-                self.audio_changed = self.selected_audio()
+                self.audio_changed = self
+                    .selected_audio()
                     .map_or(true, |prev_stream| *id != prev_stream.id);
                 self.cur_audio_id = Some(Arc::clone(id));
             } else if self.text.contains_key(id) {
                 is_text_selected = true;
-                self.text_changed = self.selected_text()
+                self.text_changed = self
+                    .selected_text()
                     .map_or(true, |prev_stream| *id != prev_stream.id);
                 self.cur_text_id = Some(Arc::clone(id));
             } else if self.video.contains_key(id) {
                 is_video_selected = true;
-                self.video_changed = self.selected_video()
+                self.video_changed = self
+                    .selected_video()
                     .map_or(true, |prev_stream| *id != prev_stream.id);
                 self.cur_video_id = Some(Arc::clone(id));
             } else {
-                panic!("MediaInfo::select_streams unknown stream id {}", id.as_ref());
+                panic!(
+                    "MediaInfo::select_streams unknown stream id {}",
+                    id.as_ref()
+                );
             }
         }
 
@@ -239,13 +245,11 @@ impl MediaInfo {
                 self.tags
                     .get_index::<gst::tags::AlbumArtist>(0)
                     .map(|value| value.get().unwrap())
-            })
-            .or_else(|| {
+            }).or_else(|| {
                 self.tags
                     .get_index::<gst::tags::ArtistSortname>(0)
                     .map(|value| value.get().unwrap())
-            })
-            .or_else(|| {
+            }).or_else(|| {
                 self.tags
                     .get_index::<gst::tags::AlbumArtistSortname>(0)
                     .map(|value| value.get().unwrap())

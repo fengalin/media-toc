@@ -14,8 +14,8 @@ impl Factory {
         result
     }
 
-    pub fn get_extension(format: &Format, is_audio_only: bool) -> &'static str {
-        match *format {
+    pub fn get_extension(format: Format, is_audio_only: bool) -> &'static str {
+        match format {
             Format::CueSheet => CueSheetFormat::get_extension(),
             Format::Flac => "flac",
             Format::Matroska => {
@@ -33,15 +33,15 @@ impl Factory {
         }
     }
 
-    pub fn get_reader(format: &Format) -> Box<Reader> {
-        match *format {
+    pub fn get_reader(format: Format) -> Box<Reader> {
+        match format {
             Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),
             format => unimplemented!("Reader for {:?}", format),
         }
     }
 
-    pub fn get_writer(format: &Format) -> Box<Writer> {
-        match *format {
+    pub fn get_writer(format: Format) -> Box<Writer> {
+        match format {
             Format::CueSheet => CueSheetFormat::new_as_boxed(),
             Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),
             format => unimplemented!("Writer for {:?}", format),

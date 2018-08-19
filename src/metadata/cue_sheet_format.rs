@@ -78,8 +78,7 @@ impl Writer for CueSheetFormat {
                 .and_then(|tags| {
                     tags.get::<gst::tags::Title>()
                         .map(|tag| tag.get().unwrap().to_owned())
-                })
-                .or_else(|| media_title.clone())
+                }).or_else(|| media_title.clone())
                 .unwrap_or_else(get_default_chapter_title);
             write_fmt!(destination, "    TITLE \"{}\"\n", &title);
 
@@ -88,8 +87,7 @@ impl Writer for CueSheetFormat {
                 .and_then(|tags| {
                     tags.get::<gst::tags::Artist>()
                         .map(|tag| tag.get().unwrap().to_owned())
-                })
-                .or_else(|| media_artist.clone())
+                }).or_else(|| media_artist.clone())
                 .unwrap_or_else(get_default_chapter_title);
             write_fmt!(destination, "    PERFORMER \"{}\"\n", &artist);
 
@@ -101,7 +99,8 @@ impl Writer for CueSheetFormat {
                     start_ts.h * 60 + start_ts.m,
                     start_ts.s,
                     (((start_ts.ms * 1_000 + start_ts.us) * 1_000 + start_ts.nano) as f64
-                        / 1_000_000_000f64 * 75f64)
+                        / 1_000_000_000f64
+                        * 75f64)
                         .round() // frame nb (75 frames/s for Cue Sheets)
                 );
             }

@@ -156,7 +156,8 @@ impl WaveformBuffer {
         }
 
         let sought_sample = (position / self.state.sample_duration) as usize
-            / self.image.sample_step * self.image.sample_step;
+            / self.image.sample_step
+            * self.image.sample_step;
 
         debug!(
             "{}_seek cursor_sample {}, sought sample {} ({}), image [{}, {}], contains_eos: {}",
@@ -662,7 +663,8 @@ impl WaveformBuffer {
                         Some((
                             first_visible_sample as usize,
                             upper.min(
-                                first_visible_sample + self.req_sample_window
+                                first_visible_sample
+                                    + self.req_sample_window
                                     + self.half_req_sample_window,
                             ),
                         ))
@@ -703,7 +705,8 @@ impl WaveformBuffer {
                                     Some((
                                         first_visible_sample,
                                         upper.min(
-                                            first_visible_sample + self.req_sample_window
+                                            first_visible_sample
+                                                + self.req_sample_window
                                                 + self.half_req_sample_window,
                                         ),
                                     ))
@@ -843,9 +846,10 @@ impl SampleExtractor for WaveformBuffer {
             Some((first_visible_sample, lock_state)) => match lock_state {
                 LockState::Playing => self.first_visible_sample = None,
                 LockState::PlayingRange | LockState::RestoringInitialPos =>
-                    // don't drop first_visible_sample & first_visible_sample_lock
-                    self.first_visible_sample_lock =
-                        Some((first_visible_sample, lock_state)),
+                // don't drop first_visible_sample & first_visible_sample_lock
+                {
+                    self.first_visible_sample_lock = Some((first_visible_sample, lock_state))
+                }
             },
         }
     }

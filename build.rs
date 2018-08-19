@@ -27,8 +27,7 @@ fn generate_resources() {
         .arg(format!(
             "--target={}",
             target_path.join("icons.gresource").to_str().unwrap(),
-        ))
-        .arg(input_path.join("icons.gresource.xml").to_str().unwrap());
+        )).arg(input_path.join("icons.gresource.xml").to_str().unwrap());
 
     match compile_res.status() {
         Ok(status) => if !status.success() {
@@ -55,8 +54,7 @@ fn generate_resources() {
         .arg(format!(
             "--target={}",
             target_path.join("ui.gresource").to_str().unwrap(),
-        ))
-        .arg(input_path.join("ui.gresource.xml").to_str().unwrap());
+        )).arg(input_path.join("ui.gresource.xml").to_str().unwrap());
 
     match compile_res.status() {
         Ok(status) => if !status.success() {
@@ -93,8 +91,7 @@ fn generate_translations() {
                 .arg(format!(
                     "--output-file={}",
                     mo_path.join("media-toc.mo").to_str().unwrap()
-                ))
-                .arg("--directory=po")
+                )).arg("--directory=po")
                 .arg(format!("{}.po", lingua));
 
             match msgfmt.status() {
@@ -132,8 +129,7 @@ fn generate_install_script() {
                     .write_all(
                         format!("# User install script for {}\n", env!("CARGO_PKG_NAME"))
                             .as_bytes(),
-                    )
-                    .unwrap();
+                    ).unwrap();
 
                 install_file.write_all(b"\n# Install executable\n").unwrap();
                 let exe_source_path = PathBuf::from("target")
@@ -149,8 +145,7 @@ fn generate_install_script() {
                             exe_source_path.to_str().unwrap(),
                             exe_dir.join(env!("CARGO_PKG_NAME")).to_str().unwrap(),
                         ).as_bytes(),
-                    )
-                    .unwrap();
+                    ).unwrap();
 
                 install_file.write_all(b"\n# Install icons\n").unwrap();
                 let icon_target_dir = data_dir.join("icons").join("hicolor");
@@ -164,8 +159,7 @@ fn generate_install_script() {
                         install_file
                             .write_all(
                                 format!("mkdir -p {}\n", target_dir.to_str().unwrap()).as_bytes(),
-                            )
-                            .unwrap();
+                            ).unwrap();
 
                         install_file
                             .write_all(
@@ -174,8 +168,7 @@ fn generate_install_script() {
                                     entry_path.to_str().unwrap(),
                                     target_dir,
                                 ).as_bytes(),
-                            )
-                            .unwrap();
+                            ).unwrap();
                     }
                 }
 
@@ -192,8 +185,7 @@ fn generate_install_script() {
                             PathBuf::from("target").join("locale").to_str().unwrap(),
                             data_dir.to_str().unwrap(),
                         ).as_bytes(),
-                    )
-                    .unwrap();
+                    ).unwrap();
 
                 install_file
                     .write_all(b"\n# Install desktop file\n")
@@ -202,8 +194,7 @@ fn generate_install_script() {
                 install_file
                     .write_all(
                         format!("mkdir -p {}\n", desktop_target_dir.to_str().unwrap()).as_bytes(),
-                    )
-                    .unwrap();
+                    ).unwrap();
                 install_file
                     .write_all(
                         format!(
@@ -214,8 +205,7 @@ fn generate_install_script() {
                                 .unwrap(),
                             desktop_target_dir.to_str().unwrap(),
                         ).as_bytes(),
-                    )
-                    .unwrap();
+                    ).unwrap();
             }
             Err(err) => panic!("Couldn't create file `target/install`: {:?}", err),
         }
@@ -238,8 +228,7 @@ fn generate_uninstall_script() {
                     .write_all(
                         format!("# User uninstall script for {}\n", env!("CARGO_PKG_NAME"))
                             .as_bytes(),
-                    )
-                    .unwrap();
+                    ).unwrap();
 
                 install_file
                     .write_all(b"\n# Uninstall executable\n")
@@ -250,8 +239,7 @@ fn generate_uninstall_script() {
                             "rm {}\n",
                             exe_dir.join(env!("CARGO_PKG_NAME")).to_str().unwrap(),
                         ).as_bytes(),
-                    )
-                    .unwrap();
+                    ).unwrap();
                 install_file
                     .write_all(format!("rmdir -p {}\n", exe_dir.to_str().unwrap()).as_bytes())
                     .unwrap();
@@ -279,16 +267,14 @@ fn generate_uninstall_script() {
                                             .to_str()
                                             .unwrap(),
                                     ).as_bytes(),
-                                )
-                                .unwrap();
+                                ).unwrap();
                         }
 
                         install_file
                             .write_all(
                                 format!("rmdir -p {}\n", icon_target_dir.to_str().unwrap())
                                     .as_bytes(),
-                            )
-                            .unwrap();
+                            ).unwrap();
                     }
                 }
 
@@ -313,14 +299,12 @@ fn generate_uninstall_script() {
                                         .to_str()
                                         .unwrap(),
                                 ).as_bytes(),
-                            )
-                            .unwrap();
+                            ).unwrap();
 
                         install_file
                             .write_all(
                                 format!("rmdir -p {}\n", lingua_dir.to_str().unwrap()).as_bytes(),
-                            )
-                            .unwrap();
+                            ).unwrap();
                     }
                 }
 
@@ -337,13 +321,11 @@ fn generate_uninstall_script() {
                                 .to_str()
                                 .unwrap(),
                         ).as_bytes(),
-                    )
-                    .unwrap();
+                    ).unwrap();
                 install_file
                     .write_all(
                         format!("rmdir -p {}\n", desktop_target_dir.to_str().unwrap()).as_bytes(),
-                    )
-                    .unwrap();
+                    ).unwrap();
             }
             Err(err) => panic!("Couldn't create file `target/uninstall`: {:?}", err),
         }

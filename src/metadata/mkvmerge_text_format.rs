@@ -7,8 +7,9 @@ use nom::{AtEof, InputLength};
 
 use std::io::{Read, Write};
 
-use super::{get_default_chapter_title, parse_timestamp, MediaInfo, Reader, Timestamp, TocVisitor,
-            Writer};
+use super::{
+    get_default_chapter_title, parse_timestamp, MediaInfo, Reader, Timestamp, TocVisitor, Writer,
+};
 
 static EXTENSION: &'static str = "txt";
 
@@ -72,10 +73,9 @@ fn parse_chapter_test() {
     assert_eq!(1_000_000_000, toc_entry.get_start_stop_times().unwrap().0);
     assert_eq!(
         Some("test".to_owned()),
-        toc_entry
-            .get_tags()
-            .and_then(|tags| tags.get::<gst::tags::Title>()
-                .map(|tag| tag.get().unwrap().to_owned())),
+        toc_entry.get_tags().and_then(|tags| tags
+            .get::<gst::tags::Title>()
+            .map(|tag| tag.get().unwrap().to_owned())),
     );
 
     let res = parse_chapter(CompleteStr(
@@ -86,10 +86,9 @@ fn parse_chapter_test() {
     assert_eq!(1_000_000_000, toc_entry.get_start_stop_times().unwrap().0);
     assert_eq!(
         Some("test".to_owned()),
-        toc_entry
-            .get_tags()
-            .and_then(|tags| tags.get::<gst::tags::Title>()
-                .map(|tag| tag.get().unwrap().to_owned())),
+        toc_entry.get_tags().and_then(|tags| tags
+            .get::<gst::tags::Title>()
+            .map(|tag| tag.get().unwrap().to_owned())),
     );
 
     let res = parse_chapter(CompleteStr("CHAPTER0x=00:00:01.000"));
@@ -151,13 +150,9 @@ impl Reader for MKVMergeTextFormat {
                                 // https://github.com/Geal/nom/pull/747
                                 nom::ErrorKind::MapOpt => gettext("expecting a number, found: {}")
                                     .replacen("{}", &i[..i.len().min(2)], 1),
-                                nom::ErrorKind::Verify => {
-                                    gettext("chapter numbers don't match for: {}").replacen(
-                                        "{}",
-                                        &i[..i.len().min(2)],
-                                        1,
-                                    )
-                                }
+                                nom::ErrorKind::Verify => gettext(
+                                    "chapter numbers don't match for: {}",
+                                ).replacen("{}", &i[..i.len().min(2)], 1),
                                 _ => gettext("unexpected sequence starting with: {}").replacen(
                                     "{}",
                                     &i[..i.len().min(10)],
@@ -258,8 +253,7 @@ impl Writer for MKVMergeTextFormat {
                     .and_then(|tags| {
                         tags.get::<gst::tags::Title>()
                             .map(|tag| tag.get().unwrap().to_owned())
-                    })
-                    .unwrap_or_else(get_default_chapter_title);
+                    }).unwrap_or_else(get_default_chapter_title);
                 write_fmt!(destination, "{}{}={}\n", prefix, NAME_TAG, &title);
             }
         }

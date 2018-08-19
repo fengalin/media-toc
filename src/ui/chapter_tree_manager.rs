@@ -231,8 +231,7 @@ impl ChapterTreeManager {
                         .and_then(|tags| {
                             tags.get::<gst::tags::Title>()
                                 .map(|tag| tag.get().unwrap().to_owned())
-                        })
-                        .unwrap_or_else(get_default_chapter_title);
+                        }).unwrap_or_else(get_default_chapter_title);
                     let iter = self.store.insert_with_values(
                         None,
                         None,
@@ -411,11 +410,17 @@ impl ChapterTreeManager {
                         // either position is passed the end of last chapter
                         // or there is no chapter
                         let insert_position = match self.store.get_iter_first() {
-                                    None => // No chapter yet => inset at the beginning
-                                        0i32,
-                                    Some(_) => // store contains chapters => insert at the end
-                                        -1i32,
-                                };
+                            None =>
+                            // No chapter yet => inset at the beginning
+                            {
+                                0i32
+                            }
+                            Some(_) =>
+                            // store contains chapters => insert at the end
+                            {
+                                -1i32
+                            }
+                        };
 
                         let new_iter = self.store.insert(None, insert_position);
                         (new_iter, duration, Timestamp::format(duration, false))
@@ -481,8 +486,10 @@ impl ChapterTreeManager {
                 self.selected_iter = next_selected_iter.clone();
                 match next_selected_iter {
                     None =>
-                        // No chapter before => rewind
-                        self.rewind(),
+                    // No chapter before => rewind
+                    {
+                        self.rewind()
+                    }
                     Some(ref next_selected_iter) => self.iter = Some(next_selected_iter.clone()),
                 }
                 next_selected_iter

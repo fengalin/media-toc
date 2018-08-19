@@ -123,7 +123,7 @@ impl DoubleAudioBuffer {
             SmallVec::with_capacity(channels);
         if let Some(positions) = audio_info.positions() {
             for position in positions {
-                channels.push(AudioChannel::new(position));
+                channels.push(AudioChannel::new(*position));
             }
         };
 
@@ -186,14 +186,16 @@ impl DoubleAudioBuffer {
 
     pub fn push_gst_buffer(&mut self, buffer: &gst::Buffer) -> bool {
         // store incoming samples
-        let sample_nb = self.audio_buffer
+        let sample_nb = self
+            .audio_buffer
             .push_gst_buffer(buffer, self.lower_to_keep);
         self.samples_since_last_extract += sample_nb;
 
         let must_notify = if self.state != gst::State::Playing {
             if let Some(mut gauge) = self.sample_gauge.take() {
                 gauge += sample_nb;
-                let must_notify = self.sample_window
+                let must_notify = self
+                    .sample_window
                     .map_or(false, |sample_window| gauge >= sample_window);
 
                 if !must_notify {

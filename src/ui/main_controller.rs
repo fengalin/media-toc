@@ -5,14 +5,14 @@ use std::collections::HashSet;
 
 use std::path::Path;
 
-use std::sync::Arc;
 use std::sync::mpsc::{channel, Receiver};
+use std::sync::Arc;
 
 use gdk::{Cursor, CursorType, WindowExt};
 use gettextrs::{gettext, ngettext};
 use gio;
-use gio::MenuExt;
 use gio::prelude::*;
+use gio::MenuExt;
 
 use glib;
 use gstreamer as gst;
@@ -23,8 +23,10 @@ use application::{APP_ID, APP_PATH, CONFIG};
 use media::ContextMessage::*;
 use media::{ContextMessage, PlaybackContext};
 
-use super::{AudioController, ChaptersBoundaries, ExportController, InfoController,
-            PerspectiveController, SplitController, StreamsController, VideoController};
+use super::{
+    AudioController, ChaptersBoundaries, ExportController, InfoController, PerspectiveController,
+    SplitController, StreamsController, VideoController,
+};
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
 const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
@@ -366,7 +368,8 @@ impl MainController {
             },
             ControllerState::Paused => {
                 accurate = true;
-                let seek_1st_step = self.audio_ctrl
+                let seek_1st_step = self
+                    .audio_ctrl
                     .borrow()
                     .get_seek_back_1st_position(position);
                 match seek_1st_step {

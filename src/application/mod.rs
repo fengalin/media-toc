@@ -30,8 +30,7 @@ fn register_resource(resource: &[u8]) {
         .and_then(|resource| {
             gio::resources_register(&resource);
             Ok(())
-        })
-        .unwrap_or_else(|err| {
+        }).unwrap_or_else(|err| {
             warn!("unable to load resources: {:?}", err);
         });
 }

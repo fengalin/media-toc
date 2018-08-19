@@ -63,7 +63,8 @@ impl VideoController {
                 debug!("Using gtksink");
                 VideoOutput {
                     sink: sink.clone(),
-                    widget: sink.get_property("widget")
+                    widget: sink
+                        .get_property("widget")
                         .expect("PlaybackContext: couldn't get `widget` from `gtksink`")
                         .get::<gtk::Widget>()
                         .expect("PlaybackContext: unexpected type for `widget` in `gtksink`"),

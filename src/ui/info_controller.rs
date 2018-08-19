@@ -15,7 +15,9 @@ use media::PlaybackContext;
 use metadata;
 use metadata::{MediaInfo, Timestamp};
 
-use super::{ChapterTreeManager, ChaptersBoundaries, ControllerState, ImageSurface, MainController};
+use super::{
+    ChapterTreeManager, ChaptersBoundaries, ControllerState, ImageSurface, MainController,
+};
 
 const GO_TO_PREV_CHAPTER_THRESHOLD: u64 = 1_000_000_000; // 1 s
 
@@ -254,27 +256,28 @@ impl InfoController {
         let this_clone = Rc::clone(this_rc);
         let main_ctrl_clone = Rc::clone(main_ctrl);
         previous_chapter.connect_activate(move |_, _| {
-            let seek_pos = {
-                let this = this_clone.borrow();
-                let position = this.get_position();
-                let cur_start = this.chapter_manager
-                    .get_selected_iter()
-                    .map(|cur_iter| this.chapter_manager.get_chapter_at_iter(&cur_iter).start());
-                let prev_start = this.chapter_manager
-                    .prev_iter()
-                    .map(|prev_iter| this.chapter_manager.get_chapter_at_iter(&prev_iter).start());
+            let seek_pos =
+                {
+                    let this = this_clone.borrow();
+                    let position = this.get_position();
+                    let cur_start = this.chapter_manager.get_selected_iter().map(|cur_iter| {
+                        this.chapter_manager.get_chapter_at_iter(&cur_iter).start()
+                    });
+                    let prev_start = this.chapter_manager.prev_iter().map(|prev_iter| {
+                        this.chapter_manager.get_chapter_at_iter(&prev_iter).start()
+                    });
 
-                match (cur_start, prev_start) {
-                    (Some(cur_start), prev_start_opt) => {
-                        if cur_start + GO_TO_PREV_CHAPTER_THRESHOLD < position {
-                            Some(cur_start)
-                        } else {
-                            prev_start_opt
+                    match (cur_start, prev_start) {
+                        (Some(cur_start), prev_start_opt) => {
+                            if cur_start + GO_TO_PREV_CHAPTER_THRESHOLD < position {
+                                Some(cur_start)
+                            } else {
+                                prev_start_opt
+                            }
                         }
+                        (None, prev_start_opt) => prev_start_opt,
                     }
-                    (None, prev_start_opt) => prev_start_opt,
-                }
-            }.unwrap_or(0);
+                }.unwrap_or(0);
 
             main_ctrl_clone.borrow_mut().seek(seek_pos, true); // accurate (slow)
         });
@@ -333,17 +336,19 @@ impl InfoController {
             let info = context.info.read().unwrap();
 
             // check the presence of a toc file
-            let mut toc_candidates = toc_extensions.into_iter().filter_map(
-                |(extension, format)| {
-                    let path = info.path
-                        .with_file_name(&format!("{}.{}", info.name, extension));
-                    if path.is_file() {
-                        Some((path, format))
-                    } else {
-                        None
-                    }
-                },
-            );
+            let mut toc_candidates =
+                toc_extensions
+                    .into_iter()
+                    .filter_map(|(extension, format)| {
+                        let path = info
+                            .path
+                            .with_file_name(&format!("{}.{}", info.name, extension));
+                        if path.is_file() {
+                            Some((path, format))
+                        } else {
+                            None
+                        }
+                    });
 
             self.duration = info.duration;
             self.timeline_scale.set_range(0f64, info.duration as f64);
@@ -372,7 +377,7 @@ impl InfoController {
                 .next()
                 .and_then(|(toc_path, format)| match File::open(toc_path.clone()) {
                     Ok(mut toc_file) => {
-                        match metadata::Factory::get_reader(&format).read(&info, &mut toc_file) {
+                        match metadata::Factory::get_reader(format).read(&info, &mut toc_file) {
                             Ok(Some(toc)) => Some(toc),
                             Ok(None) => {
                                 let msg = gettext("No toc in file \"{}\"").replacen(
@@ -391,8 +396,7 @@ impl InfoController {
                                             "{}",
                                             toc_path.file_name().unwrap().to_str().unwrap(),
                                             1,
-                                        )
-                                        .replacen("{}", &err, 1),
+                                        ).replacen("{}", &err, 1),
                                 );
                                 None
                             }
@@ -418,12 +422,16 @@ impl InfoController {
         match self.chapter_manager.get_selected_iter() {
             Some(current_iter) => {
                 // position is in a chapter => select it
-                self.chapter_treeview.get_selection().select_iter(&current_iter);
+                self.chapter_treeview
+                    .get_selection()
+                    .select_iter(&current_iter);
                 self.del_chapter_btn.set_sensitive(true);
             }
             None =>
-                // position is not in any chapter
-                self.del_chapter_btn.set_sensitive(false),
+            // position is not in any chapter
+            {
+                self.del_chapter_btn.set_sensitive(false)
+            }
         }
 
         if self.thumbnail.is_some() {
@@ -510,16 +518,22 @@ impl InfoController {
             match self.chapter_manager.get_selected_iter() {
                 Some(current_iter) => {
                     // position is in a chapter => select it
-                    self.chapter_treeview.get_selection().select_iter(&current_iter);
+                    self.chapter_treeview
+                        .get_selection()
+                        .select_iter(&current_iter);
                     self.del_chapter_btn.set_sensitive(true);
                 }
                 None =>
-                    // position is not in any chapter
+                // position is not in any chapter
+                {
                     if let Some(ref prev_selected_iter) = prev_selected_iter {
                         // but a previous chapter was selected => unselect it
-                        self.chapter_treeview.get_selection().unselect_iter(prev_selected_iter);
+                        self.chapter_treeview
+                            .get_selection()
+                            .unselect_iter(prev_selected_iter);
                         self.del_chapter_btn.set_sensitive(false);
-                    },
+                    }
+                }
             }
         }
     }

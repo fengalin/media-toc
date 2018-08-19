@@ -172,9 +172,10 @@ impl SplitController {
         debug_assert!(self.selected_audio.is_some());
 
         let format = self.get_selection();
-        self.prepare_process(&format, true);
+        self.prepare_process(format, true);
 
-        self.toc_visitor = self.base
+        self.toc_visitor = self
+            .base
             .playback_ctx
             .as_ref()
             .unwrap()
@@ -281,8 +282,7 @@ impl SplitController {
             .and_then(|tags| {
                 tags.get::<gst::tags::Title>()
                     .map(|tag| tag.get().unwrap().to_owned())
-            })
-            .unwrap_or_else(get_default_chapter_title);
+            }).unwrap_or_else(get_default_chapter_title);
 
         if self.toc_visitor.is_some() {
             split_name += &format!("{:02}. ", self.idx);
@@ -388,8 +388,7 @@ impl SplitController {
                 .and_then(|tags| {
                     tags.get::<gst::tags::Title>()
                         .map(|tag| tag.get().unwrap().to_owned())
-                })
-                .unwrap_or_else(get_default_chapter_title);
+                }).unwrap_or_else(get_default_chapter_title);
             tags.add::<gst::tags::Title>(&title.as_str(), gst::TagMergeMode::Replace);
 
             let (start, end) = chapter.get_start_stop_times().unwrap();

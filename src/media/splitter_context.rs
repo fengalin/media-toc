@@ -1,8 +1,8 @@
 use gettextrs::gettext;
 
 use gstreamer as gst;
-use gstreamer::ClockTime;
 use gstreamer::prelude::*;
+use gstreamer::ClockTime;
 
 use glib;
 
@@ -44,8 +44,7 @@ impl SplitterContext {
                         "Missing `opusenc`\ncheck your gst-plugins-good install",
                     )),
                     |_| Ok(()),
-                )
-                .and_then(|_| {
+                ).and_then(|_| {
                     gst::ElementFactory::make("oggmux", None).map_or(
                         Err(gettext(
                             "Missing `oggmux`\ncheck your gst-plugins-good install",
@@ -59,8 +58,7 @@ impl SplitterContext {
                         "Missing `opusenc`\ncheck your gst-plugins-good install",
                     )),
                     |_| Ok(()),
-                )
-                .and_then(|_| {
+                ).and_then(|_| {
                     gst::ElementFactory::make("oggmux", None).map_or(
                         Err(gettext(
                             "Missing `oggmux`\ncheck your gst-plugins-good install",
@@ -74,8 +72,7 @@ impl SplitterContext {
                         "Missing `lamemp3enc`\ncheck your gst-plugins-good install",
                     )),
                     |_| Ok(()),
-                )
-                .and_then(|_| {
+                ).and_then(|_| {
                     gst::ElementFactory::make("id3v2mux", None).map_or(
                         Err(gettext(
                             "Missing `id3v2mux`\ncheck your gst-plugins-good install",
@@ -217,8 +214,7 @@ impl SplitterContext {
                                     ClockTime::from(start as u64),
                                     gst::SeekType::Set,
                                     ClockTime::from(end as u64),
-                                )
-                                .map_err(|_| {
+                                ).map_err(|_| {
                                     // FIXME: feedback to the user using the UI channel
                                     error!("{}", gettext("Failed to intialize the split"));
                                 });
@@ -285,10 +281,11 @@ impl SplitterContext {
             queue.sync_state_with_parent().unwrap();
             let queue_src_pad = queue.get_static_pad("src").unwrap();
 
-            if name.starts_with("audio/") && pipeline_cb.get_by_name("audioconvert").is_none()
-                && stream_id
-                    == pad.get_stream_id()
-                        .expect("SplitterContext::build_pipeline no stream_id for audio src pad")
+            if name.starts_with("audio/")
+                && pipeline_cb.get_by_name("audioconvert").is_none()
+                && stream_id == pad
+                    .get_stream_id()
+                    .expect("SplitterContext::build_pipeline no stream_id for audio src pad")
             {
                 let audio_conv = gst::ElementFactory::make("audioconvert", "audioconvert").unwrap();
                 pipeline_cb.add(&audio_conv).unwrap();
@@ -318,8 +315,7 @@ impl SplitterContext {
                         ctx_tx
                             .send(ContextMessage::FailedToExport(gettext(
                                 "Failed to terminate properly. Check the resulting file.",
-                            )))
-                            .unwrap();
+                            ))).unwrap();
                     }
                     ctx_tx.send(ContextMessage::Eos).unwrap();
                     return glib::Continue(false);
@@ -328,8 +324,7 @@ impl SplitterContext {
                     ctx_tx
                         .send(ContextMessage::FailedToExport(
                             err.get_error().description().to_owned(),
-                        ))
-                        .unwrap();
+                        )).unwrap();
                     return glib::Continue(false);
                 }
                 gst::MessageView::AsyncDone(_) => {
@@ -338,8 +333,7 @@ impl SplitterContext {
                         ctx_tx
                             .send(ContextMessage::FailedToExport(gettext(
                                 "Failed to start splitting.",
-                            )))
-                            .unwrap();
+                            ))).unwrap();
                     }
                 }
                 _ => (),

@@ -124,13 +124,12 @@ impl ExportController {
 
         match export_type {
             ExportType::ExternalToc => {
-                self.prepare_process(&format, false);
+                self.prepare_process(format, false);
                 // export toc as a standalone file
                 let (msg_type, msg) = match File::create(&self.target_path) {
                     Ok(mut output_file) => {
                         let info = self.playback_ctx.as_ref().unwrap().info.read().unwrap();
-                        match metadata::Factory::get_writer(&format).write(&info, &mut output_file)
-                        {
+                        match metadata::Factory::get_writer(format).write(&info, &mut output_file) {
                             Ok(_) => (
                                 gtk::MessageType::Info,
                                 gettext("Table of contents exported succesfully"),
@@ -180,7 +179,7 @@ impl ExportController {
                     (streams, has_audio && !has_other)
                 };
 
-                self.prepare_process(&format, is_audio_only);
+                self.prepare_process(format, is_audio_only);
                 let target_path = self.target_path.clone();
                 self.build_context(&target_path, streams);
             }

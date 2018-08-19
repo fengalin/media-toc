@@ -175,8 +175,7 @@ impl PlaybackContext {
                 ClockTime::from(start),
                 gst::SeekType::Set,
                 ClockTime::from(end),
-            )
-            .ok()
+            ).ok()
             .unwrap();
         if self.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
             warn!("Seeking range: Could not set media in palying state");
@@ -224,8 +223,7 @@ impl PlaybackContext {
                         .unwrap(),
                 );
                 None
-            })
-            .ok()
+            }).ok()
             .unwrap();
         #[cfg(feature = "trace-playback-queues")]
         queue
@@ -251,8 +249,7 @@ impl PlaybackContext {
                         .unwrap(),
                 );
                 None
-            })
-            .ok()
+            }).ok()
             .unwrap();
     }
 

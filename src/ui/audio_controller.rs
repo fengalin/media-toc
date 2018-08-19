@@ -21,8 +21,9 @@ use media::{DoubleAudioBuffer, PlaybackContext, SampleExtractor, QUEUE_SIZE_NS};
 
 use metadata::{MediaInfo, Timestamp};
 
-use super::{ChaptersBoundaries, DoubleWaveformBuffer, MainController, WaveformBuffer,
-            BACKGROUND_COLOR};
+use super::{
+    ChaptersBoundaries, DoubleWaveformBuffer, MainController, WaveformBuffer, BACKGROUND_COLOR,
+};
 
 const BUFFER_DURATION: u64 = 60_000_000_000; // 60 s
 const MIN_REQ_DURATION: f64 = 1_953_125f64; // 2 ms / 1000 px
@@ -667,7 +668,8 @@ impl AudioController {
             for (boundary, chapters) in chapter_range {
                 if *boundary >= self.first_visible_pos {
                     let x = ((boundary - self.first_visible_pos) / image_positions.sample_duration)
-                        as f64 / image_positions.sample_step;
+                        as f64
+                        / image_positions.sample_step;
                     cr.move_to(x, boundary_y0);
                     cr.line_to(x, self.area_height);
                     cr.stroke();

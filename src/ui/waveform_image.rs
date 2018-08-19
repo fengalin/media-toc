@@ -359,7 +359,8 @@ impl WaveformImage {
                 INIT_WIDTH.max(((upper - lower) * self.x_step / self.sample_step) as i32)
             };
             if (target_width == self.image_width && self.req_height == self.image_height)
-                || (self.force_redraw && target_width <= self.image_width
+                || (self.force_redraw
+                    && target_width <= self.image_width
                     && self.req_height == self.image_height)
             {
                 // expected dimensions fit in current image => reuse it
@@ -387,16 +388,23 @@ impl WaveformImage {
                         cairo::Format::Rgb24,
                         target_width,
                         self.req_height,
-                    ).expect(&format!(
-                        "WaveformBuffer.render: couldn't create image surface with width {}",
-                        target_width,
-                    )),
+                    ).unwrap_or_else(|_| {
+                        panic!(
+                            "WaveformBuffer.render: couldn't create image surface with width {}",
+                            target_width,
+                        )
+                    }),
                     cairo::ImageSurface::create(
                         // will be used as secondary_image
                         cairo::Format::Rgb24,
                         target_width,
                         self.req_height,
-                    ).unwrap(), // exposed_image could be created with same dimensions
+                    ).unwrap_or_else(|_| {
+                        panic!(
+                            "WaveformBuffer.render: couldn't create image surface with width {}",
+                            target_width,
+                        )
+                    }),
                 )
             }
         };
@@ -777,14 +785,14 @@ impl WaveformImage {
         }
     }
 
-    fn convert_sample(&self, value: &f64) -> f64 {
+    fn convert_sample(&self, value: f64) -> f64 {
         value * self.half_range
     }
 
     fn convert_sample_values(&self, values: &[f64]) -> SmallVec<[f64; INLINE_CHANNELS]> {
         let mut result: SmallVec<[f64; INLINE_CHANNELS]> = SmallVec::with_capacity(values.len());
         for value in values {
-            result.push(self.convert_sample(value));
+            result.push(self.convert_sample(*value));
         }
         result
     }
@@ -860,7 +868,7 @@ impl WaveformImage {
 
         let sample = sample_iter.next();
         for channel_value in sample.unwrap() {
-            let y = self.convert_sample(channel_value);
+            let y = self.convert_sample(*channel_value);
             first_values.push(y);
             last_values.push(y);
         }
@@ -891,7 +899,7 @@ impl WaveformImage {
                 self.set_channel_color(cr, channel);
                 cr.move_to(prev_x, last_values[channel]);
 
-                last_values[channel] = self.convert_sample(value);
+                last_values[channel] = self.convert_sample(*value);
                 cr.line_to(x, last_values[channel]);
                 cr.stroke();
             }

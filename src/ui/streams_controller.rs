@@ -219,7 +219,8 @@ impl StreamsController {
             let mut info = context.info.write().unwrap();
 
             // Video streams
-            let mut sorted_ids = info.streams
+            let mut sorted_ids = info
+                .streams
                 .video
                 .keys()
                 .map(|key| Arc::clone(key))
@@ -241,7 +242,8 @@ impl StreamsController {
             }
 
             // Audio streams
-            let mut sorted_ids = info.streams
+            let mut sorted_ids = info
+                .streams
                 .audio
                 .keys()
                 .map(|key| Arc::clone(key))
@@ -266,7 +268,8 @@ impl StreamsController {
             }
 
             // Text streams
-            let mut sorted_ids = info.streams
+            let mut sorted_ids = info
+                .streams
                 .text
                 .keys()
                 .map(|key| Arc::clone(key))

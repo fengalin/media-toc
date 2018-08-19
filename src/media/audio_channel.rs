@@ -18,8 +18,8 @@ pub struct AudioChannel {
 
 impl AudioChannel {
     #[cfg_attr(feature = "cargo-clippy", allow(match_same_arms))]
-    pub fn new(position: &gst_audio::AudioChannelPosition) -> Self {
-        let (side, factor) = match *position {
+    pub fn new(position: gst_audio::AudioChannelPosition) -> Self {
+        let (side, factor) = match position {
             Position::Mono => (AudioChannelSide::Left, 0.9f64),
             Position::FrontLeft => (AudioChannelSide::Left, 0.9f64),
             Position::FrontRight => (AudioChannelSide::Right, 0.9f64),
