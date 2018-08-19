@@ -33,14 +33,14 @@ impl Factory {
         }
     }
 
-    pub fn get_reader(format: Format) -> Box<Reader> {
+    pub fn get_reader(format: Format) -> Box<dyn Reader> {
         match format {
             Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),
             format => unimplemented!("Reader for {:?}", format),
         }
     }
 
-    pub fn get_writer(format: Format) -> Box<Writer> {
+    pub fn get_writer(format: Format) -> Box<dyn Writer> {
         match format {
             Format::CueSheet => CueSheetFormat::new_as_boxed(),
             Format::MKVMergeText => MKVMergeTextFormat::new_as_boxed(),

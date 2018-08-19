@@ -1,4 +1,5 @@
 use cairo;
+use log::{debug, info, warn};
 use smallvec::SmallVec;
 
 #[cfg(feature = "dump-waveform")]
@@ -965,7 +966,7 @@ mod tests {
     use gstreamer as gst;
     use gstreamer_audio as gst_audio;
     use gstreamer_audio::AUDIO_FORMAT_S16;
-
+    use log::info;
     use smallvec::SmallVec;
 
     use std::fs::{create_dir, File};

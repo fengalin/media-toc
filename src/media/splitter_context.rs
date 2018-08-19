@@ -6,6 +6,8 @@ use gstreamer::ClockTime;
 
 use glib;
 
+use log::{debug, error, info};
+
 use std::error::Error;
 use std::path::Path;
 use std::sync::mpsc::Sender;

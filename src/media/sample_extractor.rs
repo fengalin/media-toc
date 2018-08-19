@@ -46,8 +46,8 @@ impl SampleExtractionState {
 }
 
 pub trait SampleExtractor: Send {
-    fn as_mut_any(&mut self) -> &mut Any;
-    fn as_any(&self) -> &Any;
+    fn as_mut_any(&mut self) -> &mut dyn Any;
+    fn as_any(&self) -> &dyn Any;
     fn get_extraction_state(&self) -> &SampleExtractionState;
     fn get_extraction_state_mut(&mut self) -> &mut SampleExtractionState;
 
@@ -89,7 +89,7 @@ pub trait SampleExtractor: Send {
     // which is expected to be the same concrete type
     // this update is intended at smoothening the specific
     // extraction process by keeping conditions between frames
-    fn update_concrete_state(&mut self, other: &mut SampleExtractor);
+    fn update_concrete_state(&mut self, other: &mut dyn SampleExtractor);
 
     fn get_current_sample(&mut self, last_frame_time: u64, next_frame_time: u64) -> (u64, usize) {
         // (position, sample)

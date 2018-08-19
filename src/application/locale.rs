@@ -1,5 +1,6 @@
 use directories::ProjectDirs;
 use gettextrs::{TextDomain, TextDomainError};
+use log::{error, info, warn};
 
 use super::{SLD, TLD};
 

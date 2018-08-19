@@ -4,6 +4,8 @@ use glib;
 use gtk;
 use gtk::prelude::*;
 
+use log::{error, warn};
+
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fs::File;

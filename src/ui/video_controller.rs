@@ -6,6 +6,7 @@ use glib::{ObjectExt, ToValue};
 use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
+use log::{debug, error};
 
 use std::cell::RefCell;
 use std::rc::Rc;

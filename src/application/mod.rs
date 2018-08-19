@@ -2,6 +2,8 @@ use gio;
 use gio::prelude::*;
 use glib;
 use gtk;
+use lazy_static::lazy_static;
+use log::warn;
 
 use crate::ui::MainController;
 

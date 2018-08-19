@@ -1,5 +1,6 @@
 use cairo;
 use image;
+use log::warn;
 
 pub struct ImageSurface {}
 

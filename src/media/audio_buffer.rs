@@ -1,13 +1,15 @@
+#[cfg(test)]
+use byteorder::ByteOrder;
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
+
 use gstreamer as gst;
 use gstreamer_audio as gst_audio;
 
 use gstreamer_audio::AudioFormat;
 
-use sample::Sample;
+use log::{debug, trace};
 
-#[cfg(test)]
-use byteorder::ByteOrder;
-use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
+use sample::Sample;
 
 use std::collections::vec_deque::VecDeque;
 use std::io::{Cursor, Read};
@@ -338,7 +340,7 @@ impl AudioBuffer {
         self.segment_start = None;
     }
 
-    pub fn iter(&self, lower: usize, upper: usize, sample_step: usize) -> Option<Iter> {
+    pub fn iter(&self, lower: usize, upper: usize, sample_step: usize) -> Option<Iter<'_>> {
         Iter::new(self, lower, upper, sample_step)
     }
 
@@ -398,7 +400,7 @@ impl AudioBuffer {
 }
 
 // Convert sample buffer to i16 on the fly
-type ConvertFn = fn(&mut Read) -> f64;
+type ConvertFn = fn(&mut dyn Read) -> f64;
 macro_rules! to_positive_f64(
     ($read:expr) => {
         1f64 - $read.unwrap().to_sample::<f64>()
@@ -565,7 +567,7 @@ mod tests {
     use gstreamer as gst;
     use gstreamer_audio as gst_audio;
     use gstreamer_audio::AUDIO_FORMAT_S16;
-
+    use log::{debug, info};
     use smallvec::SmallVec;
 
     use crate::media::AudioBuffer;
