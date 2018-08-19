@@ -11,11 +11,11 @@ use std::path::PathBuf;
 use std::rc::{Rc, Weak};
 use std::sync::mpsc::{channel, Receiver};
 
-use media::ContextMessage::*;
-use media::{ContextMessage, PlaybackContext, SplitterContext};
+use crate::media::ContextMessage::*;
+use crate::media::{ContextMessage, PlaybackContext, SplitterContext};
 
-use metadata;
-use metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor};
+use crate::metadata;
+use crate::metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor};
 
 use super::{MainController, OutputBaseController};
 

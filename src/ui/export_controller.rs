@@ -12,11 +12,11 @@ use std::path::Path;
 use std::rc::{Rc, Weak};
 use std::sync::mpsc::{channel, Receiver};
 
-use media::ContextMessage::*;
-use media::{ContextMessage, TocSetterContext};
+use crate::media::ContextMessage::*;
+use crate::media::{ContextMessage, TocSetterContext};
 
-use metadata;
-use metadata::{Exporter, Format, MatroskaTocFormat};
+use crate::metadata;
+use crate::metadata::{Exporter, Format, MatroskaTocFormat};
 
 use super::{MainController, OutputBaseController};
 

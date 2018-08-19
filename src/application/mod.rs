@@ -3,7 +3,7 @@ use gio::prelude::*;
 use glib;
 use gtk;
 
-use ui::MainController;
+use crate::ui::MainController;
 
 pub const TLD: &str = "org";
 pub const SLD: &str = "fengalin";

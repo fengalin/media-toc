@@ -9,9 +9,9 @@ use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 
-use media::PlaybackContext;
+use crate::media::PlaybackContext;
 
-use metadata::Stream;
+use crate::metadata::Stream;
 
 use super::MainController;
 
@@ -151,7 +151,7 @@ impl StreamsController {
 
     fn video_export_toggled(&self, tree_path: &gtk::TreePath) {
         if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
-            if let Some(mut context) = main_ctrl_rc.borrow_mut().context.as_mut() {
+            if let Some(context) = main_ctrl_rc.borrow_mut().context.as_mut() {
                 if let Some((stream_id, value)) = Self::toggle_export(&self.video_store, tree_path)
                 {
                     context
@@ -170,7 +170,7 @@ impl StreamsController {
 
     fn audio_export_toggled(&self, tree_path: &gtk::TreePath) {
         if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
-            if let Some(mut context) = main_ctrl_rc.borrow_mut().context.as_mut() {
+            if let Some(context) = main_ctrl_rc.borrow_mut().context.as_mut() {
                 if let Some((stream_id, value)) = Self::toggle_export(&self.audio_store, tree_path)
                 {
                     context
@@ -189,7 +189,7 @@ impl StreamsController {
 
     fn text_export_toggled(&self, tree_path: &gtk::TreePath) {
         if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
-            if let Some(mut context) = main_ctrl_rc.borrow_mut().context.as_mut() {
+            if let Some(context) = main_ctrl_rc.borrow_mut().context.as_mut() {
                 if let Some((stream_id, value)) = Self::toggle_export(&self.text_store, tree_path) {
                     context
                         .info
@@ -227,7 +227,7 @@ impl StreamsController {
                 .collect::<Vec<Arc<str>>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let mut stream = info.streams.get_video_mut(stream_id).unwrap();
+                let stream = info.streams.get_video_mut(stream_id).unwrap();
                 stream.must_export = true;
                 let iter = self.add_stream(&self.video_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
@@ -250,7 +250,7 @@ impl StreamsController {
                 .collect::<Vec<Arc<str>>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let mut stream = info.streams.get_audio_mut(stream_id).unwrap();
+                let stream = info.streams.get_audio_mut(stream_id).unwrap();
                 stream.must_export = true;
                 let iter = self.add_stream(&self.audio_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
@@ -276,7 +276,7 @@ impl StreamsController {
                 .collect::<Vec<Arc<str>>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let mut stream = info.streams.get_text_mut(stream_id).unwrap();
+                let stream = info.streams.get_text_mut(stream_id).unwrap();
                 stream.must_export = true;
                 let iter = self.add_stream(&self.text_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();

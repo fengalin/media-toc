@@ -149,7 +149,7 @@ fn generate_install_script() {
 
                 install_file.write_all(b"\n# Install icons\n").unwrap();
                 let icon_target_dir = data_dir.join("icons").join("hicolor");
-                let mut entry_iter =
+                let entry_iter =
                     read_dir(PathBuf::from("assets").join("icons").join("hicolor")).unwrap();
                 for entry in entry_iter {
                     let entry = entry.unwrap();
@@ -246,7 +246,7 @@ fn generate_uninstall_script() {
 
                 install_file.write_all(b"\n# Uninstall icons\n").unwrap();
                 let icon_target_dir = data_dir.join("icons").join("hicolor");
-                let mut entry_iter =
+                let entry_iter =
                     read_dir(PathBuf::from("assets").join("icons").join("hicolor")).unwrap();
                 for entry in entry_iter {
                     let entry = entry.unwrap();
@@ -255,7 +255,7 @@ fn generate_uninstall_script() {
                         let icon_target_dir = icon_target_dir
                             .join(entry_path.file_name().unwrap())
                             .join("apps");
-                        let mut icons_subdir_iter = read_dir(entry_path.join("apps")).unwrap();
+                        let icons_subdir_iter = read_dir(entry_path.join("apps")).unwrap();
                         for icon_subdir_entry in icons_subdir_iter {
                             let icon_subdir_entry = icon_subdir_entry.unwrap();
                             install_file

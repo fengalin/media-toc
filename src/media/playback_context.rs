@@ -13,8 +13,8 @@ use std::path::Path;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, RwLock};
 
-use application::CONFIG;
-use metadata::MediaInfo;
+use crate::application::CONFIG;
+use crate::metadata::MediaInfo;
 
 use super::{ContextMessage, DoubleAudioBuffer};
 
@@ -593,7 +593,7 @@ impl PlaybackContext {
                 gst::MessageView::Tag(msg_tag) => match pipeline_state {
                     PipelineState::Initialized(_) => (),
                     _ => {
-                        let mut tags = &mut info_arc_mtx
+                        let tags = &mut info_arc_mtx
                             .write()
                             .expect("Failed to lock media info while receiving tags")
                             .tags;

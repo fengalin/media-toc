@@ -7,9 +7,9 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::{Rc, Weak};
 
-use media::PlaybackContext;
+use crate::media::PlaybackContext;
 
-use metadata;
+use crate::metadata;
 
 use super::MainController;
 

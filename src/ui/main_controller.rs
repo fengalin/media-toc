@@ -19,9 +19,9 @@ use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 
-use application::{APP_ID, APP_PATH, CONFIG};
-use media::ContextMessage::*;
-use media::{ContextMessage, PlaybackContext};
+use crate::application::{APP_ID, APP_PATH, CONFIG};
+use crate::media::ContextMessage::*;
+use crate::media::{ContextMessage, PlaybackContext};
 
 use super::{
     AudioController, ChaptersBoundaries, ExportController, InfoController, PerspectiveController,
@@ -565,7 +565,7 @@ impl MainController {
                         }
                         InitDone => {
                             let mut this = this_rc.borrow_mut();
-                            let mut context = this.context.take().unwrap();
+                            let context = this.context.take().unwrap();
 
                             this.header_bar.set_subtitle(Some(
                                 context.info.read().unwrap().file_name.as_str(),
