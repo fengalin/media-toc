@@ -1,9 +1,9 @@
 use gettextrs::gettext;
 use glib;
 use gstreamer as gst;
-
 use gtk;
 use gtk::prelude::*;
+use log::{error, warn};
 
 use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};

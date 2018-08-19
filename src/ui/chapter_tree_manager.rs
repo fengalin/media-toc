@@ -272,7 +272,7 @@ impl ChapterTreeManager {
     // If first_iter is_some, iterate from first_iter
     pub fn for_each<F>(&self, first_iter: Option<gtk::TreeIter>, mut func: F)
     where
-        F: FnMut(ChapterEntry) -> bool, // closure must return true to keep going
+        F: FnMut(ChapterEntry<'_>) -> bool, // closure must return true to keep going
     {
         let iter = match first_iter {
             Some(first_iter) => first_iter,

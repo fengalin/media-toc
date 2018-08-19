@@ -1,6 +1,8 @@
 use gettextrs::gettext;
 use gstreamer as gst;
 
+use log::error;
+
 use std::io::Write;
 
 use super::{get_default_chapter_title, MediaInfo, Timestamp, TocVisitor, Writer};
@@ -30,7 +32,7 @@ macro_rules! write_fmt(
 );
 
 impl Writer for CueSheetFormat {
-    fn write(&self, info: &MediaInfo, destination: &mut Write) -> Result<(), String> {
+    fn write(&self, info: &MediaInfo, destination: &mut dyn Write) -> Result<(), String> {
         if info.toc.is_none() {
             let msg = gettext("The table of contents is empty");
             error!("{}", msg);

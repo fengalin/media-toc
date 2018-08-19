@@ -1,36 +1,5 @@
-extern crate byteorder;
-extern crate cairo;
-extern crate clap;
-extern crate directories;
-extern crate env_logger;
-extern crate gdk;
-extern crate gettextrs;
-extern crate gio;
-extern crate glib;
-extern crate gstreamer;
-extern crate gstreamer_audio;
-extern crate gtk;
-extern crate image;
-extern crate pango;
-extern crate ron;
-extern crate sample;
-extern crate serde;
-
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate nom;
-#[macro_use]
-extern crate serde_derive;
-
-extern crate smallvec;
-
-#[cfg(feature = "dump-waveform")]
-extern crate chrono;
-
 use gettextrs::gettext;
+use log::error;
 
 mod application;
 use crate::application::{handle_command_line, init_locale, run};

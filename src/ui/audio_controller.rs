@@ -6,6 +6,7 @@ use gio::prelude::*;
 use glib;
 use gtk;
 use gtk::prelude::*;
+use log::{debug, trace};
 use pango;
 use pango::{ContextExt, LayoutExt};
 
@@ -91,7 +92,7 @@ pub struct AudioController {
     sample_step: f64,
     boundaries: Rc<RefCell<ChaptersBoundaries>>,
 
-    waveform_mtx: Arc<Mutex<Box<SampleExtractor>>>,
+    waveform_mtx: Arc<Mutex<Box<dyn SampleExtractor>>>,
     pub dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
 
     tick_cb_id: Option<u32>,

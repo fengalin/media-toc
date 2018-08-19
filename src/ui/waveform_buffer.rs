@@ -1,4 +1,5 @@
 use cairo;
+use log::{debug, trace};
 
 use std::any::Any;
 use std::boxed::Box;
@@ -787,11 +788,11 @@ impl WaveformBuffer {
 }
 
 impl SampleExtractor for WaveformBuffer {
-    fn as_mut_any(&mut self) -> &mut Any {
+    fn as_mut_any(&mut self) -> &mut dyn Any {
         self
     }
 
-    fn as_any(&self) -> &Any {
+    fn as_any(&self) -> &dyn Any {
         self
     }
 
@@ -870,7 +871,7 @@ impl SampleExtractor for WaveformBuffer {
         }
     }
 
-    fn update_concrete_state(&mut self, other: &mut SampleExtractor) {
+    fn update_concrete_state(&mut self, other: &mut dyn SampleExtractor) {
         let other = other.as_mut_any().downcast_mut::<WaveformBuffer>().unwrap();
 
         self.previous_sample = other.previous_sample;

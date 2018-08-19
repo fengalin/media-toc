@@ -1,6 +1,8 @@
 use gstreamer as gst;
 use gstreamer_audio as gst_audio;
 
+use log::info;
+
 use smallvec::SmallVec;
 
 use std::mem;
@@ -26,8 +28,8 @@ pub struct DoubleAudioBuffer {
     state: gst::State,
     audio_buffer: AudioBuffer,
     samples_since_last_extract: usize,
-    exposed_buffer_mtx: Arc<Mutex<Box<SampleExtractor>>>,
-    working_buffer: Option<Box<SampleExtractor>>,
+    exposed_buffer_mtx: Arc<Mutex<Box<dyn SampleExtractor>>>,
+    working_buffer: Option<Box<dyn SampleExtractor>>,
     lower_to_keep: usize,
     sample_gauge: Option<usize>,
     sample_window: Option<usize>,
@@ -41,8 +43,8 @@ impl DoubleAudioBuffer {
     // as trait SampleExtractor
     pub fn new(
         buffer_duration: u64,
-        exposed_buffer: Box<SampleExtractor>,
-        working_buffer: Box<SampleExtractor>,
+        exposed_buffer: Box<dyn SampleExtractor>,
+        working_buffer: Box<dyn SampleExtractor>,
     ) -> DoubleAudioBuffer {
         DoubleAudioBuffer {
             state: gst::State::Null,
@@ -60,7 +62,7 @@ impl DoubleAudioBuffer {
     }
 
     // Get a reference on the exposed buffer mutex.
-    pub fn get_exposed_buffer_mtx(&self) -> Arc<Mutex<Box<SampleExtractor>>> {
+    pub fn get_exposed_buffer_mtx(&self) -> Arc<Mutex<Box<dyn SampleExtractor>>> {
         Arc::clone(&self.exposed_buffer_mtx)
     }
 

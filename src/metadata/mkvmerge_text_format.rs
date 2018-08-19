@@ -1,9 +1,12 @@
 use gettextrs::gettext;
 use gstreamer as gst;
 
+use log::error;
+
 use nom;
 use nom::types::CompleteStr;
-use nom::{AtEof, InputLength};
+use nom::{AtEof, InputLength, call, do_parse, eat_separator, error_position, flat_map, named, opt,
+          parse_to, tag, take, take_until_either, verify};
 
 use std::io::{Read, Write};
 
@@ -45,7 +48,7 @@ fn new_chapter(nb: usize, start_ts: Timestamp, title: &str) -> gst::TocEntry {
     chapter
 }
 
-named!(parse_chapter<CompleteStr, gst::TocEntry>,
+named!(parse_chapter<CompleteStr<'_>, gst::TocEntry>,
     do_parse!(
         tag!(CHAPTER_TAG) >>
         nb1: flat_map!(take!(2), parse_to!(usize)) >>
@@ -111,7 +114,7 @@ fn parse_chapter_test() {
 }
 
 impl Reader for MKVMergeTextFormat {
-    fn read(&self, info: &MediaInfo, source: &mut Read) -> Result<Option<gst::Toc>, String> {
+    fn read(&self, info: &MediaInfo, source: &mut dyn Read) -> Result<Option<gst::Toc>, String> {
         let error_msg = gettext("unexpected error reading mkvmerge text file.");
         let mut content = String::new();
         source.read_to_string(&mut content).map_err(|_| {
@@ -223,7 +226,7 @@ macro_rules! write_fmt(
 );
 
 impl Writer for MKVMergeTextFormat {
-    fn write(&self, info: &MediaInfo, destination: &mut Write) -> Result<(), String> {
+    fn write(&self, info: &MediaInfo, destination: &mut dyn Write) -> Result<(), String> {
         if info.toc.is_none() {
             let msg = gettext("The table of contents is empty");
             error!("{}", msg);

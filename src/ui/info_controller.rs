@@ -5,6 +5,8 @@ use gio::prelude::*;
 use glib;
 use gtk;
 use gtk::prelude::*;
+use lazy_static::lazy_static;
+use log::info;
 
 use std::cell::RefCell;
 use std::fs::File;

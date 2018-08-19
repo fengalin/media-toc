@@ -1,13 +1,3 @@
-use std::cell::RefCell;
-use std::rc::{Rc, Weak};
-
-use std::collections::HashSet;
-
-use std::path::Path;
-
-use std::sync::mpsc::{channel, Receiver};
-use std::sync::Arc;
-
 use gdk::{Cursor, CursorType, WindowExt};
 use gettextrs::{gettext, ngettext};
 use gio;
@@ -18,6 +8,18 @@ use glib;
 use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
+
+use log::error;
+
+use std::cell::RefCell;
+use std::rc::{Rc, Weak};
+
+use std::collections::HashSet;
+
+use std::path::Path;
+
+use std::sync::mpsc::{channel, Receiver};
+use std::sync::Arc;
 
 use crate::application::{APP_ID, APP_PATH, CONFIG};
 use crate::media::ContextMessage::*;
@@ -70,7 +72,7 @@ pub struct MainController {
     streams_ctrl: Rc<RefCell<StreamsController>>,
 
     pub context: Option<PlaybackContext>,
-    take_context_cb: Option<Box<FnMut(PlaybackContext)>>,
+    take_context_cb: Option<Box<dyn FnMut(PlaybackContext)>>,
     missing_plugins: HashSet<String>,
     state: ControllerState,
 
@@ -468,7 +470,7 @@ impl MainController {
         };
     }
 
-    pub fn request_context(&mut self, callback: Box<FnMut(PlaybackContext)>) {
+    pub fn request_context(&mut self, callback: Box<dyn FnMut(PlaybackContext)>) {
         self.audio_ctrl.borrow_mut().switch_to_not_playing();
         self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
 

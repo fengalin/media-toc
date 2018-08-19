@@ -8,6 +8,8 @@ use gstreamer::{BinExt, ClockTime, GstObjectExt, PadExt};
 use glib;
 use glib::{Cast, ObjectExt};
 
+use log::{debug, info, warn};
+
 use std::error::Error;
 use std::path::Path;
 use std::sync::mpsc::Sender;

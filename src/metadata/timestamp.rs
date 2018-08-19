@@ -1,15 +1,17 @@
 use nom::types::CompleteStr;
+use nom::{alt, call, do_parse, eof, error_position, flat_map, named, opt, parse_to, tag,
+          take_while1};
 
 use std::fmt;
 
-named!(parse_digits<CompleteStr, u64>,
+named!(parse_digits<CompleteStr<'_>, u64>,
     flat_map!(
         take_while1!(|c| c >= '0' && c <= '9'),
         parse_to!(u64)
     )
 );
 
-named!(parse_opt_dot_digits<CompleteStr, Option<u64>>,
+named!(parse_opt_dot_digits<CompleteStr<'_>, Option<u64>>,
     opt!(do_parse!(
         tag!(".") >>
         nb: parse_digits >>
@@ -17,7 +19,7 @@ named!(parse_opt_dot_digits<CompleteStr, Option<u64>>,
     ))
 );
 
-named!(pub parse_timestamp<CompleteStr, Timestamp>,
+named!(pub parse_timestamp<CompleteStr<'_>, Timestamp>,
     do_parse!(
         nb1: parse_digits >>
         tag!(":") >>
@@ -187,7 +189,7 @@ impl Timestamp {
 }
 
 impl fmt::Display for Timestamp {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let prefix = if self.h > 0 {
             format!("{:02}:", self.h).to_owned()
         } else {
@@ -199,7 +201,7 @@ impl fmt::Display for Timestamp {
 }
 
 impl fmt::Debug for Timestamp {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("Timestamp").field(&self.to_string()).finish()
     }
 }
