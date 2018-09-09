@@ -64,27 +64,27 @@ files: one file per chapter.
 
 The following functions are bound to one or multiple key accelerators:
 
-| Function                                                   | keys              |
-| ---------------------------------------------------------- | :---------------: |
-| Open media dialog                                          | <Ctrl\> + O       |
-| Quit the application                                       | <Ctrl\> + Q       |
-| Play/Pause (and open media dialog when no media is loaded) | Space or Play key |
-| Step forward                                               | Right             |
-| Step back                                                  | Left              |
-| Go to next chapter                                         | Down or Next key  |
-| Go to the beginning of current chapter or previous chapter | Up or Prev key    |
-| Zoom the waveform in                                       | Z                 |
-| Zoom the waveform out                                      | <Shitf\> + Z      |
-| Close the info bar                                         | Escape            |
-| Add a chapter at current position                          | +                 |
-| Remove the chapter at current position                     | -                 |
-| Toggle show/hide chapters list                             | L                 |
-| Toggle repeat current chapter                              | R                 | 
-| Show the Display perspective                               | F5                |
-| Show the Streams perspective                               | F6                |
-| Show the Export perspective                                | F7                |
-| Show the Split perspective                                 | F8                |
-| Open the about dialog                                      | <Ctrl\> + A       |
+| Function                                                   | keys                                |
+| ---------------------------------------------------------- | :---------------------------------: |
+| Open media dialog                                          | <kbd>Control</kbd> + <kbd>O</kbd>   |
+| Quit the application                                       | <kbd>Control</kbd> + <kbd>Q</kbd>   |
+| Play/Pause (and open media dialog when no media is loaded) | <kbd>Space</kbd> or <kbd>Play</kbd> |
+| Step forward                                               | <kbd>Right</kbd>                    |
+| Step back                                                  | <kbd>Left</kbd>                     |
+| Go to next chapter                                         | <kbd>Down</kbd> or <kbd>Next</kbd>  |
+| Go to the beginning of current chapter or previous chapter | <kbd>Up</kbd> or <kbd>Prev</kbd>    |
+| Zoom the waveform in                                       | <kbd>Z</kbd>                        |
+| Zoom the waveform out                                      | <kbd>Shitf</kbd> + <kbd>Z</kbd>     |
+| Close the info bar                                         | <kbd>Escape</kbd>                   |
+| Add a chapter at current position                          | <kbd>+</kbd>                        |
+| Remove the chapter at current position                     | <kbd>-</kbd>                        |
+| Toggle show/hide chapters list                             | <kbd>L</kbd>                        |
+| Toggle repeat current chapter                              | <kbd>R</kbd>                        | 
+| Show the Display perspective                               | <kbd>F5</kbd>                       |
+| Show the Streams perspective                               | <kbd>F6</kbd>                       |
+| Show the Export perspective                                | <kbd>F7</kbd>                       |
+| Show the Split perspective                                 | <kbd>F8</kbd>                       |
+| Open the about dialog                                      | <kbd>Control</kbd> + <kbd>A</kbd>   |
 
 # <a name='how-tos'></a>How-tos
 
