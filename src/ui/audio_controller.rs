@@ -13,7 +13,7 @@ use std::boxed::Box;
 use std::collections::Bound::Included;
 
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use std::sync::{Arc, Mutex};
 
@@ -93,9 +93,9 @@ pub struct AudioController {
     pub dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
 
     tick_cb_id: Option<u32>,
-    // Add a RefCell to self in order to
-    // be able to register the tick_callback
-    this_opt: Option<Rc<RefCell<AudioController>>>,
+    // Add a RefCell to self in order to be able to register the tick_callback
+    // and asynchronously refresh display conditions
+    this_opt: Option<Weak<RefCell<AudioController>>>,
 }
 
 impl AudioController {
@@ -148,8 +148,7 @@ impl AudioController {
 
         {
             let mut this_mut = this.borrow_mut();
-            let this_rc = Rc::clone(&this);
-            this_mut.this_opt = Some(this_rc);
+            this_mut.this_opt = Some(Rc::downgrade(&this));
         }
 
         this
@@ -335,11 +334,13 @@ impl AudioController {
         if is_audio_selected {
             // Refresh conditions asynchronously so that
             // all widget are arranged to their target positions
-            let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
+            let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
             gtk::idle_add(move || {
-                let mut this = this_rc.borrow_mut();
-                this.state = ControllerState::Paused;
-                this.update_conditions();
+                if let Some(this_rc) = this_weak.upgrade() {
+                    let mut this = this_rc.borrow_mut();
+                    this.state = ControllerState::Paused;
+                    this.update_conditions();
+                }
                 glib::Continue(false)
             });
         }
@@ -453,18 +454,20 @@ impl AudioController {
             return;
         }
 
-        let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
+        let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
         self.tick_cb_id = Some(
             self.drawingarea
                 .add_tick_callback(move |_da, _frame_clock| {
-                    let this = this_rc.borrow();
-                    if this.playback_needs_refresh {
-                        trace!("tick forcing refresh");
+                    if let Some(this_rc) = this_weak.upgrade() {
+                        let this = this_rc.borrow();
+                        if this.playback_needs_refresh {
+                            trace!("tick forcing refresh");
 
-                        this.dbl_buffer_mtx.lock().unwrap().refresh();
+                            this.dbl_buffer_mtx.lock().unwrap().refresh();
+                        }
+
+                        this.redraw();
                     }
-
-                    this.redraw();
                     glib::Continue(true)
                 }),
         );

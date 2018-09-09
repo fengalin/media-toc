@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::sync::mpsc::{channel, Receiver};
 
 use media::ContextMessage::*;
@@ -40,7 +40,7 @@ pub struct ExportController {
     export_btn: gtk::Button,
 
     toc_setter_ctx: Option<TocSetterContext>,
-    this_opt: Option<Rc<RefCell<ExportController>>>,
+    this_opt: Option<Weak<RefCell<ExportController>>>,
 }
 
 impl ExportController {
@@ -62,8 +62,7 @@ impl ExportController {
 
         {
             let mut this_mut = this.borrow_mut();
-            let this_rc = Rc::clone(&this);
-            this_mut.this_opt = Some(this_rc);
+            this_mut.this_opt = Some(Rc::downgrade(&this));
 
             this_mut.export_list.select_row(&this_mut.mkvmerge_txt_row);
             this_mut.cleanup();
@@ -236,66 +235,69 @@ impl ExportController {
     }
 
     fn register_listener(&mut self, period: u32, ui_rx: Receiver<ContextMessage>) {
-        let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
+        let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
 
         self.listener_src = Some(gtk::timeout_add(period, move || {
-            let mut keep_going = true;
+            let mut keep_going = false;
 
-            let mut this = this_rc.borrow_mut();
+            if let Some(this_rc) = this_weak.upgrade() {
+                keep_going = true;
+                let mut this = this_rc.borrow_mut();
 
-            if this.duration > 0 {
-                let position = match this.toc_setter_ctx.as_mut() {
-                    Some(toc_setter_ctx) => toc_setter_ctx.get_position(),
-                    None => 0,
-                };
-                this.export_progress_bar
-                    .set_fraction(position as f64 / this.duration as f64);
-            }
+                if this.duration > 0 {
+                    let position = match this.toc_setter_ctx.as_mut() {
+                        Some(toc_setter_ctx) => toc_setter_ctx.get_position(),
+                        None => 0,
+                    };
+                    this.export_progress_bar
+                        .set_fraction(position as f64 / this.duration as f64);
+                }
 
-            for message in ui_rx.try_iter() {
-                match message {
-                    InitDone => {
-                        let mut toc_setter_ctx = this.toc_setter_ctx.take().unwrap();
+                for message in ui_rx.try_iter() {
+                    match message {
+                        InitDone => {
+                            let mut toc_setter_ctx = this.toc_setter_ctx.take().unwrap();
 
-                        let exporter = MatroskaTocFormat::new();
-                        {
-                            let muxer = toc_setter_ctx.get_muxer().unwrap();
-                            let info = this.playback_ctx.as_ref().unwrap().info.read().unwrap();
-                            exporter.export(&info, muxer);
+                            let exporter = MatroskaTocFormat::new();
+                            {
+                                let muxer = toc_setter_ctx.get_muxer().unwrap();
+                                let info = this.playback_ctx.as_ref().unwrap().info.read().unwrap();
+                                exporter.export(&info, muxer);
+                            }
+
+                            let _ = toc_setter_ctx.export().map_err(|err| {
+                                keep_going = false;
+                                let msg = gettext("Failed to export media. {}").replacen("{}", &err, 1);
+                                this.show_error(&msg);
+                                error!("{}", msg);
+                            });
+
+                            this.toc_setter_ctx = Some(toc_setter_ctx);
                         }
-
-                        let _ = toc_setter_ctx.export().map_err(|err| {
+                        Eos => {
+                            this.show_info(&gettext("Media exported succesfully"));
                             keep_going = false;
-                            let msg = gettext("Failed to export media. {}").replacen("{}", &err, 1);
-                            this.show_error(&msg);
-                            error!("{}", msg);
-                        });
+                        }
+                        FailedToExport(error) => {
+                            keep_going = false;
+                            let message =
+                                gettext("Failed to export media. {}").replacen("{}", &error, 1);
+                            this.show_error(&message);
+                            error!("{}", message);
+                        }
+                        _ => (),
+                    };
 
-                        this.toc_setter_ctx = Some(toc_setter_ctx);
+                    if !keep_going {
+                        break;
                     }
-                    Eos => {
-                        this.show_info(&gettext("Media exported succesfully"));
-                        keep_going = false;
-                    }
-                    FailedToExport(error) => {
-                        keep_going = false;
-                        let message =
-                            gettext("Failed to export media. {}").replacen("{}", &error, 1);
-                        this.show_error(&message);
-                        error!("{}", message);
-                    }
-                    _ => (),
-                };
+                }
 
                 if !keep_going {
-                    break;
+                    this.listener_src = None;
+                    this.switch_to_available();
+                    this.restore_context();
                 }
-            }
-
-            if !keep_going {
-                this.listener_src = None;
-                this.switch_to_available();
-                this.restore_context();
             }
 
             glib::Continue(keep_going)

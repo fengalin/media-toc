@@ -8,7 +8,7 @@ use gtk::prelude::*;
 use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::sync::mpsc::{channel, Receiver};
 
 use media::ContextMessage::*;
@@ -51,7 +51,7 @@ pub struct SplitController {
     split_btn: gtk::Button,
 
     splitter_ctx: Option<SplitterContext>,
-    this_opt: Option<Rc<RefCell<SplitController>>>,
+    this_opt: Option<Weak<RefCell<SplitController>>>,
 }
 
 impl SplitController {
@@ -83,8 +83,7 @@ impl SplitController {
 
         {
             let mut this_mut = this.borrow_mut();
-            let this_rc = Rc::clone(&this);
-            this_mut.this_opt = Some(this_rc);
+            this_mut.this_opt = Some(Rc::downgrade(&this));
 
             this_mut.split_list.select_row(&this_mut.split_to_flac_row);
             this_mut.cleanup();
@@ -445,60 +444,64 @@ impl SplitController {
         period: u32,
         ui_rx: Receiver<ContextMessage>,
     ) {
-        let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
+        let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
 
         self.listener_src = Some(gtk::timeout_add(period, move || {
-            let mut keep_going = true;
-            let mut process_done = false;
+            let mut keep_going = false;
 
-            let mut this = this_rc.borrow_mut();
+            if let Some(this_rc) = this_weak.upgrade() {
+                keep_going = true;
+                let mut process_done = false;
 
-            if this.duration > 0 {
-                let position = match this.splitter_ctx.as_mut() {
-                    Some(splitter_ctx) => splitter_ctx.get_position(),
-                    None => 0,
-                };
-                this.split_progress_bar
-                    .set_fraction(position as f64 / this.duration as f64);
-            }
+                let mut this = this_rc.borrow_mut();
 
-            for message in ui_rx.try_iter() {
-                match message {
-                    Eos => {
-                        process_done = match this.build_context(format) {
-                            Ok(true) => false, // more chapters
-                            Ok(false) => {
-                                this.show_info(&gettext("Media split succesfully"));
-                                true
-                            }
-                            Err(err) => {
-                                this.show_error(&err);
-                                true
-                            }
-                        };
-
-                        keep_going = false;
-                    }
-                    FailedToExport(error) => {
-                        this.listener_src = None;
-                        keep_going = false;
-                        process_done = true;
-                        let message =
-                            gettext("Failed to split media. {}").replacen("{}", &error, 1);
-                        error!("{}", message);
-                        this.show_error(&message);
-                    }
-                    _ => (),
-                };
-
-                if !keep_going {
-                    break;
+                if this.duration > 0 {
+                    let position = match this.splitter_ctx.as_mut() {
+                        Some(splitter_ctx) => splitter_ctx.get_position(),
+                        None => 0,
+                    };
+                    this.split_progress_bar
+                        .set_fraction(position as f64 / this.duration as f64);
                 }
-            }
 
-            if !keep_going && process_done {
-                this.switch_to_available();
-                this.restore_context();
+                for message in ui_rx.try_iter() {
+                    match message {
+                        Eos => {
+                            process_done = match this.build_context(format) {
+                                Ok(true) => false, // more chapters
+                                Ok(false) => {
+                                    this.show_info(&gettext("Media split succesfully"));
+                                    true
+                                }
+                                Err(err) => {
+                                    this.show_error(&err);
+                                    true
+                                }
+                            };
+
+                            keep_going = false;
+                        }
+                        FailedToExport(error) => {
+                            this.listener_src = None;
+                            keep_going = false;
+                            process_done = true;
+                            let message =
+                                gettext("Failed to split media. {}").replacen("{}", &error, 1);
+                            error!("{}", message);
+                            this.show_error(&message);
+                        }
+                        _ => (),
+                    };
+
+                    if !keep_going {
+                        break;
+                    }
+                }
+
+                if !keep_going && process_done {
+                    this.switch_to_available();
+                    this.restore_context();
+                }
             }
 
             glib::Continue(keep_going)

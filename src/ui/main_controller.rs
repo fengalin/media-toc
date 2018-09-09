@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use std::collections::HashSet;
 
@@ -74,7 +74,7 @@ pub struct MainController {
     missing_plugins: HashSet<String>,
     state: ControllerState,
 
-    this_opt: Option<Rc<RefCell<MainController>>>,
+    this_opt: Option<Weak<RefCell<MainController>>>,
     keep_going: bool,
     listener_src: Option<glib::SourceId>,
 }
@@ -118,8 +118,7 @@ impl MainController {
         {
             let mut this_mut = this.borrow_mut();
 
-            let this_rc = Rc::clone(&this);
-            this_mut.this_opt = Some(this_rc);
+            this_mut.this_opt = Some(Rc::downgrade(&this));
 
             let app_menu = gio::Menu::new();
             gtk_app.set_app_menu(&app_menu);
@@ -533,125 +532,128 @@ impl MainController {
             return;
         }
 
-        let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
+        let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
 
         self.listener_src = Some(gtk::timeout_add(period, move || {
-            let mut keep_going = true;
+            let mut keep_going = false;
 
-            for message in ui_rx.try_iter() {
-                match message {
-                    AsyncDone => {
-                        let mut this = this_rc.borrow_mut();
-                        if let ControllerState::Seeking {
-                            seek_pos,
-                            switch_to_play,
-                            keep_paused,
-                        } = this.state
-                        {
-                            if switch_to_play {
-                                this.context.as_mut().unwrap().play().unwrap();
-                                this.play_pause_btn.set_icon_name(PAUSE_ICON);
-                                this.state = ControllerState::Playing;
-                                this.audio_ctrl.borrow_mut().switch_to_playing();
-                            } else if keep_paused {
-                                this.state = ControllerState::Paused;
-                                this.info_ctrl.borrow_mut().seek(seek_pos, &this.state);
-                                this.audio_ctrl.borrow_mut().seek(seek_pos);
-                            } else {
-                                this.state = ControllerState::Playing;
+            if let Some(this_rc) = this_weak.upgrade() {
+                keep_going = true;
+                for message in ui_rx.try_iter() {
+                    match message {
+                        AsyncDone => {
+                            let mut this = this_rc.borrow_mut();
+                            if let ControllerState::Seeking {
+                                seek_pos,
+                                switch_to_play,
+                                keep_paused,
+                            } = this.state
+                            {
+                                if switch_to_play {
+                                    this.context.as_mut().unwrap().play().unwrap();
+                                    this.play_pause_btn.set_icon_name(PAUSE_ICON);
+                                    this.state = ControllerState::Playing;
+                                    this.audio_ctrl.borrow_mut().switch_to_playing();
+                                } else if keep_paused {
+                                    this.state = ControllerState::Paused;
+                                    this.info_ctrl.borrow_mut().seek(seek_pos, &this.state);
+                                    this.audio_ctrl.borrow_mut().seek(seek_pos);
+                                } else {
+                                    this.state = ControllerState::Playing;
+                                }
                             }
                         }
-                    }
-                    InitDone => {
-                        let mut this = this_rc.borrow_mut();
-                        let mut context = this.context.take().unwrap();
+                        InitDone => {
+                            let mut this = this_rc.borrow_mut();
+                            let mut context = this.context.take().unwrap();
 
-                        this.header_bar
-                            .set_subtitle(Some(context.info.read().unwrap().file_name.as_str()));
+                            this.header_bar
+                                .set_subtitle(Some(context.info.read().unwrap().file_name.as_str()));
 
-                        this.audio_ctrl.borrow_mut().new_media(&context);
-                        this.export_ctrl.borrow_mut().new_media();
-                        this.info_ctrl.borrow_mut().new_media(&context);
-                        this.perspective_ctrl.borrow().new_media(&context);
-                        this.split_ctrl.borrow_mut().new_media(&context);
-                        this.streams_ctrl.borrow_mut().new_media(&context);
-                        this.video_ctrl.new_media(&context);
+                            this.audio_ctrl.borrow_mut().new_media(&context);
+                            this.export_ctrl.borrow_mut().new_media();
+                            this.info_ctrl.borrow_mut().new_media(&context);
+                            this.perspective_ctrl.borrow().new_media(&context);
+                            this.split_ctrl.borrow_mut().new_media(&context);
+                            this.streams_ctrl.borrow_mut().new_media(&context);
+                            this.video_ctrl.new_media(&context);
 
-                        this.set_context(context);
+                            this.set_context(context);
 
-                        if let Some(message) = this.check_missing_plugins() {
-                            this.show_message(gtk::MessageType::Info, &message);
-                            error!("{}", message);
-                        }
-                        this.state = ControllerState::Ready;
-                    }
-                    MissingPlugin(plugin) => {
-                        error!(
-                            "{}",
-                            gettext("Missing plugin: {}").replacen("{}", &plugin, 1)
-                        );
-                        this_rc.borrow_mut().missing_plugins.insert(plugin);
-                    }
-                    ReadyForRefresh => {
-                        let mut this = this_rc.borrow_mut();
-                        match this.state {
-                            ControllerState::Paused | ControllerState::Ready => this.refresh(),
-                            ControllerState::TwoStepsSeek(target) => this.seek(target, true),
-                            ControllerState::PendingSelectMedia => this.select_media(),
-                            ControllerState::PendingTakeContext => this.have_context(),
-                            _ => (),
-                        }
-                    }
-                    StreamsSelected => this_rc.borrow_mut().streams_selected(),
-                    Eos => {
-                        let mut this = this_rc.borrow_mut();
-                        match this.state {
-                            ControllerState::PlayingRange(pos_to_restore) => {
-                                // end of range => pause and seek back to pos_to_restore
-                                this.context.as_ref().unwrap().pause().unwrap();
-                                this.state = ControllerState::Paused;
-                                this.audio_ctrl.borrow_mut().stop_play_range();
-                                this.seek(pos_to_restore, true); // accurate
+                            if let Some(message) = this.check_missing_plugins() {
+                                this.show_message(gtk::MessageType::Info, &message);
+                                error!("{}", message);
                             }
-                            _ => {
-                                this.play_pause_btn.set_icon_name(PLAYBACK_ICON);
-                                this.state = ControllerState::EOS;
-
-                                // The tick callback will be register again in case of a seek
-                                this.audio_ctrl.borrow_mut().switch_to_not_playing();
+                            this.state = ControllerState::Ready;
+                        }
+                        MissingPlugin(plugin) => {
+                            error!(
+                                "{}",
+                                gettext("Missing plugin: {}").replacen("{}", &plugin, 1)
+                            );
+                            this_rc.borrow_mut().missing_plugins.insert(plugin);
+                        }
+                        ReadyForRefresh => {
+                            let mut this = this_rc.borrow_mut();
+                            match this.state {
+                                ControllerState::Paused | ControllerState::Ready => this.refresh(),
+                                ControllerState::TwoStepsSeek(target) => this.seek(target, true),
+                                ControllerState::PendingSelectMedia => this.select_media(),
+                                ControllerState::PendingTakeContext => this.have_context(),
+                                _ => (),
                             }
                         }
-                    }
-                    FailedToOpenMedia(error) => {
-                        let mut this = this_rc.borrow_mut();
-                        this.context = None;
-                        this.state = ControllerState::Stopped;
-                        this.switch_to_default();
+                        StreamsSelected => this_rc.borrow_mut().streams_selected(),
+                        Eos => {
+                            let mut this = this_rc.borrow_mut();
+                            match this.state {
+                                ControllerState::PlayingRange(pos_to_restore) => {
+                                    // end of range => pause and seek back to pos_to_restore
+                                    this.context.as_ref().unwrap().pause().unwrap();
+                                    this.state = ControllerState::Paused;
+                                    this.audio_ctrl.borrow_mut().stop_play_range();
+                                    this.seek(pos_to_restore, true); // accurate
+                                }
+                                _ => {
+                                    this.play_pause_btn.set_icon_name(PLAYBACK_ICON);
+                                    this.state = ControllerState::EOS;
 
-                        this.keep_going = false;
-                        keep_going = false;
-
-                        let mut error =
-                            gettext("Error opening file.\n\n{}").replacen("{}", &error, 1);
-                        if let Some(message) = this.check_missing_plugins() {
-                            error += "\n\n";
-                            error += &message;
+                                    // The tick callback will be register again in case of a seek
+                                    this.audio_ctrl.borrow_mut().switch_to_not_playing();
+                                }
+                            }
                         }
-                        this.show_message(gtk::MessageType::Error, &error);
-                        error!("{}", error);
+                        FailedToOpenMedia(error) => {
+                            let mut this = this_rc.borrow_mut();
+                            this.context = None;
+                            this.state = ControllerState::Stopped;
+                            this.switch_to_default();
+
+                            this.keep_going = false;
+                            keep_going = false;
+
+                            let mut error =
+                                gettext("Error opening file.\n\n{}").replacen("{}", &error, 1);
+                            if let Some(message) = this.check_missing_plugins() {
+                                error += "\n\n";
+                                error += &message;
+                            }
+                            this.show_message(gtk::MessageType::Error, &error);
+                            error!("{}", error);
+                        }
+                        _ => (),
+                    };
+
+                    if !keep_going {
+                        break;
                     }
-                    _ => (),
-                };
+                }
 
                 if !keep_going {
-                    break;
+                    let mut this = this_rc.borrow_mut();
+                    this.remove_listener();
+                    this.audio_ctrl.borrow_mut().switch_to_not_playing();
                 }
-            }
-
-            if !keep_going {
-                let mut this = this_rc.borrow_mut();
-                this.remove_listener();
-                this.audio_ctrl.borrow_mut().switch_to_not_playing();
             }
 
             glib::Continue(keep_going)
