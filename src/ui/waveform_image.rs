@@ -6,9 +6,10 @@ use smallvec::SmallVec;
 use chrono::Utc;
 
 #[cfg(feature = "dump-waveform")]
-use std::fs::{create_dir, File};
-#[cfg(feature = "dump-waveform")]
-use std::io::ErrorKind;
+use std::{
+    fs::{create_dir, File},
+    io::ErrorKind,
+};
 
 use crate::media::{AudioBuffer, AudioChannel, AudioChannelSide, INLINE_CHANNELS};
 

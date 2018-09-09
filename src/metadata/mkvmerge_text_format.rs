@@ -4,9 +4,11 @@ use gstreamer as gst;
 use log::error;
 
 use nom;
-use nom::types::CompleteStr;
-use nom::{AtEof, InputLength, call, do_parse, eat_separator, error_position, flat_map, named, opt,
-          parse_to, tag, take, take_until_either, verify};
+use nom::{
+    types::CompleteStr,
+    AtEof, InputLength, call, do_parse, eat_separator, error_position, flat_map, named, opt,
+    parse_to, tag, take, take_until_either, verify,
+};
 
 use std::io::{Read, Write};
 

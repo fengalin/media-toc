@@ -1,6 +1,7 @@
-use nom::types::CompleteStr;
-use nom::{alt, call, do_parse, eof, error_position, flat_map, named, opt, parse_to, tag,
-          take_while1};
+use nom::{
+    types::CompleteStr,
+    alt, call, do_parse, eof, error_position, flat_map, named, opt, parse_to, tag, take_while1,
+};
 
 use std::fmt;
 

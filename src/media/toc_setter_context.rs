@@ -1,18 +1,22 @@
 use gettextrs::gettext;
 
 use gstreamer as gst;
-use gstreamer::prelude::*;
-use gstreamer::PadExt;
+use gstreamer::{
+    prelude::*,
+    PadExt,
+};
 
 use glib;
 use glib::ObjectExt;
 
 use log::info;
 
-use std::collections::HashSet;
-use std::error::Error;
-use std::path::Path;
-use std::sync::mpsc::Sender;
+use std::{
+    collections::HashSet,
+    error::Error,
+    path::Path,
+    sync::mpsc::Sender,
+};
 
 use super::ContextMessage;
 

@@ -3,13 +3,16 @@ use glib;
 use gtk;
 use gtk::prelude::*;
 
-use std::cell::RefCell;
-use std::path::PathBuf;
-use std::rc::{Rc, Weak};
+use std::{
+    cell::RefCell,
+    path::PathBuf,
+    rc::{Rc, Weak},
+};
 
-use crate::media::PlaybackContext;
-
-use crate::metadata;
+use crate::{
+    media::PlaybackContext,
+    metadata,
+};
 
 use super::MainController;
 

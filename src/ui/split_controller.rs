@@ -5,17 +5,22 @@ use gtk;
 use gtk::prelude::*;
 use log::{error, warn};
 
-use std::cell::RefCell;
-use std::ops::{Deref, DerefMut};
-use std::path::PathBuf;
-use std::rc::{Rc, Weak};
-use std::sync::mpsc::{channel, Receiver};
+use std::{
+    cell::RefCell,
+    ops::{Deref, DerefMut},
+    path::PathBuf,
+    rc::{Rc, Weak},
+    sync::mpsc::{channel, Receiver},
+};
 
-use crate::media::ContextMessage::*;
-use crate::media::{ContextMessage, PlaybackContext, SplitterContext};
-
-use crate::metadata;
-use crate::metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor};
+use crate::{
+    media::{
+        ContextMessage::*,
+        ContextMessage, PlaybackContext, SplitterContext,
+    },
+    metadata,
+    metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor},
+};
 
 use super::{MainController, OutputBaseController};
 

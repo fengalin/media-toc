@@ -1,11 +1,13 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use gettextrs::gettext;
 use gstreamer as gst;
 
 use gtk;
 use gtk::prelude::*;
+
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 use crate::metadata::{get_default_chapter_title, Timestamp, TocVisitor};
 

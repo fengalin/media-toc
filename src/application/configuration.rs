@@ -5,11 +5,13 @@ use log::{debug, error};
 use ron;
 use serde::{Deserialize, Serialize};
 
-use std::fs::{create_dir_all, File};
-use std::io::Write;
-use std::ops::{Deref, DerefMut};
-use std::path::PathBuf;
-use std::sync::RwLock;
+use std::{
+    fs::{create_dir_all, File},
+    io::Write,
+    ops::{Deref, DerefMut},
+    path::PathBuf,
+    sync::RwLock,
+};
 
 use super::{SLD, TLD};
 

@@ -1,7 +1,3 @@
-use std::cell::RefCell;
-use std::rc::{Rc, Weak};
-use std::sync::Arc;
-
 use gettextrs::gettext;
 use glib;
 use gstreamer as gst;
@@ -9,9 +5,16 @@ use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 
-use crate::media::PlaybackContext;
+use std::{
+    cell::RefCell,
+    rc::{Rc, Weak},
+    sync::Arc,
+};
 
-use crate::metadata::Stream;
+use crate::{
+    media::PlaybackContext,
+    metadata::Stream,
+};
 
 use super::MainController;
 

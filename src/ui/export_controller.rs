@@ -6,19 +6,24 @@ use gtk::prelude::*;
 
 use log::{error, warn};
 
-use std::cell::RefCell;
-use std::collections::HashSet;
-use std::fs::File;
-use std::ops::{Deref, DerefMut};
-use std::path::Path;
-use std::rc::{Rc, Weak};
-use std::sync::mpsc::{channel, Receiver};
+use std::{
+    cell::RefCell,
+    collections::HashSet,
+    fs::File,
+    ops::{Deref, DerefMut},
+    path::Path,
+    rc::{Rc, Weak},
+    sync::mpsc::{channel, Receiver},
+};
 
-use crate::media::ContextMessage::*;
-use crate::media::{ContextMessage, TocSetterContext};
-
-use crate::metadata;
-use crate::metadata::{Exporter, Format, MatroskaTocFormat};
+use crate::{
+    media::{
+        ContextMessage::*,
+        ContextMessage, TocSetterContext,
+    },
+    metadata,
+    metadata::{Exporter, Format, MatroskaTocFormat},
+};
 
 use super::{MainController, OutputBaseController};
 
@@ -267,13 +272,13 @@ impl ExportController {
                                 exporter.export(&info, muxer);
                             }
 
-                            let _ = toc_setter_ctx.export().map_err(|err| {
+                            if let Err(err) = toc_setter_ctx.export() {
                                 keep_going = false;
                                 let msg =
                                     gettext("Failed to export media. {}").replacen("{}", &err, 1);
                                 this.show_error(&msg);
                                 error!("{}", msg);
-                            });
+                            }
 
                             this.toc_setter_ctx = Some(toc_setter_ctx);
                         }
