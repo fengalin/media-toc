@@ -19,13 +19,13 @@ const TITLE_COL: u32 = 2;
 const START_STR_COL: u32 = 3;
 const END_STR_COL: u32 = 4;
 
-pub struct ChapterEntry<'a> {
-    store: &'a gtk::TreeStore,
-    iter: &'a gtk::TreeIter,
+pub struct ChapterEntry<'entry> {
+    store: &'entry gtk::TreeStore,
+    iter: &'entry gtk::TreeIter,
 }
 
-impl<'a> ChapterEntry<'a> {
-    pub fn new(store: &'a gtk::TreeStore, iter: &'a gtk::TreeIter) -> ChapterEntry<'a> {
+impl<'entry> ChapterEntry<'entry> {
+    pub fn new(store: &'entry gtk::TreeStore, iter: &'entry gtk::TreeIter) -> ChapterEntry<'entry> {
         ChapterEntry { store, iter }
     }
 
@@ -178,7 +178,10 @@ impl ChapterTreeManager {
         self.selected_iter.clone()
     }
 
-    pub fn get_chapter_at_iter<'a: 'b, 'b>(&'a self, iter: &'a gtk::TreeIter) -> ChapterEntry<'b> {
+    pub fn get_chapter_at_iter<'mgt: 'entry, 'entry>(
+        &'mgt self,
+        iter: &'mgt gtk::TreeIter,
+    ) -> ChapterEntry<'entry> {
         ChapterEntry::new(&self.store, iter)
     }
 
