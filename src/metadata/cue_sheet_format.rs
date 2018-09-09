@@ -7,7 +7,7 @@ use std::io::Write;
 
 use super::{get_default_chapter_title, MediaInfo, Timestamp, TocVisitor, Writer};
 
-static EXTENSION: &'static str = "cue";
+static EXTENSION: &str = "cue";
 
 pub struct CueSheetFormat {}
 
