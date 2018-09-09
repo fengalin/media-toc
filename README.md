@@ -9,6 +9,7 @@ You might also be interested in [media-toc-player](https://github.com/fengalin/m
 a media player with a table of contents.
 
 ## Table of contents
+
 - [Screenshots](#ui)
 - [Features](#features)
 - [Accelerators](#accelerators)
@@ -24,6 +25,7 @@ a media player with a table of contents.
 - [Troubleshooting](#troubleshooting)
 
 ## <a name='ui'></a>Screenshots
+
 ### media-toc playing a video
 
 ![media-toc UI Video](assets/screenshots/media-toc_video.png "media-toc UI Video")
@@ -158,6 +160,7 @@ or above. If you use an ealier version, follow these instructions:
 2. Export your table of contents to the `mkvmerge simple chapter format` (see [this how-to](#how-to-save-the-toc)).
 3. Open a terminal and `cd` to the directory where your Matroska file is located.
 4. Issue the following command (where _media_ is the name of your mkv file without the extension):
+
     ```
     mkvmerge --chapters _media_.txt -o output_file.mkv _media_.mkv
     ```
@@ -165,6 +168,7 @@ or above. If you use an ealier version, follow these instructions:
 The file `output_file.mkv` will now contain the media with the chapters you defined.
 
 # <a name='technologies'></a>Technologies
+
 **media-toc** is developed in Rust and uses the following technologies:
 - **GTK-3** ([official documentation](https://developer.gnome.org/gtk3/stable/),
 [Rust binding](http://gtk-rs.org/docs/gtk/)) and [Glade](https://glade.gnome.org/).
@@ -174,24 +178,30 @@ The file `output_file.mkv` will now contain the media with the chapters you defi
 [Rust binding](https://sdroege.github.io/rustdoc/gstreamer/gstreamer/)).
 
 # <a name='build-env'></a>Build environment
+
 ## Toolchain
+
 ```
 $ curl https://sh.rustup.rs -sSf | sh
 ```
+
 Select the `stable` toolchain. See the full documentation
 [here](https://github.com/rust-lang-nursery/rustup.rs#installation).
 
 It is convenience to have Rust's tools in the path. On linux, you might want to add this
 in your `.bashrc`:
+
 ```
 export PATH=$PATH:~/.cargo/bin
 ```
 
 ## Dependencies
+
 Rust dependencies are handled by [Cargo](http://doc.crates.io/). You will also
 need the following packages installed on your OS:
 
 ### Fedora
+
 ```
 sudo dnf install gcc gtk3-devel glib2-devel gstreamer1-devel \
 	gstreamer1-plugins-base-devel gstreamer1-plugins-{good,bad-free,ugly-free} \
@@ -199,6 +209,7 @@ sudo dnf install gcc gtk3-devel glib2-devel gstreamer1-devel \
 ```
 
 ### Debian & Ubuntu
+
 ```
 sudo apt-get install gcc libgtk-3-dev libgstreamer1.0-dev \
 	libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-{good,bad,ugly} \
@@ -206,45 +217,84 @@ sudo apt-get install gcc libgtk-3-dev libgstreamer1.0-dev \
 ```
 
 ### macOS
-```
-brew install gtk+3 gstreamer
-brew install --with-libvorbis --with-opus --with-theora gst-plugins-base
-brew install --with-flac --with-gtk+3 --with-libpng --with-taglib gst-plugins-good
-brew install --with-srt gst-plugins-bad
-brew install --with-libmpeg2 --with-x264 gst-plugins-ugly
-```
 
-The package `adwaita-icon-theme` might allow installing the missing icons, but
-it fails while compiling the Rust compiler (which is used to compile `librsvg`).
-I'll try to configure the formula so that it uses the installed compiler when I
-get time.
+Note: the mac I used to test these instructions is pretty old. It's stucked
+on an old version of the OS and doesn't get precompiled packages from __homebrew__.
+Please [fill an issue](https://github.com/fengalin/media-toc/issues) if you run
+into any problem.
+
+- Install [homebrew](https://brew.sh/).
+- Install `git` from homebrew:
+
+  ```
+  brew install git
+  ```
+
+- Install [Rust toolchain manager](https://rustup.rs/) and select the `stable`
+toolchain.
+- Add Rust tools in the `PATH`:
+
+  ```
+  echo "export PATH=\$PATH:$HOME/.cargo/bin" >> $HOME/.bashrc
+  source $HOME/.bashrc
+  ```
+
+- Get the sources for last release:
+
+  ```
+  git clone --branch v0.5.1 https://github.com/fengalin/media-toc
+  cd media-toc
+  ```
+
+- Install dependencies:
+
+  ```
+  brew install gtk+3 gstreamer adwaita-icon-theme
+  brew install --with-libvorbis --with-opus --with-theora gst-plugins-base
+  brew install --with-flac --with-gtk+3 --with-libpng --with-taglib gst-plugins-good
+  brew install --with-srt gst-plugins-bad
+  brew install --with-libmpeg2 --with-x264 gst-plugins-ugly
+  ```
+
+- Build & run:
+
+  ```
+  cargo run --release
+  ```
 
 Use the following command to build and generate locales:
+
 ```
 PATH="/usr/local/opt/gettext/bin:$PATH" cargo build --release
 ```
 
 ### Windows
+
 - MSYS2: follow [this guide](http://www.msys2.org/).
 - Install the development toolchain, GTK and GStreamer<br>
 Note: for a 32bits system, use `mingw-w64-i686-...`
-```
-pacman --noconfirm -S gettext-devel mingw-w64-x86_64-gtk3 mingw-w64-x86_64-gstreamer
-pacman --noconfirm -S mingw-w64-x86_64-gst-plugins-{base,good,bad,ugly} mingw-w64-x86_64-gst-libav
-```
+
+  ```
+  pacman --noconfirm -S gettext-devel mingw-w64-x86_64-gtk3 mingw-w64-x86_64-gstreamer
+  pacman --noconfirm -S mingw-w64-x86_64-gst-plugins-{base,good,bad,ugly} mingw-w64-x86_64-gst-libav
+  ```
 
 - Launch the [rustup installer](https://www.rustup.rs/).
 When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
 `i686-pc-windows-gnu` for a 32bits system), then select `stable`.
 - From a MSYS2 mingw shell
   - add cargo to the `PATH`:
-  ```
-  echo 'PATH=$PATH:/c/Users/'$USER'/.cargo/bin' >> /home/$USER/.bashrc
-  ```
+
+      ```
+      echo 'PATH=$PATH:/c/Users/'$USER'/.cargo/bin' >> /home/$USER/.bashrc
+      ```
+
   - Restart the MSYS2 shell before using `cargo`.
 
 # <a name='build-run'></a>Build and run
+
 Use Cargo (from the root of the project):
+
 ```
 cargo run --release
 ```
@@ -285,10 +335,13 @@ the configuration file. The configuration location depends on the operating syst
 
 
 Open the configuration file and replace the following line:
+
 ```
         is_gl_disabled: false,
 ```
+
 with:
+
 ```
         is_gl_disabled: true,
 ```
