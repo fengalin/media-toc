@@ -5,8 +5,8 @@ use gstreamer::{TagSetterExt, TocSetterExt};
 
 use super::{Exporter, MediaInfo};
 
-static EXTENSION: &'static str = "toc.mkv";
-static AUDIO_EXTENSION: &'static str = "toc.mka";
+static EXTENSION: &str = "toc.mkv";
+static AUDIO_EXTENSION: &str = "toc.mka";
 
 pub struct MatroskaTocFormat {}
 

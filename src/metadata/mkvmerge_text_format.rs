@@ -16,10 +16,10 @@ use super::{
     get_default_chapter_title, parse_timestamp, MediaInfo, Reader, Timestamp, TocVisitor, Writer,
 };
 
-static EXTENSION: &'static str = "txt";
+static EXTENSION: &str = "txt";
 
-static CHAPTER_TAG: &'static str = "CHAPTER";
-static NAME_TAG: &'static str = "NAME";
+static CHAPTER_TAG: &str = "CHAPTER";
+static NAME_TAG: &str = "NAME";
 
 pub struct MKVMergeTextFormat {}
 
