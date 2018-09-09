@@ -5,9 +5,10 @@ use log::info;
 
 use smallvec::SmallVec;
 
-use std::mem;
-
-use std::sync::{Arc, Mutex};
+use std::{
+    mem,
+    sync::{Arc, Mutex},
+};
 
 use super::{AudioBuffer, AudioChannel, SampleExtractor, INLINE_CHANNELS, QUEUE_SIZE_NS};
 

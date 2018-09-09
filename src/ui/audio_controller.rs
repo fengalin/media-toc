@@ -10,17 +10,18 @@ use log::{debug, trace};
 use pango;
 use pango::{ContextExt, LayoutExt};
 
-use std::boxed::Box;
-use std::collections::Bound::Included;
+use std::{
+    boxed::Box,
+    collections::Bound::Included,
+    cell::RefCell,
+    rc::{Rc, Weak},
+    sync::{Arc, Mutex},
+};
 
-use std::cell::RefCell;
-use std::rc::{Rc, Weak};
-
-use std::sync::{Arc, Mutex};
-
-use crate::media::{DoubleAudioBuffer, PlaybackContext, SampleExtractor, QUEUE_SIZE_NS};
-
-use crate::metadata::{MediaInfo, Timestamp};
+use crate::{
+    media::{DoubleAudioBuffer, PlaybackContext, SampleExtractor, QUEUE_SIZE_NS},
+    metadata::{MediaInfo, Timestamp},
+};
 
 use super::{
     ChaptersBoundaries, DoubleWaveformBuffer, MainController, WaveformBuffer, BACKGROUND_COLOR,

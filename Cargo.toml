@@ -1,5 +1,3 @@
-cargo-features = ["edition"]
-
 [package]
 authors = ["François Laignel <fengalin@free.fr>"]
 build = "build.rs"
@@ -11,7 +9,7 @@ license = "MIT"
 name = "media-toc"
 readme = "README.md"
 repository = "https://github.com/fengalin/media-toc"
-version = "0.5.2"
+version = "0.5.99"
 
 [dependencies]
 cairo-rs = { git = "https://github.com/gtk-rs/cairo" }

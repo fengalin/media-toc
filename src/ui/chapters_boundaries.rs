@@ -1,9 +1,10 @@
 use gtk;
 use log::debug;
 
-use std::collections::BTreeMap;
-
-use std::ops::Deref;
+use std::{
+    collections::BTreeMap,
+    ops::Deref,
+};
 
 #[derive(Clone, Debug)]
 pub struct Chapter {

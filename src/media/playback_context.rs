@@ -2,21 +2,29 @@ use gettextrs::gettext;
 
 use gstreamer as gst;
 
-use gstreamer::prelude::*;
-use gstreamer::{BinExt, ClockTime, GstObjectExt, PadExt};
+use gstreamer::{
+    prelude::*,
+    BinExt, ClockTime, GstObjectExt, PadExt,
+};
 
 use glib;
 use glib::{Cast, ObjectExt};
 
 use log::{debug, info, warn};
 
-use std::error::Error;
-use std::path::Path;
-use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex, RwLock};
+use std::{
+    error::Error,
+    path::Path,
+    sync::{
+        mpsc::Sender,
+        Arc, Mutex, RwLock,
+    },
+};
 
-use crate::application::CONFIG;
-use crate::metadata::MediaInfo;
+use crate::{
+    application::CONFIG,
+    metadata::MediaInfo,
+};
 
 use super::{ContextMessage, DoubleAudioBuffer};
 

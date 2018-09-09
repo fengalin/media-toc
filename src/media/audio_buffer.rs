@@ -11,8 +11,10 @@ use log::{debug, trace};
 
 use sample::Sample;
 
-use std::collections::vec_deque::VecDeque;
-use std::io::{Cursor, Read};
+use std::{
+    collections::vec_deque::VecDeque,
+    io::{Cursor, Read},
+};
 
 #[cfg(test)]
 use gstreamer::ClockTime;

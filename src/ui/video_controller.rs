@@ -1,20 +1,27 @@
 use gdk;
 use gettextrs::gettext;
 use glib;
-use glib::signal::SignalHandlerId;
-use glib::{ObjectExt, ToValue};
+use glib::{
+    signal::SignalHandlerId,
+    ObjectExt, ToValue,
+};
 use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 use log::{debug, error};
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
+
+use crate::{
+    application::CONFIG,
+    media::PlaybackContext,
+    metadata::MediaInfo,
+};
 
 use super::MainController;
-use crate::application::CONFIG;
-use crate::media::PlaybackContext;
-use crate::metadata::MediaInfo;
 
 struct VideoOutput {
     sink: gst::Element,

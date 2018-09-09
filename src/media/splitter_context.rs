@@ -1,17 +1,23 @@
 use gettextrs::gettext;
 
 use gstreamer as gst;
-use gstreamer::prelude::*;
-use gstreamer::ClockTime;
+use gstreamer::{
+    prelude::*,
+    ClockTime,
+};
 
 use glib;
 
 use log::{debug, error, info};
 
-use std::error::Error;
-use std::path::Path;
-use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex};
+use std::{
+    error::Error,
+    path::Path,
+    sync::{
+        mpsc::Sender,
+        Arc, Mutex,
+    },
+};
 
 use crate::metadata::Format;
 

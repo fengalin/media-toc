@@ -8,14 +8,18 @@ use gtk::prelude::*;
 use lazy_static::lazy_static;
 use log::info;
 
-use std::cell::RefCell;
-use std::fs::File;
-use std::rc::{Rc, Weak};
+use std::{
+    cell::RefCell,
+    fs::File,
+    rc::{Rc, Weak},
+};
 
-use crate::application::CONFIG;
-use crate::media::PlaybackContext;
-use crate::metadata;
-use crate::metadata::{MediaInfo, Timestamp};
+use crate::{
+    application::CONFIG,
+    media::PlaybackContext,
+    metadata,
+    metadata::{MediaInfo, Timestamp},
+};
 
 use super::{
     ChapterTreeManager, ChaptersBoundaries, ControllerState, ImageSurface, MainController,

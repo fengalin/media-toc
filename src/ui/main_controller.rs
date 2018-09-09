@@ -1,8 +1,10 @@
 use gdk::{Cursor, CursorType, WindowExt};
 use gettextrs::{gettext, ngettext};
 use gio;
-use gio::prelude::*;
-use gio::MenuExt;
+use gio::{
+    prelude::*,
+    MenuExt,
+};
 
 use glib;
 use gstreamer as gst;
@@ -11,19 +13,22 @@ use gtk::prelude::*;
 
 use log::error;
 
-use std::cell::RefCell;
-use std::rc::{Rc, Weak};
+use std::{
+    cell::RefCell,
+    collections::HashSet,
+    path::Path,
+    rc::{Rc, Weak},
+    sync::mpsc::{channel, Receiver},
+    sync::Arc,
+};
 
-use std::collections::HashSet;
-
-use std::path::Path;
-
-use std::sync::mpsc::{channel, Receiver};
-use std::sync::Arc;
-
-use crate::application::{APP_ID, APP_PATH, CONFIG};
-use crate::media::ContextMessage::*;
-use crate::media::{ContextMessage, PlaybackContext};
+use crate::{
+    application::{APP_ID, APP_PATH, CONFIG},
+    media::{
+        ContextMessage::*,
+        ContextMessage, PlaybackContext,
+    },
+};
 
 use super::{
     AudioController, ChaptersBoundaries, ExportController, InfoController, PerspectiveController,

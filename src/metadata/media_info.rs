@@ -1,9 +1,11 @@
 use gettextrs::gettext;
 use gstreamer as gst;
 
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 pub fn get_default_chapter_title() -> String {
     gettext("untitled")

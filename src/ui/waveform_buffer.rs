@@ -1,12 +1,16 @@
 use cairo;
 use log::{debug, trace};
 
-use std::any::Any;
-use std::boxed::Box;
-use std::sync::{Arc, Mutex};
+use std::{
+    any::Any,
+    boxed::Box,
+    sync::{Arc, Mutex},
+};
 
-use crate::media::sample_extractor::SampleExtractionState;
-use crate::media::{AudioBuffer, AudioChannel, DoubleAudioBuffer, SampleExtractor};
+use crate::media::{
+    sample_extractor::SampleExtractionState,
+    AudioBuffer, AudioChannel, DoubleAudioBuffer, SampleExtractor,
+};
 
 use super::WaveformImage;
 
