@@ -408,21 +408,21 @@ macro_rules! to_positive_f64(
         1f64 - $read.unwrap().to_sample::<f64>()
     }
 );
-pub struct SampleConverterIter<'a> {
-    cursor: Cursor<&'a [u8]>,
+pub struct SampleConverterIter<'iter> {
+    cursor: Cursor<&'iter [u8]>,
     bytes_per_sample: usize,
     convert: ConvertFn,
     first: usize,
     last: usize,
 }
 
-impl<'a> SampleConverterIter<'a> {
+impl<'iter> SampleConverterIter<'iter> {
     fn new(
-        slice: &'a [u8],
+        slice: &'iter [u8],
         audio_info: &gst_audio::AudioInfo,
         lower: usize,
         upper: usize,
-    ) -> Option<SampleConverterIter<'a>> {
+    ) -> Option<SampleConverterIter<'iter>> {
         let mut cursor = Cursor::new(slice);
 
         let bytes_per_sample = audio_info.width() as usize / 8;
@@ -461,7 +461,7 @@ impl<'a> SampleConverterIter<'a> {
     }
 }
 
-impl<'a> Iterator for SampleConverterIter<'a> {
+impl<'iter> Iterator for SampleConverterIter<'iter> {
     type Item = f64;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -475,7 +475,7 @@ impl<'a> Iterator for SampleConverterIter<'a> {
     }
 }
 
-impl<'a> DoubleEndedIterator for SampleConverterIter<'a> {
+impl<'iter> DoubleEndedIterator for SampleConverterIter<'iter> {
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.first >= self.last || self.last == 0 {
             return None;
@@ -488,23 +488,23 @@ impl<'a> DoubleEndedIterator for SampleConverterIter<'a> {
     }
 }
 
-pub struct Iter<'a> {
-    slice0: &'a [f64],
+pub struct Iter<'iter> {
+    slice0: &'iter [f64],
     slice0_len: usize,
-    slice1: &'a [f64],
+    slice1: &'iter [f64],
     channels: usize,
     idx: usize,
     upper: usize,
     step: usize,
 }
 
-impl<'a> Iter<'a> {
+impl<'iter> Iter<'iter> {
     fn new(
-        buffer: &'a AudioBuffer,
+        buffer: &'iter AudioBuffer,
         lower: usize,
         upper: usize,
         sample_step: usize,
-    ) -> Option<Iter<'a>> {
+    ) -> Option<Iter<'iter>> {
         if upper > lower && lower >= buffer.lower && upper <= buffer.upper {
             let slices = buffer.samples.as_slices();
             let len0 = slices.0.len();
@@ -531,8 +531,8 @@ impl<'a> Iter<'a> {
     }
 }
 
-impl<'a> Iterator for Iter<'a> {
-    type Item = &'a [f64];
+impl<'iter> Iterator for Iter<'iter> {
+    type Item = &'iter [f64];
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.idx >= self.upper {
