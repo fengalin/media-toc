@@ -275,21 +275,21 @@ PATH="/usr/local/opt/gettext/bin:$PATH" cargo build --release
 Note: for a 32bits system, use `mingw-w64-i686-...`
 
   ```
-  pacman --noconfirm -S gettext-devel mingw-w64-x86_64-gtk3 mingw-w64-x86_64-gstreamer
+  pacman --noconfirm -S mingw-w64-x86_64-pkg-config gettext-devel mingw-w64-x86_64-gtk3 mingw-w64-x86_64-gstreamer
   pacman --noconfirm -S mingw-w64-x86_64-gst-plugins-{base,good,bad,ugly} mingw-w64-x86_64-gst-libav
   ```
 
 - Launch the [rustup installer](https://www.rustup.rs/).
 When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
 `i686-pc-windows-gnu` for a 32bits system), then select `stable`.
-- From a MSYS2 mingw shell
+- From a MSYS2 MinGW 32 or 64 shell
   - add cargo to the `PATH`:
 
       ```
       echo 'PATH=$PATH:/c/Users/'$USER'/.cargo/bin' >> /home/$USER/.bashrc
       ```
 
-  - Restart the MSYS2 shell before using `cargo`.
+  - Restart the MSYS2 MinGW 32 or 64 shell before using `cargo`.
 
 # <a name='build-run'></a>Build and run
 
