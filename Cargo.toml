@@ -11,26 +11,26 @@ repository = "https://github.com/fengalin/media-toc"
 version = "0.5.2"
 
 [dependencies]
-cairo-rs = "^0.4.1"
-clap = "^2.31.2"
-byteorder = "^1.2.1"
-chrono = "^0.4.1"
-directories = "0.10"
-env_logger = "^0.5.6"
-gdk = "0.8"
+cairo-rs = "0.5"
+clap = "2.32"
+byteorder = "1.2"
+chrono = "0.4"
+directories = "1.0"
+env_logger = "0.5"
+gdk = "0.9"
 gettext-rs = { version = "0.4", features = ["gettext-system"] }
-gio = "0.4"
-glib = "0.5"
-gstreamer = { version = "0.11", features = ["v1_10"] }
-gstreamer-audio = { version = "0.11", features = ["v1_10"] }
-gtk = { version = "0.4", features = ["v3_18"] }
-image = "0.18"
-lazy_static = "1.0"
-log = { version = "^0.4.1", features = ["max_level_debug", "release_max_level_warn"] }
+gio = "0.5"
+glib = "0.6"
+gstreamer = { version = "0.12", features = ["v1_10"] }
+gstreamer-audio = { version = "0.12", features = ["v1_10"] }
+gtk = { version = "0.5", features = ["v3_18"] }
+image = "0.19"
+lazy_static = "1.1"
+log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 nom = "4.0"
-pango = "0.4"
-ron = "^0.2.1"
-sample = "^0.9.1"
+pango = "0.5"
+ron = "0.4"
+sample = "0.10"
 smallvec = "0.6"
 serde = "1.0"
 serde_derive = "1.0"
@@ -41,7 +41,7 @@ trace-playback-queues = []
 default-features = []
 
 [build-dependencies]
-directories = "0.10"
+directories = "1.0"
 
 [dev-dependencies]
-cairo-rs = { version = "^0.4.1", features = ["png"] }
+cairo-rs = { version = "0.5", features = ["png"] }

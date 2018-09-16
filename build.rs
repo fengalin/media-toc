@@ -116,10 +116,10 @@ fn generate_translations() {
 // FIXME: figure out macOS conventions for icons & translations
 #[cfg(target_family = "unix")]
 fn generate_install_script() {
-    let base_dirs = BaseDirs::new();
+    let base_dirs = BaseDirs::new().unwrap();
     // Note: `base_dirs.executable_dir()` is `None` on macOS
     if let Some(exe_dir) = base_dirs.executable_dir() {
-        let project_dirs = ProjectDirs::from("org", "fengalin", env!("CARGO_PKG_NAME"));
+        let project_dirs = ProjectDirs::from("org", "fengalin", env!("CARGO_PKG_NAME")).unwrap();
         let app_data_dir = project_dirs.data_dir();
         let data_dir = app_data_dir.parent().unwrap();
 
@@ -215,10 +215,10 @@ fn generate_install_script() {
 // FIXME: figure out macOS conventions for icons & translations
 #[cfg(target_family = "unix")]
 fn generate_uninstall_script() {
-    let base_dirs = BaseDirs::new();
+    let base_dirs = BaseDirs::new().unwrap();
     // Note: `base_dirs.executable_dir()` is `None` on macOS
     if let Some(exe_dir) = base_dirs.executable_dir() {
-        let project_dirs = ProjectDirs::from("org", "fengalin", env!("CARGO_PKG_NAME"));
+        let project_dirs = ProjectDirs::from("org", "fengalin", env!("CARGO_PKG_NAME")).unwrap();
         let app_data_dir = project_dirs.data_dir();
         let data_dir = app_data_dir.parent().unwrap();
 

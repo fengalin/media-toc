@@ -11,7 +11,8 @@ pub fn init_locale() {
         .prepend("target");
 
     // Add user's data dir in the search path
-    let project_dirs = ProjectDirs::from(TLD, SLD, env!("CARGO_PKG_NAME"));
+    let project_dirs = ProjectDirs::from(TLD, SLD, env!("CARGO_PKG_NAME"))
+        .expect("Couldn't find project dirs for this platform");
     let _app_data_dir = project_dirs.data_dir();
 
     // FIXME: figure out macOS conventions

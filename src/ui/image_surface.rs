@@ -27,7 +27,6 @@ impl ImageSurface {
 
                         cairo::ImageSurface::create_for_data(
                             aligned_buffer.into_boxed_slice(),
-                            |_| {},
                             cairo::Format::Rgb24,
                             width,
                             height,

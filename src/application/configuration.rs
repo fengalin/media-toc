@@ -44,7 +44,8 @@ pub struct GlobalConfig {
 
 impl GlobalConfig {
     fn new() -> GlobalConfig {
-        let project_dirs = ProjectDirs::from(TLD, SLD, env!("CARGO_PKG_NAME"));
+        let project_dirs = ProjectDirs::from(TLD, SLD, env!("CARGO_PKG_NAME"))
+            .expect("Couldn't find project dirs for this platform");
         let config_dir = project_dirs.config_dir();
         create_dir_all(&config_dir).unwrap();
         let path = config_dir.join(CONFIG_FILENAME).to_owned();
