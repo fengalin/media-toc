@@ -11,24 +11,24 @@ repository = "https://github.com/fengalin/media-toc"
 version = "0.5.2"
 
 [dependencies]
-cairo-rs = "0.5"
+cairo-rs = { git = "https://github.com/gtk-rs/cairo" }
 clap = "2.32"
 byteorder = "1.2"
 chrono = "0.4"
 directories = "1.0"
 env_logger = "0.5"
-gdk = "0.9"
+gdk = { git = "https://github.com/gtk-rs/gdk" }
 gettext-rs = { version = "0.4", features = ["gettext-system"] }
-gio = "0.5"
-glib = "0.6"
-gstreamer = { version = "0.12", features = ["v1_10"] }
-gstreamer-audio = { version = "0.12", features = ["v1_10"] }
-gtk = { version = "0.5", features = ["v3_18"] }
+gio = { git = "https://github.com/gtk-rs/gio" }
+glib = { git = "https://github.com/gtk-rs/glib" }
+gstreamer = { git = "https://github.com/sdroege/gstreamer-rs", features = ["v1_10"] }
+gstreamer-audio = { git = "https://github.com/sdroege/gstreamer-rs", features = ["v1_10"] }
+gtk = { git = "https://github.com/gtk-rs/gtk", features = ["v3_18"] }
 image = "0.19"
 lazy_static = "1.1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 nom = "4.0"
-pango = "0.5"
+pango = { git = "https://github.com/gtk-rs/pango" }
 ron = "0.4"
 sample = "0.10"
 smallvec = "0.6"
@@ -44,4 +44,4 @@ default-features = []
 directories = "1.0"
 
 [dev-dependencies]
-cairo-rs = { version = "0.5", features = ["png"] }
+cairo-rs = { git = "https://github.com/gtk-rs/cairo", features = ["png"] }

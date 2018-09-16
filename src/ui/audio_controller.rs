@@ -595,6 +595,14 @@ impl AudioController {
             return Inhibit(false);
         }
 
+        let presentation_time = match da.get_frame_clock().unwrap().get_current_timings() {
+            Some(frame_timings) => frame_timings.get_predicted_presentation_time() as u64,
+            None => {
+                debug!("can't get frame timings");
+                return Inhibit(false);
+            }
+        };
+
         let (current_position, image_positions) = {
             let waveform_grd = &mut *self.waveform_mtx.lock().unwrap();
             let waveform_buffer = waveform_grd
@@ -604,8 +612,7 @@ impl AudioController {
 
             self.playback_needs_refresh = waveform_buffer.playback_needs_refresh;
 
-            let (current_position, image_opt) =
-                waveform_buffer.get_image(da.get_frame_clock().unwrap().get_frame_time() as u64);
+            let (current_position, image_opt) = waveform_buffer.get_image(presentation_time);
             match image_opt {
                 Some((image, image_positions)) => {
                     cr.set_source_surface(image, -image_positions.first.x, 0f64);
