@@ -79,18 +79,21 @@ pub trait SampleExtractor: Send {
     // extraction process by keeping conditions between frames
     fn update_concrete_state(&mut self, other: &mut SampleExtractor);
 
-    fn get_current_sample(&mut self, frame_time: u64) -> (u64, usize) {
+    fn get_current_sample(&mut self, last_frame_time: u64, next_frame_time: u64) -> (u64, usize) {
         // (position, sample)
         let state = &mut self.get_extraction_state_mut();
         let position = match state.state {
             gst::State::Playing => {
                 if let Some(&(base_time, base_frame_time)) = state.basetime.as_ref() {
-                    (frame_time - base_frame_time) * 1_000 + base_time
+                    (next_frame_time - base_frame_time) * 1_000 + base_time
                 } else {
                     let mut query = gst::Query::new_position(gst::Format::Time);
                     if state.audio_ref.as_ref().unwrap().query(&mut query) {
+                        // approximate current position as being exactly between last frame
+                        // and next frame
+                        let current_frame_time = (last_frame_time + next_frame_time) / 2;
                         let base_time = query.get_result().get_value() as u64;
-                        state.basetime = Some((base_time, frame_time));
+                        state.basetime = Some((base_time, current_frame_time));
                         base_time
                     } else {
                         state.last_pos
