@@ -41,6 +41,8 @@ const MIN_RANGE_DURATION: u64 = 100_000_000; // 100 ms
 
 const HOUR_IN_NANO: u64 = 3_600_000_000_000;
 
+const EXPECTED_FRAME_DURATION: u64 = 16_667;
+
 // Use this text to compute the largest text box for the waveform boundaries
 // This is required to position the labels in such a way that they don't
 // move constantly depending on the digits width
@@ -595,13 +597,21 @@ impl AudioController {
             return Inhibit(false);
         }
 
+        // Get frame timings
         let (last_frame_time, next_frame_time) = {
             let frame_clock = da.get_frame_clock().unwrap();
             match frame_clock.get_current_timings() {
-                Some(frame_timings) => (
-                    frame_clock.get_frame_time() as u64,
-                    frame_timings.get_predicted_presentation_time() as u64,
-                ),
+                Some(frame_timings) => {
+                    let frame_time = frame_timings.get_frame_time() as u64;
+                    let predicted_presentation_time = frame_timings
+                        .get_predicted_presentation_time() as u64;
+                    if predicted_presentation_time != 0 {
+                        (frame_time, predicted_presentation_time)
+                    } else {
+                        // predicted_presentation_time not available => estimate it
+                        (frame_time, frame_time + EXPECTED_FRAME_DURATION)
+                    }
+                },
                 None => {
                     debug!("can't get frame timings");
                     return Inhibit(false);
@@ -609,6 +619,7 @@ impl AudioController {
             }
         };
 
+        // Get waveform and positions
         let (current_position, image_positions) = {
             let waveform_grd = &mut *self.waveform_mtx.lock().unwrap();
             let waveform_buffer = waveform_grd
