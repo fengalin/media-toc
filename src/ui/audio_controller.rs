@@ -603,13 +603,14 @@ impl AudioController {
             match frame_clock.get_current_timings() {
                 Some(frame_timings) => {
                     let frame_time = frame_timings.get_frame_time() as u64;
-                    let predicted_presentation_time = frame_timings
-                        .get_predicted_presentation_time() as u64;
-                    if predicted_presentation_time != 0 {
-                        (frame_time, predicted_presentation_time)
-                    } else {
-                        // predicted_presentation_time not available => estimate it
-                        (frame_time, frame_time + EXPECTED_FRAME_DURATION)
+                    match frame_timings.get_predicted_presentation_time() {
+                        Some(predicted_presentation_time) => {
+                            (frame_time, predicted_presentation_time.get())
+                        }
+                        None => {
+                            // predicted_presentation_time not available => estimate it
+                            (frame_time, frame_time + EXPECTED_FRAME_DURATION)
+                        }
                     }
                 },
                 None => {

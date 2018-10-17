@@ -5,7 +5,7 @@ use glib::signal::SignalHandlerId;
 use glib::{ObjectExt, ToValue};
 use gstreamer as gst;
 use gtk;
-use gtk::{BoxExt, ContainerExt, Inhibit, WidgetExt};
+use gtk::prelude::*;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -77,7 +77,7 @@ impl VideoController {
                 // discard GStreamer defined navigation events on widget
                 video_output
                     .widget
-                    .set_events(gdk::EventMask::BUTTON_PRESS_MASK.bits() as i32);
+                    .set_events(gdk::EventMask::BUTTON_PRESS_MASK);
 
                 self.container
                     .pack_start(&video_output.widget, true, true, 0);
