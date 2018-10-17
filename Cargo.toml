@@ -27,7 +27,7 @@ gtk = { git = "https://github.com/gtk-rs/gtk", features = ["v3_18"] }
 image = "0.19"
 lazy_static = "1.1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
-nom = "4.0"
+nom = "4.1"
 pango = { git = "https://github.com/gtk-rs/pango" }
 ron = "0.4"
 sample = "0.10"

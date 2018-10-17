@@ -95,9 +95,7 @@ fn parse_chapter_test() {
     let err = res.unwrap_err();
     if let nom::Err::Error(nom::Context::Code(i, code)) = err {
         assert_eq!(CompleteStr("0x"), i);
-        // FIXME: change `nom::ErrorKind::MapOpt` to `nom::ErrorKind::ParseTo`
-        // when this PR is merged: https://github.com/Geal/nom/pull/747
-        assert_eq!(nom::ErrorKind::MapOpt, code);
+        assert_eq!(nom::ErrorKind::ParseTo, code);
     } else {
         panic!("unexpected error type returned");
     }
@@ -145,10 +143,7 @@ impl Reader for MKVMergeTextFormat {
                     Err(err) => {
                         let msg = if let nom::Err::Error(nom::Context::Code(i, code)) = err {
                             match code {
-                                // FIXME: change `nom::ErrorKind::MapOpt` to
-                                // `nom::ErrorKind::ParseTo` when this PR is merged:
-                                // https://github.com/Geal/nom/pull/747
-                                nom::ErrorKind::MapOpt => gettext("expecting a number, found: {}")
+                                nom::ErrorKind::ParseTo => gettext("expecting a number, found: {}")
                                     .replacen("{}", &i[..i.len().min(2)], 1),
                                 nom::ErrorKind::Verify => gettext(
                                     "chapter numbers don't match for: {}",
