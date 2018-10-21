@@ -59,9 +59,14 @@ pub trait SampleExtractor: Send {
         self.get_extraction_state_mut().basetime = None;
     }
 
-    fn new_segment(&mut self) {
+    fn new_segment(&mut self, segment_start: Option<usize>) {
         self.get_extraction_state_mut().basetime = None;
+        if let Some(segment_start) = segment_start {
+            self.seek_complete(segment_start);
+        }
     }
+
+    fn seek_complete(&mut self, sample: usize);
 
     fn set_channels(&mut self, channels: &[AudioChannel]);
 

@@ -34,11 +34,12 @@ pub struct ImagePositions {
     pub sample_step: f64,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LockState {
     Playing,
     PlayingRange,
     RestoringInitialPos,
+    Seeking,
 }
 
 // A WaveformBuffer hosts one of the two buffers of the double buffering
@@ -63,7 +64,6 @@ pub struct WaveformBuffer {
     cursor_position: u64, // The timestamp at the cursor's position
     first_visible_sample: Option<usize>,
     first_visible_sample_lock: Option<(i64, LockState)>, // (1st position, LockState)
-    sought_sample: Option<usize>,
 
     // During playback, we take advantage of the running time and thus
     // the stream of incoming samples to refresh the waveform.
@@ -94,7 +94,6 @@ impl WaveformBuffer {
             cursor_position: 0,
             first_visible_sample: None,
             first_visible_sample_lock: None,
-            sought_sample: None,
             playback_needs_refresh: false,
 
             req_duration_per_1000px: 0f64,
@@ -128,7 +127,6 @@ impl WaveformBuffer {
         self.cursor_position = 0;
         self.first_visible_sample = None;
         self.first_visible_sample_lock = None;
-        self.sought_sample = None;
         self.playback_needs_refresh = false;
 
         self.sample_step_f = 0f64;
@@ -185,7 +183,7 @@ impl WaveformBuffer {
                     // at the sought position without abrutely scrolling
                     // the waveform.
                     self.first_visible_sample_lock =
-                        Some((first_visible_sample as i64, LockState::Playing));
+                        Some((first_visible_sample as i64, LockState::Seeking));
                 } else {
                     self.first_visible_sample_lock = None;
                 }
@@ -208,7 +206,6 @@ impl WaveformBuffer {
             };
         }
 
-        self.sought_sample = Some(sought_sample);
         self.cursor_sample = sought_sample;
     }
 
@@ -224,25 +221,21 @@ impl WaveformBuffer {
     }
 
     fn refresh_position(&mut self, last_frame_time: u64, next_frame_time: u64) {
-        let (position, mut sample) = self.get_current_sample(last_frame_time, next_frame_time);
-        if self.previous_sample != sample {
-            if self.image.contains_eos && sample >= self.image.upper {
-                sample = self.image.upper - 1;
-            }
-            match self.sought_sample.take() {
-                None => {
+        match self.first_visible_sample_lock {
+            Some((_first_visible_sample_lock, LockState::Seeking)) => (),
+            _ => {
+                let (position, mut sample) =
+                    self.get_current_sample(last_frame_time, next_frame_time);
+                if self.previous_sample != sample {
+                    if self.image.contains_eos && sample >= self.image.upper {
+                        sample = self.image.upper - 1;
+                    }
                     self.previous_sample = self.current_sample;
-                }
-                Some(_) => {
-                    // stream has sync after a seek
-                    // reset previous_sample because of the discontinuity
-                    self.previous_sample = sample;
+                    self.current_sample = sample;
+                    self.cursor_sample = sample;
+                    self.cursor_position = position;
                 }
             }
-
-            self.current_sample = sample;
-            self.cursor_sample = sample;
-            self.cursor_position = position;
         }
     }
 
@@ -254,7 +247,7 @@ impl WaveformBuffer {
             if self.cursor_sample >= self.image.lower {
                 // current sample appears after first buffer sample
                 if let Some((first_visible_sample_lock, lock_state)) =
-                    self.first_visible_sample_lock.take()
+                    self.first_visible_sample_lock
                 {
                     // There is a position lock constraint
 
@@ -272,7 +265,7 @@ impl WaveformBuffer {
                                 Some(first_visible_sample_lock as usize)
                             } else if (offset_to_center as usize) <= 2 * self.image.sample_step {
                                 // reached the center => keep cursor there
-                                self.sought_sample = None;
+                                self.first_visible_sample_lock = None;
                                 Some(
                                     self.image
                                         .lower
@@ -310,12 +303,16 @@ impl WaveformBuffer {
                                         // are added afterward
                                         self.first_visible_sample_lock =
                                             Some((next_lower as i64, LockState::Playing));
-                                    } // else reached EOS => don't expect returning to center
+                                    } else {
+                                        // reached EOS => don't expect returning to center
+                                        self.first_visible_sample_lock = None;
+                                    }
 
                                     next_lower
                                 } else {
                                     // buffer window is smaller than req_sample_window
                                     // set first sample to the left
+                                    self.first_visible_sample_lock = None;
                                     self.image.lower
                                 };
 
@@ -324,13 +321,15 @@ impl WaveformBuffer {
                         }
                         LockState::PlayingRange => {
                             // keep origin on the first sample upon seek
-                            self.first_visible_sample_lock =
-                                Some((first_visible_sample_lock, lock_state));
                             Some(first_visible_sample_lock as usize)
                         }
                         LockState::RestoringInitialPos => {
-                            self.sought_sample = None;
+                            self.first_visible_sample_lock = None;
                             Some(first_visible_sample_lock as usize)
+                        }
+                        LockState::Seeking => {
+                            // Wait as is before new sample delta can be computed
+                            return;
                         }
                     }
                 } else if self.cursor_sample + self.half_req_sample_window <= self.image.upper {
@@ -691,7 +690,7 @@ impl WaveformBuffer {
                                 }
                             }
                             Some((first_visible_sample, lock_state)) => match lock_state {
-                                LockState::Playing => {
+                                LockState::Playing | LockState::Seeking => {
                                     self.first_visible_sample = None;
                                     None
                                 }
@@ -822,6 +821,20 @@ impl SampleExtractor for WaveformBuffer {
         self.reset();
     }
 
+    fn seek_complete(&mut self, sample: usize) {
+        self.previous_sample = sample;
+        self.current_sample = sample;
+
+        if let Some((first_visible_sample_lock, LockState::Seeking))
+            = self.first_visible_sample_lock
+        {
+            self.first_visible_sample_lock = Some((
+                first_visible_sample_lock,
+                LockState::Playing,
+            ));
+        }
+    }
+
     fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64) {
         self.reset_sample_conditions();
 
@@ -843,7 +856,7 @@ impl SampleExtractor for WaveformBuffer {
         match self.first_visible_sample_lock.take() {
             None => self.first_visible_sample = None,
             Some((first_visible_sample, lock_state)) => match lock_state {
-                LockState::Playing => self.first_visible_sample = None,
+                LockState::Playing | LockState::Seeking => self.first_visible_sample = None,
                 LockState::PlayingRange | LockState::RestoringInitialPos =>
                 // don't drop first_visible_sample & first_visible_sample_lock
                 {
@@ -862,7 +875,6 @@ impl SampleExtractor for WaveformBuffer {
         self.cursor_position = other.cursor_position;
         self.first_visible_sample = other.first_visible_sample;
         self.first_visible_sample_lock = other.first_visible_sample_lock.clone();
-        self.sought_sample = other.sought_sample;
 
         // playback_needs_refresh is set during extract_samples
         // so other must be updated with self status

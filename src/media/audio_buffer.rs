@@ -28,7 +28,7 @@ pub struct AudioBuffer {
     pub eos: bool,
 
     is_new_segment: bool,
-    pub segment_start: Option<u64>,
+    pub segment_start: Option<usize>,
     pub segment_lower: usize,
     last_buffer_upper: usize,
     pub lower: usize,
@@ -120,10 +120,9 @@ impl AudioBuffer {
         self.clean_samples();
     }
 
-    pub fn have_gst_segment(&mut self, segment: &gst::Segment) {
-        debug!("have_gst_segment {:?}", segment);
+    pub fn have_gst_segment(&mut self, segment_start: usize) {
+        debug!("have_gst_segment {:?}", segment_start);
 
-        let segment_start = segment.get_start().get_value() as u64;
         match self.segment_start {
             Some(current_segment_start) => {
                 if current_segment_start != segment_start {
@@ -382,12 +381,8 @@ impl AudioBuffer {
         }
 
         if is_new_segment {
-            let mut segment = gst::Segment::new();
-            segment.set_format(gst::Format::Time);
-            segment.set_start(ClockTime::from_nseconds(
-                self.sample_duration * (lower as u64) + 1,
-            ));
-            self.have_gst_segment(&segment);
+            let segment_start = (self.sample_duration as usize) * lower + 1;
+            self.have_gst_segment(segment_start);
         }
 
         let self_lower = self.lower;
