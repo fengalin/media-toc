@@ -133,13 +133,13 @@ impl DoubleAudioBuffer {
             let exposed_buffer = &mut self.exposed_buffer_mtx.lock().unwrap();
             exposed_buffer.set_sample_duration(sample_duration, duration_for_1000_samples);
             exposed_buffer.set_channels(&channels);
-            exposed_buffer.new_segment(None);
+            exposed_buffer.new_segment();
         }
 
         let working_buffer = self.working_buffer.as_mut().unwrap();
         working_buffer.set_sample_duration(sample_duration, duration_for_1000_samples);
         working_buffer.set_channels(&channels);
-        working_buffer.new_segment(None);
+        working_buffer.new_segment();
     }
 
     pub fn set_ref(&mut self, audio_ref: &gst::Element) {
@@ -180,9 +180,9 @@ impl DoubleAudioBuffer {
         self.sample_gauge = Some(0);
         {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
-            exposed_buffer_box.new_segment(Some(segment_start));
+            exposed_buffer_box.new_segment();
         }
-        self.working_buffer.as_mut().unwrap().new_segment(Some(segment_start));
+        self.working_buffer.as_mut().unwrap().new_segment();
     }
 
     pub fn push_gst_buffer(&mut self, buffer: &gst::Buffer) -> bool {
