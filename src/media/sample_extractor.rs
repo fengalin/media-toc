@@ -12,6 +12,7 @@ pub struct SampleExtractionState {
     audio_ref: Option<gst::Element>,
     pub basetime: Option<(u64, u64)>, // (base_time, base_frame_time)
     pub last_pos: u64,
+    pub is_stable: bool, // post-"new segment" position stabilization flag
 }
 
 impl SampleExtractionState {
@@ -23,6 +24,7 @@ impl SampleExtractionState {
             audio_ref: None,
             basetime: None,
             last_pos: 0,
+            is_stable: false,
         }
     }
 
@@ -34,6 +36,12 @@ impl SampleExtractionState {
         self.audio_ref = None;
         self.basetime = None;
         self.last_pos = 0;
+        self.is_stable = false;
+    }
+
+    pub fn reset_basetime(&mut self) {
+        self.is_stable = false;
+        self.basetime = None;
     }
 }
 
@@ -48,19 +56,20 @@ pub trait SampleExtractor: Send {
     fn set_state(&mut self, new_state: gst::State) {
         let state = self.get_extraction_state_mut();
         state.state = new_state;
-        state.basetime = None;
+        state.reset_basetime();
     }
 
     fn set_time_ref(&mut self, audio_ref: &gst::Element) {
         self.get_extraction_state_mut().audio_ref = Some(audio_ref.clone());
     }
 
+    #[inline]
     fn reset_basetime(&mut self) {
-        self.get_extraction_state_mut().basetime = None;
+        self.get_extraction_state_mut().reset_basetime();
     }
 
     fn new_segment(&mut self) {
-        self.get_extraction_state_mut().basetime = None;
+        self.reset_basetime();
         self.seek_complete();
     }
 
@@ -85,19 +94,38 @@ pub trait SampleExtractor: Send {
     fn get_current_sample(&mut self, last_frame_time: u64, next_frame_time: u64) -> (u64, usize) {
         // (position, sample)
         let state = &mut self.get_extraction_state_mut();
+
         let position = match state.state {
             gst::State::Playing => {
-                if let Some(&(base_time, base_frame_time)) = state.basetime.as_ref() {
-                    (next_frame_time - base_frame_time) * 1_000 + base_time
+                let computed_position = state
+                    .basetime
+                    .as_ref()
+                    .map(|(base_time, base_frame_time)| {
+                        (next_frame_time - base_frame_time) * 1_000 + base_time
+                    });
+
+                if state.is_stable {
+                    computed_position.expect("get_current_sample is_stable but no basetime")
                 } else {
                     let mut query = gst::Query::new_position(gst::Format::Time);
                     if state.audio_ref.as_ref().unwrap().query(&mut query) {
                         // approximate current position as being exactly between last frame
                         // and next frame
-                        let current_frame_time = (last_frame_time + next_frame_time) / 2;
                         let base_time = query.get_result().get_value() as u64;
-                        state.basetime = Some((base_time, current_frame_time));
-                        base_time
+                        let half_interval = (next_frame_time - last_frame_time) * 1_000 / 2;
+                        let position = base_time + half_interval;
+
+                        if let Some(computed_position) = computed_position {
+                            let delta = position as i64 - computed_position as i64;
+                            if (delta.abs() as u64) < half_interval {
+                                // computed position is now close enough to the actual position
+                                state.is_stable = true;
+                            }
+                        }
+
+                        state.basetime = Some((base_time, (next_frame_time + last_frame_time) / 2));
+
+                        position
                     } else {
                         state.last_pos
                     }

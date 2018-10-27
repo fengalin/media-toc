@@ -58,7 +58,6 @@ pub struct WaveformBuffer {
     image: WaveformImage,
 
     previous_sample: Option<usize>,
-    current_sample: Option<usize>,
     cursor_sample: usize, // The sample nb currently under the cursor (might be different from
     // current sample during seeks)
     cursor_position: u64, // The timestamp at the cursor's position
@@ -89,7 +88,6 @@ impl WaveformBuffer {
             image: WaveformImage::new(id),
 
             previous_sample: None,
-            current_sample: None,
             cursor_sample: 0,
             cursor_position: 0,
             first_visible_sample: None,
@@ -122,7 +120,6 @@ impl WaveformBuffer {
     fn reset_sample_conditions(&mut self) {
         debug!("{}_reset_sample_conditions", self.image.id);
         self.previous_sample = None;
-        self.current_sample = None;
         self.cursor_sample = 0;
         self.cursor_position = 0;
         self.first_visible_sample = None;
@@ -207,7 +204,6 @@ impl WaveformBuffer {
         }
 
         self.previous_sample = None;
-        self.current_sample = None;
         self.cursor_sample = sought_sample;
     }
 
@@ -228,22 +224,15 @@ impl WaveformBuffer {
             _ => {
                 let (position, mut sample) =
                     self.get_current_sample(last_frame_time, next_frame_time);
-                match self.current_sample {
-                    Some(current_sample) => {
-                        // handle some weird cases where sample is erratic after a seek
-                        if sample < current_sample + self.quarter_req_sample_window {
-                            self.previous_sample = self.current_sample;
-                        } else {
-                            self.previous_sample = None
-                        }
-                    }
-                    None => self.previous_sample = None,
+
+                if self.get_extraction_state().is_stable {
+                    // after seek stabilization complete
+                    self.previous_sample = Some(self.cursor_sample);
                 }
 
                 if self.image.contains_eos && sample >= self.image.upper {
                     sample = self.image.upper - 1;
                 }
-                self.current_sample = Some(sample);
                 self.cursor_sample = sample;
                 self.cursor_position = position;
             }
@@ -839,7 +828,6 @@ impl SampleExtractor for WaveformBuffer {
 
     fn seek_complete(&mut self) {
         self.previous_sample = None;
-        self.current_sample = None;
 
         if let Some((first_visible_sample_lock, LockState::Seeking))
             = self.first_visible_sample_lock
@@ -886,7 +874,6 @@ impl SampleExtractor for WaveformBuffer {
         let other = other.as_mut_any().downcast_mut::<WaveformBuffer>().unwrap();
 
         self.previous_sample = other.previous_sample;
-        self.current_sample = other.current_sample;
         self.cursor_sample = other.cursor_sample;
         self.cursor_position = other.cursor_position;
         self.first_visible_sample = other.first_visible_sample;
@@ -911,6 +898,7 @@ impl SampleExtractor for WaveformBuffer {
 
         self.state.basetime = other.state.basetime;
         self.state.last_pos = other.state.last_pos;
+        self.state.is_stable = other.state.is_stable;
 
         self.image.update_from_other(&mut other.image);
     }
