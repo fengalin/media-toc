@@ -79,7 +79,6 @@ impl PerspectiveController {
 
         let mut index = 0;
         let stack_children = this.stack.get_children();
-        #[cfg_attr(feature = "cargo-clippy", allow(explicit_counter_loop))]
         for perspective_box_child in popover_box.get_children() {
             let stack_child = stack_children.get(index).unwrap_or_else(|| {
                 panic!("PerspectiveController no stack child for index {:?}", index)

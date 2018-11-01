@@ -195,7 +195,7 @@ impl SplitterContext {
 
         // Note: can't use AtomicBool here as pad probes are multithreaded so the function is Fn
         // not FnMut. See: https://github.com/sdroege/gstreamer-rs/pull/71
-        #[cfg_attr(feature = "cargo-clippy", allow(mutex_atomic))]
+        #[cfg_attr(clippy, allow(mutex_atomic))]
         let seek_done = Arc::new(Mutex::new(false));
         let pipeline = self.pipeline.clone();
         audio_enc_sink_pad.add_probe(gst::PadProbeType::BUFFER, move |_pad, probe_info| {

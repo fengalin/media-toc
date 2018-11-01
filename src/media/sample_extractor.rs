@@ -97,10 +97,8 @@ pub trait SampleExtractor: Send {
 
         let position = match state.state {
             gst::State::Playing => {
-                let computed_position = state
-                    .basetime
-                    .as_ref()
-                    .map(|(base_time, base_frame_time)| {
+                let computed_position =
+                    state.basetime.as_ref().map(|(base_time, base_frame_time)| {
                         (next_frame_time - base_frame_time) * 1_000 + base_time
                     });
 

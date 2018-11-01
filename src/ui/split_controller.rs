@@ -126,9 +126,11 @@ impl SplitController {
         self.streams_changed(&info);
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(map_clone))]
     pub fn streams_changed(&mut self, info: &MediaInfo) {
-        self.selected_audio = info.streams.selected_audio().map(|stream| stream.clone());
+        self.selected_audio = info
+            .streams
+            .selected_audio()
+            .map(|selected_audio| selected_audio.to_owned());
         self.split_btn.set_sensitive(self.selected_audio.is_some());
     }
 
@@ -307,7 +309,7 @@ impl SplitController {
         self.target_path.with_file_name(split_name)
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
+    #[cfg_attr(clippy, allow(cyclomatic_complexity))]
     fn update_tags(&self, chapter: &mut gst::TocEntry) -> gst::TocEntry {
         let mut tags = gst::TagList::new();
         {

@@ -267,7 +267,8 @@ impl ExportController {
 
                             let _ = toc_setter_ctx.export().map_err(|err| {
                                 keep_going = false;
-                                let msg = gettext("Failed to export media. {}").replacen("{}", &err, 1);
+                                let msg =
+                                    gettext("Failed to export media. {}").replacen("{}", &err, 1);
                                 this.show_error(&msg);
                                 error!("{}", msg);
                             });

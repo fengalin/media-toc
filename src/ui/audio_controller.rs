@@ -612,7 +612,7 @@ impl AudioController {
                             (frame_time, frame_time + EXPECTED_FRAME_DURATION)
                         }
                     }
-                },
+                }
                 None => {
                     debug!("can't get frame timings");
                     return Inhibit(false);
@@ -630,10 +630,8 @@ impl AudioController {
 
             self.playback_needs_refresh = waveform_buffer.playback_needs_refresh;
 
-            let (current_position, image_opt) = waveform_buffer.get_image(
-                last_frame_time,
-                next_frame_time,
-            );
+            let (current_position, image_opt) =
+                waveform_buffer.get_image(last_frame_time, next_frame_time);
             match image_opt {
                 Some((image, image_positions)) => {
                     cr.set_source_surface(image, -image_positions.first.x, 0f64);

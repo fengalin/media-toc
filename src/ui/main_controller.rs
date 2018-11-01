@@ -567,8 +567,9 @@ impl MainController {
                             let mut this = this_rc.borrow_mut();
                             let mut context = this.context.take().unwrap();
 
-                            this.header_bar
-                                .set_subtitle(Some(context.info.read().unwrap().file_name.as_str()));
+                            this.header_bar.set_subtitle(Some(
+                                context.info.read().unwrap().file_name.as_str(),
+                            ));
 
                             this.audio_ctrl.borrow_mut().new_media(&context);
                             this.export_ctrl.borrow_mut().new_media();

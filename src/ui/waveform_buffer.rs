@@ -190,7 +190,7 @@ impl WaveformBuffer {
         } else {
             // not playing
             self.first_visible_sample = match self.first_visible_sample_lock.take() {
-                Some((first_visible_sample, lock_state)) => match lock_state.clone() {
+                Some((first_visible_sample, lock_state)) => match lock_state {
                     LockState::PlayingRange => {
                         // Range is complete => we are restoring the initial position
                         self.first_visible_sample_lock =
@@ -275,24 +275,25 @@ impl WaveformBuffer {
                                 < self.image.upper
                             {
                                 match self.previous_sample {
-                                  Some(previous_sample) => {
-                                    // Cursor is on the right half of the window
-                                    // and the target sample window doesn't exceed the end
-                                    // of the rendered waveform yet
-                                    // => progressively get cursor back to center
-                                    let previous_offset =
-                                        previous_sample as i64 - first_visible_sample_lock;
-                                    let delta_cursor =
-                                        self.cursor_sample as i64 - previous_sample as i64;
-                                    let next_lower = (self.image.lower as i64).max(
-                                        self.cursor_sample as i64 - previous_offset + delta_cursor,
-                                    );
+                                    Some(previous_sample) => {
+                                        // Cursor is on the right half of the window
+                                        // and the target sample window doesn't exceed the end
+                                        // of the rendered waveform yet
+                                        // => progressively get cursor back to center
+                                        let previous_offset =
+                                            previous_sample as i64 - first_visible_sample_lock;
+                                        let delta_cursor =
+                                            self.cursor_sample as i64 - previous_sample as i64;
+                                        let next_lower = (self.image.lower as i64).max(
+                                            self.cursor_sample as i64 - previous_offset
+                                                + delta_cursor,
+                                        );
 
-                                    self.first_visible_sample_lock =
-                                        Some((next_lower, LockState::Playing));
-                                    Some(next_lower as usize)
-                                  }
-                                  None => return,
+                                        self.first_visible_sample_lock =
+                                            Some((next_lower, LockState::Playing));
+                                        Some(next_lower as usize)
+                                    }
+                                    None => return,
                                 }
                             } else {
                                 // Not enough overhead to get cursor back to center
@@ -774,12 +775,14 @@ impl WaveformBuffer {
             }
         };
 
-        extraction_range.unwrap_or((
-            audio_buffer.lower,
-            audio_buffer
-                .upper
-                .min(audio_buffer.lower + self.req_sample_window + self.half_req_sample_window),
-        ))
+        extraction_range.unwrap_or_else(|| {
+            (
+                audio_buffer.lower,
+                audio_buffer
+                    .upper
+                    .min(audio_buffer.lower + self.req_sample_window + self.half_req_sample_window),
+            )
+        })
     }
 }
 
@@ -829,13 +832,10 @@ impl SampleExtractor for WaveformBuffer {
     fn seek_complete(&mut self) {
         self.previous_sample = None;
 
-        if let Some((first_visible_sample_lock, LockState::Seeking))
-            = self.first_visible_sample_lock
+        if let Some((first_visible_sample_lock, LockState::Seeking)) =
+            self.first_visible_sample_lock
         {
-            self.first_visible_sample_lock = Some((
-                first_visible_sample_lock,
-                LockState::Playing,
-            ));
+            self.first_visible_sample_lock = Some((first_visible_sample_lock, LockState::Playing));
         }
     }
 
@@ -877,7 +877,7 @@ impl SampleExtractor for WaveformBuffer {
         self.cursor_sample = other.cursor_sample;
         self.cursor_position = other.cursor_position;
         self.first_visible_sample = other.first_visible_sample;
-        self.first_visible_sample_lock = other.first_visible_sample_lock.clone();
+        self.first_visible_sample_lock = other.first_visible_sample_lock;
 
         // playback_needs_refresh is set during extract_samples
         // so other must be updated with self status
