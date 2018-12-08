@@ -51,7 +51,7 @@ pub struct PerspectiveController {
 }
 
 impl PerspectiveController {
-    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
+    pub fn new_rc(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
         let this_rc = Rc::new(RefCell::new(PerspectiveController {
             menu_button: builder.get_object("perspective-menu-btn").unwrap(),
             popover: builder.get_object("perspective-popovermenu").unwrap(),

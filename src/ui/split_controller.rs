@@ -60,7 +60,7 @@ pub struct SplitController {
 }
 
 impl SplitController {
-    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
+    pub fn new_rc(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
         let this = Rc::new(RefCell::new(SplitController {
             base: OutputBaseController::new(builder),
 
@@ -231,7 +231,7 @@ impl SplitController {
         let output_path = self.get_split_path(&chapter);
         let (ctx_tx, ui_rx) = channel();
         self.register_listener(format, LISTENER_PERIOD, ui_rx);
-        match SplitterContext::new(
+        match SplitterContext::try_new(
             &self.media_path,
             &output_path,
             &self.selected_audio.as_ref().unwrap().id,
@@ -314,7 +314,7 @@ impl SplitController {
         self.target_path.with_file_name(split_name)
     }
 
-    #[cfg_attr(clippy, allow(cyclomatic_complexity))]
+    #[allow(clippy::cyclomatic_complexity)]
     fn update_tags(&self, chapter: &mut gst::TocEntry) -> gst::TocEntry {
         let mut tags = gst::TagList::new();
         {

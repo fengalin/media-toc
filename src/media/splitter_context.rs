@@ -95,7 +95,7 @@ impl SplitterContext {
         }
     }
 
-    pub fn new(
+    pub fn try_new(
         input_path: &Path,
         output_path: &Path,
         stream_id: &str,
@@ -203,7 +203,7 @@ impl SplitterContext {
 
         // Note: can't use AtomicBool here as pad probes are multithreaded so the function is Fn
         // not FnMut. See: https://github.com/sdroege/gstreamer-rs/pull/71
-        #[cfg_attr(clippy, allow(mutex_atomic))]
+        #[allow(clippy::mutex_atomic)]
         let seek_done = Arc::new(Mutex::new(false));
         let pipeline = self.pipeline.clone();
         audio_enc_sink_pad.add_probe(gst::PadProbeType::BUFFER, move |_pad, probe_info| {

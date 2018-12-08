@@ -103,7 +103,7 @@ pub struct AudioController {
 }
 
 impl AudioController {
-    pub fn new(
+    pub fn new_rc(
         builder: &gtk::Builder,
         boundaries: Rc<RefCell<ChaptersBoundaries>>,
     ) -> Rc<RefCell<Self>> {
