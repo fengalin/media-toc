@@ -77,7 +77,7 @@ pub struct StreamsController {
 }
 
 impl StreamsController {
-    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
+    pub fn new_rc(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
         let this_rc = Rc::new(RefCell::new(StreamsController {
             video_treeview: builder.get_object("video_streams-treeview").unwrap(),
             video_store: builder.get_object("video_streams-liststore").unwrap(),

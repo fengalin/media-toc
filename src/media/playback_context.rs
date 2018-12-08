@@ -64,7 +64,7 @@ impl Drop for PlaybackContext {
 }
 
 impl PlaybackContext {
-    pub fn new(
+    pub fn try_new(
         path: &Path,
         dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer>>,
         video_sink: &Option<gst::Element>,

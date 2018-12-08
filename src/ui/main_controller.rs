@@ -87,7 +87,7 @@ pub struct MainController {
 }
 
 impl MainController {
-    pub fn new(gtk_app: &gtk::Application, is_gst_ok: bool, disable_gl: bool) -> Rc<RefCell<Self>> {
+    pub fn new_rc(gtk_app: &gtk::Application, is_gst_ok: bool, disable_gl: bool) -> Rc<RefCell<Self>> {
         let builder = gtk::Builder::new_from_resource(&format!("{}/{}", *APP_PATH, "media-toc.ui"));
         let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
         window.set_application(gtk_app);
@@ -104,13 +104,13 @@ impl MainController {
             info_bar: builder.get_object("info_bar").unwrap(),
             info_bar_lbl: builder.get_object("info_bar-lbl").unwrap(),
 
-            perspective_ctrl: PerspectiveController::new(&builder),
+            perspective_ctrl: PerspectiveController::new_rc(&builder),
             video_ctrl: VideoController::new(&builder, disable_gl),
-            info_ctrl: InfoController::new(&builder, Rc::clone(&chapters_boundaries)),
-            audio_ctrl: AudioController::new(&builder, chapters_boundaries),
-            export_ctrl: ExportController::new(&builder),
-            split_ctrl: SplitController::new(&builder),
-            streams_ctrl: StreamsController::new(&builder),
+            info_ctrl: InfoController::new_rc(&builder, Rc::clone(&chapters_boundaries)),
+            audio_ctrl: AudioController::new_rc(&builder, chapters_boundaries),
+            export_ctrl: ExportController::new_rc(&builder),
+            split_ctrl: SplitController::new_rc(&builder),
+            streams_ctrl: StreamsController::new_rc(&builder),
 
             context: None,
             take_context_cb: None,
@@ -742,7 +742,7 @@ impl MainController {
         self.register_listener(LISTENER_PERIOD, ui_rx);
 
         let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.borrow().dbl_buffer_mtx);
-        match PlaybackContext::new(
+        match PlaybackContext::try_new(
             filepath,
             &dbl_buffer_mtx,
             &self.video_ctrl.get_video_sink(),

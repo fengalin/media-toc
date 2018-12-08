@@ -45,7 +45,7 @@ impl TocSetterContext {
         }
     }
 
-    pub fn new(
+    pub fn try_new(
         input_path: &Path,
         output_path: &Path,
         streams: HashSet<String>,

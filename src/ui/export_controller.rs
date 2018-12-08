@@ -51,7 +51,7 @@ pub struct ExportController {
 }
 
 impl ExportController {
-    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
+    pub fn new_rc(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
         let this = Rc::new(RefCell::new(ExportController {
             base: OutputBaseController::new(builder),
 
@@ -197,7 +197,7 @@ impl ExportController {
 
         self.register_listener(LISTENER_PERIOD, ui_rx);
 
-        match TocSetterContext::new(&self.media_path, export_path, streams, ctx_tx) {
+        match TocSetterContext::try_new(&self.media_path, export_path, streams, ctx_tx) {
             Ok(toc_setter_ctx) => {
                 self.switch_to_busy();
                 self.toc_setter_ctx = Some(toc_setter_ctx);

@@ -310,7 +310,7 @@ impl AudioBuffer {
 
         if upper_to_add_rel > 0 {
             let map = buffer.map_readable().take().unwrap();
-            let converter_iter = SampleConverterIter::new(
+            let converter_iter = SampleConverterIter::from_slice(
                 map.as_slice(),
                 self.audio_info.as_ref().unwrap(),
                 lower_to_add_rel,
@@ -343,7 +343,7 @@ impl AudioBuffer {
     }
 
     pub fn iter(&self, lower: usize, upper: usize, sample_step: usize) -> Option<Iter<'_>> {
-        Iter::new(self, lower, upper, sample_step)
+        Iter::try_new(self, lower, upper, sample_step)
     }
 
     pub fn get(&self, sample: usize) -> Option<&[f64]> {
@@ -417,7 +417,7 @@ pub struct SampleConverterIter<'iter> {
 }
 
 impl<'iter> SampleConverterIter<'iter> {
-    fn new(
+    fn from_slice(
         slice: &'iter [u8],
         audio_info: &gst_audio::AudioInfo,
         lower: usize,
@@ -499,7 +499,7 @@ pub struct Iter<'iter> {
 }
 
 impl<'iter> Iter<'iter> {
-    fn new(
+    fn try_new(
         buffer: &'iter AudioBuffer,
         lower: usize,
         upper: usize,
@@ -520,7 +520,7 @@ impl<'iter> Iter<'iter> {
         } else {
             // out of bound TODO: return an error
             trace!(
-                "Iter::new [{}, {}] out of bounds [{}, {}]",
+                "Iter::try_new [{}, {}] out of bounds [{}, {}]",
                 lower,
                 upper,
                 buffer.lower,
