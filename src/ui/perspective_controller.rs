@@ -120,7 +120,7 @@ impl PerspectiveController {
 
             if index == 0 {
                 // set the default perspective
-                menu_btn_image.set_property_icon_name(Some(&perspective_icon_name));
+                menu_btn_image.set_property_icon_name(Some(perspective_icon_name.as_str()));
                 this.stack.set_visible_child_name(&stack_child_name);
             }
 
@@ -130,7 +130,7 @@ impl PerspectiveController {
             let stack = this.stack.clone();
             let popover = this.popover.clone();
             let event = move || {
-                menu_btn_image.set_property_icon_name(Some(&perspective_icon_name));
+                menu_btn_image.set_property_icon_name(Some(perspective_icon_name.as_str()));
                 stack.set_visible_child_name(&stack_child_name);
                 // popdown is available from GTK 3.22
                 // current package used on package is GTK .18
