@@ -17,10 +17,7 @@ use std::{
 };
 
 use crate::{
-    media::{
-        ContextMessage::*,
-        ContextMessage, TocSetterContext,
-    },
+    media::{ContextMessage, ContextMessage::*, TocSetterContext},
     metadata,
     metadata::{Exporter, Format, MatroskaTocFormat},
 };

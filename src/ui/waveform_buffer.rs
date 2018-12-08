@@ -8,8 +8,8 @@ use std::{
 };
 
 use crate::media::{
-    sample_extractor::SampleExtractionState,
-    AudioBuffer, AudioChannel, DoubleAudioBuffer, SampleExtractor,
+    sample_extractor::SampleExtractionState, AudioBuffer, AudioChannel, DoubleAudioBuffer,
+    SampleExtractor,
 };
 
 use super::WaveformImage;
@@ -362,9 +362,7 @@ impl WaveformBuffer {
                             "{}_update_first_visible_sample ",
                             "cursor_sample {} appears above image upper bound {}",
                         ),
-                        self.image.id,
-                        self.cursor_sample,
-                        self.image.upper,
+                        self.image.id, self.cursor_sample, self.image.upper,
                     );
                     if self.image.upper + self.req_sample_window >= self.cursor_sample {
                         // rebase image attempting to keep in range
@@ -401,9 +399,7 @@ impl WaveformBuffer {
                         "{}_update_first_visible_sample cursor_sample {} ",
                         "appears before image first sample {}",
                     ),
-                    self.image.id,
-                    self.cursor_sample,
-                    self.image.lower
+                    self.image.id, self.cursor_sample, self.image.lower
                 );
                 None
             }
@@ -683,11 +679,7 @@ impl WaveformBuffer {
                                 "{}_get_sample_range first_visible_sample ",
                                 "{} and cursor {} not in the same range [{}, {}]",
                             ),
-                            self.image.id,
-                            first_visible_sample,
-                            self.cursor_sample,
-                            lower,
-                            upper,
+                            self.image.id, first_visible_sample, self.cursor_sample, lower, upper,
                         );
 
                         match self.first_visible_sample_lock.take() {

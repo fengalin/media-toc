@@ -267,12 +267,7 @@ impl WaveformImage {
                         "{}_render setting contains_eos. ",
                         "Requested [{}, {}], current [{}, {}], force_redraw: {}",
                     ),
-                    self.id,
-                    lower,
-                    upper,
-                    self.lower,
-                    self.upper,
-                    self.force_redraw,
+                    self.id, lower, upper, self.lower, self.upper, self.force_redraw,
                 );
 
                 self.contains_eos = true;
@@ -286,13 +281,7 @@ impl WaveformImage {
                     "Requested [{}, {}], current [{}, {}], force_redraw {} ",
                     "audio_buffer.eos {}",
                 ),
-                self.id,
-                lower,
-                upper,
-                self.lower,
-                self.upper,
-                self.force_redraw,
-                audio_buffer.eos,
+                self.id, lower, upper, self.lower, self.upper, self.force_redraw, audio_buffer.eos,
             );
         }
 
@@ -345,11 +334,7 @@ impl WaveformImage {
                     "{}_render no overlap self.lower {}, ",
                     "self.upper {}, lower {}, upper {}",
                 ),
-                self.id,
-                self.lower,
-                self.upper,
-                lower,
-                upper,
+                self.id, self.lower, self.upper, lower, upper,
             );
         }
 
@@ -390,7 +375,8 @@ impl WaveformImage {
                         cairo::Format::Rgb24,
                         target_width,
                         self.req_height,
-                    ).unwrap_or_else(|_| {
+                    )
+                    .unwrap_or_else(|_| {
                         panic!(
                             "WaveformBuffer.render: couldn't create image surface with width {}",
                             target_width,
@@ -401,7 +387,8 @@ impl WaveformImage {
                         cairo::Format::Rgb24,
                         target_width,
                         self.req_height,
-                    ).unwrap_or_else(|_| {
+                    )
+                    .unwrap_or_else(|_| {
                         panic!(
                             "WaveformBuffer.render: couldn't create image surface with width {}",
                             target_width,
@@ -470,7 +457,8 @@ impl WaveformImage {
                 WAVEFORM_DUMP_DIR,
                 Utc::now().format("%H:%M:%S%.6f"),
                 self.id,
-            )).unwrap();
+            ))
+            .unwrap();
             self.exposed_image
                 .as_ref()
                 .unwrap()
@@ -576,7 +564,8 @@ impl WaveformImage {
                     self.get_sample_and_values_at(
                         self.image_width_f - 1f64 - x_offset,
                         audio_buffer,
-                    ).map(|(last_sample, values)| {
+                    )
+                    .map(|(last_sample, values)| {
                         self.upper = audio_buffer.upper.min(last_sample + self.sample_step);
                         // align on the first pixel for the sample
                         let new_last_pixel =
@@ -627,13 +616,7 @@ impl WaveformImage {
                 "append_right x_offset {}, (lower {} upper {}), ",
                 "self: (lower {} upper {}), buffer: (lower {}, upper {})",
             ),
-            x_offset,
-            lower,
-            upper,
-            self.lower,
-            self.upper,
-            audio_buffer.lower,
-            audio_buffer.upper
+            x_offset, lower, upper, self.lower, self.upper, audio_buffer.lower, audio_buffer.upper
         );
 
         let must_translate = match self.last.as_ref() {
@@ -824,12 +807,7 @@ impl WaveformImage {
                     "{}_draw_samples invalid iter for ",
                     "[{}, {}] sample_step {}, buffer: [{}, {}]",
                 ),
-                self.id,
-                lower,
-                upper,
-                self.sample_step,
-                audio_buffer.lower,
-                audio_buffer.upper
+                self.id, lower, upper, self.sample_step, audio_buffer.lower, audio_buffer.upper
             );
 
             return None;
@@ -842,12 +820,7 @@ impl WaveformImage {
                     "{}_draw_samples too small to render for ",
                     "[{}, {}] sample_step {}, buffer: [{}, {}]",
                 ),
-                self.id,
-                lower,
-                upper,
-                self.sample_step,
-                audio_buffer.lower,
-                audio_buffer.upper
+                self.id, lower, upper, self.sample_step, audio_buffer.lower, audio_buffer.upper
             );
 
             return None;
@@ -1106,7 +1079,8 @@ mod tests {
         let mut output_file = File::create(format!(
             "{}/waveform_image_{}_{:03}_{:03}.png",
             OUT_DIR, prefix, waveform.lower, waveform.upper
-        )).unwrap();
+        ))
+        .unwrap();
         image.write_to_png(&mut output_file).unwrap();
     }
 

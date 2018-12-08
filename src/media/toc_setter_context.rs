@@ -1,22 +1,14 @@
 use gettextrs::gettext;
 
 use gstreamer as gst;
-use gstreamer::{
-    prelude::*,
-    PadExt,
-};
+use gstreamer::{prelude::*, PadExt};
 
 use glib;
 use glib::ObjectExt;
 
 use log::info;
 
-use std::{
-    collections::HashSet,
-    error::Error,
-    path::Path,
-    sync::mpsc::Sender,
-};
+use std::{collections::HashSet, error::Error, path::Path, sync::mpsc::Sender};
 
 use super::ContextMessage;
 
@@ -179,7 +171,8 @@ impl TocSetterContext {
                     ctx_tx
                         .send(ContextMessage::FailedToExport(
                             err.get_error().description().to_owned(),
-                        )).unwrap();
+                        ))
+                        .unwrap();
                     return glib::Continue(false);
                 }
                 gst::MessageView::AsyncDone(_) => {

@@ -11,10 +11,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::{
-    media::PlaybackContext,
-    metadata::Stream,
-};
+use crate::{media::PlaybackContext, metadata::Stream};
 
 use super::MainController;
 

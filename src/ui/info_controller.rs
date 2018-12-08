@@ -283,7 +283,8 @@ impl InfoController {
                         }
                         (None, prev_start_opt) => prev_start_opt,
                     }
-                }.unwrap_or(0);
+                }
+                .unwrap_or(0);
 
             main_ctrl_clone.borrow_mut().seek(seek_pos, true); // accurate (slow)
         });
@@ -402,7 +403,8 @@ impl InfoController {
                                             "{}",
                                             toc_path.file_name().unwrap().to_str().unwrap(),
                                             1,
-                                        ).replacen("{}", &err, 1),
+                                        )
+                                        .replacen("{}", &err, 1),
                                 );
                                 None
                             }

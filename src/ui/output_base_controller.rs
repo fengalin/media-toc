@@ -9,10 +9,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use crate::{
-    media::PlaybackContext,
-    metadata,
-};
+use crate::{media::PlaybackContext, metadata};
 
 use super::MainController;
 

@@ -32,7 +32,8 @@ impl ImageSurface {
                             width,
                             height,
                             stride,
-                        ).map_err(|err| {
+                        )
+                        .map_err(|err| {
                             let msg = format!(
                                 "Error creating ImageSurface from aligned image: {:?}",
                                 err,

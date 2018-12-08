@@ -28,11 +28,13 @@ pub fn handle_command_line() -> CommandLineArguments {
                 .short("d")
                 .long("disable-gl")
                 .help(&gettext("Disable video rendering hardware acceleration")),
-        ).arg(
+        )
+        .arg(
             Arg::with_name(&input_arg[..])
                 .help(&gettext("Path to the input media file"))
                 .last(false),
-        ).get_matches();
+        )
+        .get_matches();
 
     CommandLineArguments {
         input_file: matches

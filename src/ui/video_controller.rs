@@ -1,25 +1,15 @@
 use gdk;
 use gettextrs::gettext;
 use glib;
-use glib::{
-    signal::SignalHandlerId,
-    ObjectExt, ToValue,
-};
+use glib::{signal::SignalHandlerId, ObjectExt, ToValue};
 use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 use log::{debug, error};
 
-use std::{
-    cell::RefCell,
-    rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 
-use crate::{
-    application::CONFIG,
-    media::PlaybackContext,
-    metadata::MediaInfo,
-};
+use crate::{application::CONFIG, media::PlaybackContext, metadata::MediaInfo};
 
 use super::MainController;
 
@@ -66,7 +56,8 @@ impl VideoController {
             })
         } else {
             None
-        }.or_else(|| {
+        }
+        .or_else(|| {
             gst::ElementFactory::make("gtksink", "video_sink").map(|sink| {
                 debug!("Using gtksink");
                 VideoOutput {

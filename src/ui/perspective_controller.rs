@@ -4,15 +4,9 @@ use glib::Cast;
 use gtk;
 use gtk::prelude::*;
 
-use std::{
-    cell::RefCell,
-    rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 
-use crate::{
-    media::PlaybackContext,
-    metadata::MediaInfo,
-};
+use crate::{media::PlaybackContext, metadata::MediaInfo};
 
 use super::MainController;
 
@@ -116,7 +110,8 @@ impl PerspectiveController {
                         "PerspectiveController no name for stack page matching {:?}",
                         button_name,
                     )
-                }).to_owned();
+                })
+                .to_owned();
 
             if index == 0 {
                 // set the default perspective

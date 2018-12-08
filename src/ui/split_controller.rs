@@ -14,10 +14,7 @@ use std::{
 };
 
 use crate::{
-    media::{
-        ContextMessage::*,
-        ContextMessage, PlaybackContext, SplitterContext,
-    },
+    media::{ContextMessage, ContextMessage::*, PlaybackContext, SplitterContext},
     metadata,
     metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor},
 };
@@ -288,7 +285,8 @@ impl SplitController {
             .and_then(|tags| {
                 tags.get::<gst::tags::Title>()
                     .map(|tag| tag.get().unwrap().to_owned())
-            }).unwrap_or_else(get_default_chapter_title);
+            })
+            .unwrap_or_else(get_default_chapter_title);
 
         if self.toc_visitor.is_some() {
             split_name += &format!("{:02}. ", self.idx);
@@ -394,7 +392,8 @@ impl SplitController {
                 .and_then(|tags| {
                     tags.get::<gst::tags::Title>()
                         .map(|tag| tag.get().unwrap().to_owned())
-                }).unwrap_or_else(get_default_chapter_title);
+                })
+                .unwrap_or_else(get_default_chapter_title);
             tags.add::<gst::tags::Title>(&title.as_str(), gst::TagMergeMode::Replace);
 
             let (start, end) = chapter.get_start_stop_times().unwrap();

@@ -212,10 +212,7 @@ impl AudioBuffer {
                             "case 2. contained in current container ",
                             "self [{}, {}], incoming [{}, {}]",
                         ),
-                        self.lower,
-                        self.upper,
-                        incoming_lower,
-                        incoming_upper
+                        self.lower, self.upper, incoming_lower, incoming_upper
                     );
                     self.last_buffer_upper = incoming_upper;
                     (
@@ -315,7 +312,8 @@ impl AudioBuffer {
                 self.audio_info.as_ref().unwrap(),
                 lower_to_add_rel,
                 upper_to_add_rel,
-            ).unwrap();
+            )
+            .unwrap();
 
             if !lower_changed || self.samples.is_empty() {
                 for sample in converter_iter {
