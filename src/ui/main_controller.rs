@@ -695,7 +695,7 @@ impl MainController {
         self.switch_to_busy();
 
         let file_dlg = gtk::FileChooserDialog::with_buttons(
-            Some(&gettext("Open a media file")),
+            Some(gettext("Open a media file").as_str()),
             Some(&self.window),
             gtk::FileChooserAction::Open,
             &[

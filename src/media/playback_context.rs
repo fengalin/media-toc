@@ -4,7 +4,7 @@ use gstreamer as gst;
 
 use gstreamer::{
     prelude::*,
-    BinExt, ClockTime, GstObjectExt, PadExt,
+    ClockTime, GstObjectExt, PadExt,
 };
 
 use glib;
