@@ -1,23 +1,18 @@
 use nom::{
-    types::CompleteStr,
     alt, call, do_parse, eof, error_position, flat_map, named, opt, parse_to, tag, take_while1,
+    types::CompleteStr,
 };
 
 use std::fmt;
 
-named!(parse_digits<CompleteStr<'_>, u64>,
-    flat_map!(
-        take_while1!(|c| c >= '0' && c <= '9'),
-        parse_to!(u64)
-    )
+named!(
+    parse_digits<CompleteStr<'_>, u64>,
+    flat_map!(take_while1!(|c| c >= '0' && c <= '9'), parse_to!(u64))
 );
 
-named!(parse_opt_dot_digits<CompleteStr<'_>, Option<u64>>,
-    opt!(do_parse!(
-        tag!(".") >>
-        nb: parse_digits >>
-        (nb)
-    ))
+named!(
+    parse_opt_dot_digits<CompleteStr<'_>, Option<u64>>,
+    opt!(do_parse!(tag!(".") >> nb: parse_digits >> (nb)))
 );
 
 named!(pub parse_timestamp<CompleteStr<'_>, Timestamp>,
@@ -175,7 +170,8 @@ impl Timestamp {
                 s_total % 60,
                 ms_total % 1_000,
                 micro
-            ).to_owned()
+            )
+            .to_owned()
         } else {
             format!(
                 "{:02}:{:02}:{:02}.{:03}{}",
@@ -184,7 +180,8 @@ impl Timestamp {
                 s_total % 60,
                 ms_total % 1_000,
                 micro
-            ).to_owned()
+            )
+            .to_owned()
         }
     }
 }

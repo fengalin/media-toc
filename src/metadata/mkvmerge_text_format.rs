@@ -5,9 +5,8 @@ use log::error;
 
 use nom;
 use nom::{
-    types::CompleteStr,
-    AtEof, InputLength, call, do_parse, eat_separator, error_position, flat_map, named, opt,
-    parse_to, tag, take, take_until_either, verify,
+    call, do_parse, eat_separator, error_position, flat_map, named, opt, parse_to, tag, take,
+    take_until_either, types::CompleteStr, verify, AtEof, InputLength,
 };
 
 use std::io::{Read, Write};
@@ -50,20 +49,22 @@ fn new_chapter(nb: usize, start_ts: Timestamp, title: &str) -> gst::TocEntry {
     chapter
 }
 
-named!(parse_chapter<CompleteStr<'_>, gst::TocEntry>,
+named!(
+    parse_chapter<CompleteStr<'_>, gst::TocEntry>,
     do_parse!(
-        tag!(CHAPTER_TAG) >>
-        nb1: flat_map!(take!(2), parse_to!(usize)) >>
-        tag!("=") >>
-        start: flat_map!(take_until_either!("\r\n"), parse_timestamp) >>
-        eat_separator!("\r\n") >>
-        tag!(CHAPTER_TAG) >>
-        nb: verify!(flat_map!(take!(2), parse_to!(usize)), |nb2:usize| nb1 == nb2) >>
-        tag!(NAME_TAG) >>
-        tag!("=") >>
-        title: take_until_either!("\r\n") >>
-        opt!(eat_separator!("\r\n")) >>
-        (new_chapter(nb, start, &title))
+        tag!(CHAPTER_TAG)
+            >> nb1: flat_map!(take!(2), parse_to!(usize))
+            >> tag!("=")
+            >> start: flat_map!(take_until_either!("\r\n"), parse_timestamp)
+            >> eat_separator!("\r\n")
+            >> tag!(CHAPTER_TAG)
+            >> nb: verify!(flat_map!(take!(2), parse_to!(usize)), |nb2: usize| nb1
+                == nb2)
+            >> tag!(NAME_TAG)
+            >> tag!("=")
+            >> title: take_until_either!("\r\n")
+            >> opt!(eat_separator!("\r\n"))
+            >> (new_chapter(nb, start, &title))
     )
 );
 
@@ -152,7 +153,8 @@ impl Reader for MKVMergeTextFormat {
                                     .replacen("{}", &i[..i.len().min(2)], 1),
                                 nom::ErrorKind::Verify => gettext(
                                     "chapter numbers don't match for: {}",
-                                ).replacen("{}", &i[..i.len().min(2)], 1),
+                                )
+                                .replacen("{}", &i[..i.len().min(2)], 1),
                                 _ => gettext("unexpected sequence starting with: {}").replacen(
                                     "{}",
                                     &i[..i.len().min(10)],
@@ -253,7 +255,8 @@ impl Writer for MKVMergeTextFormat {
                     .and_then(|tags| {
                         tags.get::<gst::tags::Title>()
                             .map(|tag| tag.get().unwrap().to_owned())
-                    }).unwrap_or_else(get_default_chapter_title);
+                    })
+                    .unwrap_or_else(get_default_chapter_title);
                 write_fmt!(destination, "{}{}={}\n", prefix, NAME_TAG, &title);
             }
         }

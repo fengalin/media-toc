@@ -247,11 +247,13 @@ impl MediaInfo {
                 self.tags
                     .get_index::<gst::tags::AlbumArtist>(0)
                     .map(|value| value.get().unwrap())
-            }).or_else(|| {
+            })
+            .or_else(|| {
                 self.tags
                     .get_index::<gst::tags::ArtistSortname>(0)
                     .map(|value| value.get().unwrap())
-            }).or_else(|| {
+            })
+            .or_else(|| {
                 self.tags
                     .get_index::<gst::tags::AlbumArtistSortname>(0)
                     .map(|value| value.get().unwrap())

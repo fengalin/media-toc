@@ -2,10 +2,7 @@ use gettextrs::gettext;
 
 use gstreamer as gst;
 
-use gstreamer::{
-    prelude::*,
-    ClockTime, GstObjectExt, PadExt,
-};
+use gstreamer::{prelude::*, ClockTime, GstObjectExt, PadExt};
 
 use glib;
 use glib::{Cast, ObjectExt};
@@ -15,16 +12,10 @@ use log::{debug, info, warn};
 use std::{
     error::Error,
     path::Path,
-    sync::{
-        mpsc::Sender,
-        Arc, Mutex, RwLock,
-    },
+    sync::{mpsc::Sender, Arc, Mutex, RwLock},
 };
 
-use crate::{
-    application::CONFIG,
-    metadata::MediaInfo,
-};
+use crate::{application::CONFIG, metadata::MediaInfo};
 
 use super::{ContextMessage, DoubleAudioBuffer};
 
@@ -158,11 +149,12 @@ impl PlaybackContext {
     }
 
     pub fn seek(&self, position: u64, accurate: bool) {
-        let flags = gst::SeekFlags::FLUSH | if accurate {
-            gst::SeekFlags::ACCURATE
-        } else {
-            gst::SeekFlags::KEY_UNIT
-        };
+        let flags = gst::SeekFlags::FLUSH
+            | if accurate {
+                gst::SeekFlags::ACCURATE
+            } else {
+                gst::SeekFlags::KEY_UNIT
+            };
         self.pipeline
             .seek_simple(flags, ClockTime::from(position))
             .ok()
@@ -185,7 +177,8 @@ impl PlaybackContext {
                 ClockTime::from(start),
                 gst::SeekType::Set,
                 ClockTime::from(end),
-            ).ok()
+            )
+            .ok()
             .unwrap();
         if self.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
             warn!("Seeking range: Could not set media in palying state");
@@ -233,7 +226,8 @@ impl PlaybackContext {
                         .unwrap(),
                 );
                 None
-            }).ok()
+            })
+            .ok()
             .unwrap();
         #[cfg(feature = "trace-playback-queues")]
         queue
@@ -259,7 +253,8 @@ impl PlaybackContext {
                         .unwrap(),
                 );
                 None
-            }).ok()
+            })
+            .ok()
             .unwrap();
     }
 

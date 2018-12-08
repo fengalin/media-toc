@@ -12,8 +12,8 @@ use pango::{ContextExt, LayoutExt};
 
 use std::{
     boxed::Box,
-    collections::Bound::Included,
     cell::RefCell,
+    collections::Bound::Included,
     rc::{Rc, Weak},
     sync::{Arc, Mutex},
 };

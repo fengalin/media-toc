@@ -1,10 +1,7 @@
 use gdk::{Cursor, CursorType, WindowExt};
 use gettextrs::{gettext, ngettext};
 use gio;
-use gio::{
-    prelude::*,
-    MenuExt,
-};
+use gio::{prelude::*, MenuExt};
 
 use glib;
 use gstreamer as gst;
@@ -24,10 +21,7 @@ use std::{
 
 use crate::{
     application::{APP_ID, APP_PATH, CONFIG},
-    media::{
-        ContextMessage::*,
-        ContextMessage, PlaybackContext,
-    },
+    media::{ContextMessage, ContextMessage::*, PlaybackContext},
 };
 
 use super::{
@@ -87,7 +81,11 @@ pub struct MainController {
 }
 
 impl MainController {
-    pub fn new_rc(gtk_app: &gtk::Application, is_gst_ok: bool, disable_gl: bool) -> Rc<RefCell<Self>> {
+    pub fn new_rc(
+        gtk_app: &gtk::Application,
+        is_gst_ok: bool,
+        disable_gl: bool,
+    ) -> Rc<RefCell<Self>> {
         let builder = gtk::Builder::new_from_resource(&format!("{}/{}", *APP_PATH, "media-toc.ui"));
         let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
         window.set_application(gtk_app);

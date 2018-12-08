@@ -27,15 +27,18 @@ fn generate_resources() {
         .arg(format!(
             "--target={}",
             target_path.join("icons.gresource").to_str().unwrap(),
-        )).arg(input_path.join("icons.gresource.xml").to_str().unwrap());
+        ))
+        .arg(input_path.join("icons.gresource.xml").to_str().unwrap());
 
     match compile_res.status() {
-        Ok(status) => if !status.success() {
-            panic!(format!(
-                "Failed to generate resources file for icons\n{:?}",
-                compile_res,
-            ));
-        },
+        Ok(status) => {
+            if !status.success() {
+                panic!(format!(
+                    "Failed to generate resources file for icons\n{:?}",
+                    compile_res,
+                ));
+            }
+        }
         Err(ref error) => match error.kind() {
             ErrorKind::NotFound => panic!(
                 "Can't generate icon resources: command `glib-compile-resources` not available"
@@ -54,15 +57,18 @@ fn generate_resources() {
         .arg(format!(
             "--target={}",
             target_path.join("ui.gresource").to_str().unwrap(),
-        )).arg(input_path.join("ui.gresource.xml").to_str().unwrap());
+        ))
+        .arg(input_path.join("ui.gresource.xml").to_str().unwrap());
 
     match compile_res.status() {
-        Ok(status) => if !status.success() {
-            panic!(format!(
-                "Failed to generate resources file for the UI\n{:?}",
-                compile_res,
-            ));
-        },
+        Ok(status) => {
+            if !status.success() {
+                panic!(format!(
+                    "Failed to generate resources file for the UI\n{:?}",
+                    compile_res,
+                ));
+            }
+        }
         Err(ref error) => match error.kind() {
             ErrorKind::NotFound => panic!(
                 "Can't generate UI resources: command `glib-compile-resources` not available"
@@ -91,16 +97,19 @@ fn generate_translations() {
                 .arg(format!(
                     "--output-file={}",
                     mo_path.join("media-toc.mo").to_str().unwrap()
-                )).arg("--directory=po")
+                ))
+                .arg("--directory=po")
                 .arg(format!("{}.po", lingua));
 
             match msgfmt.status() {
-                Ok(status) => if !status.success() {
-                    panic!(format!(
-                        "Failed to generate mo file for lingua {}\n{:?}",
-                        lingua, msgfmt,
-                    ));
-                },
+                Ok(status) => {
+                    if !status.success() {
+                        panic!(format!(
+                            "Failed to generate mo file for lingua {}\n{:?}",
+                            lingua, msgfmt,
+                        ));
+                    }
+                }
                 Err(ref error) => match error.kind() {
                     ErrorKind::NotFound => {
                         eprintln!("Can't generate translations: command `msgfmt` not available");
@@ -129,7 +138,8 @@ fn generate_install_script() {
                     .write_all(
                         format!("# User install script for {}\n", env!("CARGO_PKG_NAME"))
                             .as_bytes(),
-                    ).unwrap();
+                    )
+                    .unwrap();
 
                 install_file.write_all(b"\n# Install executable\n").unwrap();
                 let exe_source_path = PathBuf::from("target")
@@ -144,8 +154,10 @@ fn generate_install_script() {
                             "cp {} {}\n",
                             exe_source_path.to_str().unwrap(),
                             exe_dir.join(env!("CARGO_PKG_NAME")).to_str().unwrap(),
-                        ).as_bytes(),
-                    ).unwrap();
+                        )
+                        .as_bytes(),
+                    )
+                    .unwrap();
 
                 install_file.write_all(b"\n# Install icons\n").unwrap();
                 let icon_target_dir = data_dir.join("icons").join("hicolor");
@@ -159,7 +171,8 @@ fn generate_install_script() {
                         install_file
                             .write_all(
                                 format!("mkdir -p {}\n", target_dir.to_str().unwrap()).as_bytes(),
-                            ).unwrap();
+                            )
+                            .unwrap();
 
                         install_file
                             .write_all(
@@ -167,8 +180,10 @@ fn generate_install_script() {
                                     "cp -r {:?}/* {:?}\n",
                                     entry_path.to_str().unwrap(),
                                     target_dir,
-                                ).as_bytes(),
-                            ).unwrap();
+                                )
+                                .as_bytes(),
+                            )
+                            .unwrap();
                     }
                 }
 
@@ -184,8 +199,10 @@ fn generate_install_script() {
                             "cp -r {} {}\n",
                             PathBuf::from("target").join("locale").to_str().unwrap(),
                             data_dir.to_str().unwrap(),
-                        ).as_bytes(),
-                    ).unwrap();
+                        )
+                        .as_bytes(),
+                    )
+                    .unwrap();
 
                 install_file
                     .write_all(b"\n# Install desktop file\n")
@@ -194,7 +211,8 @@ fn generate_install_script() {
                 install_file
                     .write_all(
                         format!("mkdir -p {}\n", desktop_target_dir.to_str().unwrap()).as_bytes(),
-                    ).unwrap();
+                    )
+                    .unwrap();
                 install_file
                     .write_all(
                         format!(
@@ -204,8 +222,10 @@ fn generate_install_script() {
                                 .to_str()
                                 .unwrap(),
                             desktop_target_dir.to_str().unwrap(),
-                        ).as_bytes(),
-                    ).unwrap();
+                        )
+                        .as_bytes(),
+                    )
+                    .unwrap();
             }
             Err(err) => panic!("Couldn't create file `target/install`: {:?}", err),
         }
@@ -228,7 +248,8 @@ fn generate_uninstall_script() {
                     .write_all(
                         format!("# User uninstall script for {}\n", env!("CARGO_PKG_NAME"))
                             .as_bytes(),
-                    ).unwrap();
+                    )
+                    .unwrap();
 
                 install_file
                     .write_all(b"\n# Uninstall executable\n")
@@ -238,8 +259,10 @@ fn generate_uninstall_script() {
                         format!(
                             "rm {}\n",
                             exe_dir.join(env!("CARGO_PKG_NAME")).to_str().unwrap(),
-                        ).as_bytes(),
-                    ).unwrap();
+                        )
+                        .as_bytes(),
+                    )
+                    .unwrap();
                 install_file
                     .write_all(format!("rmdir -p {}\n", exe_dir.to_str().unwrap()).as_bytes())
                     .unwrap();
@@ -266,15 +289,18 @@ fn generate_uninstall_script() {
                                             .join(icon_subdir_entry.file_name())
                                             .to_str()
                                             .unwrap(),
-                                    ).as_bytes(),
-                                ).unwrap();
+                                    )
+                                    .as_bytes(),
+                                )
+                                .unwrap();
                         }
 
                         install_file
                             .write_all(
                                 format!("rmdir -p {}\n", icon_target_dir.to_str().unwrap())
                                     .as_bytes(),
-                            ).unwrap();
+                            )
+                            .unwrap();
                     }
                 }
 
@@ -298,13 +324,16 @@ fn generate_uninstall_script() {
                                         .join(&format!("{}.mo", env!("CARGO_PKG_NAME")))
                                         .to_str()
                                         .unwrap(),
-                                ).as_bytes(),
-                            ).unwrap();
+                                )
+                                .as_bytes(),
+                            )
+                            .unwrap();
 
                         install_file
                             .write_all(
                                 format!("rmdir -p {}\n", lingua_dir.to_str().unwrap()).as_bytes(),
-                            ).unwrap();
+                            )
+                            .unwrap();
                     }
                 }
 
@@ -320,12 +349,15 @@ fn generate_uninstall_script() {
                                 .join(&format!("org.fengalin.{}.desktop", env!("CARGO_PKG_NAME")))
                                 .to_str()
                                 .unwrap(),
-                        ).as_bytes(),
-                    ).unwrap();
+                        )
+                        .as_bytes(),
+                    )
+                    .unwrap();
                 install_file
                     .write_all(
                         format!("rmdir -p {}\n", desktop_target_dir.to_str().unwrap()).as_bytes(),
-                    ).unwrap();
+                    )
+                    .unwrap();
             }
             Err(err) => panic!("Couldn't create file `target/uninstall`: {:?}", err),
         }

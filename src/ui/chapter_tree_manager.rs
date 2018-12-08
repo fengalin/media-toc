@@ -4,10 +4,7 @@ use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 
-use std::{
-    cell::RefCell,
-    rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 
 use crate::metadata::{get_default_chapter_title, Timestamp, TocVisitor};
 
@@ -236,7 +233,8 @@ impl ChapterTreeManager {
                         .and_then(|tags| {
                             tags.get::<gst::tags::Title>()
                                 .map(|tag| tag.get().unwrap().to_owned())
-                        }).unwrap_or_else(get_default_chapter_title);
+                        })
+                        .unwrap_or_else(get_default_chapter_title);
                     let iter = self.store.insert_with_values(
                         None,
                         None,
