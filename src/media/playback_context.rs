@@ -2,7 +2,7 @@ use gettextrs::gettext;
 
 use gstreamer as gst;
 
-use gstreamer::{prelude::*, ClockTime, GstObjectExt, PadExt};
+use gstreamer::{prelude::*, ClockTime, GstObjectExt};
 
 use glib;
 use glib::{Cast, ObjectExt};
@@ -129,21 +129,19 @@ impl PlaybackContext {
             .expect("PlaybackContext::play: couldn't lock dbl_audio_buffer_mtx")
             .accept_eos();
 
-        match self.pipeline.set_state(gst::State::Playing) {
-            gst::StateChangeReturn::Failure => Err(gettext("Could not set media in Playing mode")),
-            _ => Ok(()),
-        }
+        self.pipeline.set_state(gst::State::Playing)
+            .map(|_| ())
+            .map_err(|_| gettext("Could not set media in Playing mode"))
     }
 
     pub fn pause(&self) -> Result<(), String> {
-        match self.pipeline.set_state(gst::State::Paused) {
-            gst::StateChangeReturn::Failure => Err(gettext("Could not set media in Paused mode")),
-            _ => Ok(()),
-        }
+        self.pipeline.set_state(gst::State::Paused)
+            .map(|_| ())
+            .map_err(|_| gettext("Could not set media in Paused mode"))
     }
 
     pub fn stop(&self) {
-        if self.pipeline.set_state(gst::State::Null) == gst::StateChangeReturn::Failure {
+        if !self.pipeline.set_state(gst::State::Null).is_ok() {
             warn!("could not set media in Null state");
         }
     }
@@ -180,10 +178,10 @@ impl PlaybackContext {
             )
             .ok()
             .unwrap();
-        if self.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
+        if !self.pipeline.set_state(gst::State::Playing).is_ok() {
             warn!("Seeking range: Could not set media in palying state");
             self.dbl_audio_buffer_mtx.lock().unwrap().accept_eos();
-        }
+        };
     }
 
     pub fn select_streams(&self, stream_ids: &[Arc<str>]) {
@@ -355,19 +353,13 @@ impl PlaybackContext {
             gst::Element::link_many(waveform_elements).unwrap();
 
             let tee_sink = tee.get_static_pad("sink").unwrap();
-            assert_eq!(src_pad.link(&tee_sink), gst::PadLinkReturn::Ok);
+            src_pad.link(&tee_sink).unwrap();
 
             let tee_playback_src_pad = tee.get_request_pad("src_%u").unwrap();
-            assert_eq!(
-                tee_playback_src_pad.link(&playback_sink_pad),
-                gst::PadLinkReturn::Ok
-            );
+            tee_playback_src_pad.link(&playback_sink_pad).unwrap();
 
             let tee_waveform_src_pad = tee.get_request_pad("src_%u").unwrap();
-            assert_eq!(
-                tee_waveform_src_pad.link(&waveform_sink_pad),
-                gst::PadLinkReturn::Ok
-            );
+            tee_waveform_src_pad.link(&waveform_sink_pad).unwrap();
 
             for e in elements {
                 e.sync_state_with_parent().unwrap();
@@ -475,7 +467,7 @@ impl PlaybackContext {
         }
 
         let sink_pad = queue.get_static_pad("sink").unwrap();
-        assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
+        src_pad.link(&sink_pad).unwrap();
     }
 
     // Uses ctx_tx to notify the UI controllers about the inspection process

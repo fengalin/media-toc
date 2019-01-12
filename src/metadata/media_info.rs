@@ -83,7 +83,7 @@ impl Stream {
         };
 
         Stream {
-            id: stream.get_stream_id().unwrap().into(),
+            id: stream.get_stream_id().unwrap().as_str().into(),
             codec_printable,
             caps,
             tags,

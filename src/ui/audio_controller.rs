@@ -543,7 +543,7 @@ impl AudioController {
                 let size = f64::from(ref_layout.get_baseline() / pango::SCALE);
                 cr.set_font_size(size);
 
-                self.font_family = Some(family);
+                self.font_family = Some(family.to_string());
                 self.font_size = size;
                 self.twice_font_size = 2f64 * size;
                 self.half_font_size = 0.5f64 * size;

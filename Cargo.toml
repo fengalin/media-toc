@@ -22,8 +22,8 @@ gdk = { git = "https://github.com/gtk-rs/gdk" }
 gettext-rs = { version = "0.4", features = ["gettext-system"] }
 gio = { git = "https://github.com/gtk-rs/gio" }
 glib = { git = "https://github.com/gtk-rs/glib" }
-gstreamer = { git = "https://github.com/sdroege/gstreamer-rs", features = ["v1_10"] }
-gstreamer-audio = { git = "https://github.com/sdroege/gstreamer-rs", features = ["v1_10"] }
+gstreamer = { git = "https://gitlab.freedesktop.org/fengalin/gstreamer-rs", branch = "return_2_success_error", features = ["v1_10"] }
+gstreamer-audio = { git = "https://gitlab.freedesktop.org/fengalin/gstreamer-rs", branch = "return_2_success_error", features = ["v1_10"] }
 gtk = { git = "https://github.com/gtk-rs/gtk", features = ["v3_18"] }
 image = "0.19"
 lazy_static = "1.1"

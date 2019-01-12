@@ -116,10 +116,9 @@ impl SplitterContext {
         this.build_pipeline(input_path, output_path, stream_id);
         this.register_bus_inspector(ctx_tx);
 
-        match this.pipeline.set_state(gst::State::Paused) {
-            gst::StateChangeReturn::Failure => Err(gettext("Could not set media in Paused mode")),
-            _ => Ok(this),
-        }
+        this.pipeline.set_state(gst::State::Paused)
+            .map(|_| this)
+            .map_err(|_| gettext("Could not set media in Paused mode"))
     }
 
     pub fn get_position(&mut self) -> u64 {
@@ -283,7 +282,7 @@ impl SplitterContext {
             let queue = gst::ElementFactory::make("queue", None).unwrap();
             pipeline_cb.add(&queue).unwrap();
             let queue_sink_pad = queue.get_static_pad("sink").unwrap();
-            assert_eq!(pad.link(&queue_sink_pad), gst::PadLinkReturn::Ok);
+            pad.link(&queue_sink_pad).unwrap();
             queue.sync_state_with_parent().unwrap();
             let queue_src_pad = queue.get_static_pad("src").unwrap();
 
@@ -303,10 +302,7 @@ impl SplitterContext {
                 let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
                 pipeline_cb.add(&fakesink).unwrap();
                 let fakesink_sink_pad = fakesink.get_static_pad("sink").unwrap();
-                assert_eq!(
-                    queue_src_pad.link(&fakesink_sink_pad),
-                    gst::PadLinkReturn::Ok
-                );
+                queue_src_pad.link(&fakesink_sink_pad).unwrap();
                 fakesink.sync_state_with_parent().unwrap();
             }
         });
@@ -318,7 +314,7 @@ impl SplitterContext {
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
-                    if pipeline.set_state(gst::State::Null) == gst::StateChangeReturn::Failure {
+                    if pipeline.set_state(gst::State::Null).is_err() {
                         ctx_tx
                             .send(ContextMessage::FailedToExport(gettext(
                                 "Failed to terminate properly. Check the resulting file.",
@@ -338,7 +334,7 @@ impl SplitterContext {
                 }
                 gst::MessageView::AsyncDone(_) => {
                     // Start splitting
-                    if pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
+                    if pipeline.set_state(gst::State::Playing).is_err() {
                         ctx_tx
                             .send(ContextMessage::FailedToExport(gettext(
                                 "Failed to start splitting.",

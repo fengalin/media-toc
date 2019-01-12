@@ -57,10 +57,9 @@ impl TocSetterContext {
         this.build_pipeline(input_path, output_path, streams);
         this.register_bus_inspector(ctx_tx);
 
-        match this.pipeline.set_state(gst::State::Paused) {
-            gst::StateChangeReturn::Failure => Err(gettext("Could not set media in Paused mode")),
-            _ => Ok(this),
-        }
+        this.pipeline.set_state(gst::State::Paused)
+            .map(|_| this)
+            .map_err(|_| gettext("Could not set media in Paused mode"))
     }
 
     pub fn get_muxer(&self) -> Option<&gst::Element> {
@@ -68,10 +67,9 @@ impl TocSetterContext {
     }
 
     pub fn export(&mut self) -> Result<(), String> {
-        match self.pipeline.set_state(gst::State::Playing) {
-            gst::StateChangeReturn::Failure => Err(gettext("Could not set media in Playing mode")),
-            _ => Ok(()),
-        }
+        self.pipeline.set_state(gst::State::Playing)
+            .map(|_| ())
+            .map_err(|_| gettext("Could not set media in Playing mode"))
     }
 
     pub fn get_position(&mut self) -> u64 {
@@ -118,17 +116,18 @@ impl TocSetterContext {
             let queue = gst::ElementFactory::make("queue", None).unwrap();
             pipeline_cb.add(&queue).unwrap();
             let queue_sink_pad = queue.get_static_pad("sink").unwrap();
-            assert_eq!(pad.link(&queue_sink_pad), gst::PadLinkReturn::Ok);
+            pad.link(&queue_sink_pad).unwrap();
             queue.sync_state_with_parent().unwrap();
 
             let queue_src_pad = queue.get_static_pad("src").unwrap();
 
             if streams.contains(
-                &pad.get_stream_id()
-                    .expect("TocSetterContext::build_pipeline no stream_id for src pad"),
+                pad.get_stream_id()
+                    .expect("TocSetterContext::build_pipeline no stream_id for src pad")
+                    .as_str(),
             ) {
                 let muxer_sink_pad = muxer.get_compatible_pad(&queue_src_pad, None).unwrap();
-                assert_eq!(queue_src_pad.link(&muxer_sink_pad), gst::PadLinkReturn::Ok);
+                queue_src_pad.link(&muxer_sink_pad).unwrap();
                 muxer.sync_state_with_parent().unwrap();
 
                 // Listen to incoming events and drop Upstream TOCs
@@ -149,10 +148,7 @@ impl TocSetterContext {
                 let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
                 pipeline_cb.add(&fakesink).unwrap();
                 let fakesink_sink_pad = fakesink.get_static_pad("sink").unwrap();
-                assert_eq!(
-                    queue_src_pad.link(&fakesink_sink_pad),
-                    gst::PadLinkReturn::Ok
-                );
+                queue_src_pad.link(&fakesink_sink_pad).unwrap();
                 fakesink.sync_state_with_parent().unwrap();
             }
         });
