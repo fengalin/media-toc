@@ -116,7 +116,8 @@ impl SplitterContext {
         this.build_pipeline(input_path, output_path, stream_id);
         this.register_bus_inspector(ctx_tx);
 
-        this.pipeline.set_state(gst::State::Paused)
+        this.pipeline
+            .set_state(gst::State::Paused)
             .map(|_| this)
             .map_err(|_| gettext("Could not set media in Paused mode"))
     }

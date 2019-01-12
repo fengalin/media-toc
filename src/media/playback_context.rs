@@ -129,13 +129,15 @@ impl PlaybackContext {
             .expect("PlaybackContext::play: couldn't lock dbl_audio_buffer_mtx")
             .accept_eos();
 
-        self.pipeline.set_state(gst::State::Playing)
+        self.pipeline
+            .set_state(gst::State::Playing)
             .map(|_| ())
             .map_err(|_| gettext("Could not set media in Playing mode"))
     }
 
     pub fn pause(&self) -> Result<(), String> {
-        self.pipeline.set_state(gst::State::Paused)
+        self.pipeline
+            .set_state(gst::State::Paused)
             .map(|_| ())
             .map_err(|_| gettext("Could not set media in Paused mode"))
     }

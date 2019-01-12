@@ -57,7 +57,8 @@ impl TocSetterContext {
         this.build_pipeline(input_path, output_path, streams);
         this.register_bus_inspector(ctx_tx);
 
-        this.pipeline.set_state(gst::State::Paused)
+        this.pipeline
+            .set_state(gst::State::Paused)
             .map(|_| this)
             .map_err(|_| gettext("Could not set media in Paused mode"))
     }
@@ -67,7 +68,8 @@ impl TocSetterContext {
     }
 
     pub fn export(&mut self) -> Result<(), String> {
-        self.pipeline.set_state(gst::State::Playing)
+        self.pipeline
+            .set_state(gst::State::Playing)
             .map(|_| ())
             .map_err(|_| gettext("Could not set media in Playing mode"))
     }
