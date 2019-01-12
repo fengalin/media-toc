@@ -366,7 +366,7 @@ dependencies = [
 [[package]]
 name = "gstreamer"
 version = "0.13.0"
-source = "git+https://gitlab.freedesktop.org/fengalin/gstreamer-rs?branch=return_2_success_error#948fb2ae4bc3842536412bcd167a9f6c55d817f4"
+source = "git+https://gitlab.freedesktop.org/gstreamer/gstreamer-rs#948fb2ae4bc3842536412bcd167a9f6c55d817f4"
 dependencies = [
  "bitflags 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "cfg-if 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -383,14 +383,14 @@ dependencies = [
 [[package]]
 name = "gstreamer-audio"
 version = "0.13.0"
-source = "git+https://gitlab.freedesktop.org/fengalin/gstreamer-rs?branch=return_2_success_error#948fb2ae4bc3842536412bcd167a9f6c55d817f4"
+source = "git+https://gitlab.freedesktop.org/gstreamer/gstreamer-rs#948fb2ae4bc3842536412bcd167a9f6c55d817f4"
 dependencies = [
  "array-init 0.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "bitflags 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib 0.6.0 (git+https://github.com/gtk-rs/glib)",
  "glib-sys 0.7.0 (git+https://github.com/gtk-rs/sys)",
  "gobject-sys 0.7.0 (git+https://github.com/gtk-rs/sys)",
- "gstreamer 0.13.0 (git+https://gitlab.freedesktop.org/fengalin/gstreamer-rs?branch=return_2_success_error)",
+ "gstreamer 0.13.0 (git+https://gitlab.freedesktop.org/gstreamer/gstreamer-rs)",
  "gstreamer-audio-sys 0.7.0 (git+https://gitlab.freedesktop.org/gstreamer/gstreamer-rs-sys)",
  "gstreamer-sys 0.7.0 (git+https://gitlab.freedesktop.org/gstreamer/gstreamer-rs-sys)",
 ]
@@ -577,8 +577,8 @@ dependencies = [
  "gettext-rs 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "gio 0.5.1 (git+https://github.com/gtk-rs/gio)",
  "glib 0.6.0 (git+https://github.com/gtk-rs/glib)",
- "gstreamer 0.13.0 (git+https://gitlab.freedesktop.org/fengalin/gstreamer-rs?branch=return_2_success_error)",
- "gstreamer-audio 0.13.0 (git+https://gitlab.freedesktop.org/fengalin/gstreamer-rs?branch=return_2_success_error)",
+ "gstreamer 0.13.0 (git+https://gitlab.freedesktop.org/gstreamer/gstreamer-rs)",
+ "gstreamer-audio 0.13.0 (git+https://gitlab.freedesktop.org/gstreamer/gstreamer-rs)",
  "gtk 0.5.0 (git+https://github.com/gtk-rs/gtk)",
  "image 0.19.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1058,8 +1058,8 @@ dependencies = [
 "checksum glib 0.6.0 (git+https://github.com/gtk-rs/glib)" = "<none>"
 "checksum glib-sys 0.7.0 (git+https://github.com/gtk-rs/sys)" = "<none>"
 "checksum gobject-sys 0.7.0 (git+https://github.com/gtk-rs/sys)" = "<none>"
-"checksum gstreamer 0.13.0 (git+https://gitlab.freedesktop.org/fengalin/gstreamer-rs?branch=return_2_success_error)" = "<none>"
-"checksum gstreamer-audio 0.13.0 (git+https://gitlab.freedesktop.org/fengalin/gstreamer-rs?branch=return_2_success_error)" = "<none>"
+"checksum gstreamer 0.13.0 (git+https://gitlab.freedesktop.org/gstreamer/gstreamer-rs)" = "<none>"
+"checksum gstreamer-audio 0.13.0 (git+https://gitlab.freedesktop.org/gstreamer/gstreamer-rs)" = "<none>"
 "checksum gstreamer-audio-sys 0.7.0 (git+https://gitlab.freedesktop.org/gstreamer/gstreamer-rs-sys)" = "<none>"
 "checksum gstreamer-base-sys 0.7.0 (git+https://gitlab.freedesktop.org/gstreamer/gstreamer-rs-sys)" = "<none>"
 "checksum gstreamer-sys 0.7.0 (git+https://gitlab.freedesktop.org/gstreamer/gstreamer-rs-sys)" = "<none>"
