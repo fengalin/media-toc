@@ -143,7 +143,7 @@ impl PlaybackContext {
     }
 
     pub fn stop(&self) {
-        if !self.pipeline.set_state(gst::State::Null).is_ok() {
+        if self.pipeline.set_state(gst::State::Null).is_err() {
             warn!("could not set media in Null state");
         }
     }
@@ -174,7 +174,7 @@ impl PlaybackContext {
             )
             .ok()
             .unwrap();
-        if !self.pipeline.set_state(gst::State::Playing).is_ok() {
+        if self.pipeline.set_state(gst::State::Playing).is_err() {
             warn!("Seeking range: Could not set media in palying state");
             self.dbl_audio_buffer_mtx.lock().unwrap().accept_eos();
         };
