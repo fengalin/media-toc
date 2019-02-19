@@ -67,17 +67,19 @@ impl OutputBaseController {
         self.target_path = self.media_path.with_extension(&self.extension);
     }
 
-    pub fn show_message(&self, type_: gtk::MessageType, message: &str) {
+    pub fn show_message<Msg: AsRef<str>>(&self, type_: gtk::MessageType, message: Msg) {
         let main_ctrl_rc = self.main_ctrl.as_ref().unwrap().upgrade().unwrap();
         main_ctrl_rc.borrow().show_message(type_, message);
     }
 
-    pub fn show_info(&self, info: &str) {
-        self.show_message(gtk::MessageType::Info, info);
+    pub fn show_info<Msg: AsRef<str>>(&self, info: Msg) {
+        let main_ctrl_rc = self.main_ctrl.as_ref().unwrap().upgrade().unwrap();
+        main_ctrl_rc.borrow().show_info(info);
     }
 
-    pub fn show_error(&self, error: &str) {
-        self.show_message(gtk::MessageType::Error, error);
+    pub fn show_error<Msg: AsRef<str>>(&self, error: Msg) {
+        let main_ctrl_rc = self.main_ctrl.as_ref().unwrap().upgrade().unwrap();
+        main_ctrl_rc.borrow().show_error(error);
     }
 
     pub fn restore_context(&mut self) {

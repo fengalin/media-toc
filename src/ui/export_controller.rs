@@ -4,7 +4,7 @@ use glib;
 use gtk;
 use gtk::prelude::*;
 
-use log::{error, warn};
+use log::warn;
 
 use std::{
     cell::RefCell,
@@ -137,22 +137,18 @@ impl ExportController {
                                 gtk::MessageType::Info,
                                 gettext("Table of contents exported succesfully"),
                             ),
-                            Err(err) => {
-                                error!("{}", err);
-                                (gtk::MessageType::Error, err)
-                            }
+                            Err(err) => (gtk::MessageType::Error, err),
                         }
                     }
-                    Err(_) => {
-                        let msg = gettext("Failed to create the file for the table of contents");
-                        error!("{}", msg);
-                        (gtk::MessageType::Error, msg)
-                    }
+                    Err(_) => (
+                        gtk::MessageType::Error,
+                        gettext("Failed to create the file for the table of contents"),
+                    ),
                 };
 
                 self.restore_context();
                 self.switch_to_available();
-                self.show_message(msg_type, &msg);
+                self.show_message(msg_type, msg);
             }
             ExportType::SingleFileWithToc => {
                 let (streams, is_audio_only) = {
@@ -203,9 +199,9 @@ impl ExportController {
                 self.remove_listener();
                 self.switch_to_available();
                 self.restore_context();
-                let msg = gettext("Failed to prepare for export. {}").replacen("{}", &error, 1);
-                self.show_error(&msg);
-                error!("{}", msg);
+                self.show_error(
+                    gettext("Failed to prepare for export. {}").replacen("{}", &error, 1),
+                );
             }
         };
     }
@@ -271,24 +267,22 @@ impl ExportController {
 
                             if let Err(err) = toc_setter_ctx.export() {
                                 keep_going = false;
-                                let msg =
-                                    gettext("Failed to export media. {}").replacen("{}", &err, 1);
-                                this.show_error(&msg);
-                                error!("{}", msg);
+                                this.show_error(
+                                    gettext("Failed to export media. {}").replacen("{}", &err, 1),
+                                );
                             }
 
                             this.toc_setter_ctx = Some(toc_setter_ctx);
                         }
                         Eos => {
-                            this.show_info(&gettext("Media exported succesfully"));
+                            this.show_info(gettext("Media exported succesfully"));
                             keep_going = false;
                         }
                         FailedToExport(error) => {
                             keep_going = false;
-                            let message =
-                                gettext("Failed to export media. {}").replacen("{}", &error, 1);
-                            this.show_error(&message);
-                            error!("{}", message);
+                            this.show_error(
+                                gettext("Failed to export media. {}").replacen("{}", &error, 1),
+                            );
                         }
                         _ => (),
                     };

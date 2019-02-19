@@ -8,7 +8,7 @@ use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 
-use log::error;
+use log::{error, info};
 
 use std::{
     cell::RefCell,
@@ -176,12 +176,9 @@ impl MainController {
                 StreamsController::register_callbacks(&this_mut.streams_ctrl, &this);
 
                 let _ = PlaybackContext::check_requirements().map_err(|err| {
-                    error!("{}", err);
                     let this_rc = Rc::clone(&this);
                     gtk::idle_add(move || {
-                        this_rc
-                            .borrow()
-                            .show_message(gtk::MessageType::Warning, &err);
+                        this_rc.borrow().show_error(&err);
                         glib::Continue(false)
                     });
                 });
@@ -247,8 +244,7 @@ impl MainController {
                     .connect_response(move |_, _| this_rc.borrow_mut().quit());
 
                 let msg = gettext("Failed to initialize GStreamer, the application can't be used.");
-                this_mut.show_message(gtk::MessageType::Error, &msg);
-                error!("{}", msg);
+                this_mut.show_error(msg);
             }
         }
 
@@ -302,10 +298,20 @@ impl MainController {
         self.window.destroy();
     }
 
-    pub fn show_message(&self, type_: gtk::MessageType, message: &str) {
+    pub fn show_message<Msg: AsRef<str>>(&self, type_: gtk::MessageType, message: Msg) {
         self.info_bar.set_message_type(type_);
-        self.info_bar_lbl.set_label(message);
+        self.info_bar_lbl.set_label(message.as_ref());
         self.info_bar_revealer.set_reveal_child(true);
+    }
+
+    pub fn show_error<Msg: AsRef<str>>(&self, message: Msg) {
+        error!("{}", message.as_ref());
+        self.show_message(gtk::MessageType::Error, message);
+    }
+
+    pub fn show_info<Msg: AsRef<str>>(&self, message: Msg) {
+        info!("{}", message.as_ref());
+        self.show_message(gtk::MessageType::Info, message);
     }
 
     pub fn play_pause(&mut self) {
@@ -587,8 +593,7 @@ impl MainController {
                             this.set_context(context);
 
                             if let Some(message) = this.check_missing_plugins() {
-                                this.show_message(gtk::MessageType::Info, &message);
-                                error!("{}", message);
+                                this.show_error(message);
                             }
                             this.state = ControllerState::Ready;
                         }
@@ -646,8 +651,7 @@ impl MainController {
                                 error += "\n\n";
                                 error += &message;
                             }
-                            this.show_message(gtk::MessageType::Error, &error);
-                            error!("{}", error);
+                            this.show_error(error);
                         }
                         _ => (),
                     };
@@ -756,8 +760,7 @@ impl MainController {
             Err(error) => {
                 self.switch_to_default();
                 let error = gettext("Error opening file.\n\n{}").replace("{}", &error);
-                self.show_message(gtk::MessageType::Error, &error);
-                error!("{}", error);
+                self.show_error(error);
             }
         };
     }

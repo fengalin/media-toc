@@ -191,7 +191,7 @@ impl SplitController {
         self.idx = 0;
 
         if let Err(err) = self.build_context(format) {
-            self.show_error(&err);
+            self.show_error(err);
         }
     }
 
@@ -476,11 +476,11 @@ impl SplitController {
                             process_done = match this.build_context(format) {
                                 Ok(true) => false, // more chapters
                                 Ok(false) => {
-                                    this.show_info(&gettext("Media split succesfully"));
+                                    this.show_info(gettext("Media split succesfully"));
                                     true
                                 }
                                 Err(err) => {
-                                    this.show_error(&err);
+                                    this.show_error(err);
                                     true
                                 }
                             };
@@ -491,10 +491,9 @@ impl SplitController {
                             this.listener_src = None;
                             keep_going = false;
                             process_done = true;
-                            let message =
-                                gettext("Failed to split media. {}").replacen("{}", &error, 1);
-                            error!("{}", message);
-                            this.show_error(&message);
+                            this.show_error(
+                                gettext("Failed to split media. {}").replacen("{}", &error, 1),
+                            );
                         }
                         _ => (),
                     };

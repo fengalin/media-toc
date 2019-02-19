@@ -7,7 +7,7 @@ use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 use lazy_static::lazy_static;
-use log::info;
+use log::{error, info};
 
 use std::{
     borrow::Cow,
@@ -344,11 +344,13 @@ impl InfoController {
         });
     }
 
-    fn show_error<Msg: Into<Cow<'static, str>>>(&self, message: Msg) {
+    fn show_error<Msg: Into<Cow<'static, str>> + AsRef<str>>(&self, message: Msg) {
+        error!("{}", message.as_ref());
         self.show_message(gtk::MessageType::Error, message);
     }
 
-    fn show_info<Msg: Into<Cow<'static, str>>>(&self, message: Msg) {
+    fn show_info<Msg: Into<Cow<'static, str>> + AsRef<str>>(&self, message: Msg) {
+        info!("{}", message.as_ref());
         self.show_message(gtk::MessageType::Info, message);
     }
 
