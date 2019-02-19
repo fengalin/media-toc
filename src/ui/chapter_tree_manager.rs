@@ -428,7 +428,11 @@ impl ChapterTreeManager {
                         };
 
                         let new_iter = self.store.insert(None, insert_position);
-                        (new_iter, duration, Timestamp::format(duration, false).into())
+                        (
+                            new_iter,
+                            duration,
+                            Timestamp::format(duration, false).into(),
+                        )
                     }
                 }
             }

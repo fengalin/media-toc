@@ -857,7 +857,9 @@ impl AudioController {
                     };
 
                     if must_seek {
-                        main_ctrl.borrow_mut().seek(position, gst::SeekFlags::ACCURATE);
+                        main_ctrl
+                            .borrow_mut()
+                            .seek(position, gst::SeekFlags::ACCURATE);
                     }
                 }
             }

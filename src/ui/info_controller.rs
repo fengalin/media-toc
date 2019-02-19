@@ -164,7 +164,9 @@ impl InfoController {
         let main_ctrl_clone = Rc::clone(main_ctrl);
         this.timeline_scale
             .connect_change_value(move |_, _, value| {
-                main_ctrl_clone.borrow_mut().seek(value as u64, gst::SeekFlags::KEY_UNIT);
+                main_ctrl_clone
+                    .borrow_mut()
+                    .seek(value as u64, gst::SeekFlags::KEY_UNIT);
                 Inhibit(true)
             });
 
@@ -189,7 +191,9 @@ impl InfoController {
                 };
 
                 if let Some(position) = position_opt {
-                    main_ctrl_clone.borrow_mut().seek(position, gst::SeekFlags::ACCURATE);
+                    main_ctrl_clone
+                        .borrow_mut()
+                        .seek(position, gst::SeekFlags::ACCURATE);
                 }
             });
 
@@ -253,7 +257,9 @@ impl InfoController {
             };
 
             if let Some(seek_pos) = seek_pos {
-                main_ctrl_clone.borrow_mut().seek(seek_pos, gst::SeekFlags::ACCURATE);
+                main_ctrl_clone
+                    .borrow_mut()
+                    .seek(seek_pos, gst::SeekFlags::ACCURATE);
             }
         });
         gtk_app.set_accels_for_action("app.next_chapter", &["Down", "AudioNext"]);
@@ -288,7 +294,9 @@ impl InfoController {
                 }
                 .unwrap_or(0);
 
-            main_ctrl_clone.borrow_mut().seek(seek_pos, gst::SeekFlags::ACCURATE);
+            main_ctrl_clone
+                .borrow_mut()
+                .seek(seek_pos, gst::SeekFlags::ACCURATE);
         });
         gtk_app.set_accels_for_action("app.previous_chapter", &["Up", "AudioPrev"]);
     }
@@ -329,7 +337,9 @@ impl InfoController {
         let main_ctrl_weak = Weak::clone(self.main_ctrl.as_ref().unwrap());
         gtk::idle_add(move || {
             let main_ctrl_rc = main_ctrl_weak.upgrade().unwrap();
-            main_ctrl_rc.borrow().show_message(message_type, message.as_ref());
+            main_ctrl_rc
+                .borrow()
+                .show_message(message_type, message.as_ref());
             glib::Continue(false)
         });
     }
@@ -371,8 +381,7 @@ impl InfoController {
             if let Some(ref image_sample) = info.get_image(0) {
                 if let Some(ref image_buffer) = image_sample.get_buffer() {
                     if let Some(ref image_map) = image_buffer.map_readable() {
-                        self.thumbnail =
-                            ImageSurface::from_unknown(image_map.as_slice()).ok();
+                        self.thumbnail = ImageSurface::from_unknown(image_map.as_slice()).ok();
                     }
                 }
             }
@@ -493,7 +502,9 @@ impl InfoController {
         let main_ctrl_weak = Weak::clone(main_ctrl.as_ref().unwrap());
         gtk::idle_add(move || {
             let main_ctrl_rc = main_ctrl_weak.upgrade().unwrap();
-            main_ctrl_rc.borrow_mut().seek(position, gst::SeekFlags::ACCURATE);
+            main_ctrl_rc
+                .borrow_mut()
+                .seek(position, gst::SeekFlags::ACCURATE);
             glib::Continue(false)
         });
     }
