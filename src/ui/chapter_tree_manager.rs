@@ -1,3 +1,5 @@
+use glib::GString;
+
 use gettextrs::gettext;
 use gstreamer as gst;
 
@@ -26,7 +28,7 @@ impl<'entry> ChapterEntry<'entry> {
         ChapterEntry { store, iter }
     }
 
-    pub fn title(&self) -> String {
+    pub fn title(&self) -> GString {
         ChapterEntry::get_title(self.store, self.iter)
     }
 
@@ -34,7 +36,7 @@ impl<'entry> ChapterEntry<'entry> {
         ChapterEntry::get_start(self.store, self.iter)
     }
 
-    pub fn start_str(&self) -> String {
+    pub fn start_str(&self) -> GString {
         ChapterEntry::get_start_str(self.store, self.iter)
     }
 
@@ -46,7 +48,7 @@ impl<'entry> ChapterEntry<'entry> {
         ChapterEntry::get_end(self.store, self.iter)
     }
 
-    pub fn end_str(&self) -> String {
+    pub fn end_str(&self) -> GString {
         ChapterEntry::get_end_str(self.store, self.iter)
     }
 
@@ -75,10 +77,10 @@ impl<'entry> ChapterEntry<'entry> {
         toc_entry
     }
 
-    pub fn get_title(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> String {
+    pub fn get_title(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> GString {
         store
             .get_value(iter, TITLE_COL as i32)
-            .get::<String>()
+            .get::<GString>()
             .unwrap()
     }
 
@@ -89,10 +91,10 @@ impl<'entry> ChapterEntry<'entry> {
             .unwrap()
     }
 
-    pub fn get_start_str(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> String {
+    pub fn get_start_str(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> GString {
         store
             .get_value(iter, START_STR_COL as i32)
-            .get::<String>()
+            .get::<GString>()
             .unwrap()
     }
 
@@ -100,10 +102,10 @@ impl<'entry> ChapterEntry<'entry> {
         store.get_value(iter, END_COL as i32).get::<u64>().unwrap()
     }
 
-    pub fn get_end_str(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> String {
+    pub fn get_end_str(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> GString {
         store
             .get_value(iter, END_STR_COL as i32)
-            .get::<String>()
+            .get::<GString>()
             .unwrap()
     }
 }
@@ -232,7 +234,7 @@ impl ChapterTreeManager {
                         .get_tags()
                         .and_then(|tags| {
                             tags.get::<gst::tags::Title>()
-                                .map(|tag| tag.get().unwrap().to_owned())
+                                .map(|tag| tag.get().unwrap().into())
                         })
                         .unwrap_or_else(get_default_chapter_title);
                     let iter = self.store.insert_with_values(
@@ -250,7 +252,7 @@ impl ChapterTreeManager {
 
                     self.boundaries
                         .borrow_mut()
-                        .add_chapter(start, end, &title, &iter);
+                        .add_chapter(start, end, title, &iter);
                 }
             }
         }
@@ -426,7 +428,7 @@ impl ChapterTreeManager {
                         };
 
                         let new_iter = self.store.insert(None, insert_position);
-                        (new_iter, duration, Timestamp::format(duration, false))
+                        (new_iter, duration, Timestamp::format(duration, false).into())
                     }
                 }
             }

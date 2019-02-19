@@ -10,6 +10,7 @@ use lazy_static::lazy_static;
 use log::info;
 
 use std::{
+    borrow::Cow,
     cell::RefCell,
     fs::File,
     rc::{Rc, Weak},
@@ -29,7 +30,7 @@ use super::{
 const GO_TO_PREV_CHAPTER_THRESHOLD: u64 = 1_000_000_000; // 1 s
 
 lazy_static! {
-    static ref EMPTY_REPLACEMENT: String = "-".to_owned();
+    static ref EMPTY_REPLACEMENT: &'static str = "-";
 }
 
 pub struct InfoController {
@@ -320,20 +321,24 @@ impl InfoController {
         Inhibit(true)
     }
 
-    fn show_message(&self, message_type: gtk::MessageType, message: String) {
+    fn show_message<Msg>(&self, message_type: gtk::MessageType, message: Msg)
+    where
+        Msg: Into<Cow<'static, str>>,
+    {
+        let message = message.into();
         let main_ctrl_weak = Weak::clone(self.main_ctrl.as_ref().unwrap());
         gtk::idle_add(move || {
             let main_ctrl_rc = main_ctrl_weak.upgrade().unwrap();
-            main_ctrl_rc.borrow().show_message(message_type, &message);
+            main_ctrl_rc.borrow().show_message(message_type, message.as_ref());
             glib::Continue(false)
         });
     }
 
-    fn show_error(&self, message: String) {
+    fn show_error<Msg: Into<Cow<'static, str>>>(&self, message: Msg) {
         self.show_message(gtk::MessageType::Error, message);
     }
 
-    fn show_info(&self, message: String) {
+    fn show_info<Msg: Into<Cow<'static, str>>>(&self, message: Msg) {
         self.show_message(gtk::MessageType::Info, message);
     }
 

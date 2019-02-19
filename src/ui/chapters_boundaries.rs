@@ -32,7 +32,11 @@ impl ChaptersBoundaries {
         self.0.clear();
     }
 
-    pub fn add_chapter(&mut self, start: u64, end: u64, title: &str, iter: &gtk::TreeIter) {
+    pub fn add_chapter<Title>(&mut self, start: u64, end: u64, title: Title, iter: &gtk::TreeIter)
+    where
+        Title: ToString,
+    {
+        let title = title.to_string();
         debug!("add_chapter {}, {}, {}", start, end, title);
 
         // the chapter to add can share at most one boundary with a previous chapter
@@ -41,7 +45,7 @@ impl ChaptersBoundaries {
                 // a boundary already exists at start
                 let next_chapter = chapters_at_start.next.take();
                 chapters_at_start.next = Some(Chapter {
-                    title: title.to_owned(),
+                    title: title.clone(),
                     iter: iter.clone(),
                 });
                 (true, next_chapter)
@@ -54,7 +58,7 @@ impl ChaptersBoundaries {
                 end,
                 SuccessiveChapters {
                     prev: Some(Chapter {
-                        title: title.to_owned(),
+                        title,
                         iter: iter.clone(),
                     }),
                     next: next_chapter,
@@ -67,7 +71,7 @@ impl ChaptersBoundaries {
                     // a boundary already exists at end
                     let prev_chapter = chapters_at_end.prev.take();
                     chapters_at_end.prev = Some(Chapter {
-                        title: title.to_owned(),
+                        title: title.clone(),
                         iter: iter.clone(),
                     });
                     (true, prev_chapter)
@@ -80,7 +84,7 @@ impl ChaptersBoundaries {
                 SuccessiveChapters {
                     prev: prev_chapter,
                     next: Some(Chapter {
-                        title: title.to_owned(),
+                        title: title.clone(),
                         iter: iter.clone(),
                     }),
                 },
@@ -91,7 +95,7 @@ impl ChaptersBoundaries {
                     end,
                     SuccessiveChapters {
                         prev: Some(Chapter {
-                            title: title.to_owned(),
+                            title,
                             iter: iter.clone(),
                         }),
                         next: None,
@@ -121,11 +125,15 @@ impl ChaptersBoundaries {
         }
     }
 
-    pub fn rename_chapter(&mut self, start: u64, end: u64, new_title: &str) {
+    pub fn rename_chapter<Title>(&mut self, start: u64, end: u64, new_title: Title)
+    where
+        Title: ToString,
+    {
+        let new_title = new_title.to_string();
         debug!("rename_chapter {}, {}, {}", start, end, new_title);
 
-        self.0.get_mut(&start).unwrap().next.as_mut().unwrap().title = new_title.to_owned();
-        self.0.get_mut(&end).unwrap().prev.as_mut().unwrap().title = new_title.to_owned();
+        self.0.get_mut(&start).unwrap().next.as_mut().unwrap().title = new_title.clone();
+        self.0.get_mut(&end).unwrap().prev.as_mut().unwrap().title = new_title;
     }
 
     pub fn move_boundary(&mut self, boundary: u64, to_position: u64) {

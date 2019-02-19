@@ -1,5 +1,6 @@
 use gettextrs::gettext;
 use glib;
+use glib::GString;
 use gstreamer as gst;
 
 use gtk;
@@ -134,11 +135,11 @@ impl StreamsController {
             });
     }
 
-    fn toggle_export(store: &gtk::ListStore, tree_path: &gtk::TreePath) -> Option<(String, bool)> {
+    fn toggle_export(store: &gtk::ListStore, tree_path: &gtk::TreePath) -> Option<(GString, bool)> {
         store.get_iter(&tree_path).map(|iter| {
             let stream_id = store
                 .get_value(&iter, STREAM_ID_COL as i32)
-                .get::<String>()
+                .get::<GString>()
                 .unwrap();
             let value = !store
                 .get_value(&iter, EXPORT_FLAG_COL as i32)
