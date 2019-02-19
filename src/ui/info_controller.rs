@@ -372,7 +372,7 @@ impl InfoController {
                 if let Some(ref image_buffer) = image_sample.get_buffer() {
                     if let Some(ref image_map) = image_buffer.map_readable() {
                         self.thumbnail =
-                            ImageSurface::create_from_uknown(image_map.as_slice()).ok();
+                            ImageSurface::from_unknown(image_map.as_slice()).ok();
                     }
                 }
             }

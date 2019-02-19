@@ -5,7 +5,7 @@ use log::warn;
 pub struct ImageSurface {}
 
 impl ImageSurface {
-    pub fn create_from_uknown(input: &[u8]) -> Result<cairo::ImageSurface, String> {
+    pub fn from_unknown(input: &[u8]) -> Result<cairo::ImageSurface, String> {
         match image::load_from_memory(input) {
             Ok(image) => {
                 match image.as_rgb8().as_ref() {
