@@ -148,15 +148,9 @@ impl PlaybackContext {
         }
     }
 
-    pub fn seek(&self, position: u64, accurate: bool) {
-        let flags = gst::SeekFlags::FLUSH
-            | if accurate {
-                gst::SeekFlags::ACCURATE
-            } else {
-                gst::SeekFlags::KEY_UNIT
-            };
+    pub fn seek(&self, position: u64, flags: gst::SeekFlags) {
         self.pipeline
-            .seek_simple(flags, ClockTime::from(position))
+            .seek_simple(gst::SeekFlags::FLUSH | flags, ClockTime::from(position))
             .ok()
             .unwrap();
     }

@@ -341,7 +341,7 @@ impl MainController {
         } else {
             // Restart the stream from the begining
             self.context = Some(context);
-            self.seek(0, true); // accurate (slow)
+            self.seek(0, gst::SeekFlags::ACCURATE);
         }
     }
 
@@ -351,10 +351,10 @@ impl MainController {
             .move_chapter_boundary(boundary, to_position)
     }
 
-    pub fn seek(&mut self, position: u64, accurate: bool) {
+    pub fn seek(&mut self, position: u64, flags: gst::SeekFlags) {
         let mut must_sync_ctrl = false;
         let mut seek_pos = position;
-        let mut accurate = accurate;
+        let mut flags = flags;
         self.state = match self.state {
             ControllerState::Seeking {
                 seek_pos: _seek_pos,
@@ -371,7 +371,7 @@ impl MainController {
                 keep_paused: false,
             },
             ControllerState::Paused => {
-                accurate = true;
+                flags = gst::SeekFlags::ACCURATE;
                 let seek_1st_step = self
                     .audio_ctrl
                     .borrow()
@@ -413,7 +413,7 @@ impl MainController {
             self.audio_ctrl.borrow_mut().seek(seek_pos);
         }
 
-        self.context.as_ref().unwrap().seek(seek_pos, accurate);
+        self.context.as_ref().unwrap().seek(seek_pos, flags);
     }
 
     pub fn play_range(&mut self, start: u64, end: u64, pos_to_restore: u64) {
@@ -603,7 +603,9 @@ impl MainController {
                             let mut this = this_rc.borrow_mut();
                             match this.state {
                                 ControllerState::Paused | ControllerState::Ready => this.refresh(),
-                                ControllerState::TwoStepsSeek(target) => this.seek(target, true),
+                                ControllerState::TwoStepsSeek(target) => {
+                                    this.seek(target, gst::SeekFlags::ACCURATE)
+                                }
                                 ControllerState::PendingSelectMedia => this.select_media(),
                                 ControllerState::PendingTakeContext => this.have_context(),
                                 _ => (),
@@ -618,7 +620,7 @@ impl MainController {
                                     this.context.as_ref().unwrap().pause().unwrap();
                                     this.state = ControllerState::Paused;
                                     this.audio_ctrl.borrow_mut().stop_play_range();
-                                    this.seek(pos_to_restore, true); // accurate
+                                    this.seek(pos_to_restore, gst::SeekFlags::ACCURATE);
                                 }
                                 _ => {
                                     this.play_pause_btn.set_icon_name(PLAYBACK_ICON);

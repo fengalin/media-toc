@@ -4,6 +4,7 @@ use gdk::{Cursor, CursorType, FrameClockExt, WindowExt};
 use gio;
 use gio::prelude::*;
 use glib;
+use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 use log::{debug, trace};
@@ -279,7 +280,7 @@ impl AudioController {
                 let this = this_clone.borrow_mut();
                 main_ctrl.get_position() + this.seek_step
             };
-            main_ctrl.seek(seek_pos, true); // accurate (slow)
+            main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
         });
         gtk_app.set_accels_for_action("app.step_forward", &["Right"]);
 
@@ -298,7 +299,7 @@ impl AudioController {
                     0
                 }
             };
-            main_ctrl.seek(seek_pos, true); // accurate (slow)
+            main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
         });
         gtk_app.set_accels_for_action("app.step_back", &["Left"]);
     }
@@ -856,7 +857,7 @@ impl AudioController {
                     };
 
                     if must_seek {
-                        main_ctrl.borrow_mut().seek(position, true); // accurate (slow)
+                        main_ctrl.borrow_mut().seek(position, gst::SeekFlags::ACCURATE);
                     }
                 }
             }

@@ -3,6 +3,7 @@ use gettextrs::gettext;
 use gio;
 use gio::prelude::*;
 use glib;
+use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 use lazy_static::lazy_static;
@@ -162,7 +163,7 @@ impl InfoController {
         let main_ctrl_clone = Rc::clone(main_ctrl);
         this.timeline_scale
             .connect_change_value(move |_, _, value| {
-                main_ctrl_clone.borrow_mut().seek(value as u64, false); // approximate (fast)
+                main_ctrl_clone.borrow_mut().seek(value as u64, gst::SeekFlags::KEY_UNIT);
                 Inhibit(true)
             });
 
@@ -187,7 +188,7 @@ impl InfoController {
                 };
 
                 if let Some(position) = position_opt {
-                    main_ctrl_clone.borrow_mut().seek(position, true); // accurate (slow)
+                    main_ctrl_clone.borrow_mut().seek(position, gst::SeekFlags::ACCURATE);
                 }
             });
 
@@ -251,7 +252,7 @@ impl InfoController {
             };
 
             if let Some(seek_pos) = seek_pos {
-                main_ctrl_clone.borrow_mut().seek(seek_pos, true); // accurate (slow)
+                main_ctrl_clone.borrow_mut().seek(seek_pos, gst::SeekFlags::ACCURATE);
             }
         });
         gtk_app.set_accels_for_action("app.next_chapter", &["Down", "AudioNext"]);
@@ -286,7 +287,7 @@ impl InfoController {
                 }
                 .unwrap_or(0);
 
-            main_ctrl_clone.borrow_mut().seek(seek_pos, true); // accurate (slow)
+            main_ctrl_clone.borrow_mut().seek(seek_pos, gst::SeekFlags::ACCURATE);
         });
         gtk_app.set_accels_for_action("app.previous_chapter", &["Up", "AudioPrev"]);
     }
@@ -487,7 +488,7 @@ impl InfoController {
         let main_ctrl_weak = Weak::clone(main_ctrl.as_ref().unwrap());
         gtk::idle_add(move || {
             let main_ctrl_rc = main_ctrl_weak.upgrade().unwrap();
-            main_ctrl_rc.borrow_mut().seek(position, true); // accurate (slow)
+            main_ctrl_rc.borrow_mut().seek(position, gst::SeekFlags::ACCURATE);
             glib::Continue(false)
         });
     }
