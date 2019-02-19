@@ -25,6 +25,7 @@ use crate::{
 
 use super::{
     ChapterTreeManager, ChaptersBoundaries, ControllerState, ImageSurface, MainController,
+    PositionStatus,
 };
 
 const GO_TO_PREV_CHAPTER_THRESHOLD: u64 = 1_000_000_000; // 1 s
@@ -514,19 +515,20 @@ impl InfoController {
     pub fn tick(&mut self, position: u64, is_eos: bool) {
         self.timeline_scale.set_value(position as f64);
 
-        let (mut has_changed, prev_selected_iter) = self.chapter_manager.update_position(position);
+        let (mut position_status, prev_selected_iter) =
+            self.chapter_manager.update_position(position);
 
         if self.repeat_chapter {
             // repeat is activated
             if is_eos {
-                // postpone chapter selection change until media as synchronized
-                has_changed = false;
+                // postpone chapter selection change until media has synchronized
+                position_status = PositionStatus::ChapterNotChanged;
                 self.chapter_manager.rewind();
                 InfoController::repeat_at(&self.main_ctrl, 0);
-            } else if has_changed {
+            } else if position_status == PositionStatus::ChapterChanged {
                 if let Some(ref prev_selected_iter) = prev_selected_iter {
-                    // discard has_changed because we will be looping on current chapter
-                    has_changed = false;
+                    // reset position_status because we will be looping on current chapter
+                    position_status = PositionStatus::ChapterNotChanged;
 
                     // unselect chapter in order to avoid tracing change to current position
                     self.chapter_manager.unselect();
@@ -540,8 +542,7 @@ impl InfoController {
             }
         }
 
-        if has_changed {
-            // chapter has changed
+        if position_status == PositionStatus::ChapterChanged {
             match self.chapter_manager.get_selected_iter() {
                 Some(current_iter) => {
                     // position is in a chapter => select it
@@ -565,7 +566,7 @@ impl InfoController {
         }
     }
 
-    pub fn move_chapter_boundary(&mut self, boundary: u64, to_position: u64) -> bool {
+    pub fn move_chapter_boundary(&mut self, boundary: u64, to_position: u64) -> PositionStatus {
         self.chapter_manager
             .move_chapter_boundary(boundary, to_position)
     }

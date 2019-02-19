@@ -10,7 +10,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::metadata::{get_default_chapter_title, Timestamp, TocVisitor};
 
-use super::ChaptersBoundaries;
+use super::{ChaptersBoundaries, PositionStatus};
 
 const START_COL: u32 = 0;
 const END_COL: u32 = 1;
@@ -291,21 +291,20 @@ impl ChapterTreeManager {
     }
 
     // Update chapter according to the given position
-    // Returns (has_changed, prev_selected_iter)
-    pub fn update_position(&mut self, position: u64) -> (bool, Option<gtk::TreeIter>) {
-        let has_changed = match self.selected_iter {
+    // Returns (position_status, prev_selected_iter)
+    pub fn update_position(&mut self, position: u64) -> (PositionStatus, Option<gtk::TreeIter>) {
+        let position_status = match self.selected_iter {
             Some(ref selected_iter) => {
                 if position >= ChapterEntry::get_start(&self.store, selected_iter)
                     && position < ChapterEntry::get_end(&self.store, selected_iter)
                 {
                     // regular case: position in current chapter => don't change anything
                     // this check is here to save time in the most frequent case
-                    return (false, None);
+                    return (PositionStatus::ChapterNotChanged, None);
                 }
-                // chapter has changed
-                true
+                PositionStatus::ChapterChanged
             }
-            None => false,
+            None => PositionStatus::ChapterNotChanged,
         };
 
         let prev_selected_iter = self.selected_iter.take();
@@ -319,7 +318,7 @@ impl ChapterTreeManager {
                 // position is in iter
                 self.selected_iter = Some(iter.clone());
                 self.iter = Some(iter);
-                return (true, prev_selected_iter);
+                return (PositionStatus::ChapterChanged, prev_selected_iter);
             } else if position >= ChapterEntry::get_end(&self.store, &iter) && searching_forward {
                 // position is after iter and we were already searching forward
                 self.store.iter_next(&iter)
@@ -327,17 +326,17 @@ impl ChapterTreeManager {
                 // position before iter
                 searching_forward = false;
                 if self.store.iter_previous(&iter) {
-                    // iter is still valid
+                    // iter is still valid => keep going
                     true
                 } else {
                     // before first chapter
                     self.iter = self.store.get_iter_first();
-                    return (has_changed, prev_selected_iter);
+                    return (position_status, prev_selected_iter);
                 }
             } else {
                 // in a gap between two chapters
                 self.iter = Some(iter);
-                return (has_changed, prev_selected_iter);
+                return (position_status, prev_selected_iter);
             } {}
 
             // passed the end of the last chapter
@@ -345,7 +344,7 @@ impl ChapterTreeManager {
             self.iter = None;
         }
 
-        (has_changed, prev_selected_iter)
+        (position_status, prev_selected_iter)
     }
 
     pub fn prepare_for_seek(&mut self) {
@@ -507,9 +506,9 @@ impl ChapterTreeManager {
         }
     }
 
-    pub fn move_chapter_boundary(&mut self, boundary: u64, to_position: u64) -> bool {
+    pub fn move_chapter_boundary(&mut self, boundary: u64, to_position: u64) -> PositionStatus {
         if boundary == to_position {
-            return false;
+            return PositionStatus::ChapterNotChanged;
         }
 
         let (prev_iter, next_iter) = {
@@ -523,7 +522,7 @@ impl ChapterTreeManager {
         };
 
         if prev_iter.is_none() && next_iter.is_none() {
-            return false;
+            return PositionStatus::ChapterNotChanged;
         }
 
         // prevent moving past previous chapter's start
@@ -566,10 +565,9 @@ impl ChapterTreeManager {
             self.boundaries
                 .borrow_mut()
                 .move_boundary(boundary, to_position);
-            true
+            PositionStatus::ChapterChanged
         } else {
-            // no change
-            false
+            PositionStatus::ChapterNotChanged
         }
     }
 

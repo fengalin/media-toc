@@ -25,7 +25,8 @@ use crate::{
 };
 
 use super::{
-    ChaptersBoundaries, DoubleWaveformBuffer, MainController, WaveformBuffer, BACKGROUND_COLOR,
+    ChaptersBoundaries, DoubleWaveformBuffer, MainController, PositionStatus, WaveformBuffer,
+    BACKGROUND_COLOR,
 };
 
 const BUFFER_DURATION: u64 = 60_000_000_000; // 60 s
@@ -815,8 +816,8 @@ impl AudioController {
                 if main_ctrl
                     .borrow_mut()
                     .move_chapter_boundary(boundary, position)
+                    == PositionStatus::ChapterChanged
                 {
-                    // boundary has moved
                     let mut this = this_rc.borrow_mut();
                     this.state = ControllerState::MovingBoundary(position);
                     this.redraw();

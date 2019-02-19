@@ -26,7 +26,7 @@ use crate::{
 
 use super::{
     AudioController, ChaptersBoundaries, ExportController, InfoController, PerspectiveController,
-    SplitController, StreamsController, VideoController,
+    PositionStatus, SplitController, StreamsController, VideoController,
 };
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
@@ -351,7 +351,7 @@ impl MainController {
         }
     }
 
-    pub fn move_chapter_boundary(&mut self, boundary: u64, to_position: u64) -> bool {
+    pub fn move_chapter_boundary(&mut self, boundary: u64, to_position: u64) -> PositionStatus {
         self.info_ctrl
             .borrow_mut()
             .move_chapter_boundary(boundary, to_position)

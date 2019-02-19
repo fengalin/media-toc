@@ -39,3 +39,9 @@ pub use self::waveform_buffer::{DoubleWaveformBuffer, ImagePositions, WaveformBu
 
 pub mod waveform_image;
 pub use self::waveform_image::{WaveformImage, BACKGROUND_COLOR};
+
+#[derive(PartialEq)]
+pub enum PositionStatus {
+    ChapterChanged,
+    ChapterNotChanged,
+}
