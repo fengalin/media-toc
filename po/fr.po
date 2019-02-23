@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2019-01-12 14:37+0100\n"
-"PO-Revision-Date: 2019-01-12 14:38+0100\n"
+"POT-Creation-Date: 2019-02-23 10:47+0100\n"
+"PO-Revision-Date: 2019-02-23 10:47+0100\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -232,7 +232,7 @@ msgstr "Affichage"
 msgid "Streams"
 msgstr "Flux"
 
-#: src/application/command_line.rs:13 src/ui/main_controller.rs:272
+#: src/application/command_line.rs:13 src/ui/main_controller.rs:268
 msgid ""
 "Build a table of contents from a media file\n"
 "or split a media file into chapters"
@@ -313,7 +313,7 @@ msgstr "Impossible de passer le média en mode lecture."
 msgid "Could not set media in Paused mode"
 msgstr "Impossible de passer le média en mode pause."
 
-#: src/media/playback_context.rs:505
+#: src/media/playback_context.rs:499
 msgid ""
 "Video rendering hardware acceleration seems broken and has been disabled.\n"
 "Please restart the application."
@@ -322,7 +322,7 @@ msgstr ""
 "car elle ne semble pas fonctionner correctement.\n"
 "Veuillez relancer l'application."
 
-#: src/media/playback_context.rs:646
+#: src/media/playback_context.rs:640
 msgid "No usable streams could be found."
 msgstr "Aucun flux exploitable n'a été trouvé."
 
@@ -382,12 +382,12 @@ msgstr "Découpage de {}…"
 msgid "Failed to intialize the split"
 msgstr "Impossible d'initialiser le découpage"
 
-#: src/media/splitter_context.rs:321
+#: src/media/splitter_context.rs:322
 msgid "Failed to terminate properly. Check the resulting file."
 msgstr ""
 "Impossible de terminer correctement. Veuillez vérifiez le fichier généré."
 
-#: src/media/splitter_context.rs:341
+#: src/media/splitter_context.rs:342
 msgid "Failed to start splitting."
 msgstr "Impossible de démarrer le découpage."
 
@@ -448,15 +448,15 @@ msgstr "impossible de mettre à jour la dernière position de départ"
 msgid "Failed to write mkvmerge text file"
 msgstr "Échec à l'écriture du fichier texte mkvmerge"
 
-#: src/ui/chapter_tree_manager.rs:133
+#: src/ui/chapter_tree_manager.rs:135
 msgid "Title"
 msgstr "Titre"
 
-#: src/ui/chapter_tree_manager.rs:134
+#: src/ui/chapter_tree_manager.rs:136
 msgid "Start"
 msgstr "Début"
 
-#: src/ui/chapter_tree_manager.rs:135
+#: src/ui/chapter_tree_manager.rs:137
 msgid "End"
 msgstr "Fin"
 
@@ -464,27 +464,27 @@ msgstr "Fin"
 msgid "Table of contents exported succesfully"
 msgstr "Table des matières exportée avec succès"
 
-#: src/ui/export_controller.rs:147
+#: src/ui/export_controller.rs:145
 msgid "Failed to create the file for the table of contents"
 msgstr "Échec à la création du fichier de table des matières"
 
-#: src/ui/export_controller.rs:206
+#: src/ui/export_controller.rs:203
 msgid "Failed to prepare for export. {}"
 msgstr "Échec à la préparation de l'export : {}"
 
-#: src/ui/export_controller.rs:275 src/ui/export_controller.rs:289
+#: src/ui/export_controller.rs:271 src/ui/export_controller.rs:284
 msgid "Failed to export media. {}"
 msgstr "Échec à l'export du média. {}"
 
-#: src/ui/export_controller.rs:283
+#: src/ui/export_controller.rs:278
 msgid "Media exported succesfully"
 msgstr "Table des matières exportée avec succès"
 
-#: src/ui/info_controller.rs:390
+#: src/ui/info_controller.rs:408
 msgid "No toc in file \"{}\""
 msgstr "Aucune table des matières dans le fichier «{}»"
 
-#: src/ui/info_controller.rs:401
+#: src/ui/info_controller.rs:419
 msgid ""
 "Error opening toc file \"{}\":\n"
 "{}"
@@ -492,7 +492,7 @@ msgstr ""
 "Erreur à l'ouverture du fichier «{}» :\n"
 "{}"
 
-#: src/ui/info_controller.rs:414
+#: src/ui/info_controller.rs:432
 msgid "Failed to open toc file."
 msgstr "Impossible d'ouvrir le fichier de table des matières."
 
@@ -504,33 +504,33 @@ msgstr "À propos"
 msgid "Quit"
 msgstr "Quitter"
 
-#: src/ui/main_controller.rs:208
+#: src/ui/main_controller.rs:205
 msgid "Open media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:249
+#: src/ui/main_controller.rs:246
 msgid "Failed to initialize GStreamer, the application can't be used."
 msgstr "Échec à l'initialisation de GStreamer, l'application est inutilisable."
 
-#: src/ui/main_controller.rs:275
+#: src/ui/main_controller.rs:271
 msgid "© 2017–2019 François Laignel"
 msgstr "© 2017–2019 François Laignel"
 
-#: src/ui/main_controller.rs:276
+#: src/ui/main_controller.rs:272
 msgid "translator-credits"
 msgstr "François Laignel"
 
-#: src/ui/main_controller.rs:280
+#: src/ui/main_controller.rs:276
 msgid "Learn more about media-toc"
 msgstr "En apprendre plus sur media-toc"
 
-#: src/ui/main_controller.rs:526 src/ui/main_controller.rs:598
+#: src/ui/main_controller.rs:532 src/ui/main_controller.rs:603
 msgid "Missing plugin: {}"
 msgid_plural "Missing plugins: {}"
 msgstr[0] "Greffon manquant : {}"
 msgstr[1] "Greffons manquants : {}"
 
-#: src/ui/main_controller.rs:642 src/ui/main_controller.rs:756
+#: src/ui/main_controller.rs:649 src/ui/main_controller.rs:762
 msgid ""
 "Error opening file.\n"
 "\n"
@@ -540,70 +540,74 @@ msgstr ""
 "\n"
 "{}"
 
-#: src/ui/main_controller.rs:696
+#: src/ui/main_controller.rs:702
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:700
+#: src/ui/main_controller.rs:706
 msgid "Cancel"
 msgstr "Annuler"
 
-#: src/ui/main_controller.rs:701
+#: src/ui/main_controller.rs:707
 msgid "Open"
 msgstr "Ouvrir"
 
-#: src/ui/split_controller.rs:248
+#: src/ui/split_controller.rs:255
 msgid "Failed to prepare for split. {}"
 msgstr "Échec à la préparation du découpage : {}"
 
-#: src/ui/split_controller.rs:479
+#: src/ui/split_controller.rs:344
+msgid "couldn't add tag {tag_name}"
+msgstr "impossible d'ajouter l'étiquette {tag_name}"
+
+#: src/ui/split_controller.rs:448
 msgid "Media split succesfully"
 msgstr "Média découpé avec succès"
 
-#: src/ui/split_controller.rs:495
+#: src/ui/split_controller.rs:464
 msgid "Failed to split media. {}"
 msgstr "Échec lors du découpage du média. {}"
 
-#: src/ui/streams_controller.rs:331
+#: src/ui/streams_controller.rs:332
 msgid "unknown"
 msgstr "inconnu"
 
-#: src/ui/streams_controller.rs:375
+#: src/ui/streams_controller.rs:376
 msgid "Export?"
 msgstr "Exporter ?"
 
-#: src/ui/streams_controller.rs:376
+#: src/ui/streams_controller.rs:377
 msgid "Stream id"
 msgstr "Id. du flux"
 
-#: src/ui/streams_controller.rs:377
+#: src/ui/streams_controller.rs:378
 msgid "Language"
 msgstr "Langue"
 
-#: src/ui/streams_controller.rs:378
+#: src/ui/streams_controller.rs:379
 msgid "Codec"
 msgstr "Codec"
 
-#: src/ui/streams_controller.rs:379
+#: src/ui/streams_controller.rs:380
 msgid "Comment"
 msgstr "Commentaire"
 
-#: src/ui/streams_controller.rs:411
+#: src/ui/streams_controller.rs:412
 msgid "Width"
 msgstr "Largeur"
 
-#: src/ui/streams_controller.rs:418
+#: src/ui/streams_controller.rs:419
 msgid "Height"
 msgstr "Hauteur"
 
-#: src/ui/streams_controller.rs:462
+#: src/ui/streams_controller.rs:463
 msgid "Rate"
 msgstr "Débit"
 
-#: src/ui/streams_controller.rs:469
+#: src/ui/streams_controller.rs:470
 msgid "Channels"
 msgstr "Canaux"
 
-#: src/ui/streams_controller.rs:507
+#: src/ui/streams_controller.rs:508
 msgid "Format"
 msgstr "Format"

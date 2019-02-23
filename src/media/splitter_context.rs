@@ -258,6 +258,7 @@ impl SplitterContext {
             ),
         };
 
+        // FIXME: `TrackNumber`, `TrackCount` and other tags seem to be replaced by the encoder
         if let Some(tags) = self.chapter.get_tags() {
             let tag_setter = tag_setter.clone().dynamic_cast::<gst::TagSetter>().unwrap();
             tag_setter.merge_tags(&tags, gst::TagMergeMode::ReplaceAll);

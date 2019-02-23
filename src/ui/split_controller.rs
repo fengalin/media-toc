@@ -23,13 +23,20 @@ use super::{MainController, OutputBaseController};
 
 const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
 
-macro_rules! add_tag_from(
-    ($tags:expr, $original_tags:expr, $TagType:ty) => {
-        if let Some(tag) = $original_tags.get_index::<$TagType>(0) {
-            $tags.add::<$TagType>(tag.get().as_ref().unwrap(), gst::TagMergeMode::Replace);
-        }
-    };
-);
+const TAGS_TO_SKIP: [&str; 12] = [
+    "ApplicationName",
+    "ApplicationData",
+    "AudioCodec",
+    "Codec",
+    "ContainerFormat",
+    "Duration",
+    "Encoder",
+    "EncoderVersion",
+    "SubtitleCodec",
+    "TrackCount",
+    "TrackNumber",
+    "VideoCodec",
+];
 
 pub struct SplitController {
     base: OutputBaseController,
@@ -312,7 +319,6 @@ impl SplitController {
         self.target_path.with_file_name(split_name)
     }
 
-    #[allow(clippy::cyclomatic_complexity)]
     fn update_tags(&self, chapter: &mut gst::TocEntry) -> gst::TocEntry {
         let mut tags = gst::TagList::new();
         {
@@ -321,66 +327,29 @@ impl SplitController {
                 let info = self.playback_ctx.as_ref().unwrap().info.read().unwrap();
 
                 // Select tags suitable for a track
-                add_tag_from!(tags, info.tags, gst::tags::Artist);
-                add_tag_from!(tags, info.tags, gst::tags::ArtistSortname);
-                add_tag_from!(tags, info.tags, gst::tags::Album);
-                add_tag_from!(tags, info.tags, gst::tags::AlbumSortname);
-                add_tag_from!(tags, info.tags, gst::tags::AlbumArtist);
-                add_tag_from!(tags, info.tags, gst::tags::AlbumArtistSortname);
-                add_tag_from!(tags, info.tags, gst::tags::Date);
-                add_tag_from!(tags, info.tags, gst::tags::DateTime);
-                add_tag_from!(tags, info.tags, gst::tags::Genre);
-                add_tag_from!(tags, info.tags, gst::tags::Comment);
-                add_tag_from!(tags, info.tags, gst::tags::ExtendedComment);
-                add_tag_from!(tags, info.tags, gst::tags::AlbumVolumeNumber);
-                add_tag_from!(tags, info.tags, gst::tags::AlbumVolumeCount);
-                add_tag_from!(tags, info.tags, gst::tags::Location);
-                add_tag_from!(tags, info.tags, gst::tags::Homepage);
-                add_tag_from!(tags, info.tags, gst::tags::Description);
-                add_tag_from!(tags, info.tags, gst::tags::Version);
-                add_tag_from!(tags, info.tags, gst::tags::ISRC);
-                add_tag_from!(tags, info.tags, gst::tags::Organization);
-                add_tag_from!(tags, info.tags, gst::tags::Copyright);
-                add_tag_from!(tags, info.tags, gst::tags::CopyrightUri);
-                add_tag_from!(tags, info.tags, gst::tags::Composer);
-                add_tag_from!(tags, info.tags, gst::tags::Conductor);
-                add_tag_from!(tags, info.tags, gst::tags::Contact);
-                add_tag_from!(tags, info.tags, gst::tags::License);
-                add_tag_from!(tags, info.tags, gst::tags::LicenseUri);
-                add_tag_from!(tags, info.tags, gst::tags::Performer);
-                add_tag_from!(tags, info.tags, gst::tags::Contact);
-                add_tag_from!(tags, info.tags, gst::tags::AlbumGain);
-                add_tag_from!(tags, info.tags, gst::tags::AlbumPeak);
-                add_tag_from!(tags, info.tags, gst::tags::ReferenceLevel);
-                add_tag_from!(tags, info.tags, gst::tags::LanguageCode);
-                add_tag_from!(tags, info.tags, gst::tags::LanguageName);
-                add_tag_from!(tags, info.tags, gst::tags::BeatsPerMinute);
-                add_tag_from!(tags, info.tags, gst::tags::Keywords);
-                add_tag_from!(tags, info.tags, gst::tags::GeoLocationName);
-                add_tag_from!(tags, info.tags, gst::tags::GeoLocationLatitude);
-                add_tag_from!(tags, info.tags, gst::tags::GeoLocationLongitute);
-                add_tag_from!(tags, info.tags, gst::tags::GeoLocationElevation);
-                add_tag_from!(tags, info.tags, gst::tags::GeoLocationCity);
-                add_tag_from!(tags, info.tags, gst::tags::GeoLocationCountry);
-                add_tag_from!(tags, info.tags, gst::tags::GeoLocationSublocation);
-                add_tag_from!(tags, info.tags, gst::tags::GeoLocationHorizontalError);
-                add_tag_from!(tags, info.tags, gst::tags::GeoLocationMovementDirection);
-                add_tag_from!(tags, info.tags, gst::tags::GeoLocationMovementSpeed);
-                add_tag_from!(tags, info.tags, gst::tags::GeoLocationCaptureDirection);
-                add_tag_from!(tags, info.tags, gst::tags::ShowName);
-                add_tag_from!(tags, info.tags, gst::tags::ShowSortname);
-                add_tag_from!(tags, info.tags, gst::tags::ShowEpisodeNumber);
-                add_tag_from!(tags, info.tags, gst::tags::ShowSeasonNumber);
-                add_tag_from!(tags, info.tags, gst::tags::ComposerSortname);
-                add_tag_from!(tags, info.tags, gst::tags::Publisher);
-                add_tag_from!(tags, info.tags, gst::tags::InterpretedBy);
-                add_tag_from!(tags, info.tags, gst::tags::PrivateData);
-
-                for image_iter in info.tags.iter_tag::<gst::tags::Image>() {
-                    tags.add::<gst::tags::Image>(
-                        image_iter.get().as_ref().unwrap(),
-                        gst::TagMergeMode::Append,
-                    );
+                for (tag_name, tag_iter) in info.tags.iter_generic() {
+                    if TAGS_TO_SKIP
+                        .iter()
+                        .find(|&&tag_to_skip| tag_to_skip == tag_name)
+                        .is_none()
+                    {
+                        // can add tag
+                        for tag_value in tag_iter {
+                            if tags
+                                .add_generic(tag_name, tag_value, gst::TagMergeMode::Append)
+                                .is_err()
+                            {
+                                warn!(
+                                    "{}",
+                                    gettext("couldn't add tag {tag_name}").replacen(
+                                        "{tag_name}",
+                                        tag_name,
+                                        1
+                                    )
+                                );
+                            }
+                        }
+                    }
                 }
 
                 info.chapter_count.unwrap_or(1)
@@ -394,17 +363,20 @@ impl SplitController {
                         .map(|tag| tag.get().unwrap().to_owned())
                 })
                 .unwrap_or_else(get_default_chapter_title);
-            tags.add::<gst::tags::Title>(&title.as_str(), gst::TagMergeMode::Replace);
+            tags.add::<gst::tags::Title>(&title.as_str(), gst::TagMergeMode::ReplaceAll);
 
             let (start, end) = chapter.get_start_stop_times().unwrap();
 
-            tags.add::<gst::tags::TrackNumber>(&(self.idx as u32), gst::TagMergeMode::Replace);
-            tags.add::<gst::tags::TrackCount>(&(chapter_count as u32), gst::TagMergeMode::Replace);
+            tags.add::<gst::tags::TrackNumber>(&(self.idx as u32), gst::TagMergeMode::ReplaceAll);
+            tags.add::<gst::tags::TrackCount>(
+                &(chapter_count as u32),
+                gst::TagMergeMode::ReplaceAll,
+            );
             tags.add::<gst::tags::Duration>(
                 &gst::ClockTime::from_nseconds((end - start) as u64),
-                gst::TagMergeMode::Replace,
+                gst::TagMergeMode::ReplaceAll,
             );
-            tags.add::<gst::tags::ApplicationName>(&"media-toc", gst::TagMergeMode::Replace);
+            tags.add::<gst::tags::ApplicationName>(&"media-toc", gst::TagMergeMode::ReplaceAll);
         }
 
         let chapter = chapter.make_mut();
