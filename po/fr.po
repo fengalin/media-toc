@@ -1,6 +1,6 @@
 # French translations for media-toc package
 # Traductions françaises du paquet media-toc.
-# Copyright (C) 2018 François Laignel
+# Copyright (C) 2018-2019 François Laignel
 # This file is distributed under the same license as the media-toc package.
 # François Laignel <fengalin@free.fr>, 2018-2019.
 #

@@ -1,8 +1,7 @@
 # Spanish translations for media-toc package
 # Traducción en español para el paquete media-toc.
-# Copyright (C) 2018 François Laignel
+# Copyright (C) 2018-2019 François Laignel
 # This file is distributed under the same license as the media-toc package.
-# Esther <xther81@hotmail.com>, 2018.
 # Xther <xther81@hotmail.com>, 2018.
 # François Laignel <fengalin@free.fr>, 2018-2019.
 #
@@ -13,12 +12,12 @@ msgstr ""
 "POT-Creation-Date: 2019-02-23 10:47+0100\n"
 "PO-Revision-Date: 2019-02-23 10:50+0100\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
-"Language-Team: français <>\n"
-"Language: fr\n"
+"Language-Team: castillan <>\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Generator: Gtranslator 3.30.1\n"
 
 #: assets/ui/media-toc.ui:158
