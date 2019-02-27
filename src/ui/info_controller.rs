@@ -7,7 +7,7 @@ use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 use lazy_static::lazy_static;
-use log::{error, info};
+use log::{error, info, warn};
 
 use std::{
     borrow::Cow,
@@ -24,8 +24,7 @@ use crate::{
 };
 
 use super::{
-    ChapterTreeManager, ChaptersBoundaries, ControllerState, ImageSurface, MainController,
-    PositionStatus,
+    ChapterTreeManager, ChaptersBoundaries, ControllerState, Image, MainController, PositionStatus,
 };
 
 const GO_TO_PREV_CHAPTER_THRESHOLD: u64 = 1_000_000_000; // 1 s
@@ -54,7 +53,7 @@ pub struct InfoController {
     add_chapter_btn: gtk::ToolButton,
     del_chapter_btn: gtk::ToolButton,
 
-    thumbnail: Option<cairo::ImageSurface>,
+    thumbnail: Option<Image>,
 
     chapter_manager: ChapterTreeManager,
 
@@ -157,7 +156,7 @@ impl InfoController {
         let this_clone = Rc::clone(this_rc);
         this.drawingarea
             .connect_draw(move |drawingarea, cairo_ctx| {
-                let this = this_clone.borrow();
+                let mut this = this_clone.borrow_mut();
                 this.draw_thumbnail(drawingarea, cairo_ctx)
             });
 
@@ -303,29 +302,34 @@ impl InfoController {
     }
 
     fn draw_thumbnail(
-        &self,
+        &mut self,
         drawingarea: &gtk::DrawingArea,
         cairo_ctx: &cairo::Context,
     ) -> Inhibit {
-        // Thumbnail draw
-        if let Some(ref surface) = self.thumbnail {
+        self.thumbnail.as_mut().map(|image| {
             let allocation = drawingarea.get_allocation();
-            let alloc_ratio = f64::from(allocation.width) / f64::from(allocation.height);
-            let surface_ratio = f64::from(surface.get_width()) / f64::from(surface.get_height());
-            let scale = if surface_ratio < alloc_ratio {
-                f64::from(allocation.height) / f64::from(surface.get_height())
-            } else {
-                f64::from(allocation.width) / f64::from(surface.get_width())
-            };
-            let x =
-                (f64::from(allocation.width) / scale - f64::from(surface.get_width())).abs() / 2f64;
-            let y = (f64::from(allocation.height) / scale - f64::from(surface.get_height())).abs()
-                / 2f64;
+            let alloc_width_f: f64 = allocation.width.into();
+            let alloc_height_f: f64 = allocation.height.into();
 
-            cairo_ctx.scale(scale, scale);
-            cairo_ctx.set_source_surface(surface, x, y);
-            cairo_ctx.paint();
-        }
+            let image_width_f: f64 = image.width().into();
+            let image_height_f: f64 = image.height().into();
+
+            let alloc_ratio = alloc_width_f / alloc_height_f;
+            let image_ratio = image_width_f / image_height_f;
+            let scale = if image_ratio < alloc_ratio {
+                alloc_height_f / image_height_f
+            } else {
+                alloc_width_f / image_width_f
+            };
+            let x = (alloc_width_f / scale - image_width_f).abs() / 2f64;
+            let y = (alloc_height_f / scale - image_height_f).abs() / 2f64;
+
+            image.with_surface_external_context(cairo_ctx, |cr, surface| {
+                cr.scale(scale, scale);
+                cr.set_source_surface(surface, x, y);
+                cr.paint();
+            })
+        });
 
         Inhibit(true)
     }
@@ -384,7 +388,10 @@ impl InfoController {
             if let Some(ref image_sample) = info.get_image(0) {
                 if let Some(ref image_buffer) = image_sample.get_buffer() {
                     if let Some(ref image_map) = image_buffer.map_readable() {
-                        self.thumbnail = ImageSurface::from_unknown(image_map.as_slice()).ok();
+                        match Image::from_unknown(image_map.as_slice()) {
+                            Ok(image) => self.thumbnail = Some(image),
+                            Err(err) => warn!("{}", err),
+                        }
                     }
                 }
             }

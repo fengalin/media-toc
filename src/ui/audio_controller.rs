@@ -474,7 +474,7 @@ impl AudioController {
 
                         this.redraw();
                     }
-                    glib::Continue(true)
+                    true
                 }),
         );
     }
@@ -638,8 +638,10 @@ impl AudioController {
                 waveform_buffer.get_image(last_frame_time, next_frame_time);
             match image_opt {
                 Some((image, image_positions)) => {
-                    cr.set_source_surface(image, -image_positions.first.x, 0f64);
-                    cr.paint();
+                    image.with_surface_external_context(cr, |cr, surface| {
+                        cr.set_source_surface(surface, -image_positions.first.x, 0f64);
+                        cr.paint();
+                    });
 
                     (current_position, image_positions)
                 }

@@ -5,8 +5,8 @@ use log::error;
 
 use nom;
 use nom::{
-    call, do_parse, eat_separator, error_position, flat_map, named, opt, parse_to, tag, take,
-    take_until_either, types::CompleteStr, verify, AtEof, InputLength,
+    do_parse, eat_separator, flat_map, named, opt, parse_to, tag, take, take_until_either,
+    types::CompleteStr, verify, AtEof, InputLength,
 };
 
 use std::io::{Read, Write};

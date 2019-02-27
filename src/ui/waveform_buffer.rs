@@ -1,4 +1,3 @@
-use cairo;
 use log::{debug, trace};
 
 use std::{
@@ -12,7 +11,7 @@ use crate::media::{
     SampleExtractor,
 };
 
-use super::WaveformImage;
+use super::{Image, WaveformImage};
 
 pub struct DoubleWaveformBuffer {}
 
@@ -546,7 +545,7 @@ impl WaveformBuffer {
         &mut self,
         last_frame_time: u64,
         next_frame_time: u64,
-    ) -> (u64, Option<(&cairo::ImageSurface, ImagePositions)>) {
+    ) -> (u64, Option<(&mut Image, ImagePositions)>) {
         self.update_first_visible_sample(last_frame_time, next_frame_time);
         match self.first_visible_sample {
             Some(first_visible_sample) => {
@@ -584,6 +583,9 @@ impl WaveformBuffer {
                     None => None,
                 };
 
+                let sample_duration = self.state.sample_duration;
+                let sample_step = self.image.sample_step_f;
+
                 (
                     self.cursor_position,
                     Some((
@@ -591,12 +593,12 @@ impl WaveformBuffer {
                         ImagePositions {
                             first: SamplePosition {
                                 x: x_offset,
-                                timestamp: first_visible_sample as u64 * self.state.sample_duration,
+                                timestamp: first_visible_sample as u64 * sample_duration,
                             },
                             last: last_opt,
                             current: cursor_opt,
-                            sample_duration: self.state.sample_duration,
-                            sample_step: self.image.sample_step_f,
+                            sample_duration,
+                            sample_step,
                         },
                     )),
                 )

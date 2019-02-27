@@ -13,8 +13,8 @@ use self::export_controller::ExportController;
 mod info_controller;
 use self::info_controller::InfoController;
 
-mod image_surface;
-use self::image_surface::ImageSurface;
+mod image;
+use self::image::Image;
 
 pub mod main_controller;
 pub use self::main_controller::{ControllerState, MainController};

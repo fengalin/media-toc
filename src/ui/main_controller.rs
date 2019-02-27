@@ -1,7 +1,7 @@
 use gdk::{Cursor, CursorType, WindowExt};
 use gettextrs::{gettext, ngettext};
 use gio;
-use gio::{prelude::*, MenuExt};
+use gio::prelude::*;
 
 use glib;
 use gstreamer as gst;
