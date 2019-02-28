@@ -21,7 +21,7 @@ use std::{
 
 use crate::{
     application::{APP_ID, APP_PATH, CONFIG},
-    media::{ContextMessage, ContextMessage::*, PlaybackContext},
+    media::{PipelineMessage, PipelineMessage::*, PlaybackPipeline},
 };
 
 use super::{
@@ -36,7 +36,7 @@ const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
 pub enum ControllerState {
     EOS,
     Paused,
-    PendingTakeContext,
+    PendingTakePipeline,
     PendingSelectMedia,
     Playing,
     PlayingRange(u64),
@@ -70,8 +70,8 @@ pub struct MainController {
     split_ctrl: Rc<RefCell<SplitController>>,
     streams_ctrl: Rc<RefCell<StreamsController>>,
 
-    pub context: Option<PlaybackContext>,
-    take_context_cb: Option<Box<dyn FnMut(PlaybackContext)>>,
+    pub pipeline: Option<PlaybackPipeline>,
+    take_pipeline_cb: Option<Box<dyn FnMut(PlaybackPipeline)>>,
     missing_plugins: HashSet<String>,
     state: ControllerState,
 
@@ -110,8 +110,8 @@ impl MainController {
             split_ctrl: SplitController::new_rc(&builder),
             streams_ctrl: StreamsController::new_rc(&builder),
 
-            context: None,
-            take_context_cb: None,
+            pipeline: None,
+            take_pipeline_cb: None,
             missing_plugins: HashSet::<String>::new(),
             state: ControllerState::Stopped,
 
@@ -175,7 +175,7 @@ impl MainController {
                 SplitController::register_callbacks(&this_mut.split_ctrl, &this);
                 StreamsController::register_callbacks(&this_mut.streams_ctrl, &this);
 
-                let _ = PlaybackContext::check_requirements().map_err(|err| {
+                let _ = PlaybackPipeline::check_requirements().map_err(|err| {
                     let this_rc = Rc::clone(&this);
                     gtk::idle_add(move || {
                         this_rc.borrow().show_error(&err);
@@ -280,8 +280,8 @@ impl MainController {
     }
 
     fn quit(&mut self) {
-        if let Some(context) = self.context.take() {
-            context.stop();
+        if let Some(pipeline) = self.pipeline.take() {
+            pipeline.stop();
         }
         self.remove_listener();
 
@@ -315,8 +315,8 @@ impl MainController {
     }
 
     pub fn play_pause(&mut self) {
-        let mut context = match self.context.take() {
-            Some(context) => context,
+        let mut pipeline = match self.pipeline.take() {
+            Some(pipeline) => pipeline,
             None => {
                 self.select_media();
                 return;
@@ -324,29 +324,29 @@ impl MainController {
         };
 
         if self.state != ControllerState::EOS {
-            match context.get_state() {
+            match pipeline.get_state() {
                 gst::State::Paused => {
                     self.play_pause_btn.set_icon_name(PAUSE_ICON);
                     self.state = ControllerState::Playing;
                     self.audio_ctrl.borrow_mut().switch_to_playing();
-                    context.play().unwrap();
-                    self.context = Some(context);
+                    pipeline.play().unwrap();
+                    self.pipeline = Some(pipeline);
                 }
                 gst::State::Playing => {
-                    context.pause().unwrap();
+                    pipeline.pause().unwrap();
                     self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
                     self.state = ControllerState::Paused;
                     self.audio_ctrl.borrow_mut().switch_to_not_playing();
-                    self.context = Some(context);
+                    self.pipeline = Some(pipeline);
                 }
                 _ => {
-                    self.context = Some(context);
+                    self.pipeline = Some(pipeline);
                     self.select_media();
                 }
             };
         } else {
             // Restart the stream from the begining
-            self.context = Some(context);
+            self.pipeline = Some(pipeline);
             self.seek(0, gst::SeekFlags::ACCURATE);
         }
     }
@@ -419,7 +419,7 @@ impl MainController {
             self.audio_ctrl.borrow_mut().seek(seek_pos);
         }
 
-        self.context.as_ref().unwrap().seek(seek_pos, flags);
+        self.pipeline.as_ref().unwrap().seek(seek_pos, flags);
     }
 
     pub fn play_range(&mut self, start: u64, end: u64, pos_to_restore: u64) {
@@ -428,12 +428,12 @@ impl MainController {
             self.audio_ctrl.borrow_mut().start_play_range();
 
             self.state = ControllerState::PlayingRange(pos_to_restore);
-            self.context.as_ref().unwrap().seek_range(start, end);
+            self.pipeline.as_ref().unwrap().seek_range(start, end);
         }
     }
 
     pub fn get_position(&mut self) -> u64 {
-        self.context.as_mut().unwrap().get_position()
+        self.pipeline.as_mut().unwrap().get_position()
     }
 
     pub fn refresh(&mut self) {
@@ -448,8 +448,8 @@ impl MainController {
     }
 
     pub fn select_streams(&mut self, stream_ids: &[Arc<str>]) {
-        self.context.as_ref().unwrap().select_streams(stream_ids);
-        // In Playing state, wait for the notification from the Context
+        self.pipeline.as_ref().unwrap().select_streams(stream_ids);
+        // In Playing state, wait for the notification from the pipeline
         // Otherwise, update immediately
         if self.state != ControllerState::Playing {
             self.streams_selected();
@@ -457,16 +457,16 @@ impl MainController {
     }
 
     pub fn streams_selected(&mut self) {
-        let context = self.context.take().unwrap();
+        let pipeline = self.pipeline.take().unwrap();
         {
-            let info = context.info.read().unwrap();
+            let info = pipeline.info.read().unwrap();
             self.audio_ctrl.borrow_mut().streams_changed(&info);
             self.info_ctrl.borrow().streams_changed(&info);
             self.perspective_ctrl.borrow().streams_changed(&info);
             self.split_ctrl.borrow_mut().streams_changed(&info);
             self.video_ctrl.streams_changed(&info);
         }
-        self.set_context(context);
+        self.set_pipeline(pipeline);
     }
 
     fn hold(&mut self) {
@@ -474,38 +474,38 @@ impl MainController {
         self.audio_ctrl.borrow_mut().switch_to_not_playing();
         self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
 
-        if let Some(context) = self.context.as_mut() {
-            context.pause().unwrap();
+        if let Some(pipeline) = self.pipeline.as_mut() {
+            pipeline.pause().unwrap();
         };
     }
 
-    pub fn request_context(&mut self, callback: Box<dyn FnMut(PlaybackContext)>) {
+    pub fn request_pipeline(&mut self, callback: Box<dyn FnMut(PlaybackPipeline)>) {
         self.audio_ctrl.borrow_mut().switch_to_not_playing();
         self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
 
-        if let Some(context) = self.context.as_mut() {
-            context.pause().unwrap();
+        if let Some(pipeline) = self.pipeline.as_mut() {
+            pipeline.pause().unwrap();
         };
 
-        self.take_context_cb = Some(callback);
+        self.take_pipeline_cb = Some(callback);
         if self.state == ControllerState::Playing || self.state == ControllerState::EOS {
-            self.state = ControllerState::PendingTakeContext;
+            self.state = ControllerState::PendingTakePipeline;
         } else {
-            self.have_context();
+            self.have_pipeline();
         }
     }
 
-    fn have_context(&mut self) {
-        if let Some(mut context) = self.context.take() {
-            self.info_ctrl.borrow().export_chapters(&mut context);
-            let mut callback = self.take_context_cb.take().unwrap();
-            callback(context);
+    fn have_pipeline(&mut self) {
+        if let Some(mut pipeline) = self.pipeline.take() {
+            self.info_ctrl.borrow().export_chapters(&mut pipeline);
+            let mut callback = self.take_pipeline_cb.take().unwrap();
+            callback(pipeline);
             self.state = ControllerState::Paused;
         }
     }
 
-    pub fn set_context(&mut self, context: PlaybackContext) {
-        self.context = Some(context);
+    pub fn set_pipeline(&mut self, pipeline: PlaybackPipeline) {
+        self.pipeline = Some(pipeline);
         self.state = ControllerState::Paused;
         self.switch_to_default();
     }
@@ -538,7 +538,7 @@ impl MainController {
         }
     }
 
-    fn register_listener(&mut self, period: u32, ui_rx: Receiver<ContextMessage>) {
+    fn register_listener(&mut self, period: u32, ui_rx: Receiver<PipelineMessage>) {
         if self.listener_src.is_some() {
             return;
         }
@@ -561,7 +561,7 @@ impl MainController {
                             } = this.state
                             {
                                 if switch_to_play {
-                                    this.context.as_mut().unwrap().play().unwrap();
+                                    this.pipeline.as_mut().unwrap().play().unwrap();
                                     this.play_pause_btn.set_icon_name(PAUSE_ICON);
                                     this.state = ControllerState::Playing;
                                     this.audio_ctrl.borrow_mut().switch_to_playing();
@@ -576,21 +576,21 @@ impl MainController {
                         }
                         InitDone => {
                             let mut this = this_rc.borrow_mut();
-                            let context = this.context.take().unwrap();
+                            let pipeline = this.pipeline.take().unwrap();
 
                             this.header_bar.set_subtitle(Some(
-                                context.info.read().unwrap().file_name.as_str(),
+                                pipeline.info.read().unwrap().file_name.as_str(),
                             ));
 
-                            this.audio_ctrl.borrow_mut().new_media(&context);
+                            this.audio_ctrl.borrow_mut().new_media(&pipeline);
                             this.export_ctrl.borrow_mut().new_media();
-                            this.info_ctrl.borrow_mut().new_media(&context);
-                            this.perspective_ctrl.borrow().new_media(&context);
-                            this.split_ctrl.borrow_mut().new_media(&context);
-                            this.streams_ctrl.borrow_mut().new_media(&context);
-                            this.video_ctrl.new_media(&context);
+                            this.info_ctrl.borrow_mut().new_media(&pipeline);
+                            this.perspective_ctrl.borrow().new_media(&pipeline);
+                            this.split_ctrl.borrow_mut().new_media(&pipeline);
+                            this.streams_ctrl.borrow_mut().new_media(&pipeline);
+                            this.video_ctrl.new_media(&pipeline);
 
-                            this.set_context(context);
+                            this.set_pipeline(pipeline);
 
                             if let Some(message) = this.check_missing_plugins() {
                                 this.show_error(message);
@@ -612,7 +612,7 @@ impl MainController {
                                     this.seek(target, gst::SeekFlags::ACCURATE)
                                 }
                                 ControllerState::PendingSelectMedia => this.select_media(),
-                                ControllerState::PendingTakeContext => this.have_context(),
+                                ControllerState::PendingTakePipeline => this.have_pipeline(),
                                 _ => (),
                             }
                         }
@@ -622,7 +622,7 @@ impl MainController {
                             match this.state {
                                 ControllerState::PlayingRange(pos_to_restore) => {
                                     // end of range => pause and seek back to pos_to_restore
-                                    this.context.as_ref().unwrap().pause().unwrap();
+                                    this.pipeline.as_ref().unwrap().pause().unwrap();
                                     this.state = ControllerState::Paused;
                                     this.audio_ctrl.borrow_mut().stop_play_range();
                                     this.seek(pos_to_restore, gst::SeekFlags::ACCURATE);
@@ -638,7 +638,7 @@ impl MainController {
                         }
                         FailedToOpenMedia(error) => {
                             let mut this = this_rc.borrow_mut();
-                            this.context = None;
+                            this.pipeline = None;
                             this.state = ControllerState::Stopped;
                             this.switch_to_default();
 
@@ -712,12 +712,12 @@ impl MainController {
         }
 
         if file_dlg.run() == gtk::ResponseType::Accept.into() {
-            if let Some(ref context) = self.context.take() {
-                context.stop();
+            if let Some(ref pipeline) = self.pipeline.take() {
+                pipeline.stop();
             }
             self.open_media(&file_dlg.get_filename().unwrap());
         } else {
-            if self.context.is_some() {
+            if self.pipeline.is_some() {
                 self.state = ControllerState::Paused;
             }
             self.switch_to_default();
@@ -738,7 +738,7 @@ impl MainController {
         self.perspective_ctrl.borrow().cleanup();
         self.header_bar.set_subtitle("");
 
-        let (ctx_tx, ui_rx) = channel();
+        let (pipeline_tx, ui_rx) = channel();
 
         self.state = ControllerState::Stopped;
         self.missing_plugins.clear();
@@ -746,16 +746,16 @@ impl MainController {
         self.register_listener(LISTENER_PERIOD, ui_rx);
 
         let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.borrow().dbl_buffer_mtx);
-        match PlaybackContext::try_new(
+        match PlaybackPipeline::try_new(
             filepath,
             &dbl_buffer_mtx,
             &self.video_ctrl.get_video_sink(),
-            &ctx_tx,
+            &pipeline_tx,
         ) {
-            Ok(context) => {
+            Ok(pipeline) => {
                 CONFIG.write().unwrap().media.last_path =
                     filepath.parent().map(|path| path.to_owned());
-                self.context = Some(context);
+                self.pipeline = Some(pipeline);
             }
             Err(error) => {
                 self.switch_to_default();

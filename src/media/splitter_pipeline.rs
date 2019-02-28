@@ -15,9 +15,9 @@ use std::{
 
 use crate::metadata::Format;
 
-use super::ContextMessage;
+use super::PipelineMessage;
 
-pub struct SplitterContext {
+pub struct SplitterPipeline {
     pipeline: gst::Pipeline,
     position_query: gst::query::Position<gst::Query>,
 
@@ -25,7 +25,7 @@ pub struct SplitterContext {
     chapter: gst::TocEntry,
 }
 
-impl SplitterContext {
+impl SplitterPipeline {
     pub fn check_requirements(format: Format) -> Result<(), String> {
         match format {
             Format::Flac => gst::ElementFactory::make("flacenc", None).map_or(
@@ -86,7 +86,7 @@ impl SplitterContext {
                     )
                 }),
             _ => panic!(
-                "SplitterContext::check_requirements unsupported format: {:?}",
+                "SplitterPipeline::check_requirements unsupported format: {:?}",
                 format
             ),
         }
@@ -98,15 +98,15 @@ impl SplitterContext {
         stream_id: &str,
         format: Format,
         chapter: gst::TocEntry,
-        ctx_tx: Sender<ContextMessage>,
-    ) -> Result<SplitterContext, String> {
+        pipeline_tx: Sender<PipelineMessage>,
+    ) -> Result<SplitterPipeline, String> {
         info!(
             "{}",
             gettext("Splitting {}...").replacen("{}", output_path.to_str().unwrap(), 1)
         );
         debug!("stream id {}", &stream_id);
 
-        let mut this = SplitterContext {
+        let mut this = SplitterPipeline {
             pipeline: gst::Pipeline::new("pipeline"),
             position_query: gst::Query::new_position(gst::Format::Time),
             format,
@@ -114,7 +114,7 @@ impl SplitterContext {
         };
 
         this.build_pipeline(input_path, output_path, stream_id);
-        this.register_bus_inspector(ctx_tx);
+        this.register_bus_inspector(pipeline_tx);
 
         this.pipeline
             .set_state(gst::State::Paused)
@@ -169,7 +169,7 @@ impl SplitterContext {
             Format::Vorbis => gst::ElementFactory::make("vorbisenc", None).unwrap(),
             Format::MP3 => gst::ElementFactory::make("lamemp3enc", None).unwrap(),
             _ => panic!(
-                "SplitterContext::build_pipeline unsupported format: {:?}",
+                "SplitterPipeline::build_pipeline unsupported format: {:?}",
                 self.format
             ),
         };
@@ -253,7 +253,7 @@ impl SplitterContext {
                 (id3v2_muxer.clone(), id3v2_muxer)
             }
             _ => panic!(
-                "SplitterContext::build_pipeline unsupported format: {:?}",
+                "SplitterPipeline::build_pipeline unsupported format: {:?}",
                 self.format
             ),
         };
@@ -293,7 +293,7 @@ impl SplitterContext {
                 && stream_id
                     == pad
                         .get_stream_id()
-                        .expect("SplitterContext::build_pipeline no stream_id for audio src pad")
+                        .expect("SplitterPipeline::build_pipeline no stream_id for audio src pad")
             {
                 let audio_conv = gst::ElementFactory::make("audioconvert", "audioconvert").unwrap();
                 pipeline_cb.add(&audio_conv).unwrap();
@@ -310,25 +310,25 @@ impl SplitterContext {
         });
     }
 
-    // Uses ctx_tx to notify the UI controllers
-    fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
+    // Uses pipeline_tx to notify the UI controllers
+    fn register_bus_inspector(&self, pipeline_tx: Sender<PipelineMessage>) {
         let pipeline = self.pipeline.clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
                     if pipeline.set_state(gst::State::Null).is_err() {
-                        ctx_tx
-                            .send(ContextMessage::FailedToExport(gettext(
+                        pipeline_tx
+                            .send(PipelineMessage::FailedToExport(gettext(
                                 "Failed to terminate properly. Check the resulting file.",
                             )))
                             .unwrap();
                     }
-                    ctx_tx.send(ContextMessage::Eos).unwrap();
+                    pipeline_tx.send(PipelineMessage::Eos).unwrap();
                     return glib::Continue(false);
                 }
                 gst::MessageView::Error(err) => {
-                    ctx_tx
-                        .send(ContextMessage::FailedToExport(
+                    pipeline_tx
+                        .send(PipelineMessage::FailedToExport(
                             err.get_error().description().to_owned(),
                         ))
                         .unwrap();
@@ -337,8 +337,8 @@ impl SplitterContext {
                 gst::MessageView::AsyncDone(_) => {
                     // Start splitting
                     if pipeline.set_state(gst::State::Playing).is_err() {
-                        ctx_tx
-                            .send(ContextMessage::FailedToExport(gettext(
+                        pipeline_tx
+                            .send(PipelineMessage::FailedToExport(gettext(
                                 "Failed to start splitting.",
                             )))
                             .unwrap();

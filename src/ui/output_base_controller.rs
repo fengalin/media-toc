@@ -9,7 +9,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use crate::{media::PlaybackContext, metadata};
+use crate::{media::PlaybackPipeline, metadata};
 
 use super::MainController;
 
@@ -18,7 +18,7 @@ pub struct OutputBaseController {
     open_btn: gtk::Button,
     chapter_grid: gtk::Grid,
 
-    pub playback_ctx: Option<PlaybackContext>,
+    pub playback_pipeline: Option<PlaybackPipeline>,
     pub media_path: PathBuf,
     pub target_path: PathBuf,
     pub extension: String,
@@ -35,7 +35,7 @@ impl OutputBaseController {
             open_btn: builder.get_object("open-btn").unwrap(),
             chapter_grid: builder.get_object("info-chapter_list-grid").unwrap(),
 
-            playback_ctx: None,
+            playback_pipeline: None,
             media_path: PathBuf::new(),
             target_path: PathBuf::new(),
             extension: String::new(),
@@ -60,7 +60,7 @@ impl OutputBaseController {
         }
 
         {
-            let info = self.playback_ctx.as_ref().unwrap().info.read().unwrap();
+            let info = self.playback_pipeline.as_ref().unwrap().info.read().unwrap();
             self.media_path = info.path.clone();
             self.duration = info.duration;
         }
@@ -82,10 +82,10 @@ impl OutputBaseController {
         main_ctrl_rc.borrow().show_error(error);
     }
 
-    pub fn restore_context(&mut self) {
-        let context = self.playback_ctx.take().unwrap();
+    pub fn restore_pipeline(&mut self) {
+        let playback_pipeline = self.playback_pipeline.take().unwrap();
         let main_ctrl_rc = self.main_ctrl.as_ref().unwrap().upgrade().unwrap();
-        main_ctrl_rc.borrow_mut().set_context(context);
+        main_ctrl_rc.borrow_mut().set_pipeline(playback_pipeline);
     }
 
     pub fn switch_to_busy(&self) {

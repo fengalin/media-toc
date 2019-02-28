@@ -12,7 +12,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::{media::PlaybackContext, metadata::Stream};
+use crate::{media::PlaybackPipeline, metadata::Stream};
 
 use super::MainController;
 
@@ -152,10 +152,10 @@ impl StreamsController {
 
     fn video_export_toggled(&self, tree_path: &gtk::TreePath) {
         if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
-            if let Some(context) = main_ctrl_rc.borrow_mut().context.as_mut() {
+            if let Some(pipeline) = main_ctrl_rc.borrow_mut().pipeline.as_mut() {
                 if let Some((stream_id, value)) = Self::toggle_export(&self.video_store, tree_path)
                 {
-                    context
+                    pipeline
                         .info
                         .write()
                         .unwrap()
@@ -171,10 +171,10 @@ impl StreamsController {
 
     fn audio_export_toggled(&self, tree_path: &gtk::TreePath) {
         if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
-            if let Some(context) = main_ctrl_rc.borrow_mut().context.as_mut() {
+            if let Some(pipeline) = main_ctrl_rc.borrow_mut().pipeline.as_mut() {
                 if let Some((stream_id, value)) = Self::toggle_export(&self.audio_store, tree_path)
                 {
-                    context
+                    pipeline
                         .info
                         .write()
                         .unwrap()
@@ -190,9 +190,9 @@ impl StreamsController {
 
     fn text_export_toggled(&self, tree_path: &gtk::TreePath) {
         if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
-            if let Some(context) = main_ctrl_rc.borrow_mut().context.as_mut() {
+            if let Some(pipeline) = main_ctrl_rc.borrow_mut().pipeline.as_mut() {
                 if let Some((stream_id, value)) = Self::toggle_export(&self.text_store, tree_path) {
-                    context
+                    pipeline
                         .info
                         .write()
                         .unwrap()
@@ -215,9 +215,9 @@ impl StreamsController {
         self.text_selected = None;
     }
 
-    pub fn new_media(&mut self, context: &PlaybackContext) {
+    pub fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         {
-            let mut info = context.info.write().unwrap();
+            let mut info = pipeline.info.write().unwrap();
 
             // Video streams
             let mut sorted_ids = info

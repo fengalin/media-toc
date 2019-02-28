@@ -10,15 +10,15 @@ use log::info;
 
 use std::{collections::HashSet, error::Error, path::Path, sync::mpsc::Sender};
 
-use super::ContextMessage;
+use super::PipelineMessage;
 
-pub struct TocSetterContext {
+pub struct TocSetterPipeline {
     pipeline: gst::Pipeline,
     muxer: Option<gst::Element>,
     position_query: gst::query::Position<gst::Query>,
 }
 
-impl TocSetterContext {
+impl TocSetterPipeline {
     pub fn check_requirements() -> Result<(), String> {
         // Exporting to Mastroska containers is only
         // available from gst-plugins-good 1.13.1
@@ -41,21 +41,21 @@ impl TocSetterContext {
         input_path: &Path,
         output_path: &Path,
         streams: HashSet<String>,
-        ctx_tx: Sender<ContextMessage>,
-    ) -> Result<TocSetterContext, String> {
+        pipeline_tx: Sender<PipelineMessage>,
+    ) -> Result<TocSetterPipeline, String> {
         info!(
             "{}",
             gettext("Exporting to {}...").replacen("{}", output_path.to_str().unwrap(), 1)
         );
 
-        let mut this = TocSetterContext {
+        let mut this = TocSetterPipeline {
             pipeline: gst::Pipeline::new("pipeline"),
             muxer: None,
             position_query: gst::Query::new_position(gst::Format::Time),
         };
 
         this.build_pipeline(input_path, output_path, streams);
-        this.register_bus_inspector(ctx_tx);
+        this.register_bus_inspector(pipeline_tx);
 
         this.pipeline
             .set_state(gst::State::Paused)
@@ -125,7 +125,7 @@ impl TocSetterContext {
 
             if streams.contains(
                 pad.get_stream_id()
-                    .expect("TocSetterContext::build_pipeline no stream_id for src pad")
+                    .expect("TocSetterPipeline::build_pipeline no stream_id for src pad")
                     .as_str(),
             ) {
                 let muxer_sink_pad = muxer.get_compatible_pad(&queue_src_pad, None).unwrap();
@@ -156,18 +156,18 @@ impl TocSetterContext {
         });
     }
 
-    // Uses ctx_tx to notify the UI controllers about the inspection process
-    fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
+    // Uses pipeline_tx to notify the UI controllers about the inspection process
+    fn register_bus_inspector(&self, pipeline_tx: Sender<PipelineMessage>) {
         let mut init_done = false;
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
-                    ctx_tx.send(ContextMessage::Eos).unwrap();
+                    pipeline_tx.send(PipelineMessage::Eos).unwrap();
                     return glib::Continue(false);
                 }
                 gst::MessageView::Error(err) => {
-                    ctx_tx
-                        .send(ContextMessage::FailedToExport(
+                    pipeline_tx
+                        .send(PipelineMessage::FailedToExport(
                             err.get_error().description().to_owned(),
                         ))
                         .unwrap();
@@ -176,9 +176,9 @@ impl TocSetterContext {
                 gst::MessageView::AsyncDone(_) => {
                     if !init_done {
                         init_done = true;
-                        ctx_tx.send(ContextMessage::InitDone).unwrap();
+                        pipeline_tx.send(PipelineMessage::InitDone).unwrap();
                     } else {
-                        ctx_tx.send(ContextMessage::AsyncDone).unwrap();
+                        pipeline_tx.send(PipelineMessage::AsyncDone).unwrap();
                     }
                 }
                 _ => (),

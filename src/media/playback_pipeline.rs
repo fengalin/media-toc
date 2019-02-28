@@ -17,7 +17,7 @@ use std::{
 
 use crate::{application::CONFIG, metadata::MediaInfo};
 
-use super::{ContextMessage, DoubleAudioBuffer};
+use super::{PipelineMessage, DoubleAudioBuffer};
 
 // Buffer size in ns for queues
 // This is the max duration that queues can hold
@@ -36,7 +36,7 @@ pub enum PipelineState {
     StreamsSelected,
 }
 
-pub struct PlaybackContext {
+pub struct PlaybackPipeline {
     pipeline: gst::Pipeline,
     decodebin: gst::Element,
     position_query: gst::query::Position<gst::Query>,
@@ -46,7 +46,7 @@ pub struct PlaybackContext {
 }
 
 // FIXME: might need to `release_request_pad` on the tee
-impl Drop for PlaybackContext {
+impl Drop for PlaybackPipeline {
     fn drop(&mut self) {
         if let Some(video_sink) = self.pipeline.get_by_name("video_sink") {
             self.pipeline.remove(&video_sink).unwrap();
@@ -54,19 +54,19 @@ impl Drop for PlaybackContext {
     }
 }
 
-impl PlaybackContext {
+impl PlaybackPipeline {
     pub fn try_new(
         path: &Path,
         dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer>>,
         video_sink: &Option<gst::Element>,
-        ctx_tx: &Sender<ContextMessage>,
-    ) -> Result<PlaybackContext, String> {
+        pipeline_tx: &Sender<PipelineMessage>,
+    ) -> Result<PlaybackPipeline, String> {
         info!(
             "{}",
             gettext("Opening {}...").replacen("{}", path.to_str().unwrap(), 1)
         );
 
-        let mut this = PlaybackContext {
+        let mut this = PlaybackPipeline {
             pipeline: gst::Pipeline::new("pipeline"),
             decodebin: gst::ElementFactory::make("decodebin3", "decodebin").unwrap(),
             position_query: gst::Query::new_position(gst::Format::Time),
@@ -76,8 +76,8 @@ impl PlaybackContext {
         };
 
         this.pipeline.add(&this.decodebin).unwrap();
-        this.build_pipeline(path, video_sink, &ctx_tx);
-        this.register_bus_inspector(&ctx_tx);
+        this.build_pipeline(path, video_sink, &pipeline_tx);
+        this.register_bus_inspector(&pipeline_tx);
 
         this.pause().map(|_| this)
     }
@@ -126,7 +126,7 @@ impl PlaybackContext {
     pub fn play(&mut self) -> Result<(), String> {
         self.dbl_audio_buffer_mtx
             .lock()
-            .expect("PlaybackContext::play: couldn't lock dbl_audio_buffer_mtx")
+            .expect("PlaybackPipeline::play: couldn't lock dbl_audio_buffer_mtx")
             .accept_eos();
 
         self.pipeline
@@ -160,7 +160,7 @@ impl PlaybackContext {
         // => ignore it so as not to confuse mechnisms that expect the actual end of stream
         self.dbl_audio_buffer_mtx
             .lock()
-            .expect("PlaybackContext::play: couldn't lock dbl_audio_buffer_mtx")
+            .expect("PlaybackPipeline::play: couldn't lock dbl_audio_buffer_mtx")
             .ignore_eos();
 
         self.pipeline
@@ -256,12 +256,12 @@ impl PlaybackContext {
         &mut self,
         path: &Path,
         video_sink: &Option<gst::Element>,
-        ctx_tx: &Sender<ContextMessage>,
+        pipeline_tx: &Sender<PipelineMessage>,
     ) {
         // From decodebin3's documentation: "Children: multiqueue0"
         let decodebin_as_bin = self.decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
         let decodebin_multiqueue = &decodebin_as_bin.get_children()[0];
-        PlaybackContext::setup_queue(decodebin_multiqueue);
+        PlaybackPipeline::setup_queue(decodebin_multiqueue);
         // Discard "interleave" as it modifies "max-size-time"
         decodebin_multiqueue
             .set_property("use-interleave", &false)
@@ -280,23 +280,23 @@ impl PlaybackContext {
         let pipeline_clone = self.pipeline.clone();
         let dbl_audio_buffer_mtx = Arc::clone(&self.dbl_audio_buffer_mtx);
         let video_sink = video_sink.clone();
-        let ctx_tx_mtx = Arc::new(Mutex::new(ctx_tx.clone()));
+        let pipeline_tx_mtx = Arc::new(Mutex::new(pipeline_tx.clone()));
         self.decodebin
             .connect_pad_added(move |_decodebin, src_pad| {
                 let pipeline = &pipeline_clone;
                 let name = src_pad.get_name();
 
                 if name.starts_with("audio_") {
-                    PlaybackContext::build_audio_pipeline(
+                    PlaybackPipeline::build_audio_pipeline(
                         pipeline,
                         src_pad,
                         &audio_sink,
                         &dbl_audio_buffer_mtx,
-                        &ctx_tx_mtx,
+                        &pipeline_tx_mtx,
                     );
                 } else if name.starts_with("video_") {
                     if let Some(ref video_sink) = video_sink {
-                        PlaybackContext::build_video_pipeline(pipeline, src_pad, video_sink);
+                        PlaybackPipeline::build_video_pipeline(pipeline, src_pad, video_sink);
                     }
                 } else {
                     // TODO: handle subtitles
@@ -314,10 +314,10 @@ impl PlaybackContext {
         src_pad: &gst::Pad,
         audio_sink: &gst::Element,
         dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer>>,
-        ctx_tx_mtx: &Arc<Mutex<Sender<ContextMessage>>>,
+        pipeline_tx_mtx: &Arc<Mutex<Sender<PipelineMessage>>>,
     ) {
         let playback_queue = gst::ElementFactory::make("queue", "audio_playback_queue").unwrap();
-        PlaybackContext::setup_queue(&playback_queue);
+        PlaybackPipeline::setup_queue(&playback_queue);
 
         let playback_convert =
             gst::ElementFactory::make("audioconvert", "playback_audioconvert").unwrap();
@@ -332,7 +332,7 @@ impl PlaybackContext {
         ];
 
         let waveform_queue = gst::ElementFactory::make("queue2", "waveform_queue").unwrap();
-        PlaybackContext::setup_queue(&waveform_queue);
+        PlaybackPipeline::setup_queue(&waveform_queue);
 
         let waveform_sink = gst::ElementFactory::make("fakesink", "waveform_sink").unwrap();
         let waveform_sink_pad = waveform_queue.get_static_pad("sink").unwrap();
@@ -376,7 +376,7 @@ impl PlaybackContext {
         {
             dbl_audio_buffer_mtx
                 .lock()
-                .expect("PlaybackContext::build_audio_pipeline: couldn't lock dbl_audio_buffer_mtx")
+                .expect("PlaybackPipeline::build_audio_pipeline: couldn't lock dbl_audio_buffer_mtx")
                 .set_ref(audio_sink);
         }
 
@@ -384,7 +384,7 @@ impl PlaybackContext {
         // We can't use intermediate elements such as audioconvert because they get paused
         // and block the buffers
         let dbl_audio_buffer_mtx = Arc::clone(dbl_audio_buffer_mtx);
-        let ctx_tx_mtx = Arc::clone(ctx_tx_mtx);
+        let pipeline_tx_mtx = Arc::clone(pipeline_tx_mtx);
         let pad_probe_filter = gst::PadProbeType::BUFFER | gst::PadProbeType::EVENT_BOTH;
         waveform_sink_pad.add_probe(pad_probe_filter, move |_pad, probe_info| {
             if let Some(ref mut data) = probe_info.data {
@@ -396,10 +396,10 @@ impl PlaybackContext {
                             .push_gst_buffer(buffer);
 
                         if must_notify {
-                            ctx_tx_mtx
+                            pipeline_tx_mtx
                                 .lock()
-                                .expect("waveform_sink::probe couldn't lock ctx_tx_mtx")
-                                .send(ContextMessage::ReadyForRefresh)
+                                .expect("waveform_sink::probe couldn't lock pipeline_tx_mtx")
+                                .send(PipelineMessage::ReadyForRefresh)
                                 .expect("Failed to notify UI");
                         }
 
@@ -418,10 +418,10 @@ impl PlaybackContext {
                             }
                             gst::EventView::Eos(_) => {
                                 dbl_audio_buffer_mtx.lock().unwrap().handle_eos();
-                                ctx_tx_mtx
+                                pipeline_tx_mtx
                                     .lock()
                                     .unwrap()
-                                    .send(ContextMessage::ReadyForRefresh)
+                                    .send(PipelineMessage::ReadyForRefresh)
                                     .unwrap();
                             }
                             gst::EventView::Segment(segment_event) => {
@@ -446,7 +446,7 @@ impl PlaybackContext {
         video_sink: &gst::Element,
     ) {
         let queue = gst::ElementFactory::make("queue", "video_queue").unwrap();
-        PlaybackContext::setup_queue(&queue);
+        PlaybackPipeline::setup_queue(&queue);
         let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
         let scale = gst::ElementFactory::make("videoscale", None).unwrap();
 
@@ -456,8 +456,8 @@ impl PlaybackContext {
 
         for e in elements {
             // Silently ignore the state sync issues
-            // and rely on the PlaybackContext state to return an error.
-            // Can't use ctx_tx to return the error because
+            // and rely on the PlaybackPipeline state to return an error.
+            // Can't use pipeline_tx to return the error because
             // the bus catches it first.
             let _res = e.sync_state_with_parent();
         }
@@ -466,12 +466,12 @@ impl PlaybackContext {
         src_pad.link(&sink_pad).unwrap();
     }
 
-    // Uses ctx_tx to notify the UI controllers about the inspection process
-    fn register_bus_inspector(&self, ctx_tx: &Sender<ContextMessage>) {
+    // Uses pipeline_tx to notify the UI controllers about the inspection process
+    fn register_bus_inspector(&self, pipeline_tx: &Sender<PipelineMessage>) {
         let mut pipeline_state = PipelineState::None;
         let info_arc_mtx = Arc::clone(&self.info);
         let dbl_audio_buffer_mtx = Arc::clone(&self.dbl_audio_buffer_mtx);
-        let ctx_tx = ctx_tx.clone();
+        let pipeline_tx = pipeline_tx.clone();
         let pipeline = self.pipeline.clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
@@ -480,8 +480,8 @@ impl PlaybackContext {
                         let dbl_audio_buffer = &mut dbl_audio_buffer_mtx.lock().unwrap();
                         dbl_audio_buffer.set_state(gst::State::Paused);
                     }
-                    ctx_tx
-                        .send(ContextMessage::Eos)
+                    pipeline_tx
+                        .send(PipelineMessage::Eos)
                         .expect("Failed to notify UI");
                 }
                 gst::MessageView::Error(err) => {
@@ -501,14 +501,14 @@ impl PlaybackContext {
                     } else {
                         err.get_error().description().to_owned()
                     };
-                    ctx_tx.send(ContextMessage::FailedToOpenMedia(msg)).unwrap();
+                    pipeline_tx.send(PipelineMessage::FailedToOpenMedia(msg)).unwrap();
                     return glib::Continue(false);
                 }
                 gst::MessageView::Element(element_msg) => {
                     let structure = element_msg.get_structure().unwrap();
                     if structure.get_name() == "missing-plugin" {
-                        ctx_tx
-                            .send(ContextMessage::MissingPlugin(
+                        pipeline_tx
+                            .send(PipelineMessage::MissingPlugin(
                                 structure
                                     .get_value("name")
                                     .unwrap()
@@ -531,13 +531,13 @@ impl PlaybackContext {
                             .expect("Failed to lock media info while setting duration")
                             .duration = duration;
 
-                        ctx_tx
-                            .send(ContextMessage::InitDone)
+                        pipeline_tx
+                            .send(PipelineMessage::InitDone)
                             .expect("Failed to notify UI");
                     }
                     PipelineState::Initialized(_) => {
-                        ctx_tx
-                            .send(ContextMessage::AsyncDone)
+                        pipeline_tx
+                            .send(PipelineMessage::AsyncDone)
                             .expect("Failed to notify UI");
                     }
                     _ => (),
@@ -568,7 +568,7 @@ impl PlaybackContext {
                                         }
                                         pipeline_state =
                                             PipelineState::Initialized(InitializedState::Paused);
-                                        ctx_tx.send(ContextMessage::ReadyForRefresh).unwrap();
+                                        pipeline_tx.send(PipelineMessage::ReadyForRefresh).unwrap();
                                     }
                                 }
                                 _ => {
@@ -621,7 +621,7 @@ impl PlaybackContext {
                             dbl_audio_buffer.clean_samples();
                         }
 
-                        ctx_tx.send(ContextMessage::StreamsSelected).unwrap();
+                        pipeline_tx.send(PipelineMessage::StreamsSelected).unwrap();
                     }
                     _ => {
                         let has_usable_streams = {
@@ -635,8 +635,8 @@ impl PlaybackContext {
                         if has_usable_streams {
                             pipeline_state = PipelineState::StreamsSelected;
                         } else {
-                            ctx_tx
-                                .send(ContextMessage::FailedToOpenMedia(gettext(
+                            pipeline_tx
+                                .send(PipelineMessage::FailedToOpenMedia(gettext(
                                     "No usable streams could be found.",
                                 )))
                                 .unwrap();

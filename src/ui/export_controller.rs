@@ -17,7 +17,7 @@ use std::{
 };
 
 use crate::{
-    media::{ContextMessage, ContextMessage::*, TocSetterContext},
+    media::{PipelineMessage, PipelineMessage::*, TocSetterPipeline},
     metadata,
     metadata::{Exporter, Format, MatroskaTocFormat},
 };
@@ -43,7 +43,7 @@ pub struct ExportController {
     export_progress_bar: gtk::ProgressBar,
     export_btn: gtk::Button,
 
-    toc_setter_ctx: Option<TocSetterContext>,
+    toc_setter_pipeline: Option<TocSetterPipeline>,
     this_opt: Option<Weak<RefCell<ExportController>>>,
 }
 
@@ -60,7 +60,7 @@ impl ExportController {
             export_progress_bar: builder.get_object("export-progress").unwrap(),
             export_btn: builder.get_object("export-btn").unwrap(),
 
-            toc_setter_ctx: None,
+            toc_setter_pipeline: None,
             this_opt: None,
         }));
 
@@ -90,9 +90,9 @@ impl ExportController {
             let this_clone = Rc::clone(&this_clone);
             main_ctrl_clone
                 .borrow_mut()
-                .request_context(Box::new(move |context| {
+                .request_pipeline(Box::new(move |pipeline| {
                     {
-                        this_clone.borrow_mut().playback_ctx = Some(context);
+                        this_clone.borrow_mut().playback_pipeline = Some(pipeline);
                     }
                     // launch export asynchronoulsy so that main_ctrl is no longer borrowed
                     let this_clone = Rc::clone(&this_clone);
@@ -114,7 +114,7 @@ impl ExportController {
     }
 
     fn check_requirements(&self) {
-        let _ = TocSetterContext::check_requirements().map_err(|err| {
+        let _ = TocSetterPipeline::check_requirements().map_err(|err| {
             warn!("{}", err);
             self.mkvmerge_txt_warning_lbl.set_label(&err);
             self.mkv_row.set_sensitive(false);
@@ -122,7 +122,7 @@ impl ExportController {
     }
 
     fn export(&mut self) {
-        debug_assert!(self.playback_ctx.is_some());
+        debug_assert!(self.playback_pipeline.is_some());
         let (format, export_type) = self.get_selection();
 
         match export_type {
@@ -131,7 +131,7 @@ impl ExportController {
                 // export toc as a standalone file
                 let (msg_type, msg) = match File::create(&self.target_path) {
                     Ok(mut output_file) => {
-                        let info = self.playback_ctx.as_ref().unwrap().info.read().unwrap();
+                        let info = self.playback_pipeline.as_ref().unwrap().info.read().unwrap();
                         match metadata::Factory::get_writer(format).write(&info, &mut output_file) {
                             Ok(_) => (
                                 gtk::MessageType::Info,
@@ -146,7 +146,7 @@ impl ExportController {
                     ),
                 };
 
-                self.restore_context();
+                self.restore_pipeline();
                 self.switch_to_available();
                 self.show_message(msg_type, msg);
             }
@@ -155,8 +155,8 @@ impl ExportController {
                     let mut has_audio = false;
                     let mut has_other = false;
                     let mut streams = HashSet::<String>::new();
-                    let playback_ctx = self.playback_ctx.as_ref().unwrap();
-                    let info = playback_ctx.info.read().unwrap();
+                    let playback_pipeline = self.playback_pipeline.as_ref().unwrap();
+                    let info = playback_pipeline.info.read().unwrap();
                     for (ref stream_id, ref stream) in &info.streams.video {
                         if stream.must_export {
                             streams.insert(stream_id.to_string());
@@ -180,25 +180,25 @@ impl ExportController {
 
                 self.prepare_process(format, is_audio_only);
                 let target_path = self.target_path.clone();
-                self.build_context(&target_path, streams);
+                self.build_pipeline(&target_path, streams);
             }
         }
     }
 
-    fn build_context(&mut self, export_path: &Path, streams: HashSet<String>) {
-        let (ctx_tx, ui_rx) = channel();
+    fn build_pipeline(&mut self, export_path: &Path, streams: HashSet<String>) {
+        let (pipeline_tx, ui_rx) = channel();
 
         self.register_listener(LISTENER_PERIOD, ui_rx);
 
-        match TocSetterContext::try_new(&self.media_path, export_path, streams, ctx_tx) {
-            Ok(toc_setter_ctx) => {
+        match TocSetterPipeline::try_new(&self.media_path, export_path, streams, pipeline_tx) {
+            Ok(toc_setter_pipeline) => {
                 self.switch_to_busy();
-                self.toc_setter_ctx = Some(toc_setter_ctx);
+                self.toc_setter_pipeline = Some(toc_setter_pipeline);
             }
             Err(error) => {
                 self.remove_listener();
                 self.switch_to_available();
-                self.restore_context();
+                self.restore_pipeline();
                 self.show_error(
                     gettext("Failed to prepare for export. {}").replacen("{}", &error, 1),
                 );
@@ -234,7 +234,7 @@ impl ExportController {
         self.export_btn.set_sensitive(true);
     }
 
-    fn register_listener(&mut self, period: u32, ui_rx: Receiver<ContextMessage>) {
+    fn register_listener(&mut self, period: u32, ui_rx: Receiver<PipelineMessage>) {
         let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
 
         self.listener_src = Some(gtk::timeout_add(period, move || {
@@ -245,8 +245,8 @@ impl ExportController {
                 let mut this = this_rc.borrow_mut();
 
                 if this.duration > 0 {
-                    let position = match this.toc_setter_ctx.as_mut() {
-                        Some(toc_setter_ctx) => toc_setter_ctx.get_position(),
+                    let position = match this.toc_setter_pipeline.as_mut() {
+                        Some(toc_setter_pipeline) => toc_setter_pipeline.get_position(),
                         None => 0,
                     };
                     this.export_progress_bar
@@ -256,23 +256,23 @@ impl ExportController {
                 for message in ui_rx.try_iter() {
                     match message {
                         InitDone => {
-                            let mut toc_setter_ctx = this.toc_setter_ctx.take().unwrap();
+                            let mut toc_setter_pipeline = this.toc_setter_pipeline.take().unwrap();
 
                             let exporter = MatroskaTocFormat::new();
                             {
-                                let muxer = toc_setter_ctx.get_muxer().unwrap();
-                                let info = this.playback_ctx.as_ref().unwrap().info.read().unwrap();
+                                let muxer = toc_setter_pipeline.get_muxer().unwrap();
+                                let info = this.playback_pipeline.as_ref().unwrap().info.read().unwrap();
                                 exporter.export(&info, muxer);
                             }
 
-                            if let Err(err) = toc_setter_ctx.export() {
+                            if let Err(err) = toc_setter_pipeline.export() {
                                 keep_going = false;
                                 this.show_error(
                                     gettext("Failed to export media. {}").replacen("{}", &err, 1),
                                 );
                             }
 
-                            this.toc_setter_ctx = Some(toc_setter_ctx);
+                            this.toc_setter_pipeline = Some(toc_setter_pipeline);
                         }
                         Eos => {
                             this.show_info(gettext("Media exported succesfully"));
@@ -295,7 +295,7 @@ impl ExportController {
                 if !keep_going {
                     this.listener_src = None;
                     this.switch_to_available();
-                    this.restore_context();
+                    this.restore_pipeline();
                 }
             }
 

@@ -14,7 +14,7 @@ use std::{
 };
 
 use crate::{
-    media::{ContextMessage, ContextMessage::*, PlaybackContext, SplitterContext},
+    media::{PipelineMessage, PipelineMessage::*, PlaybackPipeline, SplitterPipeline},
     metadata,
     metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor},
 };
@@ -59,7 +59,7 @@ pub struct SplitController {
     split_progress_bar: gtk::ProgressBar,
     split_btn: gtk::Button,
 
-    splitter_ctx: Option<SplitterContext>,
+    splitter_pipeline: Option<SplitterPipeline>,
     this_opt: Option<Weak<RefCell<SplitController>>>,
 }
 
@@ -86,7 +86,7 @@ impl SplitController {
             split_progress_bar: builder.get_object("split-progress").unwrap(),
             split_btn: builder.get_object("split-btn").unwrap(),
 
-            splitter_ctx: None,
+            splitter_pipeline: None,
             this_opt: None,
         }));
 
@@ -116,9 +116,9 @@ impl SplitController {
             let this_clone = Rc::clone(&this_clone);
             main_ctrl_clone
                 .borrow_mut()
-                .request_context(Box::new(move |context| {
+                .request_pipeline(Box::new(move |pipeline| {
                     {
-                        this_clone.borrow_mut().playback_ctx = Some(context);
+                        this_clone.borrow_mut().playback_pipeline = Some(pipeline);
                     }
                     // launch export asynchronoulsy so that main_ctrl is no longer borrowed
                     let this_clone = Rc::clone(&this_clone);
@@ -130,8 +130,8 @@ impl SplitController {
         });
     }
 
-    pub fn new_media(&mut self, context: &PlaybackContext) {
-        let info = context.info.read().unwrap();
+    pub fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+        let info = pipeline.info.read().unwrap();
         self.streams_changed(&info);
     }
 
@@ -149,27 +149,27 @@ impl SplitController {
     }
 
     fn check_requirements(&self) {
-        let _ = SplitterContext::check_requirements(Format::Flac).map_err(|err| {
+        let _ = SplitterPipeline::check_requirements(Format::Flac).map_err(|err| {
             warn!("{}", err);
             self.flac_warning_lbl.set_label(&err);
             self.split_to_flac_row.set_sensitive(false);
         });
-        let _ = SplitterContext::check_requirements(Format::Wave).map_err(|err| {
+        let _ = SplitterPipeline::check_requirements(Format::Wave).map_err(|err| {
             warn!("{}", err);
             self.wave_warning_lbl.set_label(&err);
             self.split_to_wave_row.set_sensitive(false);
         });
-        let _ = SplitterContext::check_requirements(Format::Opus).map_err(|err| {
+        let _ = SplitterPipeline::check_requirements(Format::Opus).map_err(|err| {
             warn!("{}", err);
             self.opus_warning_lbl.set_label(&err);
             self.split_to_opus_row.set_sensitive(false);
         });
-        let _ = SplitterContext::check_requirements(Format::Vorbis).map_err(|err| {
+        let _ = SplitterPipeline::check_requirements(Format::Vorbis).map_err(|err| {
             warn!("{}", err);
             self.vorbis_warning_lbl.set_label(&err);
             self.split_to_vorbis_row.set_sensitive(false);
         });
-        let _ = SplitterContext::check_requirements(Format::MP3).map_err(|err| {
+        let _ = SplitterPipeline::check_requirements(Format::MP3).map_err(|err| {
             warn!("{}", err);
             self.mp3_warning_lbl.set_label(&err);
             self.split_to_mp3_row.set_sensitive(false);
@@ -186,7 +186,7 @@ impl SplitController {
 
         self.toc_visitor = self
             .base
-            .playback_ctx
+            .playback_pipeline
             .as_ref()
             .unwrap()
             .info
@@ -197,12 +197,12 @@ impl SplitController {
             .map(|toc| TocVisitor::new(toc));
         self.idx = 0;
 
-        if let Err(err) = self.build_context(format) {
+        if let Err(err) = self.build_pipeline(format) {
             self.show_error(err);
         }
     }
 
-    fn build_context(&mut self, format: metadata::Format) -> Result<bool, String> {
+    fn build_pipeline(&mut self, format: metadata::Format) -> Result<bool, String> {
         let mut chapter = match self.next_chapter() {
             Some(chapter) => chapter,
             None => {
@@ -233,25 +233,25 @@ impl SplitController {
         // and the TocVisitor so the chapters entries ref_count is > 1
         let chapter = self.update_tags(&mut chapter);
         let output_path = self.get_split_path(&chapter);
-        let (ctx_tx, ui_rx) = channel();
+        let (pipeline_tx, ui_rx) = channel();
         self.register_listener(format, LISTENER_PERIOD, ui_rx);
-        match SplitterContext::try_new(
+        match SplitterPipeline::try_new(
             &self.media_path,
             &output_path,
             &self.selected_audio.as_ref().unwrap().id,
             format,
             chapter,
-            ctx_tx,
+            pipeline_tx,
         ) {
-            Ok(splitter_ctx) => {
+            Ok(splitter_pipeline) => {
                 self.switch_to_busy();
-                self.splitter_ctx = Some(splitter_ctx);
+                self.splitter_pipeline = Some(splitter_pipeline);
                 Ok(true)
             }
             Err(error) => {
                 self.remove_listener();
                 self.switch_to_available();
-                self.restore_context();
+                self.restore_pipeline();
                 let msg = gettext("Failed to prepare for split. {}").replacen("{}", &error, 1);
                 error!("{}", msg);
                 Err(msg)
@@ -277,7 +277,7 @@ impl SplitController {
     fn get_split_path(&self, chapter: &gst::TocEntry) -> PathBuf {
         let mut split_name = String::new();
 
-        let info = self.playback_ctx.as_ref().unwrap().info.read().unwrap();
+        let info = self.playback_pipeline.as_ref().unwrap().info.read().unwrap();
 
         // TODO: make format customisable
         if let Some(artist) = info.get_artist() {
@@ -324,7 +324,7 @@ impl SplitController {
         {
             let tags = tags.get_mut().unwrap();
             let chapter_count = {
-                let info = self.playback_ctx.as_ref().unwrap().info.read().unwrap();
+                let info = self.playback_pipeline.as_ref().unwrap().info.read().unwrap();
 
                 // Select tags suitable for a track
                 for (tag_name, tag_iter) in info.tags.iter_generic() {
@@ -420,7 +420,7 @@ impl SplitController {
         &mut self,
         format: metadata::Format,
         period: u32,
-        ui_rx: Receiver<ContextMessage>,
+        ui_rx: Receiver<PipelineMessage>,
     ) {
         let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
 
@@ -434,8 +434,8 @@ impl SplitController {
                 let mut this = this_rc.borrow_mut();
 
                 if this.duration > 0 {
-                    let position = match this.splitter_ctx.as_mut() {
-                        Some(splitter_ctx) => splitter_ctx.get_position(),
+                    let position = match this.splitter_pipeline.as_mut() {
+                        Some(splitter_pipeline) => splitter_pipeline.get_position(),
                         None => 0,
                     };
                     this.split_progress_bar
@@ -445,7 +445,7 @@ impl SplitController {
                 for message in ui_rx.try_iter() {
                     match message {
                         Eos => {
-                            process_done = match this.build_context(format) {
+                            process_done = match this.build_pipeline(format) {
                                 Ok(true) => false, // more chapters
                                 Ok(false) => {
                                     this.show_info(gettext("Media split succesfully"));
@@ -477,7 +477,7 @@ impl SplitController {
 
                 if !keep_going && process_done {
                     this.switch_to_available();
-                    this.restore_context();
+                    this.restore_pipeline();
                 }
             }
 

@@ -9,7 +9,7 @@ use log::{debug, error};
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{application::CONFIG, media::PlaybackContext, metadata::MediaInfo};
+use crate::{application::CONFIG, media::PlaybackPipeline, metadata::MediaInfo};
 
 use super::MainController;
 
@@ -39,7 +39,7 @@ impl VideoController {
         let video_output = if !self.disable_gl && !CONFIG.read().unwrap().media.is_gl_disabled {
             gst::ElementFactory::make("gtkglsink", "gtkglsink").map(|gtkglsink| {
                 let glsinkbin = gst::ElementFactory::make("glsinkbin", "video_sink")
-                    .expect("PlaybackContext: couldn't get `glsinkbin` from `gtkglsink`");
+                    .expect("PlaybackPipeline: couldn't get `glsinkbin` from `gtkglsink`");
                 glsinkbin
                     .set_property("sink", &gtkglsink.to_value())
                     .expect("VideoController: couldn't set `sink` for `glsinkbin`");
@@ -64,9 +64,9 @@ impl VideoController {
                     sink: sink.clone(),
                     widget: sink
                         .get_property("widget")
-                        .expect("PlaybackContext: couldn't get `widget` from `gtksink`")
+                        .expect("PlaybackPipeline: couldn't get `widget` from `gtksink`")
                         .get::<gtk::Widget>()
-                        .expect("PlaybackContext: unexpected type for `widget` in `gtksink`"),
+                        .expect("PlaybackPipeline: unexpected type for `widget` in `gtksink`"),
                 }
             })
         });
@@ -136,8 +136,8 @@ impl VideoController {
         }
     }
 
-    pub fn new_media(&mut self, context: &PlaybackContext) {
-        let info = context.info.read().unwrap();
+    pub fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+        let info = pipeline.info.read().unwrap();
         self.streams_changed(&info);
     }
 

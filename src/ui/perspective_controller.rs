@@ -6,7 +6,7 @@ use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{media::PlaybackContext, metadata::MediaInfo};
+use crate::{media::PlaybackPipeline, metadata::MediaInfo};
 
 use super::MainController;
 
@@ -168,9 +168,9 @@ impl PerspectiveController {
         self.menu_button.set_sensitive(false);
     }
 
-    pub fn new_media(&self, context: &PlaybackContext) {
+    pub fn new_media(&self, pipeline: &PlaybackPipeline) {
         self.menu_button.set_sensitive(true);
-        let info = context.info.read().unwrap();
+        let info = pipeline.info.read().unwrap();
         self.streams_changed(&info);
     }
 

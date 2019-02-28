@@ -18,7 +18,7 @@ use std::{
 
 use crate::{
     application::CONFIG,
-    media::PlaybackContext,
+    media::PlaybackPipeline,
     metadata,
     metadata::{MediaInfo, Timestamp},
 };
@@ -359,11 +359,11 @@ impl InfoController {
         self.show_message(gtk::MessageType::Info, message);
     }
 
-    pub fn new_media(&mut self, context: &PlaybackContext) {
+    pub fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         let toc_extensions = metadata::Factory::get_extensions();
 
         {
-            let info = context.info.read().unwrap();
+            let info = pipeline.info.read().unwrap();
 
             // check the presence of a toc file
             let mut toc_candidates =
@@ -623,9 +623,9 @@ impl InfoController {
         self.update_marks();
     }
 
-    pub fn export_chapters(&self, context: &mut PlaybackContext) {
+    pub fn export_chapters(&self, pipeline: &mut PlaybackPipeline) {
         if let Some((toc, count)) = self.chapter_manager.get_toc() {
-            let mut info = context.info.write().unwrap();
+            let mut info = pipeline.info.write().unwrap();
             info.toc = Some(toc);
             info.chapter_count = Some(count);
         }

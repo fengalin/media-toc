@@ -20,7 +20,7 @@ use std::{
 };
 
 use crate::{
-    media::{DoubleAudioBuffer, PlaybackContext, SampleExtractor, QUEUE_SIZE_NS},
+    media::{DoubleAudioBuffer, PlaybackPipeline, SampleExtractor, QUEUE_SIZE_NS},
     metadata::{MediaInfo, Timestamp},
 };
 
@@ -330,9 +330,9 @@ impl AudioController {
         self.redraw();
     }
 
-    pub fn new_media(&mut self, context: &PlaybackContext) {
+    pub fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         let is_audio_selected = {
-            let info = context.info.read().unwrap();
+            let info = pipeline.info.read().unwrap();
             self.streams_changed(&info);
             info.streams.is_audio_selected()
         };
