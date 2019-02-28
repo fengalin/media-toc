@@ -278,8 +278,12 @@ impl StreamsController {
             sorted_ids.sort();
             for stream_id in sorted_ids {
                 let stream = info.streams.get_text_mut(stream_id).unwrap();
-                stream.must_export = true;
                 let iter = self.add_stream(&self.text_store, stream);
+                // FIXME: discard text stream export for now as it hangs the export
+                // (see https://github.com/fengalin/media-toc/issues/136)
+                stream.must_export = false;
+                self.text_store
+                    .set_value(&iter, EXPORT_FLAG_COL, &gtk::Value::from(&false));
                 let caps_structure = stream.caps.get_structure(0).unwrap();
                 if let Some(format) = caps_structure.get::<&str>("format") {
                     self.text_store
@@ -488,6 +492,10 @@ impl StreamsController {
         renderer.connect_toggled(move |_, tree_path| {
             this_clone.borrow().text_export_toggled(&tree_path);
         });
+        // FIXME: discard text stream export for now as it hangs the export
+        // (see https://github.com/fengalin/media-toc/issues/136)
+        renderer.set_activatable(false);
+
         self.add_text_column(
             &self.text_treeview,
             &stream_id_lbl,
