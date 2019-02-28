@@ -67,7 +67,7 @@ impl PlaybackPipeline {
         );
 
         let mut this = PlaybackPipeline {
-            pipeline: gst::Pipeline::new("pipeline"),
+            pipeline: gst::Pipeline::new("playback_pipeline"),
             decodebin: gst::ElementFactory::make("decodebin3", "decodebin").unwrap(),
             position_query: gst::Query::new_position(gst::Format::Time),
             dbl_audio_buffer_mtx: Arc::clone(dbl_audio_buffer_mtx),
@@ -545,7 +545,7 @@ impl PlaybackPipeline {
                 gst::MessageView::StateChanged(msg_state_changed) => {
                     if let PipelineState::Initialized(_) = pipeline_state {
                         if let Some(source) = msg_state_changed.get_src() {
-                            if "pipeline" != source.get_name() {
+                            if "playback_pipeline" != source.get_name() {
                                 return glib::Continue(true);
                             }
 

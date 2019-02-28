@@ -49,7 +49,7 @@ impl TocSetterPipeline {
         );
 
         let mut this = TocSetterPipeline {
-            pipeline: gst::Pipeline::new("pipeline"),
+            pipeline: gst::Pipeline::new("toc_setter_pipeline"),
             muxer: None,
             position_query: gst::Query::new_position(gst::Format::Time),
         };

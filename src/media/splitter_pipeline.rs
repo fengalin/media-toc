@@ -107,7 +107,7 @@ impl SplitterPipeline {
         debug!("stream id {}", &stream_id);
 
         let mut this = SplitterPipeline {
-            pipeline: gst::Pipeline::new("pipeline"),
+            pipeline: gst::Pipeline::new("splitter_pipeline"),
             position_query: gst::Query::new_position(gst::Format::Time),
             format,
             chapter,
