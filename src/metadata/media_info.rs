@@ -2,10 +2,12 @@ use gettextrs::gettext;
 use gstreamer as gst;
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::Arc,
 };
+
+use super::MediaContent;
 
 pub fn get_default_chapter_title() -> String {
     gettext("untitled")
@@ -165,7 +167,6 @@ impl Streams {
         self.text.get_mut(id.as_ref())
     }
 
-    // Returns the streams which changed
     pub fn select_streams(&mut self, ids: &[Arc<str>]) {
         let mut is_audio_selected = false;
         let mut is_text_selected = false;
@@ -215,6 +216,7 @@ pub struct MediaInfo {
     pub name: String,
     pub file_name: String,
     pub path: PathBuf,
+    pub content: MediaContent,
     pub tags: gst::TagList,
     pub toc: Option<gst::Toc>,
     pub chapter_count: Option<usize>,
@@ -233,6 +235,11 @@ impl MediaInfo {
             path: path.to_owned(),
             ..MediaInfo::default()
         }
+    }
+
+    pub fn add_stream(&mut self, gst_stream: &gst::Stream) {
+        self.streams.add_stream(gst_stream);
+        self.content.add_stream_type(gst_stream.get_stream_type());
     }
 
     pub fn get_file_name(&self) -> &str {
@@ -297,5 +304,33 @@ impl MediaInfo {
         self.tags
             .get_index::<gst::tags::ContainerFormat>(0)
             .map(|value| value.get().unwrap())
+    }
+
+    pub fn get_stream_ids_to_export(&self) -> (HashSet<String>, MediaContent) {
+        let mut streams = HashSet::<String>::new();
+        let mut content = MediaContent::Undefined;
+
+        {
+            for (stream_id, stream) in &self.streams.video {
+                if stream.must_export {
+                    streams.insert(stream_id.to_string());
+                    content.add_stream_type(gst::StreamType::VIDEO);
+                }
+            }
+            for (stream_id, stream) in &self.streams.audio {
+                if stream.must_export {
+                    streams.insert(stream_id.to_string());
+                    content.add_stream_type(gst::StreamType::AUDIO);
+                }
+            }
+            for (stream_id, stream) in &self.streams.text {
+                if stream.must_export {
+                    streams.insert(stream_id.to_string());
+                    content.add_stream_type(gst::StreamType::TEXT);
+                }
+            }
+        }
+
+        (streams, content)
     }
 }

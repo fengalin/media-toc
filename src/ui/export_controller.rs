@@ -125,62 +125,49 @@ impl ExportController {
         debug_assert!(self.playback_pipeline.is_some());
         let (format, export_type) = self.get_selection();
 
+        let (stream_ids, content) = self
+            .playback_pipeline
+            .as_ref()
+            .unwrap()
+            .info
+            .read()
+            .unwrap()
+            .get_stream_ids_to_export();
+
+        self.prepare_process(format, content);
+
         match export_type {
             ExportType::ExternalToc => {
-                self.prepare_process(format, false);
                 // export toc as a standalone file
-                let (msg_type, msg) = match File::create(&self.target_path) {
+                match File::create(&self.target_path) {
                     Ok(mut output_file) => {
-                        let info = self.playback_pipeline.as_ref().unwrap().info.read().unwrap();
+                        let info = self
+                            .playback_pipeline
+                            .as_ref()
+                            .unwrap()
+                            .info
+                            .read()
+                            .unwrap();
                         match metadata::Factory::get_writer(format).write(&info, &mut output_file) {
-                            Ok(_) => (
+                            Ok(_) => self.show_message(
                                 gtk::MessageType::Info,
                                 gettext("Table of contents exported succesfully"),
                             ),
-                            Err(err) => (gtk::MessageType::Error, err),
+                            Err(err) => self.show_message(gtk::MessageType::Error, err),
                         }
                     }
-                    Err(_) => (
+                    Err(_) => self.show_message(
                         gtk::MessageType::Error,
                         gettext("Failed to create the file for the table of contents"),
                     ),
-                };
+                }
 
                 self.restore_pipeline();
                 self.switch_to_available();
-                self.show_message(msg_type, msg);
             }
             ExportType::SingleFileWithToc => {
-                let (streams, is_audio_only) = {
-                    let mut has_audio = false;
-                    let mut has_other = false;
-                    let mut streams = HashSet::<String>::new();
-                    let playback_pipeline = self.playback_pipeline.as_ref().unwrap();
-                    let info = playback_pipeline.info.read().unwrap();
-                    for (ref stream_id, ref stream) in &info.streams.video {
-                        if stream.must_export {
-                            streams.insert(stream_id.to_string());
-                            has_other = true;
-                        }
-                    }
-                    for (ref stream_id, ref stream) in &info.streams.audio {
-                        if stream.must_export {
-                            streams.insert(stream_id.to_string());
-                            has_audio = true;
-                        }
-                    }
-                    for (ref stream_id, ref stream) in &info.streams.text {
-                        if stream.must_export {
-                            streams.insert(stream_id.to_string());
-                            has_other = true;
-                        }
-                    }
-                    (streams, has_audio && !has_other)
-                };
-
-                self.prepare_process(format, is_audio_only);
                 let target_path = self.target_path.clone();
-                self.build_pipeline(&target_path, streams);
+                self.build_pipeline(&target_path, stream_ids);
             }
         }
     }
@@ -261,7 +248,13 @@ impl ExportController {
                             let exporter = MatroskaTocFormat::new();
                             {
                                 let muxer = toc_setter_pipeline.get_muxer().unwrap();
-                                let info = this.playback_pipeline.as_ref().unwrap().info.read().unwrap();
+                                let info = this
+                                    .playback_pipeline
+                                    .as_ref()
+                                    .unwrap()
+                                    .info
+                                    .read()
+                                    .unwrap();
                                 exporter.export(&info, muxer);
                             }
 

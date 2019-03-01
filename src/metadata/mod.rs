@@ -1,3 +1,5 @@
+use gstreamer as gst;
+
 pub mod cue_sheet_format;
 pub use self::cue_sheet_format::CueSheetFormat;
 
@@ -32,4 +34,51 @@ pub enum Format {
     Opus,
     Vorbis,
     Wave,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum MediaContent {
+    Audio,
+    AudioVideo,
+    AudioText,
+    AudioVideoText,
+    Text,
+    Video,
+    VideoText,
+    Undefined,
+}
+
+impl MediaContent {
+    pub fn add_stream_type(&mut self, type_: gst::StreamType) {
+        match type_ {
+            gst::StreamType::AUDIO => match self {
+                MediaContent::Text => *self = MediaContent::AudioText,
+                MediaContent::Video => *self = MediaContent::AudioVideo,
+                MediaContent::VideoText => *self = MediaContent::AudioVideoText,
+                MediaContent::Undefined => *self = MediaContent::Audio,
+                _ => (),
+            },
+            gst::StreamType::VIDEO => match self {
+                MediaContent::Audio => *self = MediaContent::AudioVideo,
+                MediaContent::Text => *self = MediaContent::VideoText,
+                MediaContent::AudioText => *self = MediaContent::AudioVideoText,
+                MediaContent::Undefined => *self = MediaContent::Video,
+                _ => (),
+            },
+            gst::StreamType::TEXT => match self {
+                MediaContent::Audio => *self = MediaContent::AudioText,
+                MediaContent::Video => *self = MediaContent::VideoText,
+                MediaContent::AudioVideo => *self = MediaContent::AudioVideoText,
+                MediaContent::Undefined => *self = MediaContent::Text,
+                _ => (),
+            },
+            _ => panic!("MediaContent::add_stream_type can't handle {:?}", type_),
+        };
+    }
+}
+
+impl Default for MediaContent {
+    fn default() -> Self {
+        MediaContent::Undefined
+    }
 }

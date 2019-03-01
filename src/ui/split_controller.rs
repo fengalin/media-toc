@@ -16,7 +16,7 @@ use std::{
 use crate::{
     media::{PipelineMessage, PipelineMessage::*, PlaybackPipeline, SplitterPipeline},
     metadata,
-    metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor},
+    metadata::{get_default_chapter_title, Format, MediaContent, MediaInfo, Stream, TocVisitor},
 };
 
 use super::{MainController, OutputBaseController};
@@ -182,7 +182,7 @@ impl SplitController {
         debug_assert!(self.selected_audio.is_some());
 
         let format = self.get_selection();
-        self.prepare_process(format, true);
+        self.prepare_process(format, MediaContent::Audio);
 
         self.toc_visitor = self
             .base
@@ -277,7 +277,13 @@ impl SplitController {
     fn get_split_path(&self, chapter: &gst::TocEntry) -> PathBuf {
         let mut split_name = String::new();
 
-        let info = self.playback_pipeline.as_ref().unwrap().info.read().unwrap();
+        let info = self
+            .playback_pipeline
+            .as_ref()
+            .unwrap()
+            .info
+            .read()
+            .unwrap();
 
         // TODO: make format customisable
         if let Some(artist) = info.get_artist() {
@@ -324,7 +330,13 @@ impl SplitController {
         {
             let tags = tags.get_mut().unwrap();
             let chapter_count = {
-                let info = self.playback_pipeline.as_ref().unwrap().info.read().unwrap();
+                let info = self
+                    .playback_pipeline
+                    .as_ref()
+                    .unwrap()
+                    .info
+                    .read()
+                    .unwrap();
 
                 // Select tags suitable for a track
                 for (tag_name, tag_iter) in info.tags.iter_generic() {

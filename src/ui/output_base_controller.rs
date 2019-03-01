@@ -9,7 +9,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use crate::{media::PlaybackPipeline, metadata};
+use crate::{media::PlaybackPipeline, metadata, metadata::MediaContent};
 
 use super::MainController;
 
@@ -50,17 +50,23 @@ impl OutputBaseController {
         self.main_ctrl = Some(Rc::downgrade(main_ctrl));
     }
 
-    pub fn prepare_process(&mut self, format: metadata::Format, is_audio_only: bool) {
+    pub fn prepare_process(&mut self, format: metadata::Format, content: MediaContent) {
         self.switch_to_busy();
 
-        self.extension = metadata::Factory::get_extension(format, is_audio_only).to_owned();
+        self.extension = metadata::Factory::get_extension(format, content).to_owned();
 
         if self.listener_src.is_some() {
             self.remove_listener();
         }
 
         {
-            let info = self.playback_pipeline.as_ref().unwrap().info.read().unwrap();
+            let info = self
+                .playback_pipeline
+                .as_ref()
+                .unwrap()
+                .info
+                .read()
+                .unwrap();
             self.media_path = info.path.clone();
             self.duration = info.duration;
         }

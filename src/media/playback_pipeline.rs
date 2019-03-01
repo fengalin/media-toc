@@ -17,7 +17,7 @@ use std::{
 
 use crate::{application::CONFIG, metadata::MediaInfo};
 
-use super::{PipelineMessage, DoubleAudioBuffer};
+use super::{DoubleAudioBuffer, PipelineMessage};
 
 // Buffer size in ns for queues
 // This is the max duration that queues can hold
@@ -376,7 +376,9 @@ impl PlaybackPipeline {
         {
             dbl_audio_buffer_mtx
                 .lock()
-                .expect("PlaybackPipeline::build_audio_pipeline: couldn't lock dbl_audio_buffer_mtx")
+                .expect(
+                    "PlaybackPipeline::build_audio_pipeline: couldn't lock dbl_audio_buffer_mtx",
+                )
                 .set_ref(audio_sink);
         }
 
@@ -649,7 +651,7 @@ impl PlaybackPipeline {
                     let info = &mut info_arc_mtx.write().unwrap();
                     stream_collection
                         .iter()
-                        .for_each(|stream| info.streams.add_stream(&stream));
+                        .for_each(|stream| info.add_stream(&stream));
                 }
                 _ => (),
             }
