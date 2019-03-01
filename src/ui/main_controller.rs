@@ -32,6 +32,13 @@ use super::{
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
 const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum PostSeekAction {
+    KeepPaused,
+    SwitchToPlay,
+    KeepPlaying,
+}
+
 #[derive(PartialEq)]
 pub enum ControllerState {
     EOS,
@@ -43,8 +50,7 @@ pub enum ControllerState {
     Ready,
     Seeking {
         seek_pos: u64,
-        switch_to_play: bool,
-        keep_paused: bool,
+        post_seek_action: PostSeekAction,
     },
     Stopped,
     TwoStepsSeek(u64),
@@ -361,55 +367,45 @@ impl MainController {
         let mut must_sync_ctrl = false;
         let mut seek_pos = position;
         let mut flags = flags;
-        self.state = match self.state {
-            ControllerState::Seeking {
-                seek_pos: _seek_pos,
-                switch_to_play,
-                keep_paused,
-            } => ControllerState::Seeking {
-                seek_pos: position,
-                switch_to_play,
-                keep_paused,
-            },
-            ControllerState::EOS | ControllerState::Ready => ControllerState::Seeking {
-                seek_pos: position,
-                switch_to_play: true,
-                keep_paused: false,
-            },
+        match self.state {
+            ControllerState::Seeking { .. } => (),
+            ControllerState::EOS | ControllerState::Ready => {
+                self.state = ControllerState::Seeking {
+                    seek_pos: position,
+                    post_seek_action: PostSeekAction::SwitchToPlay,
+                };
+            }
             ControllerState::Paused => {
                 flags = gst::SeekFlags::ACCURATE;
                 let seek_1st_step = self
                     .audio_ctrl
                     .borrow()
                     .get_seek_back_1st_position(position);
-                match seek_1st_step {
+                self.state = match seek_1st_step {
                     Some(seek_1st_step) => {
                         seek_pos = seek_1st_step;
                         ControllerState::TwoStepsSeek(position)
                     }
                     None => ControllerState::Seeking {
                         seek_pos: position,
-                        switch_to_play: false,
-                        keep_paused: true,
+                        post_seek_action: PostSeekAction::KeepPaused,
                     },
-                }
+                };
             }
             ControllerState::TwoStepsSeek(target) => {
                 must_sync_ctrl = true;
                 seek_pos = target;
-                ControllerState::Seeking {
+                self.state = ControllerState::Seeking {
                     seek_pos: position,
-                    switch_to_play: false,
-                    keep_paused: true,
-                }
+                    post_seek_action: PostSeekAction::KeepPaused,
+                };
             }
             ControllerState::Playing => {
                 must_sync_ctrl = true;
-                ControllerState::Seeking {
+                self.state = ControllerState::Seeking {
                     seek_pos: position,
-                    switch_to_play: false,
-                    keep_paused: false,
-                }
+                    post_seek_action: PostSeekAction::KeepPlaying,
+                };
             }
             _ => return,
         };
@@ -556,21 +552,24 @@ impl MainController {
                             let mut this = this_rc.borrow_mut();
                             if let ControllerState::Seeking {
                                 seek_pos,
-                                switch_to_play,
-                                keep_paused,
+                                post_seek_action,
                             } = this.state
                             {
-                                if switch_to_play {
-                                    this.pipeline.as_mut().unwrap().play().unwrap();
-                                    this.play_pause_btn.set_icon_name(PAUSE_ICON);
-                                    this.state = ControllerState::Playing;
-                                    this.audio_ctrl.borrow_mut().switch_to_playing();
-                                } else if keep_paused {
-                                    this.state = ControllerState::Paused;
-                                    this.info_ctrl.borrow_mut().seek(seek_pos, &this.state);
-                                    this.audio_ctrl.borrow_mut().seek(seek_pos);
-                                } else {
-                                    this.state = ControllerState::Playing;
+                                match post_seek_action {
+                                    PostSeekAction::SwitchToPlay => {
+                                        this.pipeline.as_mut().unwrap().play().unwrap();
+                                        this.play_pause_btn.set_icon_name(PAUSE_ICON);
+                                        this.state = ControllerState::Playing;
+                                        this.audio_ctrl.borrow_mut().switch_to_playing();
+                                    }
+                                    PostSeekAction::KeepPaused => {
+                                        this.state = ControllerState::Paused;
+                                        this.info_ctrl.borrow_mut().seek(seek_pos, &this.state);
+                                        this.audio_ctrl.borrow_mut().seek(seek_pos);
+                                    }
+                                    PostSeekAction::KeepPlaying => {
+                                        this.state = ControllerState::Playing;
+                                    }
                                 }
                             }
                         }
