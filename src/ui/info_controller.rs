@@ -306,7 +306,7 @@ impl InfoController {
         drawingarea: &gtk::DrawingArea,
         cairo_ctx: &cairo::Context,
     ) -> Inhibit {
-        self.thumbnail.as_mut().map(|image| {
+        if let Some(image) = self.thumbnail.as_mut() {
             let allocation = drawingarea.get_allocation();
             let alloc_width_f: f64 = allocation.width.into();
             let alloc_height_f: f64 = allocation.height.into();
@@ -329,7 +329,7 @@ impl InfoController {
                 cr.set_source_surface(surface, x, y);
                 cr.paint();
             })
-        });
+        }
 
         Inhibit(true)
     }

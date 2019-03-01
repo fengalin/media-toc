@@ -373,15 +373,19 @@ impl WaveformImage {
 
                 (
                     // exposed_image
-                    Image::try_new(target_width, self.req_height).expect(&format!(
-                        "WaveformBuffer.render creating {}x{} image",
-                        target_width, self.req_height,
-                    )),
+                    Image::try_new(target_width, self.req_height).unwrap_or_else(|err| {
+                        panic!(
+                            "WaveformBuffer.render creating {}x{} image: {}",
+                            target_width, self.req_height, err,
+                        )
+                    }),
                     // will be used as secondary_image
-                    Image::try_new(target_width, self.req_height).expect(&format!(
-                        "WaveformBuffer.render creating {}x{} image",
-                        target_width, self.req_height,
-                    )),
+                    Image::try_new(target_width, self.req_height).unwrap_or_else(|err| {
+                        panic!(
+                            "WaveformBuffer.render creating {}x{} image: {}",
+                            target_width, self.req_height, err,
+                        )
+                    }),
                 )
             }
         };
