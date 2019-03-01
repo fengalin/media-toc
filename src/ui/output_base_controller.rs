@@ -24,7 +24,7 @@ pub struct OutputBaseController {
     pub extension: String,
     pub duration: u64,
 
-    pub listener_src: Option<glib::SourceId>,
+    pub timer_src: Option<glib::SourceId>,
     main_ctrl: Option<Weak<RefCell<MainController>>>,
 }
 
@@ -41,7 +41,7 @@ impl OutputBaseController {
             extension: String::new(),
             duration: 0,
 
-            listener_src: None,
+            timer_src: None,
             main_ctrl: None,
         }
     }
@@ -55,8 +55,8 @@ impl OutputBaseController {
 
         self.extension = metadata::Factory::get_extension(format, content).to_owned();
 
-        if self.listener_src.is_some() {
-            self.remove_listener();
+        if self.timer_src.is_some() {
+            self.remove_timer();
         }
 
         {
@@ -104,7 +104,9 @@ impl OutputBaseController {
         self.chapter_grid.set_sensitive(false);
     }
 
-    pub fn switch_to_available(&self) {
+    pub fn switch_to_available(&mut self) {
+        self.remove_timer();
+
         if let Some(main_ctrl) = self.main_ctrl.as_ref().unwrap().upgrade() {
             main_ctrl.borrow().reset_cursor();
         }
@@ -114,9 +116,9 @@ impl OutputBaseController {
         self.chapter_grid.set_sensitive(true);
     }
 
-    pub fn remove_listener(&mut self) {
-        if let Some(source_id) = self.listener_src.take() {
-            glib::source_remove(source_id);
+    pub fn remove_timer(&mut self) {
+        if let Some(src_id) = self.timer_src.take() {
+            let _res = glib::Source::remove(src_id);
         }
     }
 }

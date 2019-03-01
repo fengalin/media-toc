@@ -10,7 +10,7 @@ use log::{debug, error, info};
 use std::{
     error::Error,
     path::Path,
-    sync::{mpsc::Sender, Arc, Mutex},
+    sync::{Arc, Mutex},
 };
 
 use crate::metadata::Format;
@@ -98,7 +98,7 @@ impl SplitterPipeline {
         stream_id: &str,
         format: Format,
         chapter: gst::TocEntry,
-        pipeline_tx: Sender<PipelineMessage>,
+        pipeline_tx: glib::Sender<PipelineMessage>,
     ) -> Result<SplitterPipeline, String> {
         info!(
             "{}",
@@ -311,7 +311,7 @@ impl SplitterPipeline {
     }
 
     // Uses pipeline_tx to notify the UI controllers
-    fn register_bus_inspector(&self, pipeline_tx: Sender<PipelineMessage>) {
+    fn register_bus_inspector(&self, pipeline_tx: glib::Sender<PipelineMessage>) {
         let pipeline = self.pipeline.clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {

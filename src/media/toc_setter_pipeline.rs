@@ -1,14 +1,14 @@
 use gettextrs::gettext;
 
 use gstreamer as gst;
-use gstreamer::{prelude::*, PadExt};
+use gstreamer::prelude::*;
 
 use glib;
 use glib::ObjectExt;
 
 use log::info;
 
-use std::{collections::HashSet, error::Error, path::Path, sync::mpsc::Sender};
+use std::{collections::HashSet, error::Error, path::Path};
 
 use super::PipelineMessage;
 
@@ -41,7 +41,7 @@ impl TocSetterPipeline {
         input_path: &Path,
         output_path: &Path,
         streams: HashSet<String>,
-        pipeline_tx: Sender<PipelineMessage>,
+        pipeline_tx: glib::Sender<PipelineMessage>,
     ) -> Result<TocSetterPipeline, String> {
         info!(
             "{}",
@@ -157,7 +157,7 @@ impl TocSetterPipeline {
     }
 
     // Uses pipeline_tx to notify the UI controllers about the inspection process
-    fn register_bus_inspector(&self, pipeline_tx: Sender<PipelineMessage>) {
+    fn register_bus_inspector(&self, pipeline_tx: glib::Sender<PipelineMessage>) {
         let mut init_done = false;
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {

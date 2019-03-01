@@ -1,9 +1,7 @@
 use gettextrs::gettext;
 use glib;
-
 use gtk;
 use gtk::prelude::*;
-
 use log::warn;
 
 use std::{
@@ -13,7 +11,6 @@ use std::{
     ops::{Deref, DerefMut},
     path::Path,
     rc::{Rc, Weak},
-    sync::mpsc::{channel, Receiver},
 };
 
 use crate::{
@@ -24,7 +21,7 @@ use crate::{
 
 use super::{MainController, OutputBaseController};
 
-const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
+const TIMER_PERIOD: u32 = 100; // 100 ms (10 Hz)
 
 #[derive(Clone, PartialEq)]
 enum ExportType {
@@ -173,9 +170,9 @@ impl ExportController {
     }
 
     fn build_pipeline(&mut self, export_path: &Path, streams: HashSet<String>) {
-        let (pipeline_tx, ui_rx) = channel();
-
-        self.register_listener(LISTENER_PERIOD, ui_rx);
+        let (pipeline_tx, ui_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        self.register_msg_handler(ui_rx);
+        self.register_timer(TIMER_PERIOD);
 
         match TocSetterPipeline::try_new(&self.media_path, export_path, streams, pipeline_tx) {
             Ok(toc_setter_pipeline) => {
@@ -183,7 +180,6 @@ impl ExportController {
                 self.toc_setter_pipeline = Some(toc_setter_pipeline);
             }
             Err(error) => {
-                self.remove_listener();
                 self.switch_to_available();
                 self.restore_pipeline();
                 self.show_error(
@@ -213,7 +209,7 @@ impl ExportController {
         self.export_btn.set_sensitive(false);
     }
 
-    fn switch_to_available(&self) {
+    fn switch_to_available(&mut self) {
         self.base.switch_to_available();
 
         self.export_progress_bar.set_fraction(0f64);
@@ -221,79 +217,85 @@ impl ExportController {
         self.export_btn.set_sensitive(true);
     }
 
-    fn register_listener(&mut self, period: u32, ui_rx: Receiver<PipelineMessage>) {
+    fn register_timer(&mut self, period: u32) {
         let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
 
-        self.listener_src = Some(gtk::timeout_add(period, move || {
-            let mut keep_going = false;
+        self.timer_src = Some(glib::timeout_add_local(period, move || {
+            let this_rc = this_weak
+                .upgrade()
+                .expect("Lost `ExportController` in timer");
+            this_rc.borrow_mut().update_progress();
 
-            if let Some(this_rc) = this_weak.upgrade() {
-                keep_going = true;
-                let mut this = this_rc.borrow_mut();
-
-                if this.duration > 0 {
-                    let position = match this.toc_setter_pipeline.as_mut() {
-                        Some(toc_setter_pipeline) => toc_setter_pipeline.get_position(),
-                        None => 0,
-                    };
-                    this.export_progress_bar
-                        .set_fraction(position as f64 / this.duration as f64);
-                }
-
-                for message in ui_rx.try_iter() {
-                    match message {
-                        InitDone => {
-                            let mut toc_setter_pipeline = this.toc_setter_pipeline.take().unwrap();
-
-                            let exporter = MatroskaTocFormat::new();
-                            {
-                                let muxer = toc_setter_pipeline.get_muxer().unwrap();
-                                let info = this
-                                    .playback_pipeline
-                                    .as_ref()
-                                    .unwrap()
-                                    .info
-                                    .read()
-                                    .unwrap();
-                                exporter.export(&info, muxer);
-                            }
-
-                            if let Err(err) = toc_setter_pipeline.export() {
-                                keep_going = false;
-                                this.show_error(
-                                    gettext("Failed to export media. {}").replacen("{}", &err, 1),
-                                );
-                            }
-
-                            this.toc_setter_pipeline = Some(toc_setter_pipeline);
-                        }
-                        Eos => {
-                            this.show_info(gettext("Media exported succesfully"));
-                            keep_going = false;
-                        }
-                        FailedToExport(error) => {
-                            keep_going = false;
-                            this.show_error(
-                                gettext("Failed to export media. {}").replacen("{}", &error, 1),
-                            );
-                        }
-                        _ => (),
-                    };
-
-                    if !keep_going {
-                        break;
-                    }
-                }
-
-                if !keep_going {
-                    this.listener_src = None;
-                    this.switch_to_available();
-                    this.restore_pipeline();
-                }
-            }
-
-            glib::Continue(keep_going)
+            glib::Continue(true)
         }));
+    }
+
+    fn update_progress(&mut self) {
+        if self.duration > 0 {
+            let position = match self.toc_setter_pipeline.as_mut() {
+                Some(toc_setter_pipeline) => toc_setter_pipeline.get_position(),
+                None => 0,
+            };
+            self.export_progress_bar
+                .set_fraction(position as f64 / self.duration as f64);
+        }
+    }
+
+    fn register_msg_handler(&mut self, ui_rx: glib::Receiver<PipelineMessage>) {
+        let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
+
+        ui_rx.attach(None, move |msg| {
+            let this_rc = this_weak
+                .upgrade()
+                .expect("Lost `ExportController` in msg handler");
+            let mut this = this_rc.borrow_mut();
+            this.handle_msg(msg)
+        });
+    }
+
+    fn handle_msg(&mut self, msg: PipelineMessage) -> glib::Continue {
+        let mut keep_going = true;
+        match msg {
+            InitDone => {
+                let mut toc_setter_pipeline = self.toc_setter_pipeline.take().unwrap();
+
+                let exporter = MatroskaTocFormat::new();
+                {
+                    let muxer = toc_setter_pipeline.get_muxer().unwrap();
+                    let info = self
+                        .playback_pipeline
+                        .as_ref()
+                        .unwrap()
+                        .info
+                        .read()
+                        .unwrap();
+                    exporter.export(&info, muxer);
+                }
+
+                if let Err(err) = toc_setter_pipeline.export() {
+                    keep_going = false;
+                    self.show_error(gettext("Failed to export media. {}").replacen("{}", &err, 1));
+                }
+
+                self.toc_setter_pipeline = Some(toc_setter_pipeline);
+            }
+            Eos => {
+                self.show_info(gettext("Media exported succesfully"));
+                keep_going = false;
+            }
+            FailedToExport(error) => {
+                keep_going = false;
+                self.show_error(gettext("Failed to export media. {}").replacen("{}", &error, 1));
+            }
+            _ => (),
+        }
+
+        if !keep_going {
+            self.switch_to_available();
+            self.restore_pipeline();
+        }
+
+        glib::Continue(keep_going)
     }
 }
 

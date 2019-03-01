@@ -19,6 +19,7 @@ pub use self::splitter_pipeline::SplitterPipeline;
 pub mod toc_setter_pipeline;
 pub use self::toc_setter_pipeline::TocSetterPipeline;
 
+#[derive(Clone)]
 pub enum PipelineMessage {
     AsyncDone,
     Eos,

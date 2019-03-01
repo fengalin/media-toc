@@ -15,7 +15,6 @@ use std::{
     collections::HashSet,
     path::Path,
     rc::{Rc, Weak},
-    sync::mpsc::{channel, Receiver},
     sync::Arc,
 };
 
@@ -56,8 +55,6 @@ pub enum ControllerState {
     TwoStepsSeek(u64),
 }
 
-const LISTENER_PERIOD: u32 = 100; // 100 ms (10 Hz)
-
 pub struct MainController {
     window: gtk::ApplicationWindow,
     header_bar: gtk::HeaderBar,
@@ -82,8 +79,7 @@ pub struct MainController {
     state: ControllerState,
 
     this_opt: Option<Weak<RefCell<MainController>>>,
-    keep_going: bool,
-    listener_src: Option<glib::SourceId>,
+    msg_handler_src: Option<glib::SourceId>,
 }
 
 impl MainController {
@@ -122,8 +118,7 @@ impl MainController {
             state: ControllerState::Stopped,
 
             this_opt: None,
-            keep_going: true,
-            listener_src: None,
+            msg_handler_src: None,
         }));
 
         {
@@ -289,7 +284,7 @@ impl MainController {
         if let Some(pipeline) = self.pipeline.take() {
             pipeline.stop();
         }
-        self.remove_listener();
+        self.remove_msg_handler();
 
         {
             let size = self.window.get_size();
@@ -506,8 +501,8 @@ impl MainController {
         self.switch_to_default();
     }
 
-    fn remove_listener(&mut self) {
-        if let Some(source_id) = self.listener_src.take() {
+    fn remove_msg_handler(&mut self) {
+        if let Some(source_id) = self.msg_handler_src.take() {
             glib::source_remove(source_id);
         }
     }
@@ -534,141 +529,125 @@ impl MainController {
         }
     }
 
-    fn register_listener(&mut self, period: u32, ui_rx: Receiver<PipelineMessage>) {
-        if self.listener_src.is_some() {
-            return;
-        }
-
+    fn register_msg_handler(&mut self, ui_rx: glib::Receiver<PipelineMessage>) {
         let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
 
-        self.listener_src = Some(gtk::timeout_add(period, move || {
-            let mut keep_going = false;
+        self.msg_handler_src = Some(ui_rx.attach(None, move |msg| {
+            let this_rc = this_weak
+                .upgrade()
+                .expect("Lost `MainController` in msg handler");
+            let mut this = this_rc.borrow_mut();
+            this.handle_msg(msg)
+        }));
+    }
 
-            if let Some(this_rc) = this_weak.upgrade() {
-                keep_going = true;
-                for message in ui_rx.try_iter() {
-                    match message {
-                        AsyncDone => {
-                            let mut this = this_rc.borrow_mut();
-                            if let ControllerState::Seeking {
-                                seek_pos,
-                                post_seek_action,
-                            } = this.state
-                            {
-                                match post_seek_action {
-                                    PostSeekAction::SwitchToPlay => {
-                                        this.pipeline.as_mut().unwrap().play().unwrap();
-                                        this.play_pause_btn.set_icon_name(PAUSE_ICON);
-                                        this.state = ControllerState::Playing;
-                                        this.audio_ctrl.borrow_mut().switch_to_playing();
-                                    }
-                                    PostSeekAction::KeepPaused => {
-                                        this.state = ControllerState::Paused;
-                                        this.info_ctrl.borrow_mut().seek(seek_pos, &this.state);
-                                        this.audio_ctrl.borrow_mut().seek(seek_pos);
-                                    }
-                                    PostSeekAction::KeepPlaying => {
-                                        this.state = ControllerState::Playing;
-                                    }
-                                }
-                            }
+    fn handle_msg(&mut self, msg: PipelineMessage) -> glib::Continue {
+        let mut keep_going = true;
+
+        match msg {
+            AsyncDone => {
+                if let ControllerState::Seeking {
+                    seek_pos,
+                    post_seek_action,
+                } = self.state
+                {
+                    match post_seek_action {
+                        PostSeekAction::SwitchToPlay => {
+                            self.pipeline.as_mut().unwrap().play().unwrap();
+                            self.play_pause_btn.set_icon_name(PAUSE_ICON);
+                            self.state = ControllerState::Playing;
+                            self.audio_ctrl.borrow_mut().switch_to_playing();
                         }
-                        InitDone => {
-                            let mut this = this_rc.borrow_mut();
-                            let pipeline = this.pipeline.take().unwrap();
-
-                            this.header_bar.set_subtitle(Some(
-                                pipeline.info.read().unwrap().file_name.as_str(),
-                            ));
-
-                            this.audio_ctrl.borrow_mut().new_media(&pipeline);
-                            this.export_ctrl.borrow_mut().new_media();
-                            this.info_ctrl.borrow_mut().new_media(&pipeline);
-                            this.perspective_ctrl.borrow().new_media(&pipeline);
-                            this.split_ctrl.borrow_mut().new_media(&pipeline);
-                            this.streams_ctrl.borrow_mut().new_media(&pipeline);
-                            this.video_ctrl.new_media(&pipeline);
-
-                            this.set_pipeline(pipeline);
-
-                            if let Some(message) = this.check_missing_plugins() {
-                                this.show_error(message);
-                            }
-                            this.state = ControllerState::Ready;
+                        PostSeekAction::KeepPaused => {
+                            self.state = ControllerState::Paused;
+                            self.info_ctrl.borrow_mut().seek(seek_pos, &self.state);
+                            self.audio_ctrl.borrow_mut().seek(seek_pos);
                         }
-                        MissingPlugin(plugin) => {
-                            error!(
-                                "{}",
-                                gettext("Missing plugin: {}").replacen("{}", &plugin, 1)
-                            );
-                            this_rc.borrow_mut().missing_plugins.insert(plugin);
+                        PostSeekAction::KeepPlaying => {
+                            self.state = ControllerState::Playing;
                         }
-                        ReadyForRefresh => {
-                            let mut this = this_rc.borrow_mut();
-                            match this.state {
-                                ControllerState::Paused | ControllerState::Ready => this.refresh(),
-                                ControllerState::TwoStepsSeek(target) => {
-                                    this.seek(target, gst::SeekFlags::ACCURATE)
-                                }
-                                ControllerState::PendingSelectMedia => this.select_media(),
-                                ControllerState::PendingTakePipeline => this.have_pipeline(),
-                                _ => (),
-                            }
-                        }
-                        StreamsSelected => this_rc.borrow_mut().streams_selected(),
-                        Eos => {
-                            let mut this = this_rc.borrow_mut();
-                            match this.state {
-                                ControllerState::PlayingRange(pos_to_restore) => {
-                                    // end of range => pause and seek back to pos_to_restore
-                                    this.pipeline.as_ref().unwrap().pause().unwrap();
-                                    this.state = ControllerState::Paused;
-                                    this.audio_ctrl.borrow_mut().stop_play_range();
-                                    this.seek(pos_to_restore, gst::SeekFlags::ACCURATE);
-                                }
-                                _ => {
-                                    this.play_pause_btn.set_icon_name(PLAYBACK_ICON);
-                                    this.state = ControllerState::EOS;
-
-                                    // The tick callback will be register again in case of a seek
-                                    this.audio_ctrl.borrow_mut().switch_to_not_playing();
-                                }
-                            }
-                        }
-                        FailedToOpenMedia(error) => {
-                            let mut this = this_rc.borrow_mut();
-                            this.pipeline = None;
-                            this.state = ControllerState::Stopped;
-                            this.switch_to_default();
-
-                            this.keep_going = false;
-                            keep_going = false;
-
-                            let mut error =
-                                gettext("Error opening file.\n\n{}").replacen("{}", &error, 1);
-                            if let Some(message) = this.check_missing_plugins() {
-                                error += "\n\n";
-                                error += &message;
-                            }
-                            this.show_error(error);
-                        }
-                        _ => (),
-                    };
-
-                    if !keep_going {
-                        break;
                     }
                 }
+            }
+            InitDone => {
+                let pipeline = self.pipeline.take().unwrap();
 
-                if !keep_going {
-                    let mut this = this_rc.borrow_mut();
-                    this.remove_listener();
-                    this.audio_ctrl.borrow_mut().switch_to_not_playing();
+                self.header_bar
+                    .set_subtitle(Some(pipeline.info.read().unwrap().file_name.as_str()));
+
+                self.audio_ctrl.borrow_mut().new_media(&pipeline);
+                self.export_ctrl.borrow_mut().new_media();
+                self.info_ctrl.borrow_mut().new_media(&pipeline);
+                self.perspective_ctrl.borrow().new_media(&pipeline);
+                self.split_ctrl.borrow_mut().new_media(&pipeline);
+                self.streams_ctrl.borrow_mut().new_media(&pipeline);
+                self.video_ctrl.new_media(&pipeline);
+
+                self.set_pipeline(pipeline);
+
+                if let Some(message) = self.check_missing_plugins() {
+                    self.show_error(message);
+                }
+                self.state = ControllerState::Ready;
+            }
+            MissingPlugin(plugin) => {
+                error!(
+                    "{}",
+                    gettext("Missing plugin: {}").replacen("{}", &plugin, 1)
+                );
+                self.missing_plugins.insert(plugin);
+            }
+            ReadyForRefresh => match self.state {
+                ControllerState::Paused | ControllerState::Ready => self.refresh(),
+                ControllerState::TwoStepsSeek(target) => {
+                    self.seek(target, gst::SeekFlags::ACCURATE)
+                }
+                ControllerState::PendingSelectMedia => self.select_media(),
+                ControllerState::PendingTakePipeline => self.have_pipeline(),
+                _ => (),
+            },
+            StreamsSelected => self.streams_selected(),
+            Eos => {
+                match self.state {
+                    ControllerState::PlayingRange(pos_to_restore) => {
+                        // end of range => pause and seek back to pos_to_restore
+                        self.pipeline.as_ref().unwrap().pause().unwrap();
+                        self.state = ControllerState::Paused;
+                        self.audio_ctrl.borrow_mut().stop_play_range();
+                        self.seek(pos_to_restore, gst::SeekFlags::ACCURATE);
+                    }
+                    _ => {
+                        self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
+                        self.state = ControllerState::EOS;
+
+                        // The tick callback will be register again in case of a seek
+                        self.audio_ctrl.borrow_mut().switch_to_not_playing();
+                    }
                 }
             }
+            FailedToOpenMedia(error) => {
+                self.pipeline = None;
+                self.state = ControllerState::Stopped;
+                self.switch_to_default();
 
-            glib::Continue(keep_going)
-        }));
+                keep_going = false;
+
+                let mut error = gettext("Error opening file.\n\n{}").replacen("{}", &error, 1);
+                if let Some(message) = self.check_missing_plugins() {
+                    error += "\n\n";
+                    error += &message;
+                }
+                self.show_error(error);
+            }
+            _ => (),
+        }
+
+        if !keep_going {
+            self.remove_msg_handler();
+            self.audio_ctrl.borrow_mut().switch_to_not_playing();
+        }
+
+        glib::Continue(keep_going)
     }
 
     pub fn set_cursor_waiting(&self) {
@@ -726,7 +705,7 @@ impl MainController {
     }
 
     pub fn open_media(&mut self, filepath: &Path) {
-        self.remove_listener();
+        self.remove_msg_handler();
 
         self.info_ctrl.borrow_mut().cleanup();
         self.audio_ctrl.borrow_mut().cleanup();
@@ -737,19 +716,18 @@ impl MainController {
         self.perspective_ctrl.borrow().cleanup();
         self.header_bar.set_subtitle("");
 
-        let (pipeline_tx, ui_rx) = channel();
+        let (pipeline_tx, ui_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
         self.state = ControllerState::Stopped;
         self.missing_plugins.clear();
-        self.keep_going = true;
-        self.register_listener(LISTENER_PERIOD, ui_rx);
+        self.register_msg_handler(ui_rx);
 
         let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.borrow().dbl_buffer_mtx);
         match PlaybackPipeline::try_new(
             filepath,
             &dbl_buffer_mtx,
             &self.video_ctrl.get_video_sink(),
-            &pipeline_tx,
+            pipeline_tx,
         ) {
             Ok(pipeline) => {
                 CONFIG.write().unwrap().media.last_path =

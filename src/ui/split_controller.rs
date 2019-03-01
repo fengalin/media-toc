@@ -10,7 +10,6 @@ use std::{
     ops::{Deref, DerefMut},
     path::PathBuf,
     rc::{Rc, Weak},
-    sync::mpsc::{channel, Receiver},
 };
 
 use crate::{
@@ -21,7 +20,7 @@ use crate::{
 
 use super::{MainController, OutputBaseController};
 
-const LISTENER_PERIOD: u32 = 250; // 250 ms (4 Hz)
+const TIMER_PERIOD: u32 = 100; // 100 ms (10 Hz)
 
 const TAGS_TO_SKIP: [&str; 12] = [
     "ApplicationName",
@@ -41,6 +40,7 @@ const TAGS_TO_SKIP: [&str; 12] = [
 pub struct SplitController {
     base: OutputBaseController,
 
+    selected_format: Option<metadata::Format>,
     selected_audio: Option<Stream>,
     toc_visitor: Option<TocVisitor>,
     idx: usize,
@@ -68,6 +68,7 @@ impl SplitController {
         let this = Rc::new(RefCell::new(SplitController {
             base: OutputBaseController::new(builder),
 
+            selected_format: None,
             selected_audio: None,
             toc_visitor: None,
             idx: 0,
@@ -181,8 +182,10 @@ impl SplitController {
         // stream is selected (see `streams_changed`)
         debug_assert!(self.selected_audio.is_some());
 
+        // FIXME: update `selected_format` when list selection is changed
         let format = self.get_selection();
         self.prepare_process(format, MediaContent::Audio);
+        self.selected_format = Some(format);
 
         self.toc_visitor = self
             .base
@@ -197,12 +200,12 @@ impl SplitController {
             .map(|toc| TocVisitor::new(toc));
         self.idx = 0;
 
-        if let Err(err) = self.build_pipeline(format) {
+        if let Err(err) = self.build_pipeline() {
             self.show_error(err);
         }
     }
 
-    fn build_pipeline(&mut self, format: metadata::Format) -> Result<bool, String> {
+    fn build_pipeline(&mut self) -> Result<bool, String> {
         let mut chapter = match self.next_chapter() {
             Some(chapter) => chapter,
             None => {
@@ -233,13 +236,17 @@ impl SplitController {
         // and the TocVisitor so the chapters entries ref_count is > 1
         let chapter = self.update_tags(&mut chapter);
         let output_path = self.get_split_path(&chapter);
-        let (pipeline_tx, ui_rx) = channel();
-        self.register_listener(format, LISTENER_PERIOD, ui_rx);
+
+        let (pipeline_tx, ui_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        self.register_msg_handler(ui_rx);
+        self.register_timer(TIMER_PERIOD);
+
         match SplitterPipeline::try_new(
             &self.media_path,
             &output_path,
             &self.selected_audio.as_ref().unwrap().id,
-            format,
+            self.selected_format
+                .expect("No selected format in `SplitterContext`"),
             chapter,
             pipeline_tx,
         ) {
@@ -249,7 +256,7 @@ impl SplitController {
                 Ok(true)
             }
             Err(error) => {
-                self.remove_listener();
+                self.remove_timer();
                 self.switch_to_available();
                 self.restore_pipeline();
                 let msg = gettext("Failed to prepare for split. {}").replacen("{}", &error, 1);
@@ -420,7 +427,7 @@ impl SplitController {
         self.split_btn.set_sensitive(false);
     }
 
-    fn switch_to_available(&self) {
+    fn switch_to_available(&mut self) {
         self.base.switch_to_available();
 
         self.split_progress_bar.set_fraction(0f64);
@@ -428,73 +435,77 @@ impl SplitController {
         self.split_list.set_sensitive(true);
     }
 
-    fn register_listener(
-        &mut self,
-        format: metadata::Format,
-        period: u32,
-        ui_rx: Receiver<PipelineMessage>,
-    ) {
+    fn register_timer(&mut self, period: u32) {
+        if self.timer_src.is_none() {
+            let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
+
+            self.timer_src = Some(glib::timeout_add_local(period, move || {
+                let this_rc = this_weak
+                    .upgrade()
+                    .expect("Lost `SplitController` in timer");
+                this_rc.borrow_mut().update_progress();
+
+                glib::Continue(true)
+            }));
+        }
+    }
+
+    fn update_progress(&mut self) {
+        if self.duration > 0 {
+            let position = match self.splitter_pipeline.as_mut() {
+                Some(splitter_pipeline) => splitter_pipeline.get_position(),
+                None => 0,
+            };
+            self.split_progress_bar
+                .set_fraction(position as f64 / self.duration as f64);
+        }
+    }
+
+    fn register_msg_handler(&mut self, ui_rx: glib::Receiver<PipelineMessage>) {
         let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
 
-        self.listener_src = Some(gtk::timeout_add(period, move || {
-            let mut keep_going = false;
+        ui_rx.attach(None, move |msg| {
+            let this_rc = this_weak
+                .upgrade()
+                .expect("Lost `SplitController` in msg handler");
+            let mut this = this_rc.borrow_mut();
+            this.handle_msg(msg)
+        });
+    }
 
-            if let Some(this_rc) = this_weak.upgrade() {
-                keep_going = true;
-                let mut process_done = false;
-
-                let mut this = this_rc.borrow_mut();
-
-                if this.duration > 0 {
-                    let position = match this.splitter_pipeline.as_mut() {
-                        Some(splitter_pipeline) => splitter_pipeline.get_position(),
-                        None => 0,
-                    };
-                    this.split_progress_bar
-                        .set_fraction(position as f64 / this.duration as f64);
-                }
-
-                for message in ui_rx.try_iter() {
-                    match message {
-                        Eos => {
-                            process_done = match this.build_pipeline(format) {
-                                Ok(true) => false, // more chapters
-                                Ok(false) => {
-                                    this.show_info(gettext("Media split succesfully"));
-                                    true
-                                }
-                                Err(err) => {
-                                    this.show_error(err);
-                                    true
-                                }
-                            };
-
-                            keep_going = false;
-                        }
-                        FailedToExport(error) => {
-                            this.listener_src = None;
-                            keep_going = false;
-                            process_done = true;
-                            this.show_error(
-                                gettext("Failed to split media. {}").replacen("{}", &error, 1),
-                            );
-                        }
-                        _ => (),
-                    };
-
-                    if !keep_going {
-                        break;
+    fn handle_msg(&mut self, msg: PipelineMessage) -> glib::Continue {
+        let mut keep_going = true;
+        let mut process_done = false;
+        match msg {
+            Eos => {
+                match self.build_pipeline() {
+                    Ok(true) => (), // more chapters
+                    Ok(false) => {
+                        self.show_info(gettext("Media split succesfully"));
+                        process_done = true;
+                    }
+                    Err(err) => {
+                        self.show_error(err);
+                        process_done = true;
                     }
                 }
 
-                if !keep_going && process_done {
-                    this.switch_to_available();
-                    this.restore_pipeline();
-                }
+                keep_going = false;
             }
+            FailedToExport(err) => {
+                keep_going = false;
+                process_done = true;
+                self.show_error(gettext("Failed to split media. {}").replacen("{}", &err, 1));
+            }
+            _ => (),
+        }
 
-            glib::Continue(keep_going)
-        }));
+        if !keep_going && process_done {
+            self.switch_to_available();
+            self.restore_pipeline();
+        }
+
+        glib::Continue(keep_going)
     }
 }
 

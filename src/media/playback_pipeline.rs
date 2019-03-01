@@ -2,7 +2,7 @@ use gettextrs::gettext;
 
 use gstreamer as gst;
 
-use gstreamer::{prelude::*, ClockTime, GstObjectExt};
+use gstreamer::{prelude::*, ClockTime};
 
 use glib;
 use glib::{Cast, ObjectExt};
@@ -12,7 +12,7 @@ use log::{debug, info, warn};
 use std::{
     error::Error,
     path::Path,
-    sync::{mpsc::Sender, Arc, Mutex, RwLock},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use crate::{application::CONFIG, metadata::MediaInfo};
@@ -59,7 +59,7 @@ impl PlaybackPipeline {
         path: &Path,
         dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer>>,
         video_sink: &Option<gst::Element>,
-        pipeline_tx: &Sender<PipelineMessage>,
+        pipeline_tx: glib::Sender<PipelineMessage>,
     ) -> Result<PlaybackPipeline, String> {
         info!(
             "{}",
@@ -76,8 +76,8 @@ impl PlaybackPipeline {
         };
 
         this.pipeline.add(&this.decodebin).unwrap();
-        this.build_pipeline(path, video_sink, &pipeline_tx);
-        this.register_bus_inspector(&pipeline_tx);
+        this.build_pipeline(path, video_sink, pipeline_tx.clone());
+        this.register_bus_inspector(pipeline_tx.clone());
 
         this.pause().map(|_| this)
     }
@@ -256,7 +256,7 @@ impl PlaybackPipeline {
         &mut self,
         path: &Path,
         video_sink: &Option<gst::Element>,
-        pipeline_tx: &Sender<PipelineMessage>,
+        pipeline_tx: glib::Sender<PipelineMessage>,
     ) {
         // From decodebin3's documentation: "Children: multiqueue0"
         let decodebin_as_bin = self.decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
@@ -280,7 +280,7 @@ impl PlaybackPipeline {
         let pipeline_clone = self.pipeline.clone();
         let dbl_audio_buffer_mtx = Arc::clone(&self.dbl_audio_buffer_mtx);
         let video_sink = video_sink.clone();
-        let pipeline_tx_mtx = Arc::new(Mutex::new(pipeline_tx.clone()));
+        let pipeline_tx_mtx = Arc::new(Mutex::new(pipeline_tx));
         self.decodebin
             .connect_pad_added(move |_decodebin, src_pad| {
                 let pipeline = &pipeline_clone;
@@ -314,7 +314,7 @@ impl PlaybackPipeline {
         src_pad: &gst::Pad,
         audio_sink: &gst::Element,
         dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer>>,
-        pipeline_tx_mtx: &Arc<Mutex<Sender<PipelineMessage>>>,
+        pipeline_tx_mtx: &Arc<Mutex<glib::Sender<PipelineMessage>>>,
     ) {
         let playback_queue = gst::ElementFactory::make("queue", "audio_playback_queue").unwrap();
         PlaybackPipeline::setup_queue(&playback_queue);
@@ -469,11 +469,10 @@ impl PlaybackPipeline {
     }
 
     // Uses pipeline_tx to notify the UI controllers about the inspection process
-    fn register_bus_inspector(&self, pipeline_tx: &Sender<PipelineMessage>) {
+    fn register_bus_inspector(&self, pipeline_tx: glib::Sender<PipelineMessage>) {
         let mut pipeline_state = PipelineState::None;
         let info_arc_mtx = Arc::clone(&self.info);
         let dbl_audio_buffer_mtx = Arc::clone(&self.dbl_audio_buffer_mtx);
-        let pipeline_tx = pipeline_tx.clone();
         let pipeline = self.pipeline.clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
