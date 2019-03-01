@@ -188,7 +188,7 @@ $ curl https://sh.rustup.rs -sSf | sh
 Select the `stable` toolchain. See the full documentation
 [here](https://github.com/rust-lang-nursery/rustup.rs#installation).
 
-It is convenience to have Rust's tools in the path. On linux, you might want to add this
+It is convenient to have Rust's tools in the path. On linux, you might want to add this
 in your `.bashrc`:
 
 ```
