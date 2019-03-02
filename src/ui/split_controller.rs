@@ -256,7 +256,6 @@ impl SplitController {
                 Ok(true)
             }
             Err(error) => {
-                self.remove_timer();
                 self.switch_to_available();
                 self.restore_pipeline();
                 let msg = gettext("Failed to prepare for split. {}").replacen("{}", &error, 1);

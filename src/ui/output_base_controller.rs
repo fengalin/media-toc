@@ -116,7 +116,7 @@ impl OutputBaseController {
         self.chapter_grid.set_sensitive(true);
     }
 
-    pub fn remove_timer(&mut self) {
+    fn remove_timer(&mut self) {
         if let Some(src_id) = self.timer_src.take() {
             let _res = glib::Source::remove(src_id);
         }
