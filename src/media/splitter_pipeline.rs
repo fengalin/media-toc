@@ -15,7 +15,7 @@ use std::{
 
 use crate::metadata::Format;
 
-use super::PipelineMessage;
+use super::MediaEvent;
 
 pub struct SplitterPipeline {
     pipeline: gst::Pipeline,
@@ -98,7 +98,7 @@ impl SplitterPipeline {
         stream_id: &str,
         format: Format,
         chapter: gst::TocEntry,
-        pipeline_tx: glib::Sender<PipelineMessage>,
+        sender: glib::Sender<MediaEvent>,
     ) -> Result<SplitterPipeline, String> {
         info!(
             "{}",
@@ -114,7 +114,7 @@ impl SplitterPipeline {
         };
 
         this.build_pipeline(input_path, output_path, stream_id);
-        this.register_bus_inspector(pipeline_tx);
+        this.register_bus_inspector(sender);
 
         this.pipeline
             .set_state(gst::State::Paused)
@@ -310,25 +310,25 @@ impl SplitterPipeline {
         });
     }
 
-    // Uses pipeline_tx to notify the UI controllers
-    fn register_bus_inspector(&self, pipeline_tx: glib::Sender<PipelineMessage>) {
+    // Uses sender to notify the UI controllers
+    fn register_bus_inspector(&self, sender: glib::Sender<MediaEvent>) {
         let pipeline = self.pipeline.clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
                     if pipeline.set_state(gst::State::Null).is_err() {
-                        pipeline_tx
-                            .send(PipelineMessage::FailedToExport(gettext(
+                        sender
+                            .send(MediaEvent::FailedToExport(gettext(
                                 "Failed to terminate properly. Check the resulting file.",
                             )))
                             .unwrap();
                     }
-                    pipeline_tx.send(PipelineMessage::Eos).unwrap();
+                    sender.send(MediaEvent::Eos).unwrap();
                     return glib::Continue(false);
                 }
                 gst::MessageView::Error(err) => {
-                    pipeline_tx
-                        .send(PipelineMessage::FailedToExport(
+                    sender
+                        .send(MediaEvent::FailedToExport(
                             err.get_error().description().to_owned(),
                         ))
                         .unwrap();
@@ -337,8 +337,8 @@ impl SplitterPipeline {
                 gst::MessageView::AsyncDone(_) => {
                     // Start splitting
                     if pipeline.set_state(gst::State::Playing).is_err() {
-                        pipeline_tx
-                            .send(PipelineMessage::FailedToExport(gettext(
+                        sender
+                            .send(MediaEvent::FailedToExport(gettext(
                                 "Failed to start splitting.",
                             )))
                             .unwrap();

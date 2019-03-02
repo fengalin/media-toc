@@ -17,7 +17,7 @@ use std::{
 
 use crate::{application::CONFIG, metadata::MediaInfo};
 
-use super::{DoubleAudioBuffer, PipelineMessage};
+use super::{DoubleAudioBuffer, MediaEvent};
 
 // Buffer size in ns for queues
 // This is the max duration that queues can hold
@@ -59,7 +59,7 @@ impl PlaybackPipeline {
         path: &Path,
         dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer>>,
         video_sink: &Option<gst::Element>,
-        pipeline_tx: glib::Sender<PipelineMessage>,
+        sender: glib::Sender<MediaEvent>,
     ) -> Result<PlaybackPipeline, String> {
         info!(
             "{}",
@@ -76,8 +76,8 @@ impl PlaybackPipeline {
         };
 
         this.pipeline.add(&this.decodebin).unwrap();
-        this.build_pipeline(path, video_sink, pipeline_tx.clone());
-        this.register_bus_inspector(pipeline_tx.clone());
+        this.build_pipeline(path, video_sink, sender.clone());
+        this.register_bus_inspector(sender.clone());
 
         this.pause().map(|_| this)
     }
@@ -256,7 +256,7 @@ impl PlaybackPipeline {
         &mut self,
         path: &Path,
         video_sink: &Option<gst::Element>,
-        pipeline_tx: glib::Sender<PipelineMessage>,
+        sender: glib::Sender<MediaEvent>,
     ) {
         // From decodebin3's documentation: "Children: multiqueue0"
         let decodebin_as_bin = self.decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
@@ -280,7 +280,7 @@ impl PlaybackPipeline {
         let pipeline_clone = self.pipeline.clone();
         let dbl_audio_buffer_mtx = Arc::clone(&self.dbl_audio_buffer_mtx);
         let video_sink = video_sink.clone();
-        let pipeline_tx_mtx = Arc::new(Mutex::new(pipeline_tx));
+        let sender_mtx = Arc::new(Mutex::new(sender));
         self.decodebin
             .connect_pad_added(move |_decodebin, src_pad| {
                 let pipeline = &pipeline_clone;
@@ -292,7 +292,7 @@ impl PlaybackPipeline {
                         src_pad,
                         &audio_sink,
                         &dbl_audio_buffer_mtx,
-                        &pipeline_tx_mtx,
+                        &sender_mtx,
                     );
                 } else if name.starts_with("video_") {
                     if let Some(ref video_sink) = video_sink {
@@ -314,7 +314,7 @@ impl PlaybackPipeline {
         src_pad: &gst::Pad,
         audio_sink: &gst::Element,
         dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer>>,
-        pipeline_tx_mtx: &Arc<Mutex<glib::Sender<PipelineMessage>>>,
+        sender_mtx: &Arc<Mutex<glib::Sender<MediaEvent>>>,
     ) {
         let playback_queue = gst::ElementFactory::make("queue", "audio_playback_queue").unwrap();
         PlaybackPipeline::setup_queue(&playback_queue);
@@ -386,7 +386,7 @@ impl PlaybackPipeline {
         // We can't use intermediate elements such as audioconvert because they get paused
         // and block the buffers
         let dbl_audio_buffer_mtx = Arc::clone(dbl_audio_buffer_mtx);
-        let pipeline_tx_mtx = Arc::clone(pipeline_tx_mtx);
+        let sender_mtx = Arc::clone(sender_mtx);
         let pad_probe_filter = gst::PadProbeType::BUFFER | gst::PadProbeType::EVENT_BOTH;
         waveform_sink_pad.add_probe(pad_probe_filter, move |_pad, probe_info| {
             if let Some(ref mut data) = probe_info.data {
@@ -398,10 +398,10 @@ impl PlaybackPipeline {
                             .push_gst_buffer(buffer);
 
                         if must_notify {
-                            pipeline_tx_mtx
+                            sender_mtx
                                 .lock()
-                                .expect("waveform_sink::probe couldn't lock pipeline_tx_mtx")
-                                .send(PipelineMessage::ReadyForRefresh)
+                                .expect("waveform_sink::probe couldn't lock sender_mtx")
+                                .send(MediaEvent::ReadyForRefresh)
                                 .expect("Failed to notify UI");
                         }
 
@@ -420,10 +420,10 @@ impl PlaybackPipeline {
                             }
                             gst::EventView::Eos(_) => {
                                 dbl_audio_buffer_mtx.lock().unwrap().handle_eos();
-                                pipeline_tx_mtx
+                                sender_mtx
                                     .lock()
                                     .unwrap()
-                                    .send(PipelineMessage::ReadyForRefresh)
+                                    .send(MediaEvent::ReadyForRefresh)
                                     .unwrap();
                             }
                             gst::EventView::Segment(segment_event) => {
@@ -459,7 +459,7 @@ impl PlaybackPipeline {
         for e in elements {
             // Silently ignore the state sync issues
             // and rely on the PlaybackPipeline state to return an error.
-            // Can't use pipeline_tx to return the error because
+            // Can't use sender to return the error because
             // the bus catches it first.
             let _res = e.sync_state_with_parent();
         }
@@ -468,8 +468,8 @@ impl PlaybackPipeline {
         src_pad.link(&sink_pad).unwrap();
     }
 
-    // Uses pipeline_tx to notify the UI controllers about the inspection process
-    fn register_bus_inspector(&self, pipeline_tx: glib::Sender<PipelineMessage>) {
+    // Uses sender to notify the UI controllers about the inspection process
+    fn register_bus_inspector(&self, sender: glib::Sender<MediaEvent>) {
         let mut pipeline_state = PipelineState::None;
         let info_arc_mtx = Arc::clone(&self.info);
         let dbl_audio_buffer_mtx = Arc::clone(&self.dbl_audio_buffer_mtx);
@@ -481,8 +481,8 @@ impl PlaybackPipeline {
                         let dbl_audio_buffer = &mut dbl_audio_buffer_mtx.lock().unwrap();
                         dbl_audio_buffer.set_state(gst::State::Paused);
                     }
-                    pipeline_tx
-                        .send(PipelineMessage::Eos)
+                    sender
+                        .send(MediaEvent::Eos)
                         .expect("Failed to notify UI");
                 }
                 gst::MessageView::Error(err) => {
@@ -502,14 +502,14 @@ impl PlaybackPipeline {
                     } else {
                         err.get_error().description().to_owned()
                     };
-                    pipeline_tx.send(PipelineMessage::FailedToOpenMedia(msg)).unwrap();
+                    sender.send(MediaEvent::FailedToOpenMedia(msg)).unwrap();
                     return glib::Continue(false);
                 }
                 gst::MessageView::Element(element_msg) => {
                     let structure = element_msg.get_structure().unwrap();
                     if structure.get_name() == "missing-plugin" {
-                        pipeline_tx
-                            .send(PipelineMessage::MissingPlugin(
+                        sender
+                            .send(MediaEvent::MissingPlugin(
                                 structure
                                     .get_value("name")
                                     .unwrap()
@@ -532,13 +532,13 @@ impl PlaybackPipeline {
                             .expect("Failed to lock media info while setting duration")
                             .duration = duration;
 
-                        pipeline_tx
-                            .send(PipelineMessage::InitDone)
+                        sender
+                            .send(MediaEvent::InitDone)
                             .expect("Failed to notify UI");
                     }
                     PipelineState::Initialized(_) => {
-                        pipeline_tx
-                            .send(PipelineMessage::AsyncDone)
+                        sender
+                            .send(MediaEvent::AsyncDone)
                             .expect("Failed to notify UI");
                     }
                     _ => (),
@@ -569,7 +569,7 @@ impl PlaybackPipeline {
                                         }
                                         pipeline_state =
                                             PipelineState::Initialized(InitializedState::Paused);
-                                        pipeline_tx.send(PipelineMessage::ReadyForRefresh).unwrap();
+                                        sender.send(MediaEvent::ReadyForRefresh).unwrap();
                                     }
                                 }
                                 _ => {
@@ -622,7 +622,7 @@ impl PlaybackPipeline {
                             dbl_audio_buffer.clean_samples();
                         }
 
-                        pipeline_tx.send(PipelineMessage::StreamsSelected).unwrap();
+                        sender.send(MediaEvent::StreamsSelected).unwrap();
                     }
                     _ => {
                         let has_usable_streams = {
@@ -636,8 +636,8 @@ impl PlaybackPipeline {
                         if has_usable_streams {
                             pipeline_state = PipelineState::StreamsSelected;
                         } else {
-                            pipeline_tx
-                                .send(PipelineMessage::FailedToOpenMedia(gettext(
+                            sender
+                                .send(MediaEvent::FailedToOpenMedia(gettext(
                                     "No usable streams could be found.",
                                 )))
                                 .unwrap();

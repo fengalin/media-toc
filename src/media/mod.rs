@@ -20,7 +20,7 @@ pub mod toc_setter_pipeline;
 pub use self::toc_setter_pipeline::TocSetterPipeline;
 
 #[derive(Clone)]
-pub enum PipelineMessage {
+pub enum MediaEvent {
     AsyncDone,
     Eos,
     FailedToOpenMedia(String),

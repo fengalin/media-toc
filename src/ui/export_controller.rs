@@ -14,7 +14,7 @@ use std::{
 };
 
 use crate::{
-    media::{PipelineMessage, PipelineMessage::*, TocSetterPipeline},
+    media::{MediaEvent, TocSetterPipeline},
     metadata,
     metadata::{Exporter, Format, MatroskaTocFormat},
 };
@@ -170,11 +170,11 @@ impl ExportController {
     }
 
     fn build_pipeline(&mut self, export_path: &Path, streams: HashSet<String>) {
-        let (pipeline_tx, ui_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-        self.register_msg_handler(ui_rx);
+        let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        self.register_media_event_handler(receiver);
         self.register_timer(TIMER_PERIOD);
 
-        match TocSetterPipeline::try_new(&self.media_path, export_path, streams, pipeline_tx) {
+        match TocSetterPipeline::try_new(&self.media_path, export_path, streams, sender) {
             Ok(toc_setter_pipeline) => {
                 self.switch_to_busy();
                 self.toc_setter_pipeline = Some(toc_setter_pipeline);
@@ -241,22 +241,22 @@ impl ExportController {
         }
     }
 
-    fn register_msg_handler(&mut self, ui_rx: glib::Receiver<PipelineMessage>) {
+    fn register_media_event_handler(&mut self, receiver: glib::Receiver<MediaEvent>) {
         let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
 
-        ui_rx.attach(None, move |msg| {
+        receiver.attach(None, move |event| {
             let this_rc = this_weak
                 .upgrade()
-                .expect("Lost `ExportController` in msg handler");
+                .expect("Lost `ExportController` in `MediaEvent` handler");
             let mut this = this_rc.borrow_mut();
-            this.handle_msg(msg)
+            this.handle_media_event(event)
         });
     }
 
-    fn handle_msg(&mut self, msg: PipelineMessage) -> glib::Continue {
+    fn handle_media_event(&mut self, event: MediaEvent) -> glib::Continue {
         let mut keep_going = true;
-        match msg {
-            InitDone => {
+        match event {
+            MediaEvent::InitDone => {
                 let mut toc_setter_pipeline = self.toc_setter_pipeline.take().unwrap();
 
                 let exporter = MatroskaTocFormat::new();
@@ -279,11 +279,11 @@ impl ExportController {
 
                 self.toc_setter_pipeline = Some(toc_setter_pipeline);
             }
-            Eos => {
+            MediaEvent::Eos => {
                 self.show_info(gettext("Media exported succesfully"));
                 keep_going = false;
             }
-            FailedToExport(error) => {
+            MediaEvent::FailedToExport(error) => {
                 keep_going = false;
                 self.show_error(gettext("Failed to export media. {}").replacen("{}", &error, 1));
             }

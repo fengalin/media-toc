@@ -13,7 +13,7 @@ use std::{
 };
 
 use crate::{
-    media::{PipelineMessage, PipelineMessage::*, PlaybackPipeline, SplitterPipeline},
+    media::{MediaEvent, PlaybackPipeline, SplitterPipeline},
     metadata,
     metadata::{get_default_chapter_title, Format, MediaContent, MediaInfo, Stream, TocVisitor},
 };
@@ -237,8 +237,8 @@ impl SplitController {
         let chapter = self.update_tags(&mut chapter);
         let output_path = self.get_split_path(&chapter);
 
-        let (pipeline_tx, ui_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-        self.register_msg_handler(ui_rx);
+        let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        self.register_media_event_handler(receiver);
         self.register_timer(TIMER_PERIOD);
 
         match SplitterPipeline::try_new(
@@ -248,7 +248,7 @@ impl SplitController {
             self.selected_format
                 .expect("No selected format in `SplitterContext`"),
             chapter,
-            pipeline_tx,
+            sender,
         ) {
             Ok(splitter_pipeline) => {
                 self.switch_to_busy();
@@ -460,23 +460,23 @@ impl SplitController {
         }
     }
 
-    fn register_msg_handler(&mut self, ui_rx: glib::Receiver<PipelineMessage>) {
+    fn register_media_event_handler(&mut self, receiver: glib::Receiver<MediaEvent>) {
         let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
 
-        ui_rx.attach(None, move |msg| {
+        receiver.attach(None, move |event| {
             let this_rc = this_weak
                 .upgrade()
-                .expect("Lost `SplitController` in msg handler");
+                .expect("Lost `SplitController` in `MediaEvent` handler");
             let mut this = this_rc.borrow_mut();
-            this.handle_msg(msg)
+            this.handle_media_event(event)
         });
     }
 
-    fn handle_msg(&mut self, msg: PipelineMessage) -> glib::Continue {
+    fn handle_media_event(&mut self, event: MediaEvent) -> glib::Continue {
         let mut keep_going = true;
         let mut process_done = false;
-        match msg {
-            Eos => {
+        match event {
+            MediaEvent::Eos => {
                 match self.build_pipeline() {
                     Ok(true) => (), // more chapters
                     Ok(false) => {
@@ -491,7 +491,7 @@ impl SplitController {
 
                 keep_going = false;
             }
-            FailedToExport(err) => {
+            MediaEvent::FailedToExport(err) => {
                 keep_going = false;
                 process_done = true;
                 self.show_error(gettext("Failed to split media. {}").replacen("{}", &err, 1));

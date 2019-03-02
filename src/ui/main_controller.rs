@@ -20,7 +20,7 @@ use std::{
 
 use crate::{
     application::{APP_ID, APP_PATH, CONFIG},
-    media::{PipelineMessage, PipelineMessage::*, PlaybackPipeline},
+    media::{MediaEvent, PlaybackPipeline},
 };
 
 use super::{
@@ -79,7 +79,7 @@ pub struct MainController {
     state: ControllerState,
 
     this_opt: Option<Weak<RefCell<MainController>>>,
-    msg_handler_src: Option<glib::SourceId>,
+    media_event_handler_src: Option<glib::SourceId>,
 }
 
 impl MainController {
@@ -118,7 +118,7 @@ impl MainController {
             state: ControllerState::Stopped,
 
             this_opt: None,
-            msg_handler_src: None,
+            media_event_handler_src: None,
         }));
 
         {
@@ -284,7 +284,7 @@ impl MainController {
         if let Some(pipeline) = self.pipeline.take() {
             pipeline.stop();
         }
-        self.remove_msg_handler();
+        self.remove_media_event_handler();
 
         {
             let size = self.window.get_size();
@@ -501,12 +501,6 @@ impl MainController {
         self.switch_to_default();
     }
 
-    fn remove_msg_handler(&mut self) {
-        if let Some(source_id) = self.msg_handler_src.take() {
-            glib::source_remove(source_id);
-        }
-    }
-
     fn check_missing_plugins(&self) -> Option<String> {
         if !self.missing_plugins.is_empty() {
             let mut missing_nb = 0;
@@ -529,23 +523,29 @@ impl MainController {
         }
     }
 
-    fn register_msg_handler(&mut self, ui_rx: glib::Receiver<PipelineMessage>) {
+    fn register_media_event_handler(&mut self, receiver: glib::Receiver<MediaEvent>) {
         let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
 
-        self.msg_handler_src = Some(ui_rx.attach(None, move |msg| {
+        self.media_event_handler_src = Some(receiver.attach(None, move |event| {
             let this_rc = this_weak
                 .upgrade()
-                .expect("Lost `MainController` in msg handler");
+                .expect("Lost `MainController` in `MediaEvent` handler");
             let mut this = this_rc.borrow_mut();
-            this.handle_msg(msg)
+            this.handle_media_event(event)
         }));
     }
 
-    fn handle_msg(&mut self, msg: PipelineMessage) -> glib::Continue {
+    fn remove_media_event_handler(&mut self) {
+        if let Some(source_id) = self.media_event_handler_src.take() {
+            glib::source_remove(source_id);
+        }
+    }
+
+    fn handle_media_event(&mut self, event: MediaEvent) -> glib::Continue {
         let mut keep_going = true;
 
-        match msg {
-            AsyncDone => {
+        match event {
+            MediaEvent::AsyncDone => {
                 if let ControllerState::Seeking {
                     seek_pos,
                     post_seek_action,
@@ -569,7 +569,7 @@ impl MainController {
                     }
                 }
             }
-            InitDone => {
+            MediaEvent::InitDone => {
                 let pipeline = self.pipeline.take().unwrap();
 
                 self.header_bar
@@ -590,14 +590,14 @@ impl MainController {
                 }
                 self.state = ControllerState::Ready;
             }
-            MissingPlugin(plugin) => {
+            MediaEvent::MissingPlugin(plugin) => {
                 error!(
                     "{}",
                     gettext("Missing plugin: {}").replacen("{}", &plugin, 1)
                 );
                 self.missing_plugins.insert(plugin);
             }
-            ReadyForRefresh => match self.state {
+            MediaEvent::ReadyForRefresh => match self.state {
                 ControllerState::Paused | ControllerState::Ready => self.refresh(),
                 ControllerState::TwoStepsSeek(target) => {
                     self.seek(target, gst::SeekFlags::ACCURATE)
@@ -606,8 +606,8 @@ impl MainController {
                 ControllerState::PendingTakePipeline => self.have_pipeline(),
                 _ => (),
             },
-            StreamsSelected => self.streams_selected(),
-            Eos => {
+            MediaEvent::StreamsSelected => self.streams_selected(),
+            MediaEvent::Eos => {
                 match self.state {
                     ControllerState::PlayingRange(pos_to_restore) => {
                         // end of range => pause and seek back to pos_to_restore
@@ -625,7 +625,7 @@ impl MainController {
                     }
                 }
             }
-            FailedToOpenMedia(error) => {
+            MediaEvent::FailedToOpenMedia(error) => {
                 self.pipeline = None;
                 self.state = ControllerState::Stopped;
                 self.switch_to_default();
@@ -643,7 +643,7 @@ impl MainController {
         }
 
         if !keep_going {
-            self.remove_msg_handler();
+            self.remove_media_event_handler();
             self.audio_ctrl.borrow_mut().switch_to_not_playing();
         }
 
@@ -705,7 +705,7 @@ impl MainController {
     }
 
     pub fn open_media(&mut self, filepath: &Path) {
-        self.remove_msg_handler();
+        self.remove_media_event_handler();
 
         self.info_ctrl.borrow_mut().cleanup();
         self.audio_ctrl.borrow_mut().cleanup();
@@ -716,18 +716,18 @@ impl MainController {
         self.perspective_ctrl.borrow().cleanup();
         self.header_bar.set_subtitle("");
 
-        let (pipeline_tx, ui_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
         self.state = ControllerState::Stopped;
         self.missing_plugins.clear();
-        self.register_msg_handler(ui_rx);
+        self.register_media_event_handler(receiver);
 
         let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.borrow().dbl_buffer_mtx);
         match PlaybackPipeline::try_new(
             filepath,
             &dbl_buffer_mtx,
             &self.video_ctrl.get_video_sink(),
-            pipeline_tx,
+            sender,
         ) {
             Ok(pipeline) => {
                 CONFIG.write().unwrap().media.last_path =
