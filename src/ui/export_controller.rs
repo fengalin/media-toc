@@ -6,10 +6,8 @@ use log::warn;
 
 use std::{
     cell::RefCell,
-    collections::HashSet,
     fs::File,
     ops::{Deref, DerefMut},
-    path::Path,
     rc::{Rc, Weak},
 };
 
@@ -19,7 +17,9 @@ use crate::{
     metadata::{Exporter, Format, MatroskaTocFormat},
 };
 
-use super::{MainController, OutputBaseController, UIController};
+use super::{
+    MainController, OutputBaseController, OutputProcessor, OutputUIController, UIController,
+};
 
 const TIMER_PERIOD: u32 = 100; // 100 ms (10 Hz)
 
@@ -76,7 +76,17 @@ impl ExportController {
             let mut this_mut = this.borrow_mut();
             this_mut.this_opt = Some(Rc::downgrade(&this));
 
-            this_mut.export_list.select_row(&this_mut.mkvmerge_txt_row);
+            match TocSetterPipeline::check_requirements() {
+                Ok(_) => this_mut.export_list.select_row(&this_mut.mkvmerge_txt_row),
+                Err(err) => {
+                    warn!("{}", err);
+                    this_mut.mkvmerge_txt_warning_lbl.set_label(&err);
+
+                    this_mut.export_list.set_sensitive(false);
+                    this_mut.export_btn.set_sensitive(false);
+                }
+            }
+
             this_mut.cleanup();
         }
 
@@ -89,8 +99,6 @@ impl ExportController {
     ) {
         let mut this = this_rc.borrow_mut();
         this.have_main_ctrl(main_ctrl);
-
-        this.check_requirements();
 
         let this_clone = Rc::clone(this_rc);
         let main_ctrl_clone = Rc::clone(main_ctrl);
@@ -105,22 +113,53 @@ impl ExportController {
                     // launch export asynchronoulsy so that main_ctrl is no longer borrowed
                     let this_clone = Rc::clone(&this_clone);
                     gtk::idle_add(move || {
-                        this_clone.borrow_mut().export();
+                        this_clone.borrow_mut().start();
                         glib::Continue(false)
                     });
                 }));
         });
     }
 
-    fn check_requirements(&self) {
-        let _ = TocSetterPipeline::check_requirements().map_err(|err| {
-            warn!("{}", err);
-            self.mkvmerge_txt_warning_lbl.set_label(&err);
-            self.mkv_row.set_sensitive(false);
-        });
+    fn get_selection(&self) -> (metadata::Format, ExportType) {
+        if self.mkvmerge_txt_row.is_selected() {
+            (Format::MKVMergeText, ExportType::ExternalToc)
+        } else if self.cue_row.is_selected() {
+            (Format::CueSheet, ExportType::ExternalToc)
+        } else if self.mkv_row.is_selected() {
+            (Format::Matroska, ExportType::SingleFileWithToc)
+        } else {
+            unreachable!("ExportController::get_export_selection unknown export type");
+        }
     }
 
-    fn export(&mut self) {
+    fn register_timer(&mut self, period: u32) {
+        let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
+
+        self.timer_src = Some(glib::timeout_add_local(period, move || {
+            let this_rc = this_weak
+                .upgrade()
+                .expect("Lost `ExportController` in timer");
+            this_rc.borrow_mut().update_progress();
+
+            glib::Continue(true)
+        }));
+    }
+
+    fn register_media_event_handler(&mut self, receiver: glib::Receiver<MediaEvent>) {
+        let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
+
+        receiver.attach(None, move |event| {
+            let this_rc = this_weak
+                .upgrade()
+                .expect("Lost `ExportController` in `MediaEvent` handler");
+            let mut this = this_rc.borrow_mut();
+            this.handle_media_event(event)
+        });
+    }
+}
+
+impl OutputProcessor for ExportController {
+    fn start(&mut self) {
         debug_assert!(self.playback_pipeline.is_some());
         let (format, export_type) = self.get_selection();
 
@@ -165,94 +204,30 @@ impl ExportController {
                 self.switch_to_available();
             }
             ExportType::SingleFileWithToc => {
-                let target_path = self.target_path.clone();
-                self.build_pipeline(&target_path, stream_ids);
+                let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+                self.register_media_event_handler(receiver);
+                self.register_timer(TIMER_PERIOD);
+
+                match TocSetterPipeline::try_new(
+                    &self.media_path,
+                    &self.target_path,
+                    stream_ids,
+                    sender,
+                ) {
+                    Ok(toc_setter_pipeline) => {
+                        self.switch_to_busy();
+                        self.toc_setter_pipeline = Some(toc_setter_pipeline);
+                    }
+                    Err(error) => {
+                        self.switch_to_available();
+                        self.restore_pipeline();
+                        self.show_error(
+                            gettext("Failed to prepare for export. {}").replacen("{}", &error, 1),
+                        );
+                    }
+                };
             }
         }
-    }
-
-    fn build_pipeline(&mut self, export_path: &Path, streams: HashSet<String>) {
-        let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-        self.register_media_event_handler(receiver);
-        self.register_timer(TIMER_PERIOD);
-
-        match TocSetterPipeline::try_new(&self.media_path, export_path, streams, sender) {
-            Ok(toc_setter_pipeline) => {
-                self.switch_to_busy();
-                self.toc_setter_pipeline = Some(toc_setter_pipeline);
-            }
-            Err(error) => {
-                self.switch_to_available();
-                self.restore_pipeline();
-                self.show_error(
-                    gettext("Failed to prepare for export. {}").replacen("{}", &error, 1),
-                );
-            }
-        };
-    }
-
-    fn get_selection(&self) -> (metadata::Format, ExportType) {
-        if self.mkvmerge_txt_row.is_selected() {
-            (Format::MKVMergeText, ExportType::ExternalToc)
-        } else if self.cue_row.is_selected() {
-            (Format::CueSheet, ExportType::ExternalToc)
-        } else if self.mkv_row.is_selected() {
-            (Format::Matroska, ExportType::SingleFileWithToc)
-        } else {
-            unreachable!("ExportController::get_export_selection unknown export type");
-        }
-    }
-
-    fn switch_to_busy(&self) {
-        // TODO: allow cancelling export
-        self.base.switch_to_busy();
-
-        self.export_list.set_sensitive(false);
-        self.export_btn.set_sensitive(false);
-    }
-
-    fn switch_to_available(&mut self) {
-        self.base.switch_to_available();
-
-        self.export_progress_bar.set_fraction(0f64);
-        self.export_list.set_sensitive(true);
-        self.export_btn.set_sensitive(true);
-    }
-
-    fn register_timer(&mut self, period: u32) {
-        let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
-
-        self.timer_src = Some(glib::timeout_add_local(period, move || {
-            let this_rc = this_weak
-                .upgrade()
-                .expect("Lost `ExportController` in timer");
-            this_rc.borrow_mut().update_progress();
-
-            glib::Continue(true)
-        }));
-    }
-
-    fn update_progress(&mut self) {
-        if self.duration > 0 {
-            let position = match self.toc_setter_pipeline.as_mut() {
-                Some(toc_setter_pipeline) => toc_setter_pipeline.get_position(),
-                None => 0,
-            };
-            self.export_progress_bar
-                .set_fraction(position as f64 / self.duration as f64);
-        }
-    }
-
-    fn register_media_event_handler(&mut self, receiver: glib::Receiver<MediaEvent>) {
-        let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
-
-        receiver.attach(None, move |event| {
-            let this_rc = this_weak
-                .upgrade()
-                .expect("Lost `ExportController` in `MediaEvent` handler");
-            let mut this = this_rc.borrow_mut();
-            this.handle_media_event(event)
-        });
     }
 
     fn handle_media_event(&mut self, event: MediaEvent) -> glib::Continue {
@@ -298,6 +273,35 @@ impl ExportController {
         }
 
         glib::Continue(keep_going)
+    }
+}
+
+impl OutputUIController for ExportController {
+    fn switch_to_busy(&self) {
+        // TODO: allow cancelling export
+        self.base.switch_to_busy();
+
+        self.export_list.set_sensitive(false);
+        self.export_btn.set_sensitive(false);
+    }
+
+    fn switch_to_available(&mut self) {
+        self.base.switch_to_available();
+
+        self.export_progress_bar.set_fraction(0f64);
+        self.export_list.set_sensitive(true);
+        self.export_btn.set_sensitive(true);
+    }
+
+    fn update_progress(&mut self) {
+        if self.duration > 0 {
+            let position = match self.toc_setter_pipeline.as_mut() {
+                Some(toc_setter_pipeline) => toc_setter_pipeline.get_position(),
+                None => 0,
+            };
+            self.export_progress_bar
+                .set_fraction(position as f64 / self.duration as f64);
+        }
     }
 }
 

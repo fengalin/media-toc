@@ -9,9 +9,20 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use crate::{media::PlaybackPipeline, metadata, metadata::MediaContent};
+use crate::{
+    media::{MediaEvent, PlaybackPipeline},
+    metadata,
+    metadata::MediaContent,
+};
 
 use super::MainController;
+
+pub trait OutputProcessor {
+    // FIXME: return a Result<ProcessorStatus, String> so that the caller can act accordingly
+    fn start(&mut self);
+    // FIXME: return a Result<ProcessorStatus, String> so that the caller can act accordingly
+    fn handle_media_event(&mut self, event: MediaEvent) -> glib::Continue;
+}
 
 pub struct OutputBaseController {
     perspective_selector: gtk::MenuButton,
