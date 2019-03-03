@@ -17,11 +17,20 @@ use crate::{
 
 use super::MainController;
 
+pub enum ProcessorStatus {
+    Completed(String),
+    InProgress,
+}
+
 pub trait OutputProcessor {
-    // FIXME: return a Result<ProcessorStatus, String> so that the caller can act accordingly
-    fn start(&mut self);
-    // FIXME: return a Result<ProcessorStatus, String> so that the caller can act accordingly
-    fn handle_media_event(&mut self, event: MediaEvent) -> glib::Continue;
+    fn start(&mut self) -> Result<ProcessorStatus, String>;
+    fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessorStatus, String>;
+}
+
+pub trait OutputUIController {
+    fn switch_to_busy(&self);
+    fn switch_to_available(&mut self);
+    fn update_progress(&mut self);
 }
 
 pub struct OutputBaseController {
@@ -82,11 +91,6 @@ impl OutputBaseController {
             self.duration = info.duration;
         }
         self.target_path = self.media_path.with_extension(&self.extension);
-    }
-
-    pub fn show_message<Msg: AsRef<str>>(&self, type_: gtk::MessageType, message: Msg) {
-        let main_ctrl_rc = self.main_ctrl.as_ref().unwrap().upgrade().unwrap();
-        main_ctrl_rc.borrow().show_message(type_, message);
     }
 
     pub fn show_info<Msg: AsRef<str>>(&self, info: Msg) {

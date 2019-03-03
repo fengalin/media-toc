@@ -20,7 +20,7 @@ pub mod main_controller;
 pub use self::main_controller::{ControllerState, MainController};
 
 mod output_base_controller;
-use self::output_base_controller::{OutputBaseController, OutputProcessor};
+use self::output_base_controller::{OutputBaseController, OutputProcessor, OutputUIController, ProcessorStatus};
 
 mod perspective_controller;
 use self::perspective_controller::PerspectiveController;
@@ -50,10 +50,4 @@ pub trait UIController {
     fn new_media(&mut self, pipeline: &super::media::PlaybackPipeline);
     fn cleanup(&mut self);
     fn streams_changed(&mut self, _info: &super::metadata::MediaInfo) {}
-}
-
-pub trait OutputUIController {
-    fn switch_to_busy(&self);
-    fn switch_to_available(&mut self);
-    fn update_progress(&mut self);
 }

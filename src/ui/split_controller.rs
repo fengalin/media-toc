@@ -19,7 +19,7 @@ use crate::{
 };
 
 use super::{
-    MainController, OutputBaseController, OutputProcessor, OutputUIController, UIController,
+    MainController, OutputBaseController, OutputProcessor, OutputUIController, ProcessorStatus, UIController,
 };
 
 const TIMER_PERIOD: u32 = 100; // 100 ms (10 Hz)
@@ -38,11 +38,6 @@ const TAGS_TO_SKIP: [&str; 12] = [
     "TrackNumber",
     "VideoCodec",
 ];
-
-enum SplitStatus {
-    Completed,
-    InProgress,
-}
 
 macro_rules! update_list_with_format(
     ($self_:expr, $format:expr, $row:ident, $label:ident) => {
@@ -167,7 +162,26 @@ impl SplitController {
                     // launch export asynchronoulsy so that main_ctrl is no longer borrowed
                     let this_clone = Rc::clone(&this_clone);
                     gtk::idle_add(move || {
-                        this_clone.borrow_mut().start();
+                        let mut this_mut = this_clone.borrow_mut();
+                        this_mut.switch_to_busy();
+                        let is_in_progress = match this_mut.start() {
+                            Ok(ProcessorStatus::Completed(msg)) => {
+                                this_mut.show_info(msg);
+                                false
+                            }
+                            Ok(ProcessorStatus::InProgress) => true,
+                            Err(err) => {
+                                error!("{}", err);
+                                this_mut.show_error(err);
+                                false
+                            }
+                        };
+
+                        if !is_in_progress {
+                            this_mut.restore_pipeline();
+                            this_mut.switch_to_available();
+                        }
+
                         glib::Continue(false)
                     });
                 }));
@@ -191,14 +205,14 @@ impl SplitController {
         self.split_btn.set_sensitive(is_usable);
     }
 
-    fn next(&mut self) -> Result<SplitStatus, String> {
+    fn next(&mut self) -> Result<ProcessorStatus, String> {
         let mut chapter = match self.toc_visitor.as_mut() {
             Some(toc_visitor) => match toc_visitor.next_chapter() {
                 Some(chapter) => {
                     self.idx += 1;
                     chapter
                 }
-                None => return Ok(SplitStatus::Completed),
+                None => return Ok(ProcessorStatus::Completed(gettext("Media split succesfully"))),
             },
             None => {
                 // No chapter defined => build a fake chapter corresponding to the whole file
@@ -226,6 +240,7 @@ impl SplitController {
         let chapter = self.update_tags(&mut chapter);
         let output_path = self.get_split_path(&chapter);
 
+        // FIXME: find a way to register outside for Async Processings
         let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
         self.register_media_event_handler(receiver);
 
@@ -241,7 +256,7 @@ impl SplitController {
         .map_err(|err| gettext("Failed to prepare for split. {}").replacen("{}", &err, 1))?;
 
         self.splitter_pipeline = Some(splitter_pipeline);
-        Ok(SplitStatus::InProgress)
+        Ok(ProcessorStatus::InProgress)
     }
 
     fn get_split_path(&self, chapter: &gst::TocEntry) -> PathBuf {
@@ -405,13 +420,31 @@ impl SplitController {
                 .upgrade()
                 .expect("Lost `SplitController` in `MediaEvent` handler");
             let mut this = this_rc.borrow_mut();
-            this.handle_media_event(event)
+            let is_in_progress = match this.handle_media_event(event) {
+                Ok(ProcessorStatus::Completed(msg)) => {
+                    this.show_info(msg);
+                    false
+                }
+                Ok(ProcessorStatus::InProgress) => true,
+                Err(err) => {
+                    this.show_error(err);
+                    false
+                }
+            };
+
+            if is_in_progress {
+                glib::Continue(true)
+            } else {
+                this.restore_pipeline();
+                this.switch_to_available();
+                glib::Continue(false)
+            }
         });
     }
 }
 
 impl OutputProcessor for SplitController {
-    fn start(&mut self) {
+    fn start(&mut self) -> Result<ProcessorStatus, String> {
         // Split button is not sensible when no audio
         // stream is selected (see `streams_changed`)
         debug_assert!(self.selected_audio.is_some());
@@ -434,56 +467,26 @@ impl OutputProcessor for SplitController {
             .map(|toc| TocVisitor::new(toc));
         self.idx = 0;
 
-        match self.next() {
-            Ok(SplitStatus::InProgress) => {
-                self.switch_to_busy();
+        match self.next()? {
+            ProcessorStatus::InProgress => {
+                // FIXME: find a way to register outside for Async Processings
                 self.register_timer(TIMER_PERIOD);
+                Ok(ProcessorStatus::InProgress)
             }
-            Ok(SplitStatus::Completed) => {
+            ProcessorStatus::Completed(_) => {
                 unreachable!("`SplitController`: split completed immediately")
-            }
-            Err(err) => {
-                error!("{}", err);
-                self.switch_to_available();
-                self.restore_pipeline();
-                self.show_error(err);
             }
         }
     }
 
-    fn handle_media_event(&mut self, event: MediaEvent) -> glib::Continue {
-        let mut keep_going = true;
-        let mut process_done = false;
+    fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessorStatus, String> {
         match event {
-            MediaEvent::Eos => {
-                match self.next() {
-                    Ok(SplitStatus::InProgress) => (),
-                    Ok(SplitStatus::Completed) => {
-                        self.show_info(gettext("Media split succesfully"));
-                        process_done = true;
-                    }
-                    Err(err) => {
-                        self.show_error(err);
-                        process_done = true;
-                    }
-                }
-
-                keep_going = false;
-            }
+            MediaEvent::Eos => self.next(),
             MediaEvent::FailedToExport(err) => {
-                keep_going = false;
-                process_done = true;
-                self.show_error(gettext("Failed to split media. {}").replacen("{}", &err, 1));
+                Err(gettext("Failed to split media. {}").replacen("{}", &err, 1))
             }
-            _ => (),
+            _ => Ok(ProcessorStatus::InProgress),
         }
-
-        if !keep_going && process_done {
-            self.switch_to_available();
-            self.restore_pipeline();
-        }
-
-        glib::Continue(keep_going)
     }
 }
 
@@ -498,6 +501,8 @@ impl OutputUIController for SplitController {
 
     fn switch_to_available(&mut self) {
         self.base.switch_to_available();
+
+        self.split_progress_bar.set_fraction(0f64);
 
         let is_usable = self.selected_format.is_some();
         self.split_list.set_sensitive(is_usable);

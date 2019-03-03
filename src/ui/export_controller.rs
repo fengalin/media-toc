@@ -2,7 +2,7 @@ use gettextrs::gettext;
 use glib;
 use gtk;
 use gtk::prelude::*;
-use log::warn;
+use log::{error, warn};
 
 use std::{
     cell::RefCell,
@@ -18,7 +18,7 @@ use crate::{
 };
 
 use super::{
-    MainController, OutputBaseController, OutputProcessor, OutputUIController, UIController,
+    MainController, OutputBaseController, OutputProcessor, OutputUIController, ProcessorStatus, UIController,
 };
 
 const TIMER_PERIOD: u32 = 100; // 100 ms (10 Hz)
@@ -113,7 +113,26 @@ impl ExportController {
                     // launch export asynchronoulsy so that main_ctrl is no longer borrowed
                     let this_clone = Rc::clone(&this_clone);
                     gtk::idle_add(move || {
-                        this_clone.borrow_mut().start();
+                        let mut this_mut = this_clone.borrow_mut();
+                        this_mut.switch_to_busy();
+                        let is_in_progress = match this_mut.start() {
+                            Ok(ProcessorStatus::Completed(msg)) => {
+                                this_mut.show_info(msg);
+                                false
+                            }
+                            Ok(ProcessorStatus::InProgress) => true,
+                            Err(err) => {
+                                error!("{}", err);
+                                this_mut.show_error(err);
+                                false
+                            }
+                        };
+
+                        if !is_in_progress {
+                            this_mut.restore_pipeline();
+                            this_mut.switch_to_available();
+                        }
+
                         glib::Continue(false)
                     });
                 }));
@@ -153,13 +172,31 @@ impl ExportController {
                 .upgrade()
                 .expect("Lost `ExportController` in `MediaEvent` handler");
             let mut this = this_rc.borrow_mut();
-            this.handle_media_event(event)
+            let is_in_progress = match this.handle_media_event(event) {
+                Ok(ProcessorStatus::Completed(msg)) => {
+                    this.show_info(msg);
+                    false
+                }
+                Ok(ProcessorStatus::InProgress) => true,
+                Err(err) => {
+                    this.show_error(err);
+                    false
+                }
+            };
+
+            if is_in_progress {
+                glib::Continue(true)
+            } else {
+                this.restore_pipeline();
+                this.switch_to_available();
+                glib::Continue(false)
+            }
         });
     }
 }
 
 impl OutputProcessor for ExportController {
-    fn start(&mut self) {
+    fn start(&mut self) -> Result<ProcessorStatus, String> {
         debug_assert!(self.playback_pipeline.is_some());
         let (format, export_type) = self.get_selection();
 
@@ -177,61 +214,40 @@ impl OutputProcessor for ExportController {
         match export_type {
             ExportType::ExternalToc => {
                 // export toc as a standalone file
-                match File::create(&self.target_path) {
-                    Ok(mut output_file) => {
-                        let info = self
-                            .playback_pipeline
-                            .as_ref()
-                            .unwrap()
-                            .info
-                            .read()
-                            .unwrap();
-                        match metadata::Factory::get_writer(format).write(&info, &mut output_file) {
-                            Ok(_) => self.show_message(
-                                gtk::MessageType::Info,
-                                gettext("Table of contents exported succesfully"),
-                            ),
-                            Err(err) => self.show_message(gtk::MessageType::Error, err),
-                        }
-                    }
-                    Err(_) => self.show_message(
-                        gtk::MessageType::Error,
-                        gettext("Failed to create the file for the table of contents"),
-                    ),
-                }
-
-                self.restore_pipeline();
-                self.switch_to_available();
+                let mut output_file = File::create(&self.target_path)
+                    .map_err(|_| gettext("Failed to create the file for the table of contents"))?;
+                let info = self
+                    .playback_pipeline
+                    .as_ref()
+                    .unwrap()
+                    .info
+                    .read()
+                    .unwrap();
+                metadata::Factory::get_writer(format).write(&info, &mut output_file)?;
+                Ok(ProcessorStatus::Completed(gettext("Table of contents exported succesfully")))
             }
             ExportType::SingleFileWithToc => {
                 let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+                // FIXME: find a way to register outside for Async Processings
                 self.register_media_event_handler(receiver);
                 self.register_timer(TIMER_PERIOD);
 
-                match TocSetterPipeline::try_new(
+                let toc_setter_pipeline = TocSetterPipeline::try_new(
                     &self.media_path,
                     &self.target_path,
                     stream_ids,
                     sender,
-                ) {
-                    Ok(toc_setter_pipeline) => {
-                        self.switch_to_busy();
-                        self.toc_setter_pipeline = Some(toc_setter_pipeline);
-                    }
-                    Err(error) => {
-                        self.switch_to_available();
-                        self.restore_pipeline();
-                        self.show_error(
-                            gettext("Failed to prepare for export. {}").replacen("{}", &error, 1),
-                        );
-                    }
-                };
+                ).map_err(|err| {
+                    gettext("Failed to prepare for export. {}").replacen("{}", &err, 1)
+                })?;
+                self.toc_setter_pipeline = Some(toc_setter_pipeline);
+
+                Ok(ProcessorStatus::InProgress)
             }
         }
     }
 
-    fn handle_media_event(&mut self, event: MediaEvent) -> glib::Continue {
-        let mut keep_going = true;
+    fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessorStatus, String> {
         match event {
             MediaEvent::InitDone => {
                 let mut toc_setter_pipeline = self.toc_setter_pipeline.take().unwrap();
@@ -249,30 +265,21 @@ impl OutputProcessor for ExportController {
                     exporter.export(&info, muxer);
                 }
 
-                if let Err(err) = toc_setter_pipeline.export() {
-                    keep_going = false;
-                    self.show_error(gettext("Failed to export media. {}").replacen("{}", &err, 1));
-                }
+                toc_setter_pipeline
+                    .export()
+                    .map_err(|err| gettext("Failed to export media. {}").replacen("{}", &err, 1))?;
 
                 self.toc_setter_pipeline = Some(toc_setter_pipeline);
+                Ok(ProcessorStatus::InProgress)
             }
             MediaEvent::Eos => {
-                self.show_info(gettext("Media exported succesfully"));
-                keep_going = false;
+                Ok(ProcessorStatus::Completed(gettext("Media exported succesfully")))
             }
-            MediaEvent::FailedToExport(error) => {
-                keep_going = false;
-                self.show_error(gettext("Failed to export media. {}").replacen("{}", &error, 1));
+            MediaEvent::FailedToExport(err) => {
+                Err(gettext("Failed to export media. {}").replacen("{}", &err, 1))
             }
-            _ => (),
+            _ => Ok(ProcessorStatus::InProgress),
         }
-
-        if !keep_going {
-            self.switch_to_available();
-            self.restore_pipeline();
-        }
-
-        glib::Continue(keep_going)
     }
 }
 
