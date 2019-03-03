@@ -11,7 +11,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{application::CONFIG, media::PlaybackPipeline, metadata::MediaInfo};
 
-use super::MainController;
+use super::{MainController, UIController};
 
 struct VideoOutput {
     sink: gst::Element,
@@ -23,6 +23,50 @@ pub struct VideoController {
     video_output: Option<VideoOutput>,
     container: gtk::Box,
     cleaner_id: Option<SignalHandlerId>,
+}
+
+impl UIController for VideoController {
+    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+        let info = pipeline.info.read().unwrap();
+        self.streams_changed(&info);
+    }
+
+    fn cleanup(&mut self) {
+        if let Some(video_widget) = self.get_video_widget() {
+            if self.cleaner_id.is_none() {
+                self.cleaner_id = Some(video_widget.connect_draw(|widget, cr| {
+                    let allocation = widget.get_allocation();
+                    cr.set_source_rgb(0f64, 0f64, 0f64);
+                    cr.rectangle(
+                        0f64,
+                        0f64,
+                        f64::from(allocation.width),
+                        f64::from(allocation.height),
+                    );
+                    cr.fill();
+
+                    Inhibit(true)
+                }));
+                video_widget.queue_draw();
+            }
+        }
+    }
+
+    fn streams_changed(&mut self, info: &MediaInfo) {
+        if self.video_output.is_some() {
+            if let Some(cleaner_id) = self.cleaner_id.take() {
+                self.container.get_children()[0].disconnect(cleaner_id);
+            }
+
+            if info.streams.is_video_selected() {
+                debug!("streams_changed video selected");
+                self.container.show();
+            } else {
+                debug!("streams_changed video not selected");
+                self.container.hide();
+            }
+        }
+    }
 }
 
 impl VideoController {
@@ -113,47 +157,5 @@ impl VideoController {
         self.video_output
             .as_ref()
             .map(|video_output| video_output.widget.clone())
-    }
-
-    pub fn cleanup(&mut self) {
-        if let Some(video_widget) = self.get_video_widget() {
-            if self.cleaner_id.is_none() {
-                self.cleaner_id = Some(video_widget.connect_draw(|widget, cr| {
-                    let allocation = widget.get_allocation();
-                    cr.set_source_rgb(0f64, 0f64, 0f64);
-                    cr.rectangle(
-                        0f64,
-                        0f64,
-                        f64::from(allocation.width),
-                        f64::from(allocation.height),
-                    );
-                    cr.fill();
-
-                    Inhibit(true)
-                }));
-                video_widget.queue_draw();
-            }
-        }
-    }
-
-    pub fn new_media(&mut self, pipeline: &PlaybackPipeline) {
-        let info = pipeline.info.read().unwrap();
-        self.streams_changed(&info);
-    }
-
-    pub fn streams_changed(&mut self, info: &MediaInfo) {
-        if self.video_output.is_some() {
-            if let Some(cleaner_id) = self.cleaner_id.take() {
-                self.container.get_children()[0].disconnect(cleaner_id);
-            }
-
-            if info.streams.is_video_selected() {
-                debug!("streams_changed video selected");
-                self.container.show();
-            } else {
-                debug!("streams_changed video not selected");
-                self.container.hide();
-            }
-        }
     }
 }

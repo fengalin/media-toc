@@ -25,7 +25,7 @@ use crate::{
 
 use super::{
     AudioController, ChaptersBoundaries, ExportController, InfoController, PerspectiveController,
-    PositionStatus, SplitController, StreamsController, VideoController,
+    PositionStatus, SplitController, StreamsController, UIController, VideoController,
 };
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
@@ -452,8 +452,8 @@ impl MainController {
         {
             let info = pipeline.info.read().unwrap();
             self.audio_ctrl.borrow_mut().streams_changed(&info);
-            self.info_ctrl.borrow().streams_changed(&info);
-            self.perspective_ctrl.borrow().streams_changed(&info);
+            self.info_ctrl.borrow_mut().streams_changed(&info);
+            self.perspective_ctrl.borrow_mut().streams_changed(&info);
             self.split_ctrl.borrow_mut().streams_changed(&info);
             self.video_ctrl.streams_changed(&info);
         }
@@ -576,9 +576,9 @@ impl MainController {
                     .set_subtitle(Some(pipeline.info.read().unwrap().file_name.as_str()));
 
                 self.audio_ctrl.borrow_mut().new_media(&pipeline);
-                self.export_ctrl.borrow_mut().new_media();
+                self.export_ctrl.borrow_mut().new_media(&pipeline);
                 self.info_ctrl.borrow_mut().new_media(&pipeline);
-                self.perspective_ctrl.borrow().new_media(&pipeline);
+                self.perspective_ctrl.borrow_mut().new_media(&pipeline);
                 self.split_ctrl.borrow_mut().new_media(&pipeline);
                 self.streams_ctrl.borrow_mut().new_media(&pipeline);
                 self.video_ctrl.new_media(&pipeline);
@@ -713,7 +713,7 @@ impl MainController {
         self.export_ctrl.borrow_mut().cleanup();
         self.split_ctrl.borrow_mut().cleanup();
         self.streams_ctrl.borrow_mut().cleanup();
-        self.perspective_ctrl.borrow().cleanup();
+        self.perspective_ctrl.borrow_mut().cleanup();
         self.header_bar.set_subtitle("");
 
         let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);

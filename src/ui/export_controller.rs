@@ -14,12 +14,12 @@ use std::{
 };
 
 use crate::{
-    media::{MediaEvent, TocSetterPipeline},
+    media::{MediaEvent, PlaybackPipeline, TocSetterPipeline},
     metadata,
     metadata::{Exporter, Format, MatroskaTocFormat},
 };
 
-use super::{MainController, OutputBaseController};
+use super::{MainController, OutputBaseController, UIController};
 
 const TIMER_PERIOD: u32 = 100; // 100 ms (10 Hz)
 
@@ -42,6 +42,17 @@ pub struct ExportController {
 
     toc_setter_pipeline: Option<TocSetterPipeline>,
     this_opt: Option<Weak<RefCell<ExportController>>>,
+}
+
+impl UIController for ExportController {
+    fn new_media(&mut self, _pipeline: &PlaybackPipeline) {
+        self.export_btn.set_sensitive(true);
+    }
+
+    fn cleanup(&mut self) {
+        self.export_btn.set_sensitive(false);
+        self.export_progress_bar.set_fraction(0f64);
+    }
 }
 
 impl ExportController {
@@ -99,15 +110,6 @@ impl ExportController {
                     });
                 }));
         });
-    }
-
-    pub fn new_media(&mut self) {
-        self.export_btn.set_sensitive(true);
-    }
-
-    pub fn cleanup(&mut self) {
-        self.export_btn.set_sensitive(false);
-        self.export_progress_bar.set_fraction(0f64);
     }
 
     fn check_requirements(&self) {

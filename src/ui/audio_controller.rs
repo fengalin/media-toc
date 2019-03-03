@@ -25,8 +25,8 @@ use crate::{
 };
 
 use super::{
-    ChaptersBoundaries, DoubleWaveformBuffer, MainController, PositionStatus, WaveformBuffer,
-    BACKGROUND_COLOR,
+    ChaptersBoundaries, DoubleWaveformBuffer, MainController, PositionStatus, UIController,
+    WaveformBuffer, BACKGROUND_COLOR,
 };
 
 const BUFFER_DURATION: u64 = 60_000_000_000; // 60 s
@@ -102,6 +102,63 @@ pub struct AudioController {
     // Add a RefCell to self in order to be able to register the tick_callback
     // and asynchronously refresh display conditions
     this_opt: Option<Weak<RefCell<AudioController>>>,
+}
+
+impl UIController for AudioController {
+    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+        let is_audio_selected = {
+            let info = pipeline.info.read().unwrap();
+            self.streams_changed(&info);
+            info.streams.is_audio_selected()
+        };
+
+        if is_audio_selected {
+            // Refresh conditions asynchronously so that
+            // all widget are arranged to their target positions
+            let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
+            gtk::idle_add(move || {
+                if let Some(this_rc) = this_weak.upgrade() {
+                    let mut this = this_rc.borrow_mut();
+                    this.state = ControllerState::Paused;
+                    this.update_conditions();
+                }
+                glib::Continue(false)
+            });
+        }
+    }
+
+    fn cleanup(&mut self) {
+        self.state = ControllerState::Disabled;
+        self.zoom_in_btn.set_sensitive(false);
+        self.zoom_out_btn.set_sensitive(false);
+        self.reset_cursor();
+        self.playback_needs_refresh = false;
+        self.dbl_buffer_mtx.lock().unwrap().cleanup();
+        self.requested_duration = INIT_REQ_DURATION;
+        self.seek_step = INIT_REQ_DURATION as u64 / SEEK_STEP_DURATION_DIVISOR;
+        self.current_position = 0;
+        self.last_other_ui_refresh = 0;
+        self.first_visible_pos = 0;
+        self.last_visible_pos = 0;
+        self.sample_duration = 0;
+        self.sample_step = 0f64;
+        // AudioController accesses self.boundaries as readonly
+        // clearing it is under the responsiblity of ChapterTreeManager
+        self.update_conditions();
+        self.redraw();
+    }
+
+    fn streams_changed(&mut self, info: &MediaInfo) {
+        if info.streams.is_audio_selected() {
+            debug!("streams_changed audio selected");
+            self.zoom_in_btn.set_sensitive(true);
+            self.zoom_out_btn.set_sensitive(true);
+            self.container.show();
+        } else {
+            debug!("streams_changed audio not selected");
+            self.container.hide();
+        }
+    }
 }
 
 impl AudioController {
@@ -307,61 +364,6 @@ impl AudioController {
 
     pub fn redraw(&self) {
         self.drawingarea.queue_draw();
-    }
-
-    pub fn cleanup(&mut self) {
-        self.state = ControllerState::Disabled;
-        self.zoom_in_btn.set_sensitive(false);
-        self.zoom_out_btn.set_sensitive(false);
-        self.reset_cursor();
-        self.playback_needs_refresh = false;
-        self.dbl_buffer_mtx.lock().unwrap().cleanup();
-        self.requested_duration = INIT_REQ_DURATION;
-        self.seek_step = INIT_REQ_DURATION as u64 / SEEK_STEP_DURATION_DIVISOR;
-        self.current_position = 0;
-        self.last_other_ui_refresh = 0;
-        self.first_visible_pos = 0;
-        self.last_visible_pos = 0;
-        self.sample_duration = 0;
-        self.sample_step = 0f64;
-        // AudioController accesses self.boundaries as readonly
-        // clearing it is under the responsiblity of ChapterTreeManager
-        self.update_conditions();
-        self.redraw();
-    }
-
-    pub fn new_media(&mut self, pipeline: &PlaybackPipeline) {
-        let is_audio_selected = {
-            let info = pipeline.info.read().unwrap();
-            self.streams_changed(&info);
-            info.streams.is_audio_selected()
-        };
-
-        if is_audio_selected {
-            // Refresh conditions asynchronously so that
-            // all widget are arranged to their target positions
-            let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
-            gtk::idle_add(move || {
-                if let Some(this_rc) = this_weak.upgrade() {
-                    let mut this = this_rc.borrow_mut();
-                    this.state = ControllerState::Paused;
-                    this.update_conditions();
-                }
-                glib::Continue(false)
-            });
-        }
-    }
-
-    pub fn streams_changed(&mut self, info: &MediaInfo) {
-        if info.streams.is_audio_selected() {
-            debug!("streams_changed audio selected");
-            self.zoom_in_btn.set_sensitive(true);
-            self.zoom_out_btn.set_sensitive(true);
-            self.container.show();
-        } else {
-            debug!("streams_changed audio not selected");
-            self.container.hide();
-        }
     }
 
     pub fn get_seek_back_1st_position(&self, target: u64) -> Option<u64> {

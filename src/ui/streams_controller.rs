@@ -14,7 +14,7 @@ use std::{
 
 use crate::{media::PlaybackPipeline, metadata::Stream};
 
-use super::MainController;
+use super::{MainController, UIController};
 
 const ALIGN_LEFT: f32 = 0f32;
 const ALIGN_CENTER: f32 = 0.5f32;
@@ -72,6 +72,110 @@ pub struct StreamsController {
     text_selected: Option<Arc<str>>,
 
     main_ctrl: Option<Weak<RefCell<MainController>>>,
+}
+
+impl UIController for StreamsController {
+    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+        {
+            let mut info = pipeline.info.write().unwrap();
+
+            // Video streams
+            let mut sorted_ids = info
+                .streams
+                .video
+                .keys()
+                .map(|key| Arc::clone(key))
+                .collect::<Vec<Arc<str>>>();
+            sorted_ids.sort();
+            for stream_id in sorted_ids {
+                let stream = info.streams.get_video_mut(stream_id).unwrap();
+                stream.must_export = true;
+                let iter = self.add_stream(&self.video_store, stream);
+                let caps_structure = stream.caps.get_structure(0).unwrap();
+                if let Some(width) = caps_structure.get::<i32>("width") {
+                    self.video_store
+                        .set_value(&iter, VIDEO_WIDTH_COL, &gtk::Value::from(&width));
+                }
+                if let Some(height) = caps_structure.get::<i32>("height") {
+                    self.video_store
+                        .set_value(&iter, VIDEO_HEIGHT_COL, &gtk::Value::from(&height));
+                }
+            }
+
+            // Audio streams
+            let mut sorted_ids = info
+                .streams
+                .audio
+                .keys()
+                .map(|key| Arc::clone(key))
+                .collect::<Vec<Arc<str>>>();
+            sorted_ids.sort();
+            for stream_id in sorted_ids {
+                let stream = info.streams.get_audio_mut(stream_id).unwrap();
+                stream.must_export = true;
+                let iter = self.add_stream(&self.audio_store, stream);
+                let caps_structure = stream.caps.get_structure(0).unwrap();
+                if let Some(rate) = caps_structure.get::<i32>("rate") {
+                    self.audio_store
+                        .set_value(&iter, AUDIO_RATE_COL, &gtk::Value::from(&rate));
+                }
+                if let Some(channels) = caps_structure.get::<i32>("channels") {
+                    self.audio_store.set_value(
+                        &iter,
+                        AUDIO_CHANNELS_COL,
+                        &gtk::Value::from(&channels),
+                    );
+                }
+            }
+
+            // Text streams
+            let mut sorted_ids = info
+                .streams
+                .text
+                .keys()
+                .map(|key| Arc::clone(key))
+                .collect::<Vec<Arc<str>>>();
+            sorted_ids.sort();
+            for stream_id in sorted_ids {
+                let stream = info.streams.get_text_mut(stream_id).unwrap();
+                let iter = self.add_stream(&self.text_store, stream);
+                // FIXME: discard text stream export for now as it hangs the export
+                // (see https://github.com/fengalin/media-toc/issues/136)
+                stream.must_export = false;
+                self.text_store
+                    .set_value(&iter, EXPORT_FLAG_COL, &gtk::Value::from(&false));
+                let caps_structure = stream.caps.get_structure(0).unwrap();
+                if let Some(format) = caps_structure.get::<&str>("format") {
+                    self.text_store
+                        .set_value(&iter, TEXT_FORMAT_COL, &gtk::Value::from(&format));
+                }
+            }
+        }
+
+        self.video_selected = self.video_store.get_iter_first().map(|ref iter| {
+            self.video_treeview.get_selection().select_iter(iter);
+            self.get_stream_at(&self.video_store, iter)
+        });
+
+        self.audio_selected = self.audio_store.get_iter_first().map(|ref iter| {
+            self.audio_treeview.get_selection().select_iter(iter);
+            self.get_stream_at(&self.audio_store, iter)
+        });
+
+        self.text_selected = self.text_store.get_iter_first().map(|ref iter| {
+            self.text_treeview.get_selection().select_iter(iter);
+            self.get_stream_at(&self.text_store, iter)
+        });
+    }
+
+    fn cleanup(&mut self) {
+        self.video_store.clear();
+        self.video_selected = None;
+        self.audio_store.clear();
+        self.audio_selected = None;
+        self.text_store.clear();
+        self.text_selected = None;
+    }
 }
 
 impl StreamsController {
@@ -204,108 +308,6 @@ impl StreamsController {
                 }
             }
         }
-    }
-
-    pub fn cleanup(&mut self) {
-        self.video_store.clear();
-        self.video_selected = None;
-        self.audio_store.clear();
-        self.audio_selected = None;
-        self.text_store.clear();
-        self.text_selected = None;
-    }
-
-    pub fn new_media(&mut self, pipeline: &PlaybackPipeline) {
-        {
-            let mut info = pipeline.info.write().unwrap();
-
-            // Video streams
-            let mut sorted_ids = info
-                .streams
-                .video
-                .keys()
-                .map(|key| Arc::clone(key))
-                .collect::<Vec<Arc<str>>>();
-            sorted_ids.sort();
-            for stream_id in sorted_ids {
-                let stream = info.streams.get_video_mut(stream_id).unwrap();
-                stream.must_export = true;
-                let iter = self.add_stream(&self.video_store, stream);
-                let caps_structure = stream.caps.get_structure(0).unwrap();
-                if let Some(width) = caps_structure.get::<i32>("width") {
-                    self.video_store
-                        .set_value(&iter, VIDEO_WIDTH_COL, &gtk::Value::from(&width));
-                }
-                if let Some(height) = caps_structure.get::<i32>("height") {
-                    self.video_store
-                        .set_value(&iter, VIDEO_HEIGHT_COL, &gtk::Value::from(&height));
-                }
-            }
-
-            // Audio streams
-            let mut sorted_ids = info
-                .streams
-                .audio
-                .keys()
-                .map(|key| Arc::clone(key))
-                .collect::<Vec<Arc<str>>>();
-            sorted_ids.sort();
-            for stream_id in sorted_ids {
-                let stream = info.streams.get_audio_mut(stream_id).unwrap();
-                stream.must_export = true;
-                let iter = self.add_stream(&self.audio_store, stream);
-                let caps_structure = stream.caps.get_structure(0).unwrap();
-                if let Some(rate) = caps_structure.get::<i32>("rate") {
-                    self.audio_store
-                        .set_value(&iter, AUDIO_RATE_COL, &gtk::Value::from(&rate));
-                }
-                if let Some(channels) = caps_structure.get::<i32>("channels") {
-                    self.audio_store.set_value(
-                        &iter,
-                        AUDIO_CHANNELS_COL,
-                        &gtk::Value::from(&channels),
-                    );
-                }
-            }
-
-            // Text streams
-            let mut sorted_ids = info
-                .streams
-                .text
-                .keys()
-                .map(|key| Arc::clone(key))
-                .collect::<Vec<Arc<str>>>();
-            sorted_ids.sort();
-            for stream_id in sorted_ids {
-                let stream = info.streams.get_text_mut(stream_id).unwrap();
-                let iter = self.add_stream(&self.text_store, stream);
-                // FIXME: discard text stream export for now as it hangs the export
-                // (see https://github.com/fengalin/media-toc/issues/136)
-                stream.must_export = false;
-                self.text_store
-                    .set_value(&iter, EXPORT_FLAG_COL, &gtk::Value::from(&false));
-                let caps_structure = stream.caps.get_structure(0).unwrap();
-                if let Some(format) = caps_structure.get::<&str>("format") {
-                    self.text_store
-                        .set_value(&iter, TEXT_FORMAT_COL, &gtk::Value::from(&format));
-                }
-            }
-        }
-
-        self.video_selected = self.video_store.get_iter_first().map(|ref iter| {
-            self.video_treeview.get_selection().select_iter(iter);
-            self.get_stream_at(&self.video_store, iter)
-        });
-
-        self.audio_selected = self.audio_store.get_iter_first().map(|ref iter| {
-            self.audio_treeview.get_selection().select_iter(iter);
-            self.get_stream_at(&self.audio_store, iter)
-        });
-
-        self.text_selected = self.text_store.get_iter_first().map(|ref iter| {
-            self.text_treeview.get_selection().select_iter(iter);
-            self.get_stream_at(&self.text_store, iter)
-        });
     }
 
     pub fn trigger_stream_selection(&self) {

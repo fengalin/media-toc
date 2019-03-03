@@ -45,3 +45,9 @@ pub enum PositionStatus {
     ChapterChanged,
     ChapterNotChanged,
 }
+
+pub trait UIController {
+    fn new_media(&mut self, pipeline: &super::media::PlaybackPipeline);
+    fn cleanup(&mut self);
+    fn streams_changed(&mut self, _info: &super::metadata::MediaInfo) {}
+}

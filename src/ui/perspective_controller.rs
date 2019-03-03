@@ -8,7 +8,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{media::PlaybackPipeline, metadata::MediaInfo};
 
-use super::MainController;
+use super::{MainController, UIController};
 
 macro_rules! gtk_downcast(
     ($source:expr, $target_type:ty, $item_name:expr) => {
@@ -44,6 +44,23 @@ pub struct PerspectiveController {
     split_btn: gtk::Button,
 }
 
+impl UIController for PerspectiveController {
+    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+        self.menu_button.set_sensitive(true);
+        let info = pipeline.info.read().unwrap();
+        self.streams_changed(&info);
+    }
+
+    fn cleanup(&mut self) {
+        self.menu_button.set_sensitive(false);
+    }
+
+    fn streams_changed(&mut self, info: &MediaInfo) {
+        self.split_btn
+            .set_sensitive(info.streams.is_audio_selected());
+    }
+}
+
 impl PerspectiveController {
     pub fn new_rc(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
         let this_rc = Rc::new(RefCell::new(PerspectiveController {
@@ -53,7 +70,7 @@ impl PerspectiveController {
             split_btn: builder.get_object("perspective-split-btn").unwrap(),
         }));
 
-        this_rc.borrow().cleanup();
+        this_rc.borrow_mut().cleanup();
 
         this_rc
     }
@@ -162,20 +179,5 @@ impl PerspectiveController {
 
             index += 1;
         }
-    }
-
-    pub fn cleanup(&self) {
-        self.menu_button.set_sensitive(false);
-    }
-
-    pub fn new_media(&self, pipeline: &PlaybackPipeline) {
-        self.menu_button.set_sensitive(true);
-        let info = pipeline.info.read().unwrap();
-        self.streams_changed(&info);
-    }
-
-    pub fn streams_changed(&self, info: &MediaInfo) {
-        self.split_btn
-            .set_sensitive(info.streams.is_audio_selected());
     }
 }

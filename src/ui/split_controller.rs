@@ -18,7 +18,7 @@ use crate::{
     metadata::{get_default_chapter_title, Format, MediaContent, MediaInfo, Stream, TocVisitor},
 };
 
-use super::{MainController, OutputBaseController};
+use super::{MainController, OutputBaseController, UIController};
 
 const TIMER_PERIOD: u32 = 100; // 100 ms (10 Hz)
 
@@ -63,6 +63,28 @@ pub struct SplitController {
     this_opt: Option<Weak<RefCell<SplitController>>>,
 }
 
+impl UIController for SplitController {
+    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+        let info = pipeline.info.read().unwrap();
+        self.streams_changed(&info);
+    }
+
+    fn cleanup(&mut self) {
+        self.split_progress_bar.set_fraction(0f64);
+        self.split_btn.set_sensitive(false);
+    }
+
+    fn streams_changed(&mut self, info: &MediaInfo) {
+        self.selected_audio = info
+            .streams
+            .selected_audio()
+            .map(|selected_audio| selected_audio.to_owned());
+        if self.selected_format.is_some() {
+            self.split_btn.set_sensitive(self.selected_audio.is_some());
+        }
+    }
+}
+
 impl SplitController {
     pub fn new_rc(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
         let this = Rc::new(RefCell::new(SplitController {
@@ -95,6 +117,7 @@ impl SplitController {
             let mut this_mut = this.borrow_mut();
             this_mut.this_opt = Some(Rc::downgrade(&this));
 
+            this_mut.selected_format = Some(Format::Flac);
             this_mut.split_list.select_row(&this_mut.split_to_flac_row);
             this_mut.cleanup();
         }
@@ -129,24 +152,6 @@ impl SplitController {
                     });
                 }));
         });
-    }
-
-    pub fn new_media(&mut self, pipeline: &PlaybackPipeline) {
-        let info = pipeline.info.read().unwrap();
-        self.streams_changed(&info);
-    }
-
-    pub fn streams_changed(&mut self, info: &MediaInfo) {
-        self.selected_audio = info
-            .streams
-            .selected_audio()
-            .map(|selected_audio| selected_audio.to_owned());
-        self.split_btn.set_sensitive(self.selected_audio.is_some());
-    }
-
-    pub fn cleanup(&mut self) {
-        self.split_btn.set_sensitive(false);
-        self.split_progress_bar.set_fraction(0f64);
     }
 
     fn check_requirements(&self) {
