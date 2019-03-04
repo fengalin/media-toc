@@ -8,7 +8,12 @@ use glib::ObjectExt;
 
 use log::info;
 
-use std::{collections::HashSet, error::Error, path::Path};
+use std::{
+    collections::HashSet,
+    error::Error,
+    path::Path,
+    sync::{Arc, RwLock},
+};
 
 use super::MediaEvent;
 
@@ -40,7 +45,7 @@ impl TocSetterPipeline {
     pub fn try_new(
         input_path: &Path,
         output_path: &Path,
-        streams: HashSet<String>,
+        streams: Arc<RwLock<HashSet<String>>>,
         sender: glib::Sender<MediaEvent>,
     ) -> Result<TocSetterPipeline, String> {
         info!(
@@ -79,7 +84,12 @@ impl TocSetterPipeline {
         self.position_query.get_result().get_value() as u64
     }
 
-    fn build_pipeline(&mut self, input_path: &Path, output_path: &Path, streams: HashSet<String>) {
+    fn build_pipeline(
+        &mut self,
+        input_path: &Path,
+        output_path: &Path,
+        streams: Arc<RwLock<HashSet<String>>>,
+    ) {
         // Input
         let filesrc = gst::ElementFactory::make("filesrc", None).unwrap();
         filesrc
@@ -123,11 +133,15 @@ impl TocSetterPipeline {
 
             let queue_src_pad = queue.get_static_pad("src").unwrap();
 
-            if streams.contains(
-                pad.get_stream_id()
-                    .expect("TocSetterPipeline::build_pipeline no stream_id for src pad")
-                    .as_str(),
-            ) {
+            if streams
+                .read()
+                .expect("TocSetterPipeline: `paserbin.pad_added` cand read streams to use")
+                .contains(
+                    pad.get_stream_id()
+                        .expect("TocSetterPipeline::build_pipeline no stream_id for src pad")
+                        .as_str(),
+                )
+            {
                 let muxer_sink_pad = muxer.get_compatible_pad(&queue_src_pad, None).unwrap();
                 queue_src_pad.link(&muxer_sink_pad).unwrap();
                 muxer.sync_state_with_parent().unwrap();

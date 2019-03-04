@@ -36,6 +36,19 @@ pub enum Format {
     Wave,
 }
 
+impl Format {
+    fn is_audio_only(self) -> bool {
+        match self {
+            Format::Flac => true,
+            Format::MP3 => true,
+            Format::Opus => true,
+            Format::Vorbis => true,
+            Format::Wave => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MediaContent {
     Audio,

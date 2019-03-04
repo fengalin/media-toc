@@ -20,7 +20,10 @@ pub mod main_controller;
 pub use self::main_controller::{ControllerState, MainController};
 
 mod output_base_controller;
-use self::output_base_controller::{OutputBaseController, OutputProcessor, OutputUIController, ProcessorStatus};
+use self::output_base_controller::{
+    MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
+    ProcessingStatus, ProcessingType,
+};
 
 mod perspective_controller;
 use self::perspective_controller::PerspectiveController;

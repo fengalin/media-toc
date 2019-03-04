@@ -3,26 +3,35 @@ use glib;
 use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
-use log::{error, warn};
+use log::warn;
 
 use std::{
     cell::RefCell,
-    ops::{Deref, DerefMut},
     path::PathBuf,
-    rc::{Rc, Weak},
+    rc::Rc,
+    sync::{Arc, RwLock},
 };
 
 use crate::{
     media::{MediaEvent, PlaybackPipeline, SplitterPipeline},
-    metadata,
-    metadata::{get_default_chapter_title, Format, MediaContent, MediaInfo, Stream, TocVisitor},
+    metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor},
 };
 
 use super::{
-    MainController, OutputBaseController, OutputProcessor, OutputUIController, ProcessorStatus, UIController,
+    MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
+    ProcessingStatus, ProcessingType, UIController,
 };
 
-const TIMER_PERIOD: u32 = 100; // 100 ms (10 Hz)
+pub type SplitController = OutputBaseController<SplitControllerImpl>;
+
+impl SplitController {
+    pub fn new_rc(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
+        OutputBaseController::<SplitControllerImpl>::new_base_rc(
+            SplitControllerImpl::new(builder),
+            builder,
+        )
+    }
+}
 
 const TAGS_TO_SKIP: [&str; 12] = [
     "ApplicationName",
@@ -42,9 +51,9 @@ const TAGS_TO_SKIP: [&str; 12] = [
 macro_rules! update_list_with_format(
     ($self_:expr, $format:expr, $row:ident, $label:ident) => {
         match SplitterPipeline::check_requirements($format) {
-            Ok(_) => if $self_.selected_format.is_none() {
+            Ok(_) => if !$self_.is_usable {
                 $self_.split_list.select_row(&$self_.$row);
-                $self_.selected_format = Some($format);
+                $self_.is_usable = true;
             },
             Err(err) => {
                 warn!("{}", err);
@@ -55,11 +64,15 @@ macro_rules! update_list_with_format(
     };
 );
 
-pub struct SplitController {
-    base: OutputBaseController,
+pub struct SplitControllerImpl {
+    is_usable: bool,
 
-    selected_format: Option<metadata::Format>,
+    src_info: Option<Arc<RwLock<MediaInfo>>>,
     selected_audio: Option<Stream>,
+
+    split_file_info: Option<OutputMediaFileInfo>,
+    sender: Option<glib::Sender<MediaEvent>>,
+    splitter_pipeline: Option<SplitterPipeline>,
     toc_visitor: Option<TocVisitor>,
     idx: usize,
 
@@ -74,22 +87,30 @@ pub struct SplitController {
     vorbis_warning_lbl: gtk::Label,
     split_to_mp3_row: gtk::ListBoxRow,
     mp3_warning_lbl: gtk::Label,
-    split_progress_bar: gtk::ProgressBar,
-    split_btn: gtk::Button,
 
-    splitter_pipeline: Option<SplitterPipeline>,
-    this_opt: Option<Weak<RefCell<SplitController>>>,
+    split_btn: gtk::Button,
 }
 
-impl UIController for SplitController {
+impl OutputControllerImpl for SplitControllerImpl {
+    const BTN_NAME: &'static str = "split-btn";
+    const LIST_NAME: &'static str = "split-list-box";
+    const PROGRESS_BAR_NAME: &'static str = "split-progress";
+}
+
+impl UIController for SplitControllerImpl {
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
-        let info = pipeline.info.read().unwrap();
-        self.streams_changed(&info);
+        let info_arc = Arc::clone(&pipeline.info);
+
+        {
+            let info = info_arc.read().unwrap();
+            self.streams_changed(&info);
+        }
+
+        self.src_info = Some(info_arc);
     }
 
     fn cleanup(&mut self) {
-        self.split_progress_bar.set_fraction(0f64);
-        self.split_btn.set_sensitive(false);
+        self.src_info = None;
     }
 
     fn streams_changed(&mut self, info: &MediaInfo) {
@@ -97,23 +118,27 @@ impl UIController for SplitController {
             .streams
             .selected_audio()
             .map(|selected_audio| selected_audio.to_owned());
-        if self.selected_format.is_some() {
+        if self.is_usable {
             self.split_btn.set_sensitive(self.selected_audio.is_some());
         }
     }
 }
 
-impl SplitController {
-    pub fn new_rc(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
-        let this = Rc::new(RefCell::new(SplitController {
-            base: OutputBaseController::new(builder),
+impl SplitControllerImpl {
+    pub fn new(builder: &gtk::Builder) -> Self {
+        let mut this = SplitControllerImpl {
+            is_usable: false,
 
-            selected_format: None,
+            src_info: None,
             selected_audio: None,
+
+            split_file_info: None,
+            sender: None,
+            splitter_pipeline: None,
             toc_visitor: None,
             idx: 0,
 
-            split_list: builder.get_object("split-list-box").unwrap(),
+            split_list: builder.get_object(Self::LIST_NAME).unwrap(),
             split_to_flac_row: builder.get_object("flac_split-row").unwrap(),
             flac_warning_lbl: builder.get_object("flac_warning-lbl").unwrap(),
             split_to_wave_row: builder.get_object("wave_split-row").unwrap(),
@@ -124,68 +149,15 @@ impl SplitController {
             vorbis_warning_lbl: builder.get_object("vorbis_warning-lbl").unwrap(),
             split_to_mp3_row: builder.get_object("mp3_split-row").unwrap(),
             mp3_warning_lbl: builder.get_object("mp3_warning-lbl").unwrap(),
-            split_progress_bar: builder.get_object("split-progress").unwrap(),
-            split_btn: builder.get_object("split-btn").unwrap(),
 
-            splitter_pipeline: None,
-            this_opt: None,
-        }));
+            split_btn: builder.get_object(Self::BTN_NAME).unwrap(),
+        };
 
-        {
-            let mut this_mut = this.borrow_mut();
-            this_mut.this_opt = Some(Rc::downgrade(&this));
-
-            this_mut.update_list_with_available_formats();
-            this_mut.cleanup();
-        }
+        // FIXME: this should be done in a separate function and called from the main controller
+        // The constructor shouldn't perform side effects
+        this.update_list_with_available_formats();
 
         this
-    }
-
-    pub fn register_callbacks(
-        this_rc: &Rc<RefCell<Self>>,
-        main_ctrl: &Rc<RefCell<MainController>>,
-    ) {
-        let mut this = this_rc.borrow_mut();
-        this.have_main_ctrl(main_ctrl);
-
-        let this_clone = Rc::clone(this_rc);
-        let main_ctrl_clone = Rc::clone(main_ctrl);
-        this.split_btn.connect_clicked(move |_| {
-            let this_clone = Rc::clone(&this_clone);
-            main_ctrl_clone
-                .borrow_mut()
-                .request_pipeline(Box::new(move |pipeline| {
-                    {
-                        this_clone.borrow_mut().playback_pipeline = Some(pipeline);
-                    }
-                    // launch export asynchronoulsy so that main_ctrl is no longer borrowed
-                    let this_clone = Rc::clone(&this_clone);
-                    gtk::idle_add(move || {
-                        let mut this_mut = this_clone.borrow_mut();
-                        this_mut.switch_to_busy();
-                        let is_in_progress = match this_mut.start() {
-                            Ok(ProcessorStatus::Completed(msg)) => {
-                                this_mut.show_info(msg);
-                                false
-                            }
-                            Ok(ProcessorStatus::InProgress) => true,
-                            Err(err) => {
-                                error!("{}", err);
-                                this_mut.show_error(err);
-                                false
-                            }
-                        };
-
-                        if !is_in_progress {
-                            this_mut.restore_pipeline();
-                            this_mut.switch_to_available();
-                        }
-
-                        glib::Continue(false)
-                    });
-                }));
-        });
     }
 
     fn update_list_with_available_formats(&mut self) {
@@ -200,35 +172,41 @@ impl SplitController {
         );
         update_list_with_format!(self, Format::MP3, split_to_mp3_row, mp3_warning_lbl);
 
-        let is_usable = self.selected_format.is_some();
-        self.split_list.set_sensitive(is_usable);
-        self.split_btn.set_sensitive(is_usable);
+        self.split_list.set_sensitive(self.is_usable);
+        self.split_btn.set_sensitive(self.is_usable);
     }
 
-    fn next(&mut self) -> Result<ProcessorStatus, String> {
+    fn next(&mut self) -> Result<ProcessingStatus, String> {
         let mut chapter = match self.toc_visitor.as_mut() {
             Some(toc_visitor) => match toc_visitor.next_chapter() {
                 Some(chapter) => {
                     self.idx += 1;
                     chapter
                 }
-                None => return Ok(ProcessorStatus::Completed(gettext("Media split succesfully"))),
+                None => {
+                    self.split_file_info = None;
+                    return Ok(ProcessingStatus::Completed(gettext(
+                        "Media split succesfully",
+                    )));
+                }
             },
             None => {
                 // No chapter defined => build a fake chapter corresponding to the whole file
+                self.idx += 1;
+
+                let src_info = self.src_info.as_ref().unwrap().read().unwrap();
                 let mut toc_entry = gst::TocEntry::new(gst::TocEntryType::Chapter, &"".to_owned());
                 toc_entry
                     .get_mut()
                     .unwrap()
-                    .set_start_stop_times(0, self.duration as i64);
+                    .set_start_stop_times(0, src_info.duration as i64);
 
                 let mut tag_list = gst::TagList::new();
                 tag_list.get_mut().unwrap().add::<gst::tags::Title>(
-                    &self.media_path.file_stem().unwrap().to_str().unwrap(),
+                    &src_info.path.file_stem().unwrap().to_str().unwrap(),
                     gst::TagMergeMode::Replace,
                 );
                 toc_entry.get_mut().unwrap().set_tags(tag_list);
-                self.idx += 1;
 
                 toc_entry
             }
@@ -240,41 +218,42 @@ impl SplitController {
         let chapter = self.update_tags(&mut chapter);
         let output_path = self.get_split_path(&chapter);
 
-        // FIXME: find a way to register outside for Async Processings
-        let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-        self.register_media_event_handler(receiver);
+        let res = {
+            let src_info = self.src_info.as_ref().unwrap().read().unwrap();
+            let split_file_info = self.split_file_info.as_ref().expect(
+                "SplitControllerImpl: split_file_info not defined in `next()`, did you call `init()`?"
+            );
+            SplitterPipeline::try_new(
+                &src_info.path,
+                &output_path,
+                &self.selected_audio.as_ref().unwrap().id,
+                split_file_info.format,
+                chapter,
+                self.sender
+                    .as_ref()
+                    .expect("SplitControllerImpl: no sender in `next()` did you call `init()`?")
+                    .clone(),
+            )
+        };
 
-        let splitter_pipeline = SplitterPipeline::try_new(
-            &self.media_path,
-            &output_path,
-            &self.selected_audio.as_ref().unwrap().id,
-            self.selected_format
-                .expect("No selected format in `SplitterController`"),
-            chapter,
-            sender,
-        )
-        .map_err(|err| gettext("Failed to prepare for split. {}").replacen("{}", &err, 1))?;
+        self.splitter_pipeline = Some(res.map_err(|err| {
+            self.split_file_info = None;
+            gettext("Failed to prepare for split. {}").replacen("{}", &err, 1)
+        })?);
 
-        self.splitter_pipeline = Some(splitter_pipeline);
-        Ok(ProcessorStatus::InProgress)
+        Ok(ProcessingStatus::InProgress)
     }
 
     fn get_split_path(&self, chapter: &gst::TocEntry) -> PathBuf {
         let mut split_name = String::new();
 
-        let info = self
-            .playback_pipeline
-            .as_ref()
-            .unwrap()
-            .info
-            .read()
-            .unwrap();
+        let src_info = self.src_info.as_ref().unwrap().read().unwrap();
 
         // TODO: make format customisable
-        if let Some(artist) = info.get_artist() {
+        if let Some(artist) = src_info.get_artist() {
             split_name += &format!("{} - ", artist);
         }
-        if let Some(album_title) = info.get_title() {
+        if let Some(album_title) = src_info.get_title() {
             split_name += &format!("{} - ", album_title);
         }
 
@@ -305,9 +284,14 @@ impl SplitController {
             }
         }
 
-        split_name += &format!(".{}", self.extension);
+        let split_file_info = self.split_file_info.as_ref().expect(concat!(
+            "SplitControllerImpl: split_file_info not defined in `get_split_path()`, ",
+            "did you call `init()`?"
+        ));
 
-        self.target_path.with_file_name(split_name)
+        split_name += &format!(".{}", split_file_info.extension);
+
+        split_file_info.path.with_file_name(split_name)
     }
 
     fn update_tags(&self, chapter: &mut gst::TocEntry) -> gst::TocEntry {
@@ -315,16 +299,10 @@ impl SplitController {
         {
             let tags = tags.get_mut().unwrap();
             let chapter_count = {
-                let info = self
-                    .playback_pipeline
-                    .as_ref()
-                    .unwrap()
-                    .info
-                    .read()
-                    .unwrap();
+                let src_info = self.src_info.as_ref().unwrap().read().unwrap();
 
                 // Select tags suitable for a track
-                for (tag_name, tag_iter) in info.tags.iter_generic() {
+                for (tag_name, tag_iter) in src_info.tags.iter_generic() {
                     if TAGS_TO_SKIP
                         .iter()
                         .find(|&&tag_to_skip| tag_to_skip == tag_name)
@@ -349,7 +327,7 @@ impl SplitController {
                     }
                 }
 
-                info.chapter_count.unwrap_or(1)
+                src_info.chapter_count.unwrap_or(1)
             };
 
             // Add track specific tags
@@ -380,9 +358,11 @@ impl SplitController {
         chapter.set_tags(tags);
         chapter.to_owned()
     }
+}
 
-    fn get_selection(&self) -> metadata::Format {
-        if self.split_to_flac_row.is_selected() {
+impl MediaProcessor for SplitControllerImpl {
+    fn init(&mut self) -> ProcessingType {
+        let format = if self.split_to_flac_row.is_selected() {
             Format::Flac
         } else if self.split_to_wave_row.is_selected() {
             Format::Wave
@@ -394,72 +374,28 @@ impl SplitController {
             Format::MP3
         } else {
             unreachable!("`SplitController`: unknown split type");
-        }
-    }
+        };
 
-    fn register_timer(&mut self, period: u32) {
-        if self.timer_src.is_none() {
-            let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
-
-            self.timer_src = Some(glib::timeout_add_local(period, move || {
-                let this_rc = this_weak
-                    .upgrade()
-                    .expect("Lost `SplitController` in timer");
-                this_rc.borrow_mut().update_progress();
-
-                glib::Continue(true)
-            }));
-        }
-    }
-
-    fn register_media_event_handler(&mut self, receiver: glib::Receiver<MediaEvent>) {
-        let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
-
-        receiver.attach(None, move |event| {
-            let this_rc = this_weak
-                .upgrade()
-                .expect("Lost `SplitController` in `MediaEvent` handler");
-            let mut this = this_rc.borrow_mut();
-            let is_in_progress = match this.handle_media_event(event) {
-                Ok(ProcessorStatus::Completed(msg)) => {
-                    this.show_info(msg);
-                    false
-                }
-                Ok(ProcessorStatus::InProgress) => true,
-                Err(err) => {
-                    this.show_error(err);
-                    false
-                }
-            };
-
-            if is_in_progress {
-                glib::Continue(true)
-            } else {
-                this.restore_pipeline();
-                this.switch_to_available();
-                glib::Continue(false)
-            }
+        self.split_file_info = Some({
+            let src_info = self.src_info.as_ref().unwrap().read().unwrap();
+            OutputMediaFileInfo::new(format, &src_info)
         });
-    }
-}
 
-impl OutputProcessor for SplitController {
-    fn start(&mut self) -> Result<ProcessorStatus, String> {
+        let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        self.sender = Some(sender);
+
+        ProcessingType::Async(receiver)
+    }
+
+    fn start(&mut self) -> Result<ProcessingStatus, String> {
         // Split button is not sensible when no audio
         // stream is selected (see `streams_changed`)
         debug_assert!(self.selected_audio.is_some());
 
-        // FIXME: update `selected_format` when list selection is changed
-        let format = self.get_selection();
-        self.prepare_process(format, MediaContent::Audio);
-        self.selected_format = Some(format);
-
         self.toc_visitor = self
-            .base
-            .playback_pipeline
+            .src_info
             .as_ref()
             .unwrap()
-            .info
             .read()
             .unwrap()
             .toc
@@ -468,69 +404,33 @@ impl OutputProcessor for SplitController {
         self.idx = 0;
 
         match self.next()? {
-            ProcessorStatus::InProgress => {
-                // FIXME: find a way to register outside for Async Processings
-                self.register_timer(TIMER_PERIOD);
-                Ok(ProcessorStatus::InProgress)
-            }
-            ProcessorStatus::Completed(_) => {
+            ProcessingStatus::InProgress => Ok(ProcessingStatus::InProgress),
+            ProcessingStatus::Completed(_) => {
                 unreachable!("`SplitController`: split completed immediately")
             }
         }
     }
 
-    fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessorStatus, String> {
+    fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingStatus, String> {
         match event {
             MediaEvent::Eos => self.next(),
             MediaEvent::FailedToExport(err) => {
                 Err(gettext("Failed to split media. {}").replacen("{}", &err, 1))
             }
-            _ => Ok(ProcessorStatus::InProgress),
+            _ => Ok(ProcessingStatus::InProgress),
         }
     }
-}
 
-impl OutputUIController for SplitController {
-    fn switch_to_busy(&self) {
-        // TODO: allow cancelling split
-        self.base.switch_to_busy();
-
-        self.split_list.set_sensitive(false);
-        self.split_btn.set_sensitive(false);
-    }
-
-    fn switch_to_available(&mut self) {
-        self.base.switch_to_available();
-
-        self.split_progress_bar.set_fraction(0f64);
-
-        let is_usable = self.selected_format.is_some();
-        self.split_list.set_sensitive(is_usable);
-        self.split_btn.set_sensitive(is_usable);
-    }
-
-    fn update_progress(&mut self) {
-        if self.duration > 0 {
+    fn report_progress(&mut self) -> f64 {
+        let duration = self.src_info.as_ref().unwrap().read().unwrap().duration;
+        if duration > 0 {
             let position = match self.splitter_pipeline.as_mut() {
                 Some(splitter_pipeline) => splitter_pipeline.get_position(),
                 None => 0,
             };
-            self.split_progress_bar
-                .set_fraction(position as f64 / self.duration as f64);
+            position as f64 / duration as f64
+        } else {
+            0f64
         }
-    }
-}
-
-impl Deref for SplitController {
-    type Target = OutputBaseController;
-
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl DerefMut for SplitController {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
     }
 }

@@ -7,7 +7,7 @@ use std::{
     sync::Arc,
 };
 
-use super::MediaContent;
+use super::{Format, MediaContent};
 
 pub fn get_default_chapter_title() -> String {
     gettext("untitled")
@@ -306,27 +306,30 @@ impl MediaInfo {
             .map(|value| value.get().unwrap())
     }
 
-    pub fn get_stream_ids_to_export(&self) -> (HashSet<String>, MediaContent) {
+    pub fn get_stream_ids_to_export(&self, format: Format) -> (HashSet<String>, MediaContent) {
         let mut streams = HashSet::<String>::new();
         let mut content = MediaContent::Undefined;
 
         {
-            for (stream_id, stream) in &self.streams.video {
-                if stream.must_export {
-                    streams.insert(stream_id.to_string());
-                    content.add_stream_type(gst::StreamType::VIDEO);
+            if !format.is_audio_only() {
+                for (stream_id, stream) in &self.streams.video {
+                    if stream.must_export {
+                        streams.insert(stream_id.to_string());
+                        content.add_stream_type(gst::StreamType::VIDEO);
+                    }
+                }
+                for (stream_id, stream) in &self.streams.text {
+                    if stream.must_export {
+                        streams.insert(stream_id.to_string());
+                        content.add_stream_type(gst::StreamType::TEXT);
+                    }
                 }
             }
+
             for (stream_id, stream) in &self.streams.audio {
                 if stream.must_export {
                     streams.insert(stream_id.to_string());
                     content.add_stream_type(gst::StreamType::AUDIO);
-                }
-            }
-            for (stream_id, stream) in &self.streams.text {
-                if stream.must_export {
-                    streams.insert(stream_id.to_string());
-                    content.add_stream_type(gst::StreamType::TEXT);
                 }
             }
         }
