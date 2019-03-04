@@ -105,124 +105,14 @@ pub struct AudioController {
 }
 
 impl UIController for AudioController {
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
-        let is_audio_selected = {
-            let info = pipeline.info.read().unwrap();
-            self.streams_changed(&info);
-            info.streams.is_audio_selected()
-        };
-
-        if is_audio_selected {
-            // Refresh conditions asynchronously so that
-            // all widget are arranged to their target positions
-            let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
-            gtk::idle_add(move || {
-                if let Some(this_rc) = this_weak.upgrade() {
-                    let mut this = this_rc.borrow_mut();
-                    this.state = ControllerState::Paused;
-                    this.update_conditions();
-                }
-                glib::Continue(false)
-            });
-        }
-    }
-
-    fn cleanup(&mut self) {
-        self.state = ControllerState::Disabled;
-        self.zoom_in_btn.set_sensitive(false);
-        self.zoom_out_btn.set_sensitive(false);
-        self.reset_cursor();
-        self.playback_needs_refresh = false;
-        self.dbl_buffer_mtx.lock().unwrap().cleanup();
-        self.requested_duration = INIT_REQ_DURATION;
-        self.seek_step = INIT_REQ_DURATION as u64 / SEEK_STEP_DURATION_DIVISOR;
-        self.current_position = 0;
-        self.last_other_ui_refresh = 0;
-        self.first_visible_pos = 0;
-        self.last_visible_pos = 0;
-        self.sample_duration = 0;
-        self.sample_step = 0f64;
-        // AudioController accesses self.boundaries as readonly
-        // clearing it is under the responsiblity of ChapterTreeManager
-        self.update_conditions();
-        self.redraw();
-    }
-
-    fn streams_changed(&mut self, info: &MediaInfo) {
-        if info.streams.is_audio_selected() {
-            debug!("streams_changed audio selected");
-            self.zoom_in_btn.set_sensitive(true);
-            self.zoom_out_btn.set_sensitive(true);
-            self.container.show();
-        } else {
-            debug!("streams_changed audio not selected");
-            self.container.hide();
-        }
-    }
-}
-
-impl AudioController {
-    pub fn new_rc(
-        builder: &gtk::Builder,
-        boundaries: Rc<RefCell<ChaptersBoundaries>>,
-    ) -> Rc<RefCell<Self>> {
-        let dbl_buffer_mtx = DoubleWaveformBuffer::new_mutex(BUFFER_DURATION);
-        let waveform_mtx = dbl_buffer_mtx.lock().unwrap().get_exposed_buffer_mtx();
-
-        let this = Rc::new(RefCell::new(AudioController {
-            window: builder.get_object("application-window").unwrap(),
-            container: builder.get_object("audio-container").unwrap(),
-            drawingarea: builder.get_object("audio-drawingarea").unwrap(),
-            zoom_in_btn: builder.get_object("audio_zoom_in-toolbutton").unwrap(),
-            zoom_out_btn: builder.get_object("audio_zoom_out-toolbutton").unwrap(),
-            ref_lbl: builder.get_object("title-caption").unwrap(),
-
-            font_family: None,
-            font_size: 0f64,
-            twice_font_size: 0f64,
-            half_font_size: 0f64,
-            boundary_text_mn_width: 0f64,
-            cursor_text_mn_width: 0f64,
-            boundary_text_h_width: 0f64,
-            cursor_text_h_width: 0f64,
-            area_height: 0f64,
-            area_width: 0f64,
-
-            state: ControllerState::Disabled,
-            playback_needs_refresh: false,
-
-            requested_duration: INIT_REQ_DURATION,
-            seek_step: INIT_REQ_DURATION as u64 / SEEK_STEP_DURATION_DIVISOR,
-
-            current_position: 0,
-            last_other_ui_refresh: 0,
-            first_visible_pos: 0,
-            last_visible_pos: 0,
-            sample_duration: 0,
-            sample_step: 0f64,
-            boundaries,
-
-            waveform_mtx,
-            dbl_buffer_mtx,
-
-            tick_cb_id: None,
-            this_opt: None,
-        }));
-
-        {
-            let mut this_mut = this.borrow_mut();
-            this_mut.this_opt = Some(Rc::downgrade(&this));
-        }
-
-        this
-    }
-
-    pub fn register_callbacks(
+    fn setup(
         this_rc: &Rc<RefCell<Self>>,
         gtk_app: &gtk::Application,
         main_ctrl: &Rc<RefCell<MainController>>,
     ) {
-        let this = this_rc.borrow();
+        let mut this = this_rc.borrow_mut();
+
+        this.this_opt = Some(Rc::downgrade(&this_rc));
 
         // draw
         let this_clone = Rc::clone(this_rc);
@@ -360,6 +250,111 @@ impl AudioController {
             main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
         });
         gtk_app.set_accels_for_action("app.step_back", &["Left"]);
+    }
+
+    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+        let is_audio_selected = {
+            let info = pipeline.info.read().unwrap();
+            self.streams_changed(&info);
+            info.streams.is_audio_selected()
+        };
+
+        if is_audio_selected {
+            // Refresh conditions asynchronously so that
+            // all widget are arranged to their target positions
+            let this_weak = Weak::clone(self.this_opt.as_ref().unwrap());
+            gtk::idle_add(move || {
+                if let Some(this_rc) = this_weak.upgrade() {
+                    let mut this = this_rc.borrow_mut();
+                    this.state = ControllerState::Paused;
+                    this.update_conditions();
+                }
+                glib::Continue(false)
+            });
+        }
+    }
+
+    fn cleanup(&mut self) {
+        self.state = ControllerState::Disabled;
+        self.zoom_in_btn.set_sensitive(false);
+        self.zoom_out_btn.set_sensitive(false);
+        self.reset_cursor();
+        self.playback_needs_refresh = false;
+        self.dbl_buffer_mtx.lock().unwrap().cleanup();
+        self.requested_duration = INIT_REQ_DURATION;
+        self.seek_step = INIT_REQ_DURATION as u64 / SEEK_STEP_DURATION_DIVISOR;
+        self.current_position = 0;
+        self.last_other_ui_refresh = 0;
+        self.first_visible_pos = 0;
+        self.last_visible_pos = 0;
+        self.sample_duration = 0;
+        self.sample_step = 0f64;
+        // AudioController accesses self.boundaries as readonly
+        // clearing it is under the responsiblity of ChapterTreeManager
+        self.update_conditions();
+        self.redraw();
+    }
+
+    fn streams_changed(&mut self, info: &MediaInfo) {
+        if info.streams.is_audio_selected() {
+            debug!("streams_changed audio selected");
+            self.zoom_in_btn.set_sensitive(true);
+            self.zoom_out_btn.set_sensitive(true);
+            self.container.show();
+        } else {
+            debug!("streams_changed audio not selected");
+            self.container.hide();
+        }
+    }
+}
+
+impl AudioController {
+    pub fn new_rc(
+        builder: &gtk::Builder,
+        boundaries: Rc<RefCell<ChaptersBoundaries>>,
+    ) -> Rc<RefCell<Self>> {
+        let dbl_buffer_mtx = DoubleWaveformBuffer::new_mutex(BUFFER_DURATION);
+        let waveform_mtx = dbl_buffer_mtx.lock().unwrap().get_exposed_buffer_mtx();
+
+        Rc::new(RefCell::new(AudioController {
+            window: builder.get_object("application-window").unwrap(),
+            container: builder.get_object("audio-container").unwrap(),
+            drawingarea: builder.get_object("audio-drawingarea").unwrap(),
+            zoom_in_btn: builder.get_object("audio_zoom_in-toolbutton").unwrap(),
+            zoom_out_btn: builder.get_object("audio_zoom_out-toolbutton").unwrap(),
+            ref_lbl: builder.get_object("title-caption").unwrap(),
+
+            font_family: None,
+            font_size: 0f64,
+            twice_font_size: 0f64,
+            half_font_size: 0f64,
+            boundary_text_mn_width: 0f64,
+            cursor_text_mn_width: 0f64,
+            boundary_text_h_width: 0f64,
+            cursor_text_h_width: 0f64,
+            area_height: 0f64,
+            area_width: 0f64,
+
+            state: ControllerState::Disabled,
+            playback_needs_refresh: false,
+
+            requested_duration: INIT_REQ_DURATION,
+            seek_step: INIT_REQ_DURATION as u64 / SEEK_STEP_DURATION_DIVISOR,
+
+            current_position: 0,
+            last_other_ui_refresh: 0,
+            first_visible_pos: 0,
+            last_visible_pos: 0,
+            sample_duration: 0,
+            sample_step: 0f64,
+            boundaries,
+
+            waveform_mtx,
+            dbl_buffer_mtx,
+
+            tick_cb_id: None,
+            this_opt: None,
+        }))
     }
 
     pub fn redraw(&self) {

@@ -65,199 +65,7 @@ pub struct InfoController {
 }
 
 impl UIController for InfoController {
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
-        let toc_extensions = metadata::Factory::get_extensions();
-
-        {
-            let info = pipeline.info.read().unwrap();
-
-            // check the presence of a toc file
-            let mut toc_candidates =
-                toc_extensions
-                    .into_iter()
-                    .filter_map(|(extension, format)| {
-                        let path = info
-                            .path
-                            .with_file_name(&format!("{}.{}", info.name, extension));
-                        if path.is_file() {
-                            Some((path, format))
-                        } else {
-                            None
-                        }
-                    });
-
-            self.duration = info.duration;
-            self.timeline_scale.set_range(0f64, info.duration as f64);
-            self.duration_lbl
-                .set_label(&Timestamp::format(info.duration, false));
-
-            if let Some(ref image_sample) = info.get_image(0) {
-                if let Some(ref image_buffer) = image_sample.get_buffer() {
-                    if let Some(ref image_map) = image_buffer.map_readable() {
-                        match Image::from_unknown(image_map.as_slice()) {
-                            Ok(image) => self.thumbnail = Some(image),
-                            Err(err) => warn!("{}", err),
-                        }
-                    }
-                }
-            }
-
-            self.title_lbl
-                .set_label(info.get_title().unwrap_or(&EMPTY_REPLACEMENT));
-            self.artist_lbl
-                .set_label(info.get_artist().unwrap_or(&EMPTY_REPLACEMENT));
-            self.container_lbl
-                .set_label(info.get_container().unwrap_or(&EMPTY_REPLACEMENT));
-
-            self.streams_changed(&info);
-
-            let extern_toc = toc_candidates
-                .next()
-                .and_then(|(toc_path, format)| match File::open(toc_path.clone()) {
-                    Ok(mut toc_file) => {
-                        match metadata::Factory::get_reader(format).read(&info, &mut toc_file) {
-                            Ok(Some(toc)) => Some(toc),
-                            Ok(None) => {
-                                let msg = gettext("No toc in file \"{}\"").replacen(
-                                    "{}",
-                                    toc_path.file_name().unwrap().to_str().unwrap(),
-                                    1,
-                                );
-                                info!("{}", msg);
-                                self.show_info(msg);
-                                None
-                            }
-                            Err(err) => {
-                                self.show_error(
-                                    gettext("Error opening toc file \"{}\":\n{}")
-                                        .replacen(
-                                            "{}",
-                                            toc_path.file_name().unwrap().to_str().unwrap(),
-                                            1,
-                                        )
-                                        .replacen("{}", &err, 1),
-                                );
-                                None
-                            }
-                        }
-                    }
-                    Err(_) => {
-                        self.show_error(gettext("Failed to open toc file."));
-                        None
-                    }
-                });
-
-            if extern_toc.is_some() {
-                self.chapter_manager.replace_with(&extern_toc);
-            } else {
-                self.chapter_manager.replace_with(&info.toc);
-            }
-        }
-
-        self.update_marks();
-
-        self.repeat_btn.set_sensitive(true);
-        self.add_chapter_btn.set_sensitive(true);
-        match self.chapter_manager.get_selected_iter() {
-            Some(current_iter) => {
-                // position is in a chapter => select it
-                self.chapter_treeview
-                    .get_selection()
-                    .select_iter(&current_iter);
-                self.del_chapter_btn.set_sensitive(true);
-            }
-            None =>
-            // position is not in any chapter
-            {
-                self.del_chapter_btn.set_sensitive(false)
-            }
-        }
-
-        if self.thumbnail.is_some() {
-            self.drawingarea.show();
-            self.drawingarea.queue_draw();
-        } else {
-            self.drawingarea.hide();
-        }
-    }
-
-    fn cleanup(&mut self) {
-        self.title_lbl.set_text("");
-        self.artist_lbl.set_text("");
-        self.container_lbl.set_text("");
-        self.audio_codec_lbl.set_text("");
-        self.video_codec_lbl.set_text("");
-        self.duration_lbl.set_text("00:00.000");
-        self.thumbnail = None;
-        self.chapter_manager.clear();
-        self.add_chapter_btn.set_sensitive(false);
-        self.del_chapter_btn.set_sensitive(false);
-        self.timeline_scale.clear_marks();
-        self.timeline_scale.set_value(0f64);
-        self.duration = 0;
-    }
-
-    fn streams_changed(&mut self, info: &MediaInfo) {
-        self.audio_codec_lbl
-            .set_label(info.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));
-        self.video_codec_lbl
-            .set_label(info.get_video_codec().unwrap_or(&EMPTY_REPLACEMENT));
-    }
-}
-
-impl InfoController {
-    pub fn new_rc(
-        builder: &gtk::Builder,
-        boundaries: Rc<RefCell<ChaptersBoundaries>>,
-    ) -> Rc<RefCell<Self>> {
-        let mut chapter_manager = ChapterTreeManager::new(
-            builder.get_object("chapters-tree-store").unwrap(),
-            boundaries,
-        );
-        let chapter_treeview: gtk::TreeView = builder.get_object("chapter-treeview").unwrap();
-        chapter_manager.init_treeview(&chapter_treeview);
-
-        // need a RefCell because the callbacks will use immutable versions of ac
-        // when the UI controllers will get a mutable version from time to time
-        let this_rc = Rc::new(RefCell::new(InfoController {
-            info_container: builder.get_object("info-chapter_list-grid").unwrap(),
-            show_chapters_btn: builder.get_object("show_chapters-toggle").unwrap(),
-
-            drawingarea: builder.get_object("thumbnail-drawingarea").unwrap(),
-
-            title_lbl: builder.get_object("title-lbl").unwrap(),
-            artist_lbl: builder.get_object("artist-lbl").unwrap(),
-            container_lbl: builder.get_object("container-lbl").unwrap(),
-            audio_codec_lbl: builder.get_object("audio_codec-lbl").unwrap(),
-            video_codec_lbl: builder.get_object("video_codec-lbl").unwrap(),
-            duration_lbl: builder.get_object("duration-lbl").unwrap(),
-
-            timeline_scale: builder.get_object("timeline-scale").unwrap(),
-            repeat_btn: builder.get_object("repeat-toolbutton").unwrap(),
-
-            chapter_treeview,
-            add_chapter_btn: builder.get_object("add_chapter-toolbutton").unwrap(),
-            del_chapter_btn: builder.get_object("remove_chapter-toolbutton").unwrap(),
-
-            thumbnail: None,
-
-            chapter_manager,
-
-            duration: 0,
-            repeat_chapter: false,
-
-            main_ctrl: None,
-        }));
-
-        {
-            let mut this = this_rc.borrow_mut();
-            this.cleanup();
-        }
-
-        this_rc
-    }
-
-    pub fn register_callbacks(
+    fn setup(
         this_rc: &Rc<RefCell<Self>>,
         gtk_app: &gtk::Application,
         main_ctrl: &Rc<RefCell<MainController>>,
@@ -265,6 +73,7 @@ impl InfoController {
         let mut this = this_rc.borrow_mut();
 
         this.main_ctrl = Some(Rc::downgrade(main_ctrl));
+        this.cleanup();
 
         // Show chapters toggle
         if CONFIG.read().unwrap().ui.is_chapters_list_hidden {
@@ -441,6 +250,191 @@ impl InfoController {
                 .seek(seek_pos, gst::SeekFlags::ACCURATE);
         });
         gtk_app.set_accels_for_action("app.previous_chapter", &["Up", "AudioPrev"]);
+    }
+
+    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+        let toc_extensions = metadata::Factory::get_extensions();
+
+        {
+            let info = pipeline.info.read().unwrap();
+
+            // check the presence of a toc file
+            let mut toc_candidates =
+                toc_extensions
+                    .into_iter()
+                    .filter_map(|(extension, format)| {
+                        let path = info
+                            .path
+                            .with_file_name(&format!("{}.{}", info.name, extension));
+                        if path.is_file() {
+                            Some((path, format))
+                        } else {
+                            None
+                        }
+                    });
+
+            self.duration = info.duration;
+            self.timeline_scale.set_range(0f64, info.duration as f64);
+            self.duration_lbl
+                .set_label(&Timestamp::format(info.duration, false));
+
+            if let Some(ref image_sample) = info.get_image(0) {
+                if let Some(ref image_buffer) = image_sample.get_buffer() {
+                    if let Some(ref image_map) = image_buffer.map_readable() {
+                        match Image::from_unknown(image_map.as_slice()) {
+                            Ok(image) => self.thumbnail = Some(image),
+                            Err(err) => warn!("{}", err),
+                        }
+                    }
+                }
+            }
+
+            self.title_lbl
+                .set_label(info.get_title().unwrap_or(&EMPTY_REPLACEMENT));
+            self.artist_lbl
+                .set_label(info.get_artist().unwrap_or(&EMPTY_REPLACEMENT));
+            self.container_lbl
+                .set_label(info.get_container().unwrap_or(&EMPTY_REPLACEMENT));
+
+            self.streams_changed(&info);
+
+            let extern_toc = toc_candidates
+                .next()
+                .and_then(|(toc_path, format)| match File::open(toc_path.clone()) {
+                    Ok(mut toc_file) => {
+                        match metadata::Factory::get_reader(format).read(&info, &mut toc_file) {
+                            Ok(Some(toc)) => Some(toc),
+                            Ok(None) => {
+                                let msg = gettext("No toc in file \"{}\"").replacen(
+                                    "{}",
+                                    toc_path.file_name().unwrap().to_str().unwrap(),
+                                    1,
+                                );
+                                info!("{}", msg);
+                                self.show_info(msg);
+                                None
+                            }
+                            Err(err) => {
+                                self.show_error(
+                                    gettext("Error opening toc file \"{}\":\n{}")
+                                        .replacen(
+                                            "{}",
+                                            toc_path.file_name().unwrap().to_str().unwrap(),
+                                            1,
+                                        )
+                                        .replacen("{}", &err, 1),
+                                );
+                                None
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        self.show_error(gettext("Failed to open toc file."));
+                        None
+                    }
+                });
+
+            if extern_toc.is_some() {
+                self.chapter_manager.replace_with(&extern_toc);
+            } else {
+                self.chapter_manager.replace_with(&info.toc);
+            }
+        }
+
+        self.update_marks();
+
+        self.repeat_btn.set_sensitive(true);
+        self.add_chapter_btn.set_sensitive(true);
+        match self.chapter_manager.get_selected_iter() {
+            Some(current_iter) => {
+                // position is in a chapter => select it
+                self.chapter_treeview
+                    .get_selection()
+                    .select_iter(&current_iter);
+                self.del_chapter_btn.set_sensitive(true);
+            }
+            None =>
+            // position is not in any chapter
+            {
+                self.del_chapter_btn.set_sensitive(false)
+            }
+        }
+
+        if self.thumbnail.is_some() {
+            self.drawingarea.show();
+            self.drawingarea.queue_draw();
+        } else {
+            self.drawingarea.hide();
+        }
+    }
+
+    fn cleanup(&mut self) {
+        self.title_lbl.set_text("");
+        self.artist_lbl.set_text("");
+        self.container_lbl.set_text("");
+        self.audio_codec_lbl.set_text("");
+        self.video_codec_lbl.set_text("");
+        self.duration_lbl.set_text("00:00.000");
+        self.thumbnail = None;
+        self.chapter_manager.clear();
+        self.add_chapter_btn.set_sensitive(false);
+        self.del_chapter_btn.set_sensitive(false);
+        self.timeline_scale.clear_marks();
+        self.timeline_scale.set_value(0f64);
+        self.duration = 0;
+    }
+
+    fn streams_changed(&mut self, info: &MediaInfo) {
+        self.audio_codec_lbl
+            .set_label(info.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));
+        self.video_codec_lbl
+            .set_label(info.get_video_codec().unwrap_or(&EMPTY_REPLACEMENT));
+    }
+}
+
+impl InfoController {
+    pub fn new_rc(
+        builder: &gtk::Builder,
+        boundaries: Rc<RefCell<ChaptersBoundaries>>,
+    ) -> Rc<RefCell<Self>> {
+        let mut chapter_manager = ChapterTreeManager::new(
+            builder.get_object("chapters-tree-store").unwrap(),
+            boundaries,
+        );
+        let chapter_treeview: gtk::TreeView = builder.get_object("chapter-treeview").unwrap();
+        chapter_manager.init_treeview(&chapter_treeview);
+
+        // need a RefCell because the callbacks will use immutable versions of ac
+        // when the UI controllers will get a mutable version from time to time
+        Rc::new(RefCell::new(InfoController {
+            info_container: builder.get_object("info-chapter_list-grid").unwrap(),
+            show_chapters_btn: builder.get_object("show_chapters-toggle").unwrap(),
+
+            drawingarea: builder.get_object("thumbnail-drawingarea").unwrap(),
+
+            title_lbl: builder.get_object("title-lbl").unwrap(),
+            artist_lbl: builder.get_object("artist-lbl").unwrap(),
+            container_lbl: builder.get_object("container-lbl").unwrap(),
+            audio_codec_lbl: builder.get_object("audio_codec-lbl").unwrap(),
+            video_codec_lbl: builder.get_object("video_codec-lbl").unwrap(),
+            duration_lbl: builder.get_object("duration-lbl").unwrap(),
+
+            timeline_scale: builder.get_object("timeline-scale").unwrap(),
+            repeat_btn: builder.get_object("repeat-toolbutton").unwrap(),
+
+            chapter_treeview,
+            add_chapter_btn: builder.get_object("add_chapter-toolbutton").unwrap(),
+            del_chapter_btn: builder.get_object("remove_chapter-toolbutton").unwrap(),
+
+            thumbnail: None,
+
+            chapter_manager,
+
+            duration: 0,
+            repeat_chapter: false,
+
+            main_ctrl: None,
+        }))
     }
 
     fn draw_thumbnail(

@@ -18,8 +18,8 @@ use crate::{
 };
 
 use super::{
-    MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
-    ProcessingStatus, ProcessingType, UIController,
+    MainController, MediaProcessor, OutputBaseController, OutputControllerImpl,
+    OutputMediaFileInfo, ProcessingStatus, ProcessingType, UIController,
 };
 
 pub type SplitController = OutputBaseController<SplitControllerImpl>;
@@ -95,6 +95,22 @@ impl OutputControllerImpl for SplitControllerImpl {
     const BTN_NAME: &'static str = "split-btn";
     const LIST_NAME: &'static str = "split-list-box";
     const PROGRESS_BAR_NAME: &'static str = "split-progress";
+
+    fn setup_(&mut self) {
+        update_list_with_format!(self, Format::Flac, split_to_flac_row, flac_warning_lbl);
+        update_list_with_format!(self, Format::Wave, split_to_wave_row, wave_warning_lbl);
+        update_list_with_format!(self, Format::Opus, split_to_opus_row, opus_warning_lbl);
+        update_list_with_format!(
+            self,
+            Format::Vorbis,
+            split_to_vorbis_row,
+            vorbis_warning_lbl
+        );
+        update_list_with_format!(self, Format::MP3, split_to_mp3_row, mp3_warning_lbl);
+
+        self.split_list.set_sensitive(self.is_usable);
+        self.split_btn.set_sensitive(self.is_usable);
+    }
 }
 
 impl UIController for SplitControllerImpl {
@@ -122,11 +138,18 @@ impl UIController for SplitControllerImpl {
             self.split_btn.set_sensitive(self.selected_audio.is_some());
         }
     }
+
+    fn setup(
+        _this_rc: &Rc<RefCell<Self>>,
+        _gtk_app: &gtk::Application,
+        _main_ctrl: &Rc<RefCell<MainController>>,
+    ) {
+    }
 }
 
 impl SplitControllerImpl {
     pub fn new(builder: &gtk::Builder) -> Self {
-        let mut this = SplitControllerImpl {
+        SplitControllerImpl {
             is_usable: false,
 
             src_info: None,
@@ -151,29 +174,7 @@ impl SplitControllerImpl {
             mp3_warning_lbl: builder.get_object("mp3_warning-lbl").unwrap(),
 
             split_btn: builder.get_object(Self::BTN_NAME).unwrap(),
-        };
-
-        // FIXME: this should be done in a separate function and called from the main controller
-        // The constructor shouldn't perform side effects
-        this.update_list_with_available_formats();
-
-        this
-    }
-
-    fn update_list_with_available_formats(&mut self) {
-        update_list_with_format!(self, Format::Flac, split_to_flac_row, flac_warning_lbl);
-        update_list_with_format!(self, Format::Wave, split_to_wave_row, wave_warning_lbl);
-        update_list_with_format!(self, Format::Opus, split_to_opus_row, opus_warning_lbl);
-        update_list_with_format!(
-            self,
-            Format::Vorbis,
-            split_to_vorbis_row,
-            vorbis_warning_lbl
-        );
-        update_list_with_format!(self, Format::MP3, split_to_mp3_row, mp3_warning_lbl);
-
-        self.split_list.set_sensitive(self.is_usable);
-        self.split_btn.set_sensitive(self.is_usable);
+        }
     }
 
     fn next(&mut self) -> Result<ProcessingStatus, String> {

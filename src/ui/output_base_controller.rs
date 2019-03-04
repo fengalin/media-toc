@@ -43,6 +43,8 @@ pub trait OutputControllerImpl {
     const BTN_NAME: &'static str;
     const LIST_NAME: &'static str;
     const PROGRESS_BAR_NAME: &'static str;
+
+    fn setup_(&mut self);
 }
 
 pub struct OutputMediaFileInfo {
@@ -85,9 +87,11 @@ pub struct OutputBaseController<Impl> {
     main_ctrl: Option<Weak<RefCell<MainController>>>,
 }
 
-impl<Impl: OutputControllerImpl + MediaProcessor + 'static> OutputBaseController<Impl> {
+impl<Impl: OutputControllerImpl + MediaProcessor + UIController + 'static>
+    OutputBaseController<Impl>
+{
     pub fn new_base_rc(impl_: Impl, builder: &gtk::Builder) -> Rc<RefCell<Self>> {
-        let this = Rc::new(RefCell::new(OutputBaseController {
+        Rc::new(RefCell::new(OutputBaseController {
             impl_,
 
             btn: builder.get_object(Impl::BTN_NAME).unwrap(),
@@ -104,73 +108,7 @@ impl<Impl: OutputControllerImpl + MediaProcessor + 'static> OutputBaseController
 
             this_opt: None,
             main_ctrl: None,
-        }));
-
-        {
-            let mut this_mut = this.borrow_mut();
-            this_mut.this_opt = Some(Rc::downgrade(&this));
-
-            // FIXME: this should be done in a separate function and called from the main controller
-            // The constructor shouldn't perform side effects
-            this_mut.btn.set_sensitive(false);
-        }
-
-        this
-    }
-
-    pub fn register_callbacks(
-        this_rc: &Rc<RefCell<Self>>,
-        main_ctrl: &Rc<RefCell<MainController>>,
-    ) {
-        let mut this = this_rc.borrow_mut();
-        this.have_main_ctrl(main_ctrl);
-
-        let this_clone = Rc::clone(this_rc);
-        let main_ctrl_clone = Rc::clone(main_ctrl);
-        this.btn.connect_clicked(move |_| {
-            let this_clone = Rc::clone(&this_clone);
-            main_ctrl_clone
-                .borrow_mut()
-                .request_pipeline(Box::new(move |pipeline| {
-                    {
-                        this_clone.borrow_mut().playback_pipeline = Some(pipeline);
-                    }
-                    // launch export asynchronoulsy so that main_ctrl is no longer borrowed
-                    let this_clone = Rc::clone(&this_clone);
-                    gtk::idle_add(move || {
-                        let mut this_mut = this_clone.borrow_mut();
-                        this_mut.switch_to_busy();
-
-                        match this_mut.impl_.init() {
-                            ProcessingType::Sync => (),
-                            ProcessingType::Async(receiver) => {
-                                this_mut.register_media_event_handler(receiver);
-                                this_mut.register_progress_timer(PROGRESS_TIMER_PERIOD);
-                            }
-                        }
-
-                        let is_in_progress = match this_mut.impl_.start() {
-                            Ok(ProcessingStatus::Completed(msg)) => {
-                                this_mut.show_info(msg);
-                                false
-                            }
-                            Ok(ProcessingStatus::InProgress) => true,
-                            Err(err) => {
-                                error!("{}", err);
-                                this_mut.show_error(err);
-                                false
-                            }
-                        };
-
-                        if !is_in_progress {
-                            this_mut.restore_pipeline();
-                            this_mut.switch_to_available();
-                        }
-
-                        glib::Continue(false)
-                    });
-                }));
-        });
+        }))
     }
 
     fn register_progress_timer(&mut self, period: u32) {
@@ -276,7 +214,70 @@ impl<Impl: OutputControllerImpl + MediaProcessor + 'static> OutputBaseController
     }
 }
 
-impl<Impl: UIController> UIController for OutputBaseController<Impl> {
+impl<Impl: OutputControllerImpl + MediaProcessor + UIController + 'static> UIController
+    for OutputBaseController<Impl>
+{
+    fn setup(
+        this_rc: &Rc<RefCell<Self>>,
+        _gtk_app: &gtk::Application,
+        main_ctrl: &Rc<RefCell<MainController>>,
+    ) {
+        let mut this = this_rc.borrow_mut();
+        this.have_main_ctrl(main_ctrl);
+
+        this.this_opt = Some(Rc::downgrade(&this_rc));
+        this.btn.set_sensitive(false);
+
+        this.impl_.setup_();
+
+        let this_clone = Rc::clone(this_rc);
+        let main_ctrl_clone = Rc::clone(main_ctrl);
+        this.btn.connect_clicked(move |_| {
+            let this_clone = Rc::clone(&this_clone);
+            main_ctrl_clone
+                .borrow_mut()
+                .request_pipeline(Box::new(move |pipeline| {
+                    {
+                        this_clone.borrow_mut().playback_pipeline = Some(pipeline);
+                    }
+                    // launch export asynchronoulsy so that main_ctrl is no longer borrowed
+                    let this_clone = Rc::clone(&this_clone);
+                    gtk::idle_add(move || {
+                        let mut this_mut = this_clone.borrow_mut();
+                        this_mut.switch_to_busy();
+
+                        match this_mut.impl_.init() {
+                            ProcessingType::Sync => (),
+                            ProcessingType::Async(receiver) => {
+                                this_mut.register_media_event_handler(receiver);
+                                this_mut.register_progress_timer(PROGRESS_TIMER_PERIOD);
+                            }
+                        }
+
+                        let is_in_progress = match this_mut.impl_.start() {
+                            Ok(ProcessingStatus::Completed(msg)) => {
+                                this_mut.show_info(msg);
+                                false
+                            }
+                            Ok(ProcessingStatus::InProgress) => true,
+                            Err(err) => {
+                                error!("{}", err);
+                                this_mut.show_error(err);
+                                false
+                            }
+                        };
+
+                        if !is_in_progress {
+                            this_mut.restore_pipeline();
+                            this_mut.switch_to_available();
+                        }
+
+                        glib::Continue(false)
+                    });
+                }));
+        });
+    }
+
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         self.btn.set_sensitive(true);
         self.impl_.new_media(pipeline);

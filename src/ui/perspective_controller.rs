@@ -44,43 +44,26 @@ pub struct PerspectiveController {
     split_btn: gtk::Button,
 }
 
-impl UIController for PerspectiveController {
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
-        self.menu_button.set_sensitive(true);
-        let info = pipeline.info.read().unwrap();
-        self.streams_changed(&info);
-    }
-
-    fn cleanup(&mut self) {
-        self.menu_button.set_sensitive(false);
-    }
-
-    fn streams_changed(&mut self, info: &MediaInfo) {
-        self.split_btn
-            .set_sensitive(info.streams.is_audio_selected());
-    }
-}
-
 impl PerspectiveController {
     pub fn new_rc(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
-        let this_rc = Rc::new(RefCell::new(PerspectiveController {
+        Rc::new(RefCell::new(PerspectiveController {
             menu_button: builder.get_object("perspective-menu-btn").unwrap(),
             popover: builder.get_object("perspective-popovermenu").unwrap(),
             stack: builder.get_object("perspective-stack").unwrap(),
             split_btn: builder.get_object("perspective-split-btn").unwrap(),
-        }));
-
-        this_rc.borrow_mut().cleanup();
-
-        this_rc
+        }))
     }
+}
 
-    pub fn register_callbacks(
+impl UIController for PerspectiveController {
+    fn setup(
         this_rc: &Rc<RefCell<Self>>,
         gtk_app: &gtk::Application,
         _main_ctrl: &Rc<RefCell<MainController>>,
     ) {
-        let this = this_rc.borrow();
+        let mut this = this_rc.borrow_mut();
+
+        this.cleanup();
 
         let menu_btn_box = gtk_downcast!(
             this.menu_button
@@ -179,5 +162,20 @@ impl PerspectiveController {
 
             index += 1;
         }
+    }
+
+    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+        self.menu_button.set_sensitive(true);
+        let info = pipeline.info.read().unwrap();
+        self.streams_changed(&info);
+    }
+
+    fn cleanup(&mut self) {
+        self.menu_button.set_sensitive(false);
+    }
+
+    fn streams_changed(&mut self, info: &MediaInfo) {
+        self.split_btn
+            .set_sensitive(info.streams.is_audio_selected());
     }
 }

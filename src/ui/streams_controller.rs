@@ -75,6 +75,43 @@ pub struct StreamsController {
 }
 
 impl UIController for StreamsController {
+    fn setup(
+        this_rc: &Rc<RefCell<Self>>,
+        _gtk_app: &gtk::Application,
+        main_ctrl: &Rc<RefCell<MainController>>,
+    ) {
+        let mut this = this_rc.borrow_mut();
+
+        this.main_ctrl = Some(Rc::downgrade(main_ctrl));
+
+        this.cleanup();
+        this.init_treeviews(&this_rc);
+
+        // Video stream selection
+        let this_clone = Rc::clone(this_rc);
+        this.video_treeview
+            .connect_row_activated(move |_, tree_path, _| {
+                let mut this = this_clone.borrow_mut();
+                on_stream_selected!(this, this.video_store, tree_path, this.video_selected);
+            });
+
+        // Audio stream selection
+        let this_clone = Rc::clone(this_rc);
+        this.audio_treeview
+            .connect_row_activated(move |_, tree_path, _| {
+                let mut this = this_clone.borrow_mut();
+                on_stream_selected!(this, this.audio_store, tree_path, this.audio_selected);
+            });
+
+        // Text stream selection
+        let this_clone = Rc::clone(this_rc);
+        this.text_treeview
+            .connect_row_activated(move |_, tree_path, _| {
+                let mut this = this_clone.borrow_mut();
+                on_stream_selected!(this, this.text_store, tree_path, this.text_selected);
+            });
+    }
+
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         {
             let mut info = pipeline.info.write().unwrap();
@@ -180,7 +217,7 @@ impl UIController for StreamsController {
 
 impl StreamsController {
     pub fn new_rc(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
-        let this_rc = Rc::new(RefCell::new(StreamsController {
+        Rc::new(RefCell::new(StreamsController {
             video_treeview: builder.get_object("video_streams-treeview").unwrap(),
             video_store: builder.get_object("video_streams-liststore").unwrap(),
             video_selected: None,
@@ -194,49 +231,7 @@ impl StreamsController {
             text_selected: None,
 
             main_ctrl: None,
-        }));
-
-        {
-            let this_clone = Rc::clone(&this_rc);
-            let mut this = this_rc.borrow_mut();
-            this.cleanup();
-            this.init_treeviews(&this_clone);
-        }
-
-        this_rc
-    }
-
-    pub fn register_callbacks(
-        this_rc: &Rc<RefCell<Self>>,
-        main_ctrl: &Rc<RefCell<MainController>>,
-    ) {
-        let mut this = this_rc.borrow_mut();
-
-        this.main_ctrl = Some(Rc::downgrade(main_ctrl));
-
-        // Video stream selection
-        let this_clone = Rc::clone(this_rc);
-        this.video_treeview
-            .connect_row_activated(move |_, tree_path, _| {
-                let mut this = this_clone.borrow_mut();
-                on_stream_selected!(this, this.video_store, tree_path, this.video_selected);
-            });
-
-        // Audio stream selection
-        let this_clone = Rc::clone(this_rc);
-        this.audio_treeview
-            .connect_row_activated(move |_, tree_path, _| {
-                let mut this = this_clone.borrow_mut();
-                on_stream_selected!(this, this.audio_store, tree_path, this.audio_selected);
-            });
-
-        // Text stream selection
-        let this_clone = Rc::clone(this_rc);
-        this.text_treeview
-            .connect_row_activated(move |_, tree_path, _| {
-                let mut this = this_clone.borrow_mut();
-                on_stream_selected!(this, this.text_store, tree_path, this.text_selected);
-            });
+        }))
     }
 
     fn toggle_export(store: &gtk::ListStore, tree_path: &gtk::TreePath) -> Option<(GString, bool)> {

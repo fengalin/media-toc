@@ -26,6 +26,14 @@ pub struct VideoController {
 }
 
 impl UIController for VideoController {
+    // TODO: use this instead of setup_ when all controllers are not longer on the heap
+    fn setup(
+        _this_rc: &Rc<RefCell<Self>>,
+        _gtk_app: &gtk::Application,
+        _main_ctrl: &Rc<RefCell<MainController>>,
+    ) {
+    }
+
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         let info = pipeline.info.read().unwrap();
         self.streams_changed(&info);
@@ -79,7 +87,8 @@ impl VideoController {
         }
     }
 
-    pub fn register_callbacks(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
+    // TODO: rename to setup when all controllers are not longer on the heap
+    pub fn setup_(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
         let video_output = if !self.disable_gl && !CONFIG.read().unwrap().media.is_gl_disabled {
             gst::ElementFactory::make("gtkglsink", "gtkglsink").map(|gtkglsink| {
                 let glsinkbin = gst::ElementFactory::make("glsinkbin", "video_sink")

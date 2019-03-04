@@ -18,8 +18,8 @@ use crate::{
 };
 
 use super::{
-    MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
-    ProcessingStatus, ProcessingType, UIController,
+    MainController, MediaProcessor, OutputBaseController, OutputControllerImpl,
+    OutputMediaFileInfo, ProcessingStatus, ProcessingType, UIController,
 };
 
 pub type ExportController = OutputBaseController<ExportControllerImpl>;
@@ -53,6 +53,19 @@ impl OutputControllerImpl for ExportControllerImpl {
     const BTN_NAME: &'static str = "export-btn";
     const LIST_NAME: &'static str = "export-list-box";
     const PROGRESS_BAR_NAME: &'static str = "export-progress";
+
+    fn setup_(&mut self) {
+        match TocSetterPipeline::check_requirements() {
+            Ok(_) => self.export_list.select_row(&self.mkvmerge_txt_row),
+            Err(err) => {
+                warn!("{}", err);
+                self.mkvmerge_txt_warning_lbl.set_label(&err);
+
+                self.export_list.set_sensitive(false);
+                self.export_btn.set_sensitive(false);
+            }
+        }
+    }
 }
 
 impl UIController for ExportControllerImpl {
@@ -63,11 +76,18 @@ impl UIController for ExportControllerImpl {
     fn cleanup(&mut self) {
         self.src_info = None;
     }
+
+    fn setup(
+        _this_rc: &Rc<RefCell<Self>>,
+        _gtk_app: &gtk::Application,
+        _main_ctrl: &Rc<RefCell<MainController>>,
+    ) {
+    }
 }
 
 impl ExportControllerImpl {
     pub fn new(builder: &gtk::Builder) -> Self {
-        let this = ExportControllerImpl {
+        ExportControllerImpl {
             src_info: None,
 
             export_file_info: None,
@@ -81,22 +101,7 @@ impl ExportControllerImpl {
             mkv_row: builder.get_object("matroska_export-row").unwrap(),
 
             export_btn: builder.get_object(Self::BTN_NAME).unwrap(),
-        };
-
-        // FIXME: this should be done in a separate function and called from the main controller
-        // The constructor shouldn't perform side effects
-        match TocSetterPipeline::check_requirements() {
-            Ok(_) => this.export_list.select_row(&this.mkvmerge_txt_row),
-            Err(err) => {
-                warn!("{}", err);
-                this.mkvmerge_txt_warning_lbl.set_label(&err);
-
-                this.export_list.set_sensitive(false);
-                this.export_btn.set_sensitive(false);
-            }
         }
-
-        this
     }
 }
 
