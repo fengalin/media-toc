@@ -43,8 +43,6 @@ pub trait OutputControllerImpl {
     const BTN_NAME: &'static str;
     const LIST_NAME: &'static str;
     const PROGRESS_BAR_NAME: &'static str;
-
-    fn setup_(&mut self);
 }
 
 pub struct OutputMediaFileInfo {
@@ -217,9 +215,9 @@ impl<Impl: OutputControllerImpl + MediaProcessor + UIController + 'static>
 impl<Impl: OutputControllerImpl + MediaProcessor + UIController + 'static> UIController
     for OutputBaseController<Impl>
 {
-    fn setup(
+    fn setup_(
         this_rc: &Rc<RefCell<Self>>,
-        _gtk_app: &gtk::Application,
+        gtk_app: &gtk::Application,
         main_ctrl: &Rc<RefCell<MainController>>,
     ) {
         let mut this = this_rc.borrow_mut();
@@ -228,7 +226,7 @@ impl<Impl: OutputControllerImpl + MediaProcessor + UIController + 'static> UICon
         this.this_opt = Some(Rc::downgrade(&this_rc));
         this.btn.set_sensitive(false);
 
-        this.impl_.setup_();
+        this.impl_.setup(gtk_app, main_ctrl);
 
         let this_clone = Rc::clone(this_rc);
         let main_ctrl_clone = Rc::clone(main_ctrl);

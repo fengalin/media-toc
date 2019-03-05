@@ -65,7 +65,7 @@ pub struct InfoController {
 }
 
 impl UIController for InfoController {
-    fn setup(
+    fn setup_(
         this_rc: &Rc<RefCell<Self>>,
         gtk_app: &gtk::Application,
         main_ctrl: &Rc<RefCell<MainController>>,

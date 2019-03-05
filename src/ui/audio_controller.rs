@@ -105,7 +105,7 @@ pub struct AudioController {
 }
 
 impl UIController for AudioController {
-    fn setup(
+    fn setup_(
         this_rc: &Rc<RefCell<Self>>,
         gtk_app: &gtk::Application,
         main_ctrl: &Rc<RefCell<MainController>>,

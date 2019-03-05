@@ -53,8 +53,10 @@ impl OutputControllerImpl for ExportControllerImpl {
     const BTN_NAME: &'static str = "export-btn";
     const LIST_NAME: &'static str = "export-list-box";
     const PROGRESS_BAR_NAME: &'static str = "export-progress";
+}
 
-    fn setup_(&mut self) {
+impl UIController for ExportControllerImpl {
+    fn setup(&mut self, _gtk_app: &gtk::Application, _main_ctrl: &Rc<RefCell<MainController>>) {
         match TocSetterPipeline::check_requirements() {
             Ok(_) => self.export_list.select_row(&self.mkvmerge_txt_row),
             Err(err) => {
@@ -66,22 +68,13 @@ impl OutputControllerImpl for ExportControllerImpl {
             }
         }
     }
-}
 
-impl UIController for ExportControllerImpl {
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         self.src_info = Some(Arc::clone(&pipeline.info));
     }
 
     fn cleanup(&mut self) {
         self.src_info = None;
-    }
-
-    fn setup(
-        _this_rc: &Rc<RefCell<Self>>,
-        _gtk_app: &gtk::Application,
-        _main_ctrl: &Rc<RefCell<MainController>>,
-    ) {
     }
 }
 

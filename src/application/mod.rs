@@ -46,8 +46,8 @@ pub fn run(is_gst_ok: bool, args: CommandLineArguments) {
         .expect("Failed to initialize GtkApplication");
 
     gtk_app.connect_activate(move |gtk_app| {
-        let main_ctrl = MainController::new_rc(gtk_app, args.disable_gl);
-        MainController::setup(&main_ctrl, is_gst_ok);
+        let main_ctrl = MainController::new_rc(args.disable_gl);
+        MainController::setup(&main_ctrl, gtk_app, is_gst_ok);
         main_ctrl.borrow().show_all();
 
         if is_gst_ok {

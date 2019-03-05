@@ -52,11 +52,13 @@ pub enum PositionStatus {
 }
 
 pub trait UIController {
-    fn setup(
-        this_rc: &Rc<RefCell<Self>>,
-        gtk_app: &gtk::Application,
-        main_ctrl: &Rc<RefCell<MainController>>,
-    );
+    // FIXME: remove Rc<RefCell<Self>> version when all controllers are no longer Rcs
+    fn setup_(
+        _this_rc: &Rc<RefCell<Self>>,
+        _gtk_app: &gtk::Application,
+        _main_ctrl: &Rc<RefCell<MainController>>,
+    ) {}
+    fn setup(&mut self, _gtk_app: &gtk::Application, _main_ctrl: &Rc<RefCell<MainController>>) {}
     fn new_media(&mut self, pipeline: &super::media::PlaybackPipeline);
     fn cleanup(&mut self);
     fn streams_changed(&mut self, _info: &super::metadata::MediaInfo) {}

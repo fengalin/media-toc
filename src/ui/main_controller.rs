@@ -56,7 +56,6 @@ pub enum ControllerState {
 }
 
 pub struct MainController {
-    gtk_app: gtk::Application,
     window: gtk::ApplicationWindow,
     header_bar: gtk::HeaderBar,
     open_btn: gtk::Button,
@@ -84,16 +83,12 @@ pub struct MainController {
 }
 
 impl MainController {
-    pub fn new_rc(gtk_app: &gtk::Application, disable_gl: bool) -> Rc<RefCell<Self>> {
+    pub fn new_rc(disable_gl: bool) -> Rc<RefCell<Self>> {
         let builder = gtk::Builder::new_from_resource(&format!("{}/{}", *APP_PATH, "media-toc.ui"));
-        let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
-        window.set_application(gtk_app);
-
         let chapters_boundaries = Rc::new(RefCell::new(ChaptersBoundaries::new()));
 
         Rc::new(RefCell::new(MainController {
-            gtk_app: gtk_app.clone(),
-            window,
+            window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
             open_btn: builder.get_object("open-btn").unwrap(),
             playback_paned: builder.get_object("playback-paned").unwrap(),
@@ -120,32 +115,34 @@ impl MainController {
         }))
     }
 
-    pub fn setup(this_rc: &Rc<RefCell<MainController>>, is_gst_ok: bool) {
+    pub fn setup(this_rc: &Rc<RefCell<MainController>>, gtk_app: &gtk::Application, is_gst_ok: bool) {
         let mut this = this_rc.borrow_mut();
 
         this.this_opt = Some(Rc::downgrade(this_rc));
 
+        this.window.set_application(gtk_app);
+
         let app_menu = gio::Menu::new();
-        this.gtk_app.set_app_menu(&app_menu);
+        gtk_app.set_app_menu(&app_menu);
 
         let app_section = gio::Menu::new();
         app_menu.append_section(None, &app_section);
 
         // Register About action
         let about = gio::SimpleAction::new("about", None);
-        this.gtk_app.add_action(&about);
+        gtk_app.add_action(&about);
         let this_clone = Rc::clone(this_rc);
         about.connect_activate(move |_, _| this_clone.borrow().about());
-        this.gtk_app
+        gtk_app
             .set_accels_for_action("app.about", &["<Ctrl>A"]);
         app_section.append(&gettext("About")[..], "app.about");
 
         // Register Quit action
         let quit = gio::SimpleAction::new("quit", None);
-        this.gtk_app.add_action(&quit);
+        gtk_app.add_action(&quit);
         let this_clone = Rc::clone(this_rc);
         quit.connect_activate(move |_, _| this_clone.borrow_mut().quit());
-        this.gtk_app.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
+        gtk_app.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
         app_section.append(&gettext("Quit")[..], "app.quit");
 
         let this_clone = Rc::clone(this_rc);
@@ -164,13 +161,13 @@ impl MainController {
                 }
             }
 
-            this.video_ctrl.setup_(this_rc);
-            PerspectiveController::setup(&this.perspective_ctrl, &this.gtk_app, this_rc);
-            InfoController::setup(&this.info_ctrl, &this.gtk_app, this_rc);
-            AudioController::setup(&this.audio_ctrl, &this.gtk_app, this_rc);
-            ExportController::setup(&this.export_ctrl, &this.gtk_app, this_rc);
-            SplitController::setup(&this.split_ctrl, &this.gtk_app, this_rc);
-            StreamsController::setup(&this.streams_ctrl, &this.gtk_app, this_rc);
+            this.video_ctrl.setup(gtk_app, this_rc);
+            PerspectiveController::setup_(&this.perspective_ctrl, gtk_app, this_rc);
+            InfoController::setup_(&this.info_ctrl, gtk_app, this_rc);
+            AudioController::setup_(&this.audio_ctrl, gtk_app, this_rc);
+            ExportController::setup_(&this.export_ctrl, gtk_app, this_rc);
+            SplitController::setup_(&this.split_ctrl, gtk_app, this_rc);
+            StreamsController::setup_(&this.streams_ctrl, gtk_app, this_rc);
 
             let _ = PlaybackPipeline::check_requirements().map_err(|err| {
                 let this_clone = Rc::clone(this_rc);
@@ -185,7 +182,7 @@ impl MainController {
 
             // Register Open action
             let open = gio::SimpleAction::new("open", None);
-            this.gtk_app.add_action(&open);
+            gtk_app.add_action(&open);
             let this_clone = Rc::clone(this_rc);
             open.connect_activate(move |_, _| {
                 let mut this = this_clone.borrow_mut();
@@ -197,29 +194,29 @@ impl MainController {
                     this.select_media();
                 }
             });
-            this.gtk_app.set_accels_for_action("app.open", &["<Ctrl>O"]);
+            gtk_app.set_accels_for_action("app.open", &["<Ctrl>O"]);
             main_section.append(&gettext("Open media file")[..], "app.open");
 
             this.open_btn.set_sensitive(true);
 
             // Register Play/Pause action
             let play_pause = gio::SimpleAction::new("play_pause", None);
-            this.gtk_app.add_action(&play_pause);
+            gtk_app.add_action(&play_pause);
             let this_clone = Rc::clone(this_rc);
             play_pause.connect_activate(move |_, _| {
                 this_clone.borrow_mut().play_pause();
             });
-            this.gtk_app
+            gtk_app
                 .set_accels_for_action("app.play_pause", &["space", "AudioPlay"]);
 
             this.play_pause_btn.set_sensitive(true);
 
             // Register Close info bar action
             let close_info_bar = gio::SimpleAction::new("close_info_bar", None);
-            this.gtk_app.add_action(&close_info_bar);
+            gtk_app.add_action(&close_info_bar);
             let revealer = this.info_bar_revealer.clone();
             close_info_bar.connect_activate(move |_, _| revealer.set_reveal_child(false));
-            this.gtk_app
+            gtk_app
                 .set_accels_for_action("app.close_info_bar", &["Escape"]);
 
             let revealer = this.info_bar_revealer.clone();
@@ -230,10 +227,10 @@ impl MainController {
 
             // Register Close info bar action
             let close_info_bar = gio::SimpleAction::new("close_info_bar", None);
-            this.gtk_app.add_action(&close_info_bar);
+            gtk_app.add_action(&close_info_bar);
             let this_clone = Rc::clone(this_rc);
             close_info_bar.connect_activate(move |_, _| this_clone.borrow_mut().quit());
-            this.gtk_app
+            gtk_app
                 .set_accels_for_action("app.close_info_bar", &["Escape"]);
 
             let this_clone = Rc::clone(this_rc);

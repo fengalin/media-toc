@@ -75,7 +75,7 @@ pub struct StreamsController {
 }
 
 impl UIController for StreamsController {
-    fn setup(
+    fn setup_(
         this_rc: &Rc<RefCell<Self>>,
         _gtk_app: &gtk::Application,
         main_ctrl: &Rc<RefCell<MainController>>,

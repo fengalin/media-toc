@@ -56,7 +56,7 @@ impl PerspectiveController {
 }
 
 impl UIController for PerspectiveController {
-    fn setup(
+    fn setup_(
         this_rc: &Rc<RefCell<Self>>,
         gtk_app: &gtk::Application,
         _main_ctrl: &Rc<RefCell<MainController>>,

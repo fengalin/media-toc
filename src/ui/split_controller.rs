@@ -95,22 +95,6 @@ impl OutputControllerImpl for SplitControllerImpl {
     const BTN_NAME: &'static str = "split-btn";
     const LIST_NAME: &'static str = "split-list-box";
     const PROGRESS_BAR_NAME: &'static str = "split-progress";
-
-    fn setup_(&mut self) {
-        update_list_with_format!(self, Format::Flac, split_to_flac_row, flac_warning_lbl);
-        update_list_with_format!(self, Format::Wave, split_to_wave_row, wave_warning_lbl);
-        update_list_with_format!(self, Format::Opus, split_to_opus_row, opus_warning_lbl);
-        update_list_with_format!(
-            self,
-            Format::Vorbis,
-            split_to_vorbis_row,
-            vorbis_warning_lbl
-        );
-        update_list_with_format!(self, Format::MP3, split_to_mp3_row, mp3_warning_lbl);
-
-        self.split_list.set_sensitive(self.is_usable);
-        self.split_btn.set_sensitive(self.is_usable);
-    }
 }
 
 impl UIController for SplitControllerImpl {
@@ -139,11 +123,20 @@ impl UIController for SplitControllerImpl {
         }
     }
 
-    fn setup(
-        _this_rc: &Rc<RefCell<Self>>,
-        _gtk_app: &gtk::Application,
-        _main_ctrl: &Rc<RefCell<MainController>>,
-    ) {
+    fn setup(&mut self, _gtk_app: &gtk::Application, _main_ctrl: &Rc<RefCell<MainController>>) {
+        update_list_with_format!(self, Format::Flac, split_to_flac_row, flac_warning_lbl);
+        update_list_with_format!(self, Format::Wave, split_to_wave_row, wave_warning_lbl);
+        update_list_with_format!(self, Format::Opus, split_to_opus_row, opus_warning_lbl);
+        update_list_with_format!(
+            self,
+            Format::Vorbis,
+            split_to_vorbis_row,
+            vorbis_warning_lbl
+        );
+        update_list_with_format!(self, Format::MP3, split_to_mp3_row, mp3_warning_lbl);
+
+        self.split_list.set_sensitive(self.is_usable);
+        self.split_btn.set_sensitive(self.is_usable);
     }
 }
 
