@@ -65,7 +65,7 @@ pub struct MainController {
     info_bar: gtk::InfoBar,
     info_bar_lbl: gtk::Label,
 
-    perspective_ctrl: Rc<RefCell<PerspectiveController>>,
+    perspective_ctrl: PerspectiveController,
     video_ctrl: VideoController,
     info_ctrl: Rc<RefCell<InfoController>>,
     audio_ctrl: Rc<RefCell<AudioController>>,
@@ -97,7 +97,7 @@ impl MainController {
             info_bar: builder.get_object("info_bar").unwrap(),
             info_bar_lbl: builder.get_object("info_bar-lbl").unwrap(),
 
-            perspective_ctrl: PerspectiveController::new_rc(&builder),
+            perspective_ctrl: PerspectiveController::new(&builder),
             video_ctrl: VideoController::new(&builder, disable_gl),
             info_ctrl: InfoController::new_rc(&builder, Rc::clone(&chapters_boundaries)),
             audio_ctrl: AudioController::new_rc(&builder, chapters_boundaries),
@@ -115,7 +115,11 @@ impl MainController {
         }))
     }
 
-    pub fn setup(this_rc: &Rc<RefCell<MainController>>, gtk_app: &gtk::Application, is_gst_ok: bool) {
+    pub fn setup(
+        this_rc: &Rc<RefCell<MainController>>,
+        gtk_app: &gtk::Application,
+        is_gst_ok: bool,
+    ) {
         let mut this = this_rc.borrow_mut();
 
         this.this_opt = Some(Rc::downgrade(this_rc));
@@ -133,8 +137,7 @@ impl MainController {
         gtk_app.add_action(&about);
         let this_clone = Rc::clone(this_rc);
         about.connect_activate(move |_, _| this_clone.borrow().about());
-        gtk_app
-            .set_accels_for_action("app.about", &["<Ctrl>A"]);
+        gtk_app.set_accels_for_action("app.about", &["<Ctrl>A"]);
         app_section.append(&gettext("About")[..], "app.about");
 
         // Register Quit action
@@ -162,7 +165,7 @@ impl MainController {
             }
 
             this.video_ctrl.setup(gtk_app, this_rc);
-            PerspectiveController::setup_(&this.perspective_ctrl, gtk_app, this_rc);
+            this.perspective_ctrl.setup(gtk_app, this_rc);
             InfoController::setup_(&this.info_ctrl, gtk_app, this_rc);
             AudioController::setup_(&this.audio_ctrl, gtk_app, this_rc);
             ExportController::setup_(&this.export_ctrl, gtk_app, this_rc);
@@ -206,8 +209,7 @@ impl MainController {
             play_pause.connect_activate(move |_, _| {
                 this_clone.borrow_mut().play_pause();
             });
-            gtk_app
-                .set_accels_for_action("app.play_pause", &["space", "AudioPlay"]);
+            gtk_app.set_accels_for_action("app.play_pause", &["space", "AudioPlay"]);
 
             this.play_pause_btn.set_sensitive(true);
 
@@ -216,8 +218,7 @@ impl MainController {
             gtk_app.add_action(&close_info_bar);
             let revealer = this.info_bar_revealer.clone();
             close_info_bar.connect_activate(move |_, _| revealer.set_reveal_child(false));
-            gtk_app
-                .set_accels_for_action("app.close_info_bar", &["Escape"]);
+            gtk_app.set_accels_for_action("app.close_info_bar", &["Escape"]);
 
             let revealer = this.info_bar_revealer.clone();
             this.info_bar
@@ -230,8 +231,7 @@ impl MainController {
             gtk_app.add_action(&close_info_bar);
             let this_clone = Rc::clone(this_rc);
             close_info_bar.connect_activate(move |_, _| this_clone.borrow_mut().quit());
-            gtk_app
-                .set_accels_for_action("app.close_info_bar", &["Escape"]);
+            gtk_app.set_accels_for_action("app.close_info_bar", &["Escape"]);
 
             let this_clone = Rc::clone(this_rc);
             this.info_bar
@@ -443,7 +443,7 @@ impl MainController {
             let info = pipeline.info.read().unwrap();
             self.audio_ctrl.borrow_mut().streams_changed(&info);
             self.info_ctrl.borrow_mut().streams_changed(&info);
-            self.perspective_ctrl.borrow_mut().streams_changed(&info);
+            self.perspective_ctrl.streams_changed(&info);
             self.split_ctrl.borrow_mut().streams_changed(&info);
             self.video_ctrl.streams_changed(&info);
         }
@@ -568,7 +568,7 @@ impl MainController {
                 self.audio_ctrl.borrow_mut().new_media(&pipeline);
                 self.export_ctrl.borrow_mut().new_media(&pipeline);
                 self.info_ctrl.borrow_mut().new_media(&pipeline);
-                self.perspective_ctrl.borrow_mut().new_media(&pipeline);
+                self.perspective_ctrl.new_media(&pipeline);
                 self.split_ctrl.borrow_mut().new_media(&pipeline);
                 self.streams_ctrl.borrow_mut().new_media(&pipeline);
                 self.video_ctrl.new_media(&pipeline);
@@ -703,7 +703,7 @@ impl MainController {
         self.export_ctrl.borrow_mut().cleanup();
         self.split_ctrl.borrow_mut().cleanup();
         self.streams_ctrl.borrow_mut().cleanup();
-        self.perspective_ctrl.borrow_mut().cleanup();
+        self.perspective_ctrl.cleanup();
         self.header_bar.set_subtitle("");
 
         let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);

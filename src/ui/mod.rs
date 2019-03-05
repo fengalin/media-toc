@@ -57,7 +57,8 @@ pub trait UIController {
         _this_rc: &Rc<RefCell<Self>>,
         _gtk_app: &gtk::Application,
         _main_ctrl: &Rc<RefCell<MainController>>,
-    ) {}
+    ) {
+    }
     fn setup(&mut self, _gtk_app: &gtk::Application, _main_ctrl: &Rc<RefCell<MainController>>) {}
     fn new_media(&mut self, pipeline: &super::media::PlaybackPipeline);
     fn cleanup(&mut self);

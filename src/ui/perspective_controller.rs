@@ -45,38 +45,32 @@ pub struct PerspectiveController {
 }
 
 impl PerspectiveController {
-    pub fn new_rc(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(PerspectiveController {
+    pub fn new(builder: &gtk::Builder) -> Self {
+        PerspectiveController {
             menu_button: builder.get_object("perspective-menu-btn").unwrap(),
             popover: builder.get_object("perspective-popovermenu").unwrap(),
             stack: builder.get_object("perspective-stack").unwrap(),
             split_btn: builder.get_object("perspective-split-btn").unwrap(),
-        }))
+        }
     }
 }
 
 impl UIController for PerspectiveController {
-    fn setup_(
-        this_rc: &Rc<RefCell<Self>>,
-        gtk_app: &gtk::Application,
-        _main_ctrl: &Rc<RefCell<MainController>>,
-    ) {
-        let mut this = this_rc.borrow_mut();
-
-        this.cleanup();
+    fn setup(&mut self, gtk_app: &gtk::Application, _main_ctrl: &Rc<RefCell<MainController>>) {
+        self.cleanup();
 
         let menu_btn_box = gtk_downcast!(
-            this.menu_button
+            self.menu_button
                 .get_child()
                 .expect("PerspectiveController no box for menu button"),
             gtk::Box,
             "menu button"
         );
         let menu_btn_image = gtk_downcast!(menu_btn_box, 0, gtk::Image, "menu button");
-        let popover_box = gtk_downcast!(this.popover, 0, gtk::Box, "popover");
+        let popover_box = gtk_downcast!(self.popover, 0, gtk::Box, "popover");
 
         let mut index = 0;
-        let stack_children = this.stack.get_children();
+        let stack_children = self.stack.get_children();
         for perspective_box_child in popover_box.get_children() {
             let stack_child = stack_children.get(index).unwrap_or_else(|| {
                 panic!("PerspectiveController no stack child for index {:?}", index)
@@ -102,7 +96,7 @@ impl UIController for PerspectiveController {
                     )
                 });
 
-            let stack_child_name = this
+            let stack_child_name = self
                 .stack
                 .get_child_name(stack_child)
                 .unwrap_or_else(|| {
@@ -116,14 +110,14 @@ impl UIController for PerspectiveController {
             if index == 0 {
                 // set the default perspective
                 menu_btn_image.set_property_icon_name(Some(perspective_icon_name.as_str()));
-                this.stack.set_visible_child_name(&stack_child_name);
+                self.stack.set_visible_child_name(&stack_child_name);
             }
 
             button.set_sensitive(true);
 
             let menu_btn_image = menu_btn_image.clone();
-            let stack = this.stack.clone();
-            let popover = this.popover.clone();
+            let stack = self.stack.clone();
+            let popover = self.popover.clone();
             let event = move || {
                 menu_btn_image.set_property_icon_name(Some(perspective_icon_name.as_str()));
                 stack.set_visible_child_name(&stack_child_name);
