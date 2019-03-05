@@ -5,8 +5,6 @@ use gtk;
 use lazy_static::lazy_static;
 use log::warn;
 
-use std::rc::Rc;
-
 use crate::ui::MainController;
 
 pub const TLD: &str = "org";
@@ -49,7 +47,7 @@ pub fn run(is_gst_ok: bool, args: CommandLineArguments) {
 
     gtk_app.connect_activate(move |gtk_app| {
         let main_ctrl = MainController::new_rc(gtk_app, args.disable_gl);
-        MainController::setup(Rc::clone(&main_ctrl), is_gst_ok);
+        MainController::setup(&main_ctrl, is_gst_ok);
         main_ctrl.borrow().show_all();
 
         if is_gst_ok {

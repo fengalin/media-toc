@@ -120,10 +120,10 @@ impl MainController {
         }))
     }
 
-    pub fn setup(this_rc: Rc<RefCell<MainController>>, is_gst_ok: bool) {
+    pub fn setup(this_rc: &Rc<RefCell<MainController>>, is_gst_ok: bool) {
         let mut this = this_rc.borrow_mut();
 
-        this.this_opt = Some(Rc::downgrade(&this_rc));
+        this.this_opt = Some(Rc::downgrade(this_rc));
 
         let app_menu = gio::Menu::new();
         this.gtk_app.set_app_menu(&app_menu);
@@ -134,7 +134,7 @@ impl MainController {
         // Register About action
         let about = gio::SimpleAction::new("about", None);
         this.gtk_app.add_action(&about);
-        let this_clone = Rc::clone(&this_rc);
+        let this_clone = Rc::clone(this_rc);
         about.connect_activate(move |_, _| this_clone.borrow().about());
         this.gtk_app
             .set_accels_for_action("app.about", &["<Ctrl>A"]);
@@ -143,12 +143,12 @@ impl MainController {
         // Register Quit action
         let quit = gio::SimpleAction::new("quit", None);
         this.gtk_app.add_action(&quit);
-        let this_clone = Rc::clone(&this_rc);
+        let this_clone = Rc::clone(this_rc);
         quit.connect_activate(move |_, _| this_clone.borrow_mut().quit());
         this.gtk_app.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
         app_section.append(&gettext("Quit")[..], "app.quit");
 
-        let this_clone = Rc::clone(&this_rc);
+        let this_clone = Rc::clone(this_rc);
         this.window.connect_delete_event(move |_, _| {
             this_clone.borrow_mut().quit();
             Inhibit(false)
@@ -164,16 +164,16 @@ impl MainController {
                 }
             }
 
-            this.video_ctrl.setup_(&this_rc);
-            PerspectiveController::setup(&this.perspective_ctrl, &this.gtk_app, &this_rc);
-            InfoController::setup(&this.info_ctrl, &this.gtk_app, &this_rc);
-            AudioController::setup(&this.audio_ctrl, &this.gtk_app, &this_rc);
-            ExportController::setup(&this.export_ctrl, &this.gtk_app, &this_rc);
-            SplitController::setup(&this.split_ctrl, &this.gtk_app, &this_rc);
-            StreamsController::setup(&this.streams_ctrl, &this.gtk_app, &this_rc);
+            this.video_ctrl.setup_(this_rc);
+            PerspectiveController::setup(&this.perspective_ctrl, &this.gtk_app, this_rc);
+            InfoController::setup(&this.info_ctrl, &this.gtk_app, this_rc);
+            AudioController::setup(&this.audio_ctrl, &this.gtk_app, this_rc);
+            ExportController::setup(&this.export_ctrl, &this.gtk_app, this_rc);
+            SplitController::setup(&this.split_ctrl, &this.gtk_app, this_rc);
+            StreamsController::setup(&this.streams_ctrl, &this.gtk_app, this_rc);
 
             let _ = PlaybackPipeline::check_requirements().map_err(|err| {
-                let this_clone = Rc::clone(&this_rc);
+                let this_clone = Rc::clone(this_rc);
                 gtk::idle_add(move || {
                     this_clone.borrow().show_error(&err);
                     glib::Continue(false)
@@ -186,7 +186,7 @@ impl MainController {
             // Register Open action
             let open = gio::SimpleAction::new("open", None);
             this.gtk_app.add_action(&open);
-            let this_clone = Rc::clone(&this_rc);
+            let this_clone = Rc::clone(this_rc);
             open.connect_activate(move |_, _| {
                 let mut this = this_clone.borrow_mut();
 
@@ -205,7 +205,7 @@ impl MainController {
             // Register Play/Pause action
             let play_pause = gio::SimpleAction::new("play_pause", None);
             this.gtk_app.add_action(&play_pause);
-            let this_clone = Rc::clone(&this_rc);
+            let this_clone = Rc::clone(this_rc);
             play_pause.connect_activate(move |_, _| {
                 this_clone.borrow_mut().play_pause();
             });
@@ -231,12 +231,12 @@ impl MainController {
             // Register Close info bar action
             let close_info_bar = gio::SimpleAction::new("close_info_bar", None);
             this.gtk_app.add_action(&close_info_bar);
-            let this_clone = Rc::clone(&this_rc);
+            let this_clone = Rc::clone(this_rc);
             close_info_bar.connect_activate(move |_, _| this_clone.borrow_mut().quit());
             this.gtk_app
                 .set_accels_for_action("app.close_info_bar", &["Escape"]);
 
-            let this_clone = Rc::clone(&this_rc);
+            let this_clone = Rc::clone(this_rc);
             this.info_bar
                 .connect_response(move |_, _| this_clone.borrow_mut().quit());
 
