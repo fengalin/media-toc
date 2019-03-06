@@ -72,5 +72,5 @@ pub trait UIController {
 }
 
 pub trait UIDispatcher {
-    fn setup(gtk_app: &gtk::Application, _main_ctrl: &Rc<RefCell<MainController>>);
+    fn setup(gtk_app: &gtk::Application, main_ctrl_rc: &Rc<RefCell<MainController>>);
 }
