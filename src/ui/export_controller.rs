@@ -18,8 +18,8 @@ use crate::{
 };
 
 use super::{
-    MainController, MediaProcessor, OutputBaseController, OutputControllerImpl,
-    OutputMediaFileInfo, ProcessingStatus, ProcessingType, UIController,
+    MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
+    ProcessingStatus, ProcessingType, UIController,
 };
 
 pub type ExportController = OutputBaseController<ExportControllerImpl>;
@@ -56,7 +56,7 @@ impl OutputControllerImpl for ExportControllerImpl {
 }
 
 impl UIController for ExportControllerImpl {
-    fn setup(&mut self, _gtk_app: &gtk::Application, _main_ctrl: &Rc<RefCell<MainController>>) {
+    fn setup(&mut self) {
         match TocSetterPipeline::check_requirements() {
             Ok(_) => self.export_list.select_row(&self.mkvmerge_txt_row),
             Err(err) => {

@@ -29,15 +29,21 @@ use self::output_base_controller::{
 
 mod perspective_controller;
 use self::perspective_controller::PerspectiveController;
+mod perspective_dispatcher;
+use self::perspective_dispatcher::PerspectiveDispatcher;
 
 mod streams_controller;
 use self::streams_controller::StreamsController;
+mod streams_dispatcher;
+use self::streams_dispatcher::StreamsDispatcher;
 
 mod split_controller;
 use self::split_controller::SplitController;
 
 mod video_controller;
 use self::video_controller::VideoController;
+mod video_dispatcher;
+use self::video_dispatcher::VideoDispatcher;
 
 pub mod waveform_buffer;
 pub use self::waveform_buffer::{DoubleWaveformBuffer, ImagePositions, WaveformBuffer};
@@ -56,11 +62,15 @@ pub trait UIController {
     fn setup_(
         _this_rc: &Rc<RefCell<Self>>,
         _gtk_app: &gtk::Application,
-        _main_ctrl: &Rc<RefCell<MainController>>,
+        _main_ctrl_rc: &Rc<RefCell<MainController>>,
     ) {
     }
-    fn setup(&mut self, _gtk_app: &gtk::Application, _main_ctrl: &Rc<RefCell<MainController>>) {}
+    fn setup(&mut self) {}
     fn new_media(&mut self, pipeline: &super::media::PlaybackPipeline);
     fn cleanup(&mut self);
     fn streams_changed(&mut self, _info: &super::metadata::MediaInfo) {}
+}
+
+pub trait UIDispatcher {
+    fn setup(gtk_app: &gtk::Application, _main_ctrl: &Rc<RefCell<MainController>>);
 }

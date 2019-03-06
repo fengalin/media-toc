@@ -18,8 +18,8 @@ use crate::{
 };
 
 use super::{
-    MainController, MediaProcessor, OutputBaseController, OutputControllerImpl,
-    OutputMediaFileInfo, ProcessingStatus, ProcessingType, UIController,
+    MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
+    ProcessingStatus, ProcessingType, UIController,
 };
 
 pub type SplitController = OutputBaseController<SplitControllerImpl>;
@@ -123,7 +123,7 @@ impl UIController for SplitControllerImpl {
         }
     }
 
-    fn setup(&mut self, _gtk_app: &gtk::Application, _main_ctrl: &Rc<RefCell<MainController>>) {
+    fn setup(&mut self) {
         update_list_with_format!(self, Format::Flac, split_to_flac_row, flac_warning_lbl);
         update_list_with_format!(self, Format::Wave, split_to_wave_row, wave_warning_lbl);
         update_list_with_format!(self, Format::Opus, split_to_opus_row, opus_warning_lbl);

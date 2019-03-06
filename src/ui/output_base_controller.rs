@@ -217,7 +217,7 @@ impl<Impl: OutputControllerImpl + MediaProcessor + UIController + 'static> UICon
 {
     fn setup_(
         this_rc: &Rc<RefCell<Self>>,
-        gtk_app: &gtk::Application,
+        _gtk_app: &gtk::Application,
         main_ctrl: &Rc<RefCell<MainController>>,
     ) {
         let mut this = this_rc.borrow_mut();
@@ -226,7 +226,7 @@ impl<Impl: OutputControllerImpl + MediaProcessor + UIController + 'static> UICon
         this.this_opt = Some(Rc::downgrade(&this_rc));
         this.btn.set_sensitive(false);
 
-        this.impl_.setup(gtk_app, main_ctrl);
+        this.impl_.setup();
 
         let this_clone = Rc::clone(this_rc);
         let main_ctrl_clone = Rc::clone(main_ctrl);

@@ -1,27 +1,21 @@
 use gettextrs::gettext;
-use glib;
-use glib::GString;
 use gstreamer as gst;
 
 use gtk;
 use gtk::prelude::*;
 
-use std::{
-    cell::RefCell,
-    rc::{Rc, Weak},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use crate::{media::PlaybackPipeline, metadata::Stream};
 
-use super::{MainController, UIController};
+use super::UIController;
 
 const ALIGN_LEFT: f32 = 0f32;
 const ALIGN_CENTER: f32 = 0.5f32;
 const ALIGN_RIGHT: f32 = 1f32;
 
-const EXPORT_FLAG_COL: u32 = 0;
-const STREAM_ID_COL: u32 = 1;
+pub(super) const EXPORT_FLAG_COL: u32 = 0;
+pub(super) const STREAM_ID_COL: u32 = 1;
 const STREAM_ID_DISPLAY_COL: u32 = 2;
 const LANGUAGE_COL: u32 = 3;
 const CODEC_COL: u32 = 4;
@@ -35,81 +29,24 @@ const AUDIO_CHANNELS_COL: u32 = 7;
 
 const TEXT_FORMAT_COL: u32 = 6;
 
-macro_rules! on_stream_selected(
-    ($this:expr, $store:expr, $tree_path:expr, $selected:expr) => {
-        if let Some(iter) = $store.get_iter($tree_path) {
-            let stream = $this.get_stream_at(&$store, &iter);
-            let stream_to_select = match $selected {
-                Some(ref stream_id) => {
-                    if stream_id != &stream {
-                        // Stream has changed
-                        Some(stream)
-                    } else {
-                        None
-                    }
-                }
-                None => Some(stream),
-            };
-            if let Some(new_stream) = stream_to_select {
-                $selected = Some(new_stream);
-                $this.trigger_stream_selection();
-            }
-        }
-    };
-);
-
 pub struct StreamsController {
-    video_treeview: gtk::TreeView,
-    video_store: gtk::ListStore,
-    video_selected: Option<Arc<str>>,
+    pub(super) video_treeview: gtk::TreeView,
+    pub(super) video_store: gtk::ListStore,
+    pub(super) video_selected: Option<Arc<str>>,
 
-    audio_treeview: gtk::TreeView,
-    audio_store: gtk::ListStore,
-    audio_selected: Option<Arc<str>>,
+    pub(super) audio_treeview: gtk::TreeView,
+    pub(super) audio_store: gtk::ListStore,
+    pub(super) audio_selected: Option<Arc<str>>,
 
-    text_treeview: gtk::TreeView,
-    text_store: gtk::ListStore,
-    text_selected: Option<Arc<str>>,
-
-    main_ctrl: Option<Weak<RefCell<MainController>>>,
+    pub(super) text_treeview: gtk::TreeView,
+    pub(super) text_store: gtk::ListStore,
+    pub(super) text_selected: Option<Arc<str>>,
 }
 
 impl UIController for StreamsController {
-    fn setup_(
-        this_rc: &Rc<RefCell<Self>>,
-        _gtk_app: &gtk::Application,
-        main_ctrl: &Rc<RefCell<MainController>>,
-    ) {
-        let mut this = this_rc.borrow_mut();
-
-        this.main_ctrl = Some(Rc::downgrade(main_ctrl));
-
-        this.cleanup();
-        this.init_treeviews(&this_rc);
-
-        // Video stream selection
-        let this_clone = Rc::clone(this_rc);
-        this.video_treeview
-            .connect_row_activated(move |_, tree_path, _| {
-                let mut this = this_clone.borrow_mut();
-                on_stream_selected!(this, this.video_store, tree_path, this.video_selected);
-            });
-
-        // Audio stream selection
-        let this_clone = Rc::clone(this_rc);
-        this.audio_treeview
-            .connect_row_activated(move |_, tree_path, _| {
-                let mut this = this_clone.borrow_mut();
-                on_stream_selected!(this, this.audio_store, tree_path, this.audio_selected);
-            });
-
-        // Text stream selection
-        let this_clone = Rc::clone(this_rc);
-        this.text_treeview
-            .connect_row_activated(move |_, tree_path, _| {
-                let mut this = this_clone.borrow_mut();
-                on_stream_selected!(this, this.text_store, tree_path, this.text_selected);
-            });
+    fn setup(&mut self) {
+        self.cleanup();
+        self.init_treeviews();
     }
 
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
@@ -216,8 +153,8 @@ impl UIController for StreamsController {
 }
 
 impl StreamsController {
-    pub fn new_rc(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(StreamsController {
+    pub fn new(builder: &gtk::Builder) -> Self {
+        StreamsController {
             video_treeview: builder.get_object("video_streams-treeview").unwrap(),
             video_store: builder.get_object("video_streams-liststore").unwrap(),
             video_selected: None,
@@ -229,85 +166,10 @@ impl StreamsController {
             text_treeview: builder.get_object("text_streams-treeview").unwrap(),
             text_store: builder.get_object("text_streams-liststore").unwrap(),
             text_selected: None,
-
-            main_ctrl: None,
-        }))
-    }
-
-    fn toggle_export(store: &gtk::ListStore, tree_path: &gtk::TreePath) -> Option<(GString, bool)> {
-        store.get_iter(&tree_path).map(|iter| {
-            let stream_id = store
-                .get_value(&iter, STREAM_ID_COL as i32)
-                .get::<GString>()
-                .unwrap();
-            let value = !store
-                .get_value(&iter, EXPORT_FLAG_COL as i32)
-                .get::<bool>()
-                .unwrap();
-            store.set_value(&iter, EXPORT_FLAG_COL, &gtk::Value::from(&value));
-            (stream_id, value)
-        })
-    }
-
-    fn video_export_toggled(&self, tree_path: &gtk::TreePath) {
-        if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
-            if let Some(pipeline) = main_ctrl_rc.borrow_mut().pipeline.as_mut() {
-                if let Some((stream_id, value)) = Self::toggle_export(&self.video_store, tree_path)
-                {
-                    pipeline
-                        .info
-                        .write()
-                        .unwrap()
-                        .streams
-                        .get_video_mut(stream_id)
-                        .as_mut()
-                        .unwrap()
-                        .must_export = value;
-                }
-            }
         }
     }
 
-    fn audio_export_toggled(&self, tree_path: &gtk::TreePath) {
-        if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
-            if let Some(pipeline) = main_ctrl_rc.borrow_mut().pipeline.as_mut() {
-                if let Some((stream_id, value)) = Self::toggle_export(&self.audio_store, tree_path)
-                {
-                    pipeline
-                        .info
-                        .write()
-                        .unwrap()
-                        .streams
-                        .get_audio_mut(stream_id)
-                        .as_mut()
-                        .unwrap()
-                        .must_export = value;
-                }
-            }
-        }
-    }
-
-    fn text_export_toggled(&self, tree_path: &gtk::TreePath) {
-        if let Some(main_ctrl_rc) = self.main_ctrl.as_ref().unwrap().upgrade() {
-            if let Some(pipeline) = main_ctrl_rc.borrow_mut().pipeline.as_mut() {
-                if let Some((stream_id, value)) = Self::toggle_export(&self.text_store, tree_path) {
-                    pipeline
-                        .info
-                        .write()
-                        .unwrap()
-                        .streams
-                        .get_text_mut(stream_id)
-                        .as_mut()
-                        .unwrap()
-                        .must_export = value;
-                }
-            }
-        }
-    }
-
-    pub fn trigger_stream_selection(&self) {
-        // Asynchronoulsy notify the main controller
-        let main_ctrl_weak = Weak::clone(self.main_ctrl.as_ref().unwrap());
+    pub fn get_selected_streams(&self) -> Vec<Arc<str>> {
         let mut streams: Vec<Arc<str>> = Vec::new();
         if let Some(stream) = self.video_selected.as_ref() {
             streams.push(Arc::clone(stream));
@@ -318,11 +180,8 @@ impl StreamsController {
         if let Some(stream) = self.text_selected.as_ref() {
             streams.push(Arc::clone(stream));
         }
-        gtk::idle_add(move || {
-            let main_ctrl_rc = main_ctrl_weak.upgrade().unwrap();
-            main_ctrl_rc.borrow_mut().select_streams(&streams);
-            glib::Continue(false)
-        });
+
+        streams
     }
 
     fn add_stream(&self, store: &gtk::ListStore, stream: &Stream) -> gtk::TreeIter {
@@ -363,7 +222,7 @@ impl StreamsController {
         iter
     }
 
-    fn get_stream_at(&self, store: &gtk::ListStore, iter: &gtk::TreeIter) -> Arc<str> {
+    pub fn get_stream_at(&self, store: &gtk::ListStore, iter: &gtk::TreeIter) -> Arc<str> {
         store
             .get_value(iter, STREAM_ID_COL as i32)
             .get::<String>()
@@ -371,7 +230,7 @@ impl StreamsController {
             .into()
     }
 
-    fn init_treeviews(&self, this_rc: &Rc<RefCell<Self>>) {
+    fn init_treeviews(&self) {
         self.video_treeview.set_model(Some(&self.video_store));
 
         let export_flag_lbl = gettext("Export?");
@@ -381,12 +240,7 @@ impl StreamsController {
         let comment_lbl = gettext("Comment");
 
         // Video
-        let renderer =
-            self.add_check_column(&self.video_treeview, &export_flag_lbl, EXPORT_FLAG_COL);
-        let this_clone = Rc::clone(&this_rc);
-        renderer.connect_toggled(move |_, tree_path| {
-            this_clone.borrow().video_export_toggled(&tree_path);
-        });
+        self.add_check_column(&self.video_treeview, &export_flag_lbl, EXPORT_FLAG_COL);
         self.add_text_column(
             &self.video_treeview,
             &stream_id_lbl,
@@ -432,12 +286,7 @@ impl StreamsController {
 
         // Audio
         self.audio_treeview.set_model(Some(&self.audio_store));
-        let renderer =
-            self.add_check_column(&self.audio_treeview, &export_flag_lbl, EXPORT_FLAG_COL);
-        let this_clone = Rc::clone(&this_rc);
-        renderer.connect_toggled(move |_, tree_path| {
-            this_clone.borrow().audio_export_toggled(&tree_path);
-        });
+        self.add_check_column(&self.audio_treeview, &export_flag_lbl, EXPORT_FLAG_COL);
         self.add_text_column(
             &self.audio_treeview,
             &stream_id_lbl,
@@ -485,10 +334,6 @@ impl StreamsController {
         self.text_treeview.set_model(Some(&self.text_store));
         let renderer =
             self.add_check_column(&self.text_treeview, &export_flag_lbl, EXPORT_FLAG_COL);
-        let this_clone = Rc::clone(&this_rc);
-        renderer.connect_toggled(move |_, tree_path| {
-            this_clone.borrow().text_export_toggled(&tree_path);
-        });
         // FIXME: discard text stream export for now as it hangs the export
         // (see https://github.com/fengalin/media-toc/issues/136)
         renderer.set_activatable(false);

@@ -1,33 +1,29 @@
-use gdk;
-use gettextrs::gettext;
 use glib;
 use glib::{signal::SignalHandlerId, ObjectExt, ToValue};
 use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
-use log::{debug, error};
-
-use std::{cell::RefCell, rc::Rc};
+use log::debug;
 
 use crate::{application::CONFIG, media::PlaybackPipeline, metadata::MediaInfo};
 
-use super::{MainController, UIController};
+use super::UIController;
 
-struct VideoOutput {
+pub struct VideoOutput {
     sink: gst::Element,
-    widget: gtk::Widget,
+    pub(super) widget: gtk::Widget,
 }
 
 pub struct VideoController {
     disable_gl: bool,
-    video_output: Option<VideoOutput>,
-    container: gtk::Box,
+    pub(super) video_output: Option<VideoOutput>,
+    pub(super) container: gtk::Box,
     cleaner_id: Option<SignalHandlerId>,
 }
 
 impl UIController for VideoController {
-    fn setup(&mut self, _gtk_app: &gtk::Application, main_ctrl: &Rc<RefCell<MainController>>) {
-        let video_output = if !self.disable_gl && !CONFIG.read().unwrap().media.is_gl_disabled {
+    fn setup(&mut self) {
+        self.video_output = if !self.disable_gl && !CONFIG.read().unwrap().media.is_gl_disabled {
             gst::ElementFactory::make("gtkglsink", "gtkglsink").map(|gtkglsink| {
                 let glsinkbin = gst::ElementFactory::make("glsinkbin", "video_sink")
                     .expect("PlaybackPipeline: couldn't get `glsinkbin` from `gtkglsink`");
@@ -62,36 +58,14 @@ impl UIController for VideoController {
             })
         });
 
-        match video_output {
-            Some(ref video_output) => {
-                // discard GStreamer defined navigation events on widget
-                video_output
-                    .widget
-                    .set_events(gdk::EventMask::BUTTON_PRESS_MASK);
+        if let Some(video_output) = self.video_output.as_ref() {
+            self.container
+                .pack_start(&video_output.widget, true, true, 0);
+            self.container.reorder_child(&video_output.widget, 0);
+            video_output.widget.show();
+        }
 
-                self.container
-                    .pack_start(&video_output.widget, true, true, 0);
-                self.container.reorder_child(&video_output.widget, 0);
-                video_output.widget.show();
-                self.cleanup();
-                let main_ctrl_clone = Rc::clone(main_ctrl);
-                self.container
-                    .connect_button_press_event(move |_, _event_button| {
-                        main_ctrl_clone.borrow_mut().play_pause();
-                        Inhibit(true)
-                    });
-            }
-            None => {
-                error!("{}", gettext("Couldn't find GStreamer GTK video sink."));
-                let container = self.container.clone();
-                gtk::idle_add(move || {
-                    container.hide();
-                    glib::Continue(false)
-                });
-            }
-        };
-
-        self.video_output = video_output;
+        self.cleanup();
     }
 
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
