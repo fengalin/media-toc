@@ -24,9 +24,10 @@ use crate::{
 };
 
 use super::{
-    AudioController, ChaptersBoundaries, ExportController, InfoController, PerspectiveController,
-    PerspectiveDispatcher, PositionStatus, SplitController, StreamsController, StreamsDispatcher,
-    UIController, UIDispatcher, VideoController, VideoDispatcher,
+    AudioController, ChaptersBoundaries, ExportController, ExportDispatcher, InfoController,
+    PerspectiveController, PerspectiveDispatcher, PositionStatus, SplitController, SplitDispatcher,
+    StreamsController, StreamsDispatcher, UIController, UIDispatcher, VideoController,
+    VideoDispatcher,
 };
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
@@ -71,12 +72,12 @@ pub struct MainController {
     pub(super) video_ctrl: VideoController,
     pub(super) info_ctrl: Rc<RefCell<InfoController>>,
     pub(super) audio_ctrl: Rc<RefCell<AudioController>>,
-    pub(super) export_ctrl: Rc<RefCell<ExportController>>,
-    pub(super) split_ctrl: Rc<RefCell<SplitController>>,
+    pub(super) export_ctrl: ExportController,
+    pub(super) split_ctrl: SplitController,
     pub(super) streams_ctrl: StreamsController,
 
     pub(super) pipeline: Option<PlaybackPipeline>,
-    take_pipeline_cb: Option<Box<dyn FnMut(PlaybackPipeline)>>,
+    take_pipeline_cb: Option<Box<dyn FnMut(&mut MainController, PlaybackPipeline)>>,
     missing_plugins: HashSet<String>,
     state: ControllerState,
 
@@ -103,8 +104,8 @@ impl MainController {
             video_ctrl: VideoController::new(&builder, disable_gl),
             info_ctrl: InfoController::new_rc(&builder, Rc::clone(&chapters_boundaries)),
             audio_ctrl: AudioController::new_rc(&builder, chapters_boundaries),
-            export_ctrl: ExportController::new_rc(&builder),
-            split_ctrl: SplitController::new_rc(&builder),
+            export_ctrl: ExportController::new(&builder),
+            split_ctrl: SplitController::new(&builder),
             streams_ctrl: StreamsController::new(&builder),
 
             pipeline: None,
@@ -175,13 +176,15 @@ impl MainController {
                 this.video_ctrl.setup();
                 InfoController::setup_(&this.info_ctrl, gtk_app, this_rc);
                 AudioController::setup_(&this.audio_ctrl, gtk_app, this_rc);
-                ExportController::setup_(&this.export_ctrl, gtk_app, this_rc);
-                SplitController::setup_(&this.split_ctrl, gtk_app, this_rc);
+                this.export_ctrl.setup();
+                this.split_ctrl.setup();
                 this.streams_ctrl.setup();
             }
 
             PerspectiveDispatcher::setup(gtk_app, this_rc);
             VideoDispatcher::setup(gtk_app, this_rc);
+            ExportDispatcher::setup(gtk_app, this_rc);
+            SplitDispatcher::setup(gtk_app, this_rc);
             StreamsDispatcher::setup(gtk_app, this_rc);
 
             {
@@ -463,7 +466,7 @@ impl MainController {
             self.audio_ctrl.borrow_mut().streams_changed(&info);
             self.info_ctrl.borrow_mut().streams_changed(&info);
             self.perspective_ctrl.streams_changed(&info);
-            self.split_ctrl.borrow_mut().streams_changed(&info);
+            self.split_ctrl.streams_changed(&info);
             self.video_ctrl.streams_changed(&info);
         }
         self.set_pipeline(pipeline);
@@ -479,7 +482,10 @@ impl MainController {
         };
     }
 
-    pub fn request_pipeline(&mut self, callback: Box<dyn FnMut(PlaybackPipeline)>) {
+    pub fn request_pipeline(
+        &mut self,
+        callback: Box<dyn FnMut(&mut MainController, PlaybackPipeline)>,
+    ) {
         self.audio_ctrl.borrow_mut().switch_to_not_playing();
         self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
 
@@ -499,7 +505,7 @@ impl MainController {
         if let Some(mut pipeline) = self.pipeline.take() {
             self.info_ctrl.borrow().export_chapters(&mut pipeline);
             let mut callback = self.take_pipeline_cb.take().unwrap();
-            callback(pipeline);
+            callback(self, pipeline);
             self.state = ControllerState::Paused;
         }
     }
@@ -585,10 +591,10 @@ impl MainController {
                     .set_subtitle(Some(pipeline.info.read().unwrap().file_name.as_str()));
 
                 self.audio_ctrl.borrow_mut().new_media(&pipeline);
-                self.export_ctrl.borrow_mut().new_media(&pipeline);
+                self.export_ctrl.new_media(&pipeline);
                 self.info_ctrl.borrow_mut().new_media(&pipeline);
                 self.perspective_ctrl.new_media(&pipeline);
-                self.split_ctrl.borrow_mut().new_media(&pipeline);
+                self.split_ctrl.new_media(&pipeline);
                 self.streams_ctrl.new_media(&pipeline);
                 self.video_ctrl.new_media(&pipeline);
 
@@ -719,8 +725,8 @@ impl MainController {
         self.info_ctrl.borrow_mut().cleanup();
         self.audio_ctrl.borrow_mut().cleanup();
         self.video_ctrl.cleanup();
-        self.export_ctrl.borrow_mut().cleanup();
-        self.split_ctrl.borrow_mut().cleanup();
+        self.export_ctrl.cleanup();
+        self.split_ctrl.cleanup();
         self.streams_ctrl.cleanup();
         self.perspective_ctrl.cleanup();
         self.header_bar.set_subtitle("");

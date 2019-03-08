@@ -10,7 +10,9 @@ mod chapter_tree_manager;
 use self::chapter_tree_manager::ChapterTreeManager;
 
 mod export_controller;
-use self::export_controller::ExportController;
+use self::export_controller::{ExportController, ExportControllerImpl};
+mod export_dispatcher;
+use self::export_dispatcher::ExportDispatcher;
 
 mod info_controller;
 use self::info_controller::InfoController;
@@ -26,6 +28,8 @@ use self::output_base_controller::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
     ProcessingStatus, ProcessingType,
 };
+mod output_base_dispatcher;
+use self::output_base_dispatcher::{OutputBaseDispatcher, OutputDispatcherImpl};
 
 mod perspective_controller;
 use self::perspective_controller::PerspectiveController;
@@ -38,7 +42,9 @@ mod streams_dispatcher;
 use self::streams_dispatcher::StreamsDispatcher;
 
 mod split_controller;
-use self::split_controller::SplitController;
+use self::split_controller::{SplitController, SplitControllerImpl};
+mod split_dispatcher;
+use self::split_dispatcher::SplitDispatcher;
 
 mod video_controller;
 use self::video_controller::VideoController;

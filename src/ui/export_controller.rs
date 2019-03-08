@@ -5,9 +5,7 @@ use gtk::prelude::*;
 use log::warn;
 
 use std::{
-    cell::RefCell,
     fs::File,
-    rc::Rc,
     sync::{Arc, RwLock},
 };
 
@@ -25,8 +23,8 @@ use super::{
 pub type ExportController = OutputBaseController<ExportControllerImpl>;
 
 impl ExportController {
-    pub fn new_rc(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
-        OutputBaseController::<ExportControllerImpl>::new_base_rc(
+    pub fn new(builder: &gtk::Builder) -> Self {
+        OutputBaseController::<ExportControllerImpl>::new_base(
             ExportControllerImpl::new(builder),
             builder,
         )
