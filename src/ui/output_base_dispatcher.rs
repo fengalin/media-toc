@@ -15,7 +15,6 @@ use super::{
 
 const PROGRESS_TIMER_PERIOD: u32 = 250; // 250 ms
 
-// FIXME: add constraintd on CtrlImpl
 pub trait OutputDispatcherImpl {
     type CtrlImpl;
     fn controller(main_ctrl: &mut MainController) -> &mut OutputBaseController<Self::CtrlImpl>
