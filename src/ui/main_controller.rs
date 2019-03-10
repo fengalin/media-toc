@@ -24,10 +24,10 @@ use crate::{
 };
 
 use super::{
-    AudioController, ChaptersBoundaries, ExportController, ExportDispatcher, InfoController,
-    PerspectiveController, PerspectiveDispatcher, PositionStatus, SplitController, SplitDispatcher,
-    StreamsController, StreamsDispatcher, UIController, UIDispatcher, VideoController,
-    VideoDispatcher,
+    AudioController, AudioDispatcher, ChaptersBoundaries, ExportController, ExportDispatcher,
+    InfoController, PerspectiveController, PerspectiveDispatcher, PositionStatus, SplitController,
+    SplitDispatcher, StreamsController, StreamsDispatcher, UIController, UIDispatcher,
+    VideoController, VideoDispatcher,
 };
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
@@ -71,7 +71,7 @@ pub struct MainController {
     pub(super) perspective_ctrl: PerspectiveController,
     pub(super) video_ctrl: VideoController,
     pub(super) info_ctrl: Rc<RefCell<InfoController>>,
-    pub(super) audio_ctrl: Rc<RefCell<AudioController>>,
+    pub(super) audio_ctrl: AudioController,
     pub(super) export_ctrl: ExportController,
     pub(super) split_ctrl: SplitController,
     pub(super) streams_ctrl: StreamsController,
@@ -103,7 +103,7 @@ impl MainController {
             perspective_ctrl: PerspectiveController::new(&builder),
             video_ctrl: VideoController::new(&builder, disable_gl),
             info_ctrl: InfoController::new_rc(&builder, Rc::clone(&chapters_boundaries)),
-            audio_ctrl: AudioController::new_rc(&builder, chapters_boundaries),
+            audio_ctrl: AudioController::new(&builder, chapters_boundaries),
             export_ctrl: ExportController::new(&builder),
             split_ctrl: SplitController::new(&builder),
             streams_ctrl: StreamsController::new(&builder),
@@ -175,7 +175,7 @@ impl MainController {
                 this.perspective_ctrl.setup();
                 this.video_ctrl.setup();
                 InfoController::setup_(&this.info_ctrl, gtk_app, this_rc);
-                AudioController::setup_(&this.audio_ctrl, gtk_app, this_rc);
+                this.audio_ctrl.setup();
                 this.export_ctrl.setup();
                 this.split_ctrl.setup();
                 this.streams_ctrl.setup();
@@ -183,6 +183,7 @@ impl MainController {
 
             PerspectiveDispatcher::setup(gtk_app, this_rc);
             VideoDispatcher::setup(gtk_app, this_rc);
+            AudioDispatcher::setup(gtk_app, this_rc);
             ExportDispatcher::setup(gtk_app, this_rc);
             SplitDispatcher::setup(gtk_app, this_rc);
             StreamsDispatcher::setup(gtk_app, this_rc);
@@ -341,7 +342,7 @@ impl MainController {
                 gst::State::Paused => {
                     self.play_pause_btn.set_icon_name(PAUSE_ICON);
                     self.state = ControllerState::Playing;
-                    self.audio_ctrl.borrow_mut().switch_to_playing();
+                    self.audio_ctrl.switch_to_playing();
                     pipeline.play().unwrap();
                     self.pipeline = Some(pipeline);
                 }
@@ -349,7 +350,7 @@ impl MainController {
                     pipeline.pause().unwrap();
                     self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
                     self.state = ControllerState::Paused;
-                    self.audio_ctrl.borrow_mut().switch_to_not_playing();
+                    self.audio_ctrl.switch_to_not_playing();
                     self.pipeline = Some(pipeline);
                 }
                 _ => {
@@ -384,10 +385,7 @@ impl MainController {
             }
             ControllerState::Paused => {
                 flags = gst::SeekFlags::ACCURATE;
-                let seek_1st_step = self
-                    .audio_ctrl
-                    .borrow()
-                    .get_seek_back_1st_position(position);
+                let seek_1st_step = self.audio_ctrl.get_seek_back_1st_position(position);
                 self.state = match seek_1st_step {
                     Some(seek_1st_step) => {
                         seek_pos = seek_1st_step;
@@ -419,7 +417,7 @@ impl MainController {
 
         if must_sync_ctrl {
             self.info_ctrl.borrow_mut().seek(seek_pos, &self.state);
-            self.audio_ctrl.borrow_mut().seek(seek_pos);
+            self.audio_ctrl.seek(seek_pos);
         }
 
         self.pipeline.as_ref().unwrap().seek(seek_pos, flags);
@@ -428,7 +426,7 @@ impl MainController {
     pub fn play_range(&mut self, start: u64, end: u64, pos_to_restore: u64) {
         if self.state == ControllerState::Paused {
             self.info_ctrl.borrow_mut().start_play_range();
-            self.audio_ctrl.borrow_mut().start_play_range();
+            self.audio_ctrl.start_play_range();
 
             self.state = ControllerState::PlayingRange(pos_to_restore);
             self.pipeline.as_ref().unwrap().seek_range(start, end);
@@ -440,7 +438,7 @@ impl MainController {
     }
 
     pub fn refresh(&mut self) {
-        self.audio_ctrl.borrow_mut().refresh();
+        self.audio_ctrl.refresh();
     }
 
     pub fn refresh_info(&mut self, position: u64) {
@@ -463,7 +461,7 @@ impl MainController {
         let pipeline = self.pipeline.take().unwrap();
         {
             let info = pipeline.info.read().unwrap();
-            self.audio_ctrl.borrow_mut().streams_changed(&info);
+            self.audio_ctrl.streams_changed(&info);
             self.info_ctrl.borrow_mut().streams_changed(&info);
             self.perspective_ctrl.streams_changed(&info);
             self.split_ctrl.streams_changed(&info);
@@ -474,7 +472,7 @@ impl MainController {
 
     fn hold(&mut self) {
         self.switch_to_busy();
-        self.audio_ctrl.borrow_mut().switch_to_not_playing();
+        self.audio_ctrl.switch_to_not_playing();
         self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
 
         if let Some(pipeline) = self.pipeline.as_mut() {
@@ -486,7 +484,7 @@ impl MainController {
         &mut self,
         callback: Box<dyn FnMut(&mut MainController, PlaybackPipeline)>,
     ) {
-        self.audio_ctrl.borrow_mut().switch_to_not_playing();
+        self.audio_ctrl.switch_to_not_playing();
         self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
 
         if let Some(pipeline) = self.pipeline.as_mut() {
@@ -571,12 +569,12 @@ impl MainController {
                             self.pipeline.as_mut().unwrap().play().unwrap();
                             self.play_pause_btn.set_icon_name(PAUSE_ICON);
                             self.state = ControllerState::Playing;
-                            self.audio_ctrl.borrow_mut().switch_to_playing();
+                            self.audio_ctrl.switch_to_playing();
                         }
                         PostSeekAction::KeepPaused => {
                             self.state = ControllerState::Paused;
                             self.info_ctrl.borrow_mut().seek(seek_pos, &self.state);
-                            self.audio_ctrl.borrow_mut().seek(seek_pos);
+                            self.audio_ctrl.seek(seek_pos);
                         }
                         PostSeekAction::KeepPlaying => {
                             self.state = ControllerState::Playing;
@@ -590,7 +588,7 @@ impl MainController {
                 self.header_bar
                     .set_subtitle(Some(pipeline.info.read().unwrap().file_name.as_str()));
 
-                self.audio_ctrl.borrow_mut().new_media(&pipeline);
+                self.audio_ctrl.new_media(&pipeline);
                 self.export_ctrl.new_media(&pipeline);
                 self.info_ctrl.borrow_mut().new_media(&pipeline);
                 self.perspective_ctrl.new_media(&pipeline);
@@ -628,7 +626,7 @@ impl MainController {
                         // end of range => pause and seek back to pos_to_restore
                         self.pipeline.as_ref().unwrap().pause().unwrap();
                         self.state = ControllerState::Paused;
-                        self.audio_ctrl.borrow_mut().stop_play_range();
+                        self.audio_ctrl.stop_play_range();
                         self.seek(pos_to_restore, gst::SeekFlags::ACCURATE);
                     }
                     _ => {
@@ -636,7 +634,7 @@ impl MainController {
                         self.state = ControllerState::EOS;
 
                         // The tick callback will be register again in case of a seek
-                        self.audio_ctrl.borrow_mut().switch_to_not_playing();
+                        self.audio_ctrl.switch_to_not_playing();
                     }
                 }
             }
@@ -659,7 +657,7 @@ impl MainController {
 
         if !keep_going {
             self.remove_media_event_handler();
-            self.audio_ctrl.borrow_mut().switch_to_not_playing();
+            self.audio_ctrl.switch_to_not_playing();
         }
 
         glib::Continue(keep_going)
@@ -723,7 +721,7 @@ impl MainController {
         self.remove_media_event_handler();
 
         self.info_ctrl.borrow_mut().cleanup();
-        self.audio_ctrl.borrow_mut().cleanup();
+        self.audio_ctrl.cleanup();
         self.video_ctrl.cleanup();
         self.export_ctrl.cleanup();
         self.split_ctrl.cleanup();
@@ -737,7 +735,7 @@ impl MainController {
         self.missing_plugins.clear();
         self.register_media_event_handler(receiver);
 
-        let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.borrow().dbl_buffer_mtx);
+        let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.dbl_buffer_mtx);
         match PlaybackPipeline::try_new(
             filepath,
             &dbl_buffer_mtx,

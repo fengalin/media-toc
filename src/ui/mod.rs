@@ -1,7 +1,9 @@
 use std::{cell::RefCell, rc::Rc};
 
 mod audio_controller;
-use self::audio_controller::AudioController;
+use self::audio_controller::{AudioController, AudioControllerAction, AudioControllerState};
+mod audio_dispatcher;
+use self::audio_dispatcher::AudioDispatcher;
 
 pub mod chapters_boundaries;
 pub use self::chapters_boundaries::ChaptersBoundaries;
