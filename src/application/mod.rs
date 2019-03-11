@@ -5,7 +5,7 @@ use gtk;
 use lazy_static::lazy_static;
 use log::warn;
 
-use crate::ui::MainController;
+use crate::ui::{MainController, MainDispatcher};
 
 pub const TLD: &str = "org";
 pub const SLD: &str = "fengalin";
@@ -46,13 +46,14 @@ pub fn run(is_gst_ok: bool, args: CommandLineArguments) {
         .expect("Failed to initialize GtkApplication");
 
     gtk_app.connect_activate(move |gtk_app| {
-        let main_ctrl = MainController::new_rc(args.disable_gl);
-        MainController::setup(&main_ctrl, gtk_app, is_gst_ok);
-        main_ctrl.borrow().show_all();
+        let main_ctrl_rc = MainController::new_rc(args.disable_gl);
+        main_ctrl_rc.borrow_mut().setup(is_gst_ok);
+        MainDispatcher::setup(gtk_app, &main_ctrl_rc, is_gst_ok);
+        main_ctrl_rc.borrow().show_all();
 
         if is_gst_ok {
             if let Some(ref input_file) = args.input_file {
-                main_ctrl.borrow_mut().open_media(input_file);
+                main_ctrl_rc.borrow_mut().open_media(input_file);
             }
         }
     });

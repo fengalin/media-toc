@@ -26,6 +26,8 @@ use self::image::Image;
 
 pub mod main_controller;
 pub use self::main_controller::{ControllerState, MainController};
+pub mod main_dispatcher;
+pub use self::main_dispatcher::MainDispatcher;
 
 mod output_base_controller;
 use self::output_base_controller::{
