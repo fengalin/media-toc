@@ -88,14 +88,14 @@ impl UIDispatcher for AudioDispatcher {
             .connect_button_press_event(move |_, event_button| {
                 let mut main_ctrl = main_ctrl_pressed.borrow_mut();
                 match main_ctrl.audio_ctrl.button_press(event_button) {
-                    AudioControllerAction::Seek(position) => {
+                    Some(AudioControllerAction::Seek(position)) => {
                         main_ctrl.seek(position, gst::SeekFlags::ACCURATE)
                     }
-                    AudioControllerAction::PlayRange {
+                    Some(AudioControllerAction::PlayRange {
                         start,
                         end,
                         current,
-                    } => {
+                    }) => {
                         main_ctrl.play_range(start, end, current);
                     }
                     _ => (),

@@ -60,7 +60,6 @@ pub enum AudioControllerState {
 }
 
 pub enum AudioControllerAction {
-    None,
     Seek(u64),
     PlayRange { start: u64, end: u64, current: u64 },
 }
@@ -664,47 +663,40 @@ impl AudioController {
         }
     }
 
-    pub fn button_press(&mut self, event_button: &gdk::EventButton) -> AudioControllerAction {
+    pub fn button_press(
+        &mut self,
+        event_button: &gdk::EventButton,
+    ) -> Option<AudioControllerAction> {
         match event_button.get_button() {
             1 => {
                 // left button
-                match self.get_position_at(event_button.get_position().0) {
-                    Some(position) => {
-                        let must_seek = match self.state {
-                            AudioControllerState::Paused => self
-                                .get_boundary_at(event_button.get_position().0)
-                                .map_or(true, |boundary| {
-                                    self.state = AudioControllerState::MovingBoundary(boundary);
-                                    false
-                                }),
-                            _ => true,
-                        };
+                let position = self.get_position_at(event_button.get_position().0)?;
+                let must_seek = match self.state {
+                    AudioControllerState::Paused => self
+                        .get_boundary_at(event_button.get_position().0)
+                        .map_or(true, |boundary| {
+                            self.state = AudioControllerState::MovingBoundary(boundary);
+                            false
+                        }),
+                    _ => true,
+                };
 
-                        if must_seek {
-                            AudioControllerAction::Seek(position)
-                        } else {
-                            AudioControllerAction::None
-                        }
-                    }
-                    None => AudioControllerAction::None,
+                if must_seek {
+                    Some(AudioControllerAction::Seek(position))
+                } else {
+                    None
                 }
             }
             3 => {
                 // right button => segment playback
-                match self.get_position_at(event_button.get_position().0) {
-                    Some(start) => {
-                        // get a reasonable range so that we can still hear
-                        // something even when there are few samples in current window
-                        AudioControllerAction::PlayRange {
-                            start,
-                            end: start + MIN_RANGE_DURATION.max(self.last_visible_pos - start),
-                            current: self.current_position,
-                        }
-                    }
-                    None => AudioControllerAction::None,
-                }
+                self.get_position_at(event_button.get_position().0)
+                    .map(|start| AudioControllerAction::PlayRange {
+                        start,
+                        end: start + MIN_RANGE_DURATION.max(self.last_visible_pos - start),
+                        current: self.current_position,
+                    })
             }
-            _ => AudioControllerAction::None,
+            _ => None,
         }
     }
 }
