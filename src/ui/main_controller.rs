@@ -30,7 +30,7 @@ pub enum PostSeekAction {
     KeepPlaying,
 }
 
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum ControllerState {
     EOS,
     Paused,
@@ -71,6 +71,7 @@ pub struct MainController {
     missing_plugins: HashSet<String>,
     pub(super) state: ControllerState,
 
+    pub(super) select_media_fn: Option<Rc<Fn()>>,
     pub(super) media_event_handler: Option<Rc<Fn(MediaEvent) -> glib::Continue>>,
     media_event_handler_src: Option<glib::SourceId>,
 }
@@ -103,6 +104,7 @@ impl MainController {
             missing_plugins: HashSet::<String>::new(),
             state: ControllerState::Stopped,
 
+            select_media_fn: None,
             media_event_handler: None,
             media_event_handler_src: None,
         }))
@@ -535,49 +537,32 @@ impl MainController {
         self.window.get_window().unwrap().set_cursor(None);
     }
 
-    fn switch_to_busy(&mut self) {
-        self.window.set_sensitive(false);
+    pub fn switch_to_busy(&mut self) {
         self.set_cursor_waiting();
     }
 
-    fn switch_to_default(&mut self) {
+    pub fn switch_to_default(&mut self) {
         self.reset_cursor();
-        self.window.set_sensitive(true);
     }
 
     pub fn select_media(&mut self) {
-        self.info_bar_revealer.set_reveal_child(false);
-        self.switch_to_busy();
-
-        let file_dlg = gtk::FileChooserDialog::with_buttons(
-            Some(gettext("Open a media file").as_str()),
-            Some(&self.window),
-            gtk::FileChooserAction::Open,
-            &[
-                (&gettext("Cancel"), gtk::ResponseType::Cancel),
-                (&gettext("Open"), gtk::ResponseType::Accept),
-            ],
+        let select_media_fn = Rc::clone(
+            self.select_media_fn
+                .as_ref()
+                .expect("MainController: select_media_fn is not defined"),
         );
-        if let Some(ref last_path) = CONFIG.read().unwrap().media.last_path {
-            file_dlg.set_current_folder(last_path);
-        }
 
-        if file_dlg.run() == gtk::ResponseType::Accept.into() {
-            if let Some(ref pipeline) = self.pipeline.take() {
-                pipeline.stop();
-            }
-            self.open_media(&file_dlg.get_filename().unwrap());
-        } else {
-            if self.pipeline.is_some() {
-                self.state = ControllerState::Paused;
-            }
-            self.switch_to_default();
-        }
-
-        file_dlg.close();
+        gtk::idle_add(move || {
+            select_media_fn();
+            glib::Continue(false)
+        });
     }
 
     pub fn open_media(&mut self, filepath: &Path) {
+        if let Some(ref pipeline) = self.pipeline.take() {
+            pipeline.stop();
+        }
+
         self.remove_media_event_handler();
 
         self.info_ctrl.cleanup();

@@ -23,13 +23,9 @@ impl UIDispatcher for AudioDispatcher {
         audio_ctrl
             .drawingarea
             .connect_draw(move |drawing_area, cairo_ctx| {
-                match main_ctrl_rc_cb.try_borrow_mut() {
-                    Ok(mut main_ctrl) => {
-                        if let Some(position) = main_ctrl.audio_ctrl.draw(drawing_area, cairo_ctx) {
-                            main_ctrl.refresh_info(position);
-                        }
-                    }
-                    _ => (),
+                let mut main_ctrl = main_ctrl_rc_cb.borrow_mut();
+                if let Some(position) = main_ctrl.audio_ctrl.draw(drawing_area, cairo_ctx) {
+                    main_ctrl.refresh_info(position);
                 }
 
                 Inhibit(false)

@@ -45,9 +45,8 @@ impl UIDispatcher for InfoDispatcher {
         info_ctrl
             .drawingarea
             .connect_draw(move |drawingarea, cairo_ctx| {
-                if let Ok(mut main_ctrl) = main_ctrl_rc_cb.try_borrow_mut() {
-                    main_ctrl.info_ctrl.draw_thumbnail(drawingarea, cairo_ctx)
-                }
+                let mut main_ctrl = main_ctrl_rc_cb.borrow_mut();
+                main_ctrl.info_ctrl.draw_thumbnail(drawingarea, cairo_ctx);
                 Inhibit(true)
             });
 

@@ -8,7 +8,7 @@ use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::media::PlaybackPipeline;
+use crate::{application::CONFIG, media::PlaybackPipeline};
 
 use super::{
     main_controller::ControllerState, AudioDispatcher, ExportDispatcher, InfoDispatcher,
@@ -88,21 +88,24 @@ impl MainDispatcher {
             gtk_app.add_action(&open);
             let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
             open.connect_activate(move |_, _| {
-                let mut main_ctrl = main_ctrl_rc_cb.borrow_mut();
-
-                if main_ctrl.state == ControllerState::Playing
-                    || main_ctrl.state == ControllerState::EOS
-                {
+                let state = main_ctrl_rc_cb.borrow().state;
+                if state == ControllerState::Playing || state == ControllerState::EOS {
+                    let mut main_ctrl = main_ctrl_rc_cb.borrow_mut();
                     main_ctrl.hold();
                     main_ctrl.state = ControllerState::PendingSelectMedia;
                 } else {
-                    main_ctrl.select_media();
+                    MainDispatcher::select_media(&main_ctrl_rc_cb);
                 }
             });
             gtk_app.set_accels_for_action("app.open", &["<Ctrl>O"]);
             main_section.append(&gettext("Open media file")[..], "app.open");
 
             main_ctrl.open_btn.set_sensitive(true);
+
+            let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
+            main_ctrl.select_media_fn = Some(Rc::new(move || {
+                MainDispatcher::select_media(&main_ctrl_rc_cb);
+            }));
 
             // Register Play/Pause action
             let play_pause = gio::SimpleAction::new("play_pause", None);
@@ -145,5 +148,41 @@ impl MainDispatcher {
             let msg = gettext("Failed to initialize GStreamer, the application can't be used.");
             main_ctrl.show_error(msg);
         }
+    }
+
+    fn select_media(main_ctrl_rc: &Rc<RefCell<MainController>>) {
+        let window = {
+            let mut main_ctrl = main_ctrl_rc.borrow_mut();
+            main_ctrl.info_bar_revealer.set_reveal_child(false);
+            main_ctrl.switch_to_busy();
+            main_ctrl.window.clone()
+        };
+
+        let file_dlg = gtk::FileChooserDialog::with_buttons(
+            Some(gettext("Open a media file").as_str()),
+            Some(&window),
+            gtk::FileChooserAction::Open,
+            &[
+                (&gettext("Cancel"), gtk::ResponseType::Cancel),
+                (&gettext("Open"), gtk::ResponseType::Accept),
+            ],
+        );
+        if let Some(ref last_path) = CONFIG.read().unwrap().media.last_path {
+            file_dlg.set_current_folder(last_path);
+        }
+
+        if file_dlg.run() == gtk::ResponseType::Accept.into() {
+            main_ctrl_rc
+                .borrow_mut()
+                .open_media(&file_dlg.get_filename().unwrap());
+        } else {
+            let mut main_ctrl = main_ctrl_rc.borrow_mut();
+            if main_ctrl.pipeline.is_some() {
+                main_ctrl.state = ControllerState::Paused;
+            }
+            main_ctrl.switch_to_default();
+        }
+
+        file_dlg.close();
     }
 }
