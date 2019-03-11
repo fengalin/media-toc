@@ -81,31 +81,31 @@ impl UIDispatcher for StreamsDispatcher {
         let streams_ctrl = &main_ctrl.streams_ctrl;
 
         // Video stream selection
-        let main_ctrl_clone = Rc::clone(main_ctrl_rc);
+        let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
         streams_ctrl
             .video_treeview
             .connect_row_activated(move |_, tree_path, _| {
-                on_stream_selected!(main_ctrl_clone, video_store, tree_path, video_selected);
+                on_stream_selected!(main_ctrl_rc_cb, video_store, tree_path, video_selected);
             });
 
         // Audio stream selection
-        let main_ctrl_clone = Rc::clone(main_ctrl_rc);
+        let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
         streams_ctrl
             .audio_treeview
             .connect_row_activated(move |_, tree_path, _| {
-                on_stream_selected!(main_ctrl_clone, audio_store, tree_path, audio_selected);
+                on_stream_selected!(main_ctrl_rc_cb, audio_store, tree_path, audio_selected);
             });
 
         // Text stream selection
-        let main_ctrl_clone = Rc::clone(main_ctrl_rc);
+        let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
         streams_ctrl
             .text_treeview
             .connect_row_activated(move |_, tree_path, _| {
-                on_stream_selected!(main_ctrl_clone, text_store, tree_path, text_selected);
+                on_stream_selected!(main_ctrl_rc_cb, text_store, tree_path, text_selected);
             });
 
         // Video stream export toggled
-        let main_ctrl_clone = Rc::clone(main_ctrl_rc);
+        let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
         if let Some(col) = streams_ctrl
             .video_treeview
             .get_column(EXPORT_FLAG_COL as i32)
@@ -118,12 +118,12 @@ impl UIDispatcher for StreamsDispatcher {
                 .downcast::<gtk::CellRendererToggle>()
                 .expect("Unexpected `CellRenderer` type for `export` column")
                 .connect_toggled(move |_, tree_path| {
-                    on_export_toggled!(main_ctrl_clone, video_store, tree_path, get_video_mut);
+                    on_export_toggled!(main_ctrl_rc_cb, video_store, tree_path, get_video_mut);
                 });
         }
 
         // Audio stream export toggled
-        let main_ctrl_clone = Rc::clone(main_ctrl_rc);
+        let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
         if let Some(col) = streams_ctrl
             .audio_treeview
             .get_column(EXPORT_FLAG_COL as i32)
@@ -136,12 +136,12 @@ impl UIDispatcher for StreamsDispatcher {
                 .downcast::<gtk::CellRendererToggle>()
                 .expect("Unexpected `CellRenderer` type for `export` column")
                 .connect_toggled(move |_, tree_path| {
-                    on_export_toggled!(main_ctrl_clone, audio_store, tree_path, get_audio_mut);
+                    on_export_toggled!(main_ctrl_rc_cb, audio_store, tree_path, get_audio_mut);
                 });
         }
 
         // Text stream export toggled
-        let main_ctrl_clone = Rc::clone(main_ctrl_rc);
+        let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
         if let Some(col) = streams_ctrl
             .text_treeview
             .get_column(EXPORT_FLAG_COL as i32)
@@ -154,7 +154,7 @@ impl UIDispatcher for StreamsDispatcher {
                 .downcast::<gtk::CellRendererToggle>()
                 .expect("Unexpected `CellRenderer` type for `export` column")
                 .connect_toggled(move |_, tree_path| {
-                    on_export_toggled!(main_ctrl_clone, text_store, tree_path, get_text_mut);
+                    on_export_toggled!(main_ctrl_rc_cb, text_store, tree_path, get_text_mut);
                 });
         }
     }

@@ -20,10 +20,10 @@ impl UIDispatcher for VideoDispatcher {
                     .widget
                     .set_events(gdk::EventMask::BUTTON_PRESS_MASK);
 
-                let main_ctrl_rc_clone = Rc::clone(main_ctrl_rc);
+                let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
                 main_ctrl.video_ctrl.container.connect_button_press_event(
                     move |_, _event_button| {
-                        main_ctrl_rc_clone.borrow_mut().play_pause();
+                        main_ctrl_rc_cb.borrow_mut().play_pause();
                         Inhibit(true)
                     },
                 );

@@ -108,12 +108,12 @@ where
     fn setup(_gtk_app: &gtk::Application, main_ctrl_rc: &Rc<RefCell<MainController>>) {
         let mut main_ctrl_local = main_ctrl_rc.borrow_mut();
 
-        let main_ctrl_rc_click = Rc::clone(main_ctrl_rc);
+        let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
         Impl::controller(&mut main_ctrl_local)
             .btn
             .connect_clicked(move |_| {
-                let main_ctrl_rc_req = Rc::clone(&main_ctrl_rc_click);
-                main_ctrl_rc_click.borrow_mut().request_pipeline(Box::new(
+                let main_ctrl_rc_fn = Rc::clone(&main_ctrl_rc_cb);
+                main_ctrl_rc_cb.borrow_mut().request_pipeline(Box::new(
                     move |main_ctrl, pipeline| {
                         Impl::controller(main_ctrl).playback_pipeline = Some(pipeline);
 
@@ -122,8 +122,8 @@ where
                         match Impl::controller(main_ctrl).init() {
                             ProcessingType::Sync => (),
                             ProcessingType::Async(receiver) => {
-                                Self::register_media_event_handler(&main_ctrl_rc_req, receiver);
-                                Self::register_progress_timer(main_ctrl, &main_ctrl_rc_req);
+                                Self::register_media_event_handler(&main_ctrl_rc_fn, receiver);
+                                Self::register_progress_timer(main_ctrl, &main_ctrl_rc_fn);
                             }
                         }
 
