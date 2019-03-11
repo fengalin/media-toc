@@ -1,7 +1,5 @@
 use cairo;
 use gettextrs::gettext;
-use gio;
-use gio::prelude::*;
 use glib;
 use gstreamer as gst;
 use gtk;
@@ -9,12 +7,7 @@ use gtk::prelude::*;
 use lazy_static::lazy_static;
 use log::{error, info, warn};
 
-use std::{
-    borrow::Cow,
-    cell::RefCell,
-    fs::File,
-    rc::{Rc, Weak},
-};
+use std::{borrow::Cow, cell::RefCell, fs::File, rc::Rc};
 
 use crate::{
     application::CONFIG,
@@ -24,8 +17,7 @@ use crate::{
 };
 
 use super::{
-    ChapterTreeManager, ChaptersBoundaries, ControllerState, Image, MainController, PositionStatus,
-    UIController,
+    ChapterTreeManager, ChaptersBoundaries, ControllerState, Image, PositionStatus, UIController,
 };
 
 const GO_TO_PREV_CHAPTER_THRESHOLD: u64 = 1_000_000_000; // 1 s
@@ -35,10 +27,10 @@ lazy_static! {
 }
 
 pub struct InfoController {
-    info_container: gtk::Grid,
-    show_chapters_btn: gtk::ToggleButton,
+    pub(super) info_container: gtk::Grid,
+    pub(super) show_chapters_btn: gtk::ToggleButton,
 
-    drawingarea: gtk::DrawingArea,
+    pub(super) drawingarea: gtk::DrawingArea,
 
     title_lbl: gtk::Label,
     artist_lbl: gtk::Label,
@@ -47,209 +39,35 @@ pub struct InfoController {
     video_codec_lbl: gtk::Label,
     duration_lbl: gtk::Label,
 
-    timeline_scale: gtk::Scale,
-    repeat_btn: gtk::ToggleToolButton,
+    pub(super) timeline_scale: gtk::Scale,
+    pub(super) repeat_btn: gtk::ToggleToolButton,
 
-    chapter_treeview: gtk::TreeView,
+    pub(super) chapter_treeview: gtk::TreeView,
     add_chapter_btn: gtk::ToolButton,
     del_chapter_btn: gtk::ToolButton,
 
     thumbnail: Option<Image>,
 
-    chapter_manager: ChapterTreeManager,
+    pub(super) chapter_manager: ChapterTreeManager,
 
     duration: u64,
-    repeat_chapter: bool,
+    pub(super) repeat_chapter: bool,
 
-    main_ctrl: Option<Weak<RefCell<MainController>>>,
+    pub(super) seek_fn: Option<Rc<Fn(u64, gst::SeekFlags)>>,
+    pub(super) show_msg_fn: Option<Rc<Fn(gtk::MessageType, &str)>>,
 }
 
 impl UIController for InfoController {
-    fn setup_(
-        this_rc: &Rc<RefCell<Self>>,
-        gtk_app: &gtk::Application,
-        main_ctrl: &Rc<RefCell<MainController>>,
-    ) {
-        let mut this = this_rc.borrow_mut();
-
-        this.main_ctrl = Some(Rc::downgrade(main_ctrl));
-        this.cleanup();
+    fn setup(&mut self) {
+        self.cleanup();
 
         // Show chapters toggle
         if CONFIG.read().unwrap().ui.is_chapters_list_hidden {
-            this.show_chapters_btn.set_active(false);
-            this.info_container.hide();
+            self.show_chapters_btn.set_active(false);
+            self.info_container.hide();
         }
 
-        // Register Toggle show chapters list action
-        let toggle_show_list = gio::SimpleAction::new("toggle_show_list", None);
-        gtk_app.add_action(&toggle_show_list);
-        let show_chapters_btn = this.show_chapters_btn.clone();
-        toggle_show_list.connect_activate(move |_, _| {
-            show_chapters_btn.set_active(!show_chapters_btn.get_active());
-        });
-        gtk_app.set_accels_for_action("app.toggle_show_list", &["l"]);
-
-        let this_clone = Rc::clone(this_rc);
-        this.show_chapters_btn
-            .connect_toggled(move |toggle_button| {
-                if toggle_button.get_active() {
-                    CONFIG.write().unwrap().ui.is_chapters_list_hidden = false;
-                    this_clone.borrow().info_container.show();
-                } else {
-                    CONFIG.write().unwrap().ui.is_chapters_list_hidden = true;
-                    this_clone.borrow().info_container.hide();
-                }
-            });
-        this.show_chapters_btn.set_sensitive(true);
-
-        // Draw thumnail image
-        let this_clone = Rc::clone(this_rc);
-        this.drawingarea
-            .connect_draw(move |drawingarea, cairo_ctx| {
-                let mut this = this_clone.borrow_mut();
-                this.draw_thumbnail(drawingarea, cairo_ctx)
-            });
-
-        // Scale seek
-        let main_ctrl_clone = Rc::clone(main_ctrl);
-        this.timeline_scale
-            .connect_change_value(move |_, _, value| {
-                main_ctrl_clone
-                    .borrow_mut()
-                    .seek(value as u64, gst::SeekFlags::KEY_UNIT);
-                Inhibit(true)
-            });
-
-        // TreeView seek
-        let this_clone = Rc::clone(this_rc);
-        let main_ctrl_clone = Rc::clone(main_ctrl);
-        this.chapter_treeview
-            .connect_row_activated(move |_, tree_path, _| {
-                let position_opt = {
-                    // get the position first in order to make sure
-                    // this is no longer borrowed if main_ctrl::seek is to be called
-                    let mut this = this_clone.borrow_mut();
-                    match this.chapter_manager.get_iter(tree_path) {
-                        Some(iter) => {
-                            let position = this.chapter_manager.get_chapter_at_iter(&iter).start();
-                            // update position
-                            this.tick(position, false);
-                            Some(position)
-                        }
-                        None => None,
-                    }
-                };
-
-                if let Some(position) = position_opt {
-                    main_ctrl_clone
-                        .borrow_mut()
-                        .seek(position, gst::SeekFlags::ACCURATE);
-                }
-            });
-
-        // TreeView title modified
-        if let Some(ref title_renderer) = this.chapter_manager.title_renderer {
-            let this_clone = Rc::clone(this_rc);
-            let main_ctrl_clone = Rc::clone(main_ctrl);
-            title_renderer.connect_edited(move |_, _tree_path, new_title| {
-                this_clone
-                    .borrow_mut()
-                    .chapter_manager
-                    .rename_selected_chapter(new_title);
-                // reflect title modification in the UI (audio waveform)
-                main_ctrl_clone.borrow_mut().refresh();
-            });
-        }
-
-        // Register add chapter action
-        let add_chapter = gio::SimpleAction::new("add_chapter", None);
-        gtk_app.add_action(&add_chapter);
-        let this_clone = Rc::clone(this_rc);
-        add_chapter.connect_activate(move |_, _| {
-            this_clone.borrow_mut().add_chapter();
-        });
-        gtk_app.set_accels_for_action("app.add_chapter", &["plus", "KP_Add"]);
-
-        // Register remove chapter action
-        let remove_chapter = gio::SimpleAction::new("remove_chapter", None);
-        gtk_app.add_action(&remove_chapter);
-        let this_clone = Rc::clone(this_rc);
-        remove_chapter.connect_activate(move |_, _| {
-            this_clone.borrow_mut().remove_chapter();
-        });
-        gtk_app.set_accels_for_action("app.remove_chapter", &["minus", "KP_Subtract"]);
-
-        // Register Toggle repeat current chapter action
-        let toggle_repeat_chapter = gio::SimpleAction::new("toggle_repeat_chapter", None);
-        gtk_app.add_action(&toggle_repeat_chapter);
-        let repeat_btn = this.repeat_btn.clone();
-        toggle_repeat_chapter.connect_activate(move |_, _| {
-            repeat_btn.set_active(!repeat_btn.get_active());
-        });
-        gtk_app.set_accels_for_action("app.toggle_repeat_chapter", &["r"]);
-
-        let this_clone = Rc::clone(this_rc);
-        this.repeat_btn.connect_clicked(move |button| {
-            this_clone.borrow_mut().repeat_chapter = button.get_active();
-        });
-
-        // Register next chapter action
-        let next_chapter = gio::SimpleAction::new("next_chapter", None);
-        gtk_app.add_action(&next_chapter);
-        let this_clone = Rc::clone(this_rc);
-        let main_ctrl_clone = Rc::clone(main_ctrl);
-        next_chapter.connect_activate(move |_, _| {
-            let seek_pos = {
-                let this = this_clone.borrow();
-                this.chapter_manager
-                    .next_iter()
-                    .map(|next_iter| this.chapter_manager.get_chapter_at_iter(&next_iter).start())
-            };
-
-            if let Some(seek_pos) = seek_pos {
-                main_ctrl_clone
-                    .borrow_mut()
-                    .seek(seek_pos, gst::SeekFlags::ACCURATE);
-            }
-        });
-        gtk_app.set_accels_for_action("app.next_chapter", &["Down", "AudioNext"]);
-
-        // Register previous chapter action
-        let previous_chapter = gio::SimpleAction::new("previous_chapter", None);
-        gtk_app.add_action(&previous_chapter);
-        let this_clone = Rc::clone(this_rc);
-        let main_ctrl_clone = Rc::clone(main_ctrl);
-        previous_chapter.connect_activate(move |_, _| {
-            let seek_pos =
-                {
-                    let this = this_clone.borrow();
-                    let position = this.get_position();
-                    let cur_start = this.chapter_manager.get_selected_iter().map(|cur_iter| {
-                        this.chapter_manager.get_chapter_at_iter(&cur_iter).start()
-                    });
-                    let prev_start = this.chapter_manager.prev_iter().map(|prev_iter| {
-                        this.chapter_manager.get_chapter_at_iter(&prev_iter).start()
-                    });
-
-                    match (cur_start, prev_start) {
-                        (Some(cur_start), prev_start_opt) => {
-                            if cur_start + GO_TO_PREV_CHAPTER_THRESHOLD < position {
-                                Some(cur_start)
-                            } else {
-                                prev_start_opt
-                            }
-                        }
-                        (None, prev_start_opt) => prev_start_opt,
-                    }
-                }
-                .unwrap_or(0);
-
-            main_ctrl_clone
-                .borrow_mut()
-                .seek(seek_pos, gst::SeekFlags::ACCURATE);
-        });
-        gtk_app.set_accels_for_action("app.previous_chapter", &["Up", "AudioPrev"]);
+        self.show_chapters_btn.set_sensitive(true);
     }
 
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
@@ -393,10 +211,7 @@ impl UIController for InfoController {
 }
 
 impl InfoController {
-    pub fn new_rc(
-        builder: &gtk::Builder,
-        boundaries: Rc<RefCell<ChaptersBoundaries>>,
-    ) -> Rc<RefCell<Self>> {
+    pub fn new(builder: &gtk::Builder, boundaries: Rc<RefCell<ChaptersBoundaries>>) -> Self {
         let mut chapter_manager = ChapterTreeManager::new(
             builder.get_object("chapters-tree-store").unwrap(),
             boundaries,
@@ -404,9 +219,7 @@ impl InfoController {
         let chapter_treeview: gtk::TreeView = builder.get_object("chapter-treeview").unwrap();
         chapter_manager.init_treeview(&chapter_treeview);
 
-        // need a RefCell because the callbacks will use immutable versions of ac
-        // when the UI controllers will get a mutable version from time to time
-        Rc::new(RefCell::new(InfoController {
+        InfoController {
             info_container: builder.get_object("info-chapter_list-grid").unwrap(),
             show_chapters_btn: builder.get_object("show_chapters-toggle").unwrap(),
 
@@ -433,15 +246,12 @@ impl InfoController {
             duration: 0,
             repeat_chapter: false,
 
-            main_ctrl: None,
-        }))
+            seek_fn: None,
+            show_msg_fn: None,
+        }
     }
 
-    fn draw_thumbnail(
-        &mut self,
-        drawingarea: &gtk::DrawingArea,
-        cairo_ctx: &cairo::Context,
-    ) -> Inhibit {
+    pub fn draw_thumbnail(&mut self, drawingarea: &gtk::DrawingArea, cairo_ctx: &cairo::Context) {
         if let Some(image) = self.thumbnail.as_mut() {
             let allocation = drawingarea.get_allocation();
             let alloc_width_f: f64 = allocation.width.into();
@@ -466,21 +276,20 @@ impl InfoController {
                 cr.paint();
             })
         }
-
-        Inhibit(true)
     }
 
-    fn show_message<Msg>(&self, message_type: gtk::MessageType, message: Msg)
+    fn show_message<Msg>(&self, msg_type: gtk::MessageType, msg: Msg)
     where
         Msg: Into<Cow<'static, str>>,
     {
-        let message = message.into();
-        let main_ctrl_weak = Weak::clone(self.main_ctrl.as_ref().unwrap());
+        let show_msg_fn = Rc::clone(
+            self.show_msg_fn
+                .as_ref()
+                .expect("InfoContoller: no show_msg_fn defined"),
+        );
+        let msg = msg.into();
         gtk::idle_add(move || {
-            let main_ctrl_rc = main_ctrl_weak.upgrade().unwrap();
-            main_ctrl_rc
-                .borrow()
-                .show_message(message_type, message.as_ref());
+            show_msg_fn(msg_type, msg.as_ref());
             glib::Continue(false)
         });
     }
@@ -505,13 +314,14 @@ impl InfoController {
         });
     }
 
-    fn repeat_at(main_ctrl: &Option<Weak<RefCell<MainController>>>, position: u64) {
-        let main_ctrl_weak = Weak::clone(main_ctrl.as_ref().unwrap());
+    fn repeat_at(&self, position: u64) {
+        let seek_fn = Rc::clone(
+            self.seek_fn
+                .as_ref()
+                .expect("InfoContoller: no seek_fn defined"),
+        );
         gtk::idle_add(move || {
-            let main_ctrl_rc = main_ctrl_weak.upgrade().unwrap();
-            main_ctrl_rc
-                .borrow_mut()
-                .seek(position, gst::SeekFlags::ACCURATE);
+            seek_fn(position, gst::SeekFlags::ACCURATE);
             glib::Continue(false)
         });
     }
@@ -528,7 +338,7 @@ impl InfoController {
                 // postpone chapter selection change until media has synchronized
                 position_status = PositionStatus::ChapterNotChanged;
                 self.chapter_manager.rewind();
-                InfoController::repeat_at(&self.main_ctrl, 0);
+                self.repeat_at(0);
             } else if position_status == PositionStatus::ChapterChanged {
                 if let Some(ref prev_selected_iter) = prev_selected_iter {
                     // reset position_status because we will be looping on current chapter
@@ -536,8 +346,7 @@ impl InfoController {
 
                     // unselect chapter in order to avoid tracing change to current position
                     self.chapter_manager.unselect();
-                    InfoController::repeat_at(
-                        &self.main_ctrl,
+                    self.repeat_at(
                         self.chapter_manager
                             .get_chapter_at_iter(prev_selected_iter)
                             .start(),
@@ -584,18 +393,36 @@ impl InfoController {
         }
     }
 
+    pub fn previous_pos(&self, position: u64) -> u64 {
+        {
+            let cur_start = self
+                .chapter_manager
+                .get_selected_iter()
+                .map(|cur_iter| self.chapter_manager.get_chapter_at_iter(&cur_iter).start());
+            let prev_start = self
+                .chapter_manager
+                .prev_iter()
+                .map(|prev_iter| self.chapter_manager.get_chapter_at_iter(&prev_iter).start());
+
+            match (cur_start, prev_start) {
+                (Some(cur_start), prev_start_opt) => {
+                    if cur_start + GO_TO_PREV_CHAPTER_THRESHOLD < position {
+                        Some(cur_start)
+                    } else {
+                        prev_start_opt
+                    }
+                }
+                (None, prev_start_opt) => prev_start_opt,
+            }
+        }
+        .unwrap_or(0)
+    }
+
     pub fn start_play_range(&mut self) {
         self.chapter_manager.prepare_for_seek();
     }
 
-    fn get_position(&self) -> u64 {
-        let main_ctrl_rc = self.main_ctrl.as_ref().unwrap().upgrade().unwrap();
-        let mut main_ctrl = main_ctrl_rc.borrow_mut();
-        main_ctrl.get_position()
-    }
-
-    pub fn add_chapter(&mut self) {
-        let position = self.get_position();
+    pub fn add_chapter(&mut self, position: u64) {
         if position >= self.duration {
             // can't add a chapter starting at last position
             return;

@@ -18,6 +18,8 @@ use self::export_dispatcher::ExportDispatcher;
 
 mod info_controller;
 use self::info_controller::InfoController;
+mod info_dispatcher;
+use self::info_dispatcher::InfoDispatcher;
 
 mod image;
 use self::image::Image;
@@ -66,13 +68,6 @@ pub enum PositionStatus {
 }
 
 pub trait UIController {
-    // FIXME: remove Rc<RefCell<Self>> version when all controllers are no longer Rcs
-    fn setup_(
-        _this_rc: &Rc<RefCell<Self>>,
-        _gtk_app: &gtk::Application,
-        _main_ctrl_rc: &Rc<RefCell<MainController>>,
-    ) {
-    }
     fn setup(&mut self) {}
     fn new_media(&mut self, pipeline: &super::media::PlaybackPipeline);
     fn cleanup(&mut self);
