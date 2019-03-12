@@ -43,34 +43,49 @@ macro_rules! on_stream_selected(
     };
 );
 
-macro_rules! on_export_toggled(
-    ($main_ctrl_rc:expr, $store:ident, $tree_path:expr, $streams_getter:ident) => {
-        let mut main_ctrl = $main_ctrl_rc.borrow_mut();
-        let store = main_ctrl.streams_ctrl.$store.clone();
+macro_rules! register_on_export_toggled(
+    ($streams_ctrl:expr, $main_ctrl_rc:expr, $treeview:ident, $store:ident, $streams_getter:ident) => {
+        if let Some(col) = $streams_ctrl
+            .$treeview
+            .get_column(EXPORT_FLAG_COL as i32)
+        {
+            let mut renderers = col.get_cells();
+            debug_assert!(renderers.len() == 1);
+            let main_ctrl_rc_cb = Rc::clone($main_ctrl_rc);
+            renderers
+                .pop()
+                .unwrap()
+                .downcast::<gtk::CellRendererToggle>()
+                .expect("Unexpected `CellRenderer` type for `export` column")
+                .connect_toggled(move |_, tree_path| {
+                    let mut main_ctrl = main_ctrl_rc_cb.borrow_mut();
+                    let store = main_ctrl.streams_ctrl.$store.clone();
 
-        store.get_iter(&$tree_path).map(|iter| {
-            let stream_id = store
-                .get_value(&iter, STREAM_ID_COL as i32)
-                .get::<GString>()
-                .unwrap();
-            let value = !store
-                .get_value(&iter, EXPORT_FLAG_COL as i32)
-                .get::<bool>()
-                .unwrap();
-            store.set_value(&iter, EXPORT_FLAG_COL, &gtk::Value::from(&value));
+                    store.get_iter(&tree_path).map(|iter| {
+                        let stream_id = store
+                            .get_value(&iter, STREAM_ID_COL as i32)
+                            .get::<GString>()
+                            .unwrap();
+                        let value = !store
+                            .get_value(&iter, EXPORT_FLAG_COL as i32)
+                            .get::<bool>()
+                            .unwrap();
+                        store.set_value(&iter, EXPORT_FLAG_COL, &gtk::Value::from(&value));
 
-            if let Some(pipeline) = main_ctrl.pipeline.as_mut() {
-                pipeline
-                    .info
-                    .write()
-                    .unwrap()
-                    .streams
-                    .$streams_getter(stream_id)
-                    .as_mut()
-                    .unwrap()
-                    .must_export = value;
-            }
-        });
+                        if let Some(pipeline) = main_ctrl.pipeline.as_mut() {
+                            pipeline
+                                .info
+                                .write()
+                                .unwrap()
+                                .streams
+                                .$streams_getter(stream_id)
+                                .as_mut()
+                                .unwrap()
+                                .must_export = value;
+                        }
+                    });
+                });
+        }
     };
 );
 
@@ -105,57 +120,30 @@ impl UIDispatcher for StreamsDispatcher {
             });
 
         // Video stream export toggled
-        let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
-        if let Some(col) = streams_ctrl
-            .video_treeview
-            .get_column(EXPORT_FLAG_COL as i32)
-        {
-            let mut renderers = col.get_cells();
-            debug_assert!(renderers.len() == 1);
-            renderers
-                .pop()
-                .unwrap()
-                .downcast::<gtk::CellRendererToggle>()
-                .expect("Unexpected `CellRenderer` type for `export` column")
-                .connect_toggled(move |_, tree_path| {
-                    on_export_toggled!(main_ctrl_rc_cb, video_store, tree_path, get_video_mut);
-                });
-        }
+        register_on_export_toggled!(
+            streams_ctrl,
+            main_ctrl_rc,
+            video_treeview,
+            video_store,
+            get_video_mut
+        );
 
         // Audio stream export toggled
-        let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
-        if let Some(col) = streams_ctrl
-            .audio_treeview
-            .get_column(EXPORT_FLAG_COL as i32)
-        {
-            let mut renderers = col.get_cells();
-            debug_assert!(renderers.len() == 1);
-            renderers
-                .pop()
-                .unwrap()
-                .downcast::<gtk::CellRendererToggle>()
-                .expect("Unexpected `CellRenderer` type for `export` column")
-                .connect_toggled(move |_, tree_path| {
-                    on_export_toggled!(main_ctrl_rc_cb, audio_store, tree_path, get_audio_mut);
-                });
-        }
+        register_on_export_toggled!(
+            streams_ctrl,
+            main_ctrl_rc,
+            audio_treeview,
+            audio_store,
+            get_audio_mut
+        );
 
         // Text stream export toggled
-        let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
-        if let Some(col) = streams_ctrl
-            .text_treeview
-            .get_column(EXPORT_FLAG_COL as i32)
-        {
-            let mut renderers = col.get_cells();
-            debug_assert!(renderers.len() == 1);
-            renderers
-                .pop()
-                .unwrap()
-                .downcast::<gtk::CellRendererToggle>()
-                .expect("Unexpected `CellRenderer` type for `export` column")
-                .connect_toggled(move |_, tree_path| {
-                    on_export_toggled!(main_ctrl_rc_cb, text_store, tree_path, get_text_mut);
-                });
-        }
+        register_on_export_toggled!(
+            streams_ctrl,
+            main_ctrl_rc,
+            text_treeview,
+            text_store,
+            get_text_mut
+        );
     }
 }
