@@ -279,6 +279,7 @@ impl PlaybackPipeline {
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
         let dbl_audio_buffer_mtx = Arc::clone(&self.dbl_audio_buffer_mtx);
+        let info_rwlck = Arc::clone(&self.info);
         let video_sink = video_sink.clone();
         let sender_mtx = Arc::new(Mutex::new(sender));
         self.decodebin
@@ -292,6 +293,7 @@ impl PlaybackPipeline {
                         src_pad,
                         &audio_sink,
                         &dbl_audio_buffer_mtx,
+                        &info_rwlck,
                         &sender_mtx,
                     );
                 } else if name.starts_with("video_") {
@@ -314,6 +316,7 @@ impl PlaybackPipeline {
         src_pad: &gst::Pad,
         audio_sink: &gst::Element,
         dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer>>,
+        info_rwlck: &Arc<RwLock<MediaInfo>>,
         sender_mtx: &Arc<Mutex<glib::Sender<MediaEvent>>>,
     ) {
         let playback_queue = gst::ElementFactory::make("queue", "audio_playback_queue").unwrap();
@@ -386,12 +389,13 @@ impl PlaybackPipeline {
         // We can't use intermediate elements such as audioconvert because they get paused
         // and block the buffers
         let dbl_audio_buffer_mtx = Arc::clone(dbl_audio_buffer_mtx);
+        let info_rwlck = Arc::clone(info_rwlck);
         let sender_mtx = Arc::clone(sender_mtx);
         let pad_probe_filter = gst::PadProbeType::BUFFER | gst::PadProbeType::EVENT_BOTH;
         waveform_sink_pad.add_probe(pad_probe_filter, move |_pad, probe_info| {
             if let Some(ref mut data) = probe_info.data {
-                match *data {
-                    gst::PadProbeData::Buffer(ref buffer) => {
+                match data {
+                    gst::PadProbeData::Buffer(buffer) => {
                         let must_notify = dbl_audio_buffer_mtx
                             .lock()
                             .expect("waveform_sink::probe couldn't lock dbl_audio_buffer")
@@ -409,32 +413,38 @@ impl PlaybackPipeline {
                             return gst::PadProbeReturn::Handled;
                         }
                     }
-                    gst::PadProbeData::Event(ref event) => {
-                        match event.view() {
-                            // TODO: handle FlushStart / FlushStop
-                            gst::EventView::Caps(caps_event) => {
-                                dbl_audio_buffer_mtx
-                                    .lock()
-                                    .unwrap()
-                                    .set_caps(caps_event.get_caps());
-                            }
-                            gst::EventView::Eos(_) => {
-                                dbl_audio_buffer_mtx.lock().unwrap().handle_eos();
-                                sender_mtx
-                                    .lock()
-                                    .unwrap()
-                                    .send(MediaEvent::ReadyForRefresh)
-                                    .unwrap();
-                            }
-                            gst::EventView::Segment(segment_event) => {
-                                dbl_audio_buffer_mtx
-                                    .lock()
-                                    .unwrap()
-                                    .have_gst_segment(segment_event.get_segment());
-                            }
-                            _ => (),
+                    gst::PadProbeData::Event(event) => match event.view() {
+                        gst::EventView::Caps(caps_evt) => {
+                            dbl_audio_buffer_mtx
+                                .lock()
+                                .unwrap()
+                                .set_caps(caps_evt.get_caps());
                         }
-                    }
+                        gst::EventView::Eos(_) => {
+                            dbl_audio_buffer_mtx.lock().unwrap().handle_eos();
+                            sender_mtx
+                                .lock()
+                                .unwrap()
+                                .send(MediaEvent::ReadyForRefresh)
+                                .unwrap();
+                        }
+                        gst::EventView::Segment(segment_evt) => {
+                            dbl_audio_buffer_mtx
+                                .lock()
+                                .unwrap()
+                                .have_gst_segment(segment_evt.get_segment());
+                        }
+                        gst::EventView::StreamStart(_) => {
+                            let audio_has_changed =
+                                info_rwlck.read().unwrap().streams.audio_changed;
+                            if audio_has_changed {
+                                debug!("changing audio stream");
+                                let dbl_audio_buffer = &mut dbl_audio_buffer_mtx.lock().unwrap();
+                                dbl_audio_buffer.clean_samples();
+                            }
+                        }
+                        _ => (),
+                    },
                     _ => (),
                 }
             }
@@ -610,18 +620,6 @@ impl PlaybackPipeline {
                 }
                 gst::MessageView::StreamsSelected(_) => match pipeline_state {
                     PipelineState::Initialized(_) => {
-                        let audio_has_changed = info_arc_mtx
-                            .read()
-                            .expect("Failed to lock media info while comparing streams")
-                            .streams
-                            .audio_changed;
-
-                        if audio_has_changed {
-                            debug!("changing audio stream");
-                            let dbl_audio_buffer = &mut dbl_audio_buffer_mtx.lock().unwrap();
-                            dbl_audio_buffer.clean_samples();
-                        }
-
                         sender.send(MediaEvent::StreamsSelected).unwrap();
                     }
                     _ => {
