@@ -96,6 +96,8 @@ impl AudioBuffer {
     // Clean the sample buffer
     // Other characteristics (rate, sample_duration, channels) remain unchanged.
     pub fn clean_samples(&mut self) {
+        debug!("clean_samples");
+
         self.eos = false;
         self.is_new_segment = true;
         // don't cleanup self.segment_start in order to maintain continuity

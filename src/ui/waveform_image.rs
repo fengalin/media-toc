@@ -290,10 +290,6 @@ impl WaveformImage {
         if lower < audio_buffer.lower {
             // first sample might be smaller than audio_buffer.lower
             // due to alignement on sample_step
-            debug!(
-                "{}_render lower {} is less than buffer.lower {}",
-                self.id, lower, audio_buffer.lower,
-            );
             lower += self.sample_step;
         }
 
