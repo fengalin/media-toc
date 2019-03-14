@@ -194,7 +194,7 @@ impl MainController {
     }
 
     pub fn play_pause(&mut self) {
-        let mut pipeline = match self.pipeline.take() {
+        let pipeline = match self.pipeline.as_mut() {
             Some(pipeline) => pipeline,
             None => {
                 self.select_media();
@@ -209,23 +209,19 @@ impl MainController {
                     self.state = ControllerState::Playing;
                     self.audio_ctrl.switch_to_playing();
                     pipeline.play().unwrap();
-                    self.pipeline = Some(pipeline);
                 }
                 gst::State::Playing => {
                     pipeline.pause().unwrap();
                     self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
                     self.state = ControllerState::Paused;
                     self.audio_ctrl.switch_to_not_playing();
-                    self.pipeline = Some(pipeline);
                 }
                 _ => {
-                    self.pipeline = Some(pipeline);
                     self.select_media();
                 }
             };
         } else {
             // Restart the stream from the begining
-            self.pipeline = Some(pipeline);
             self.seek(0, gst::SeekFlags::ACCURATE);
         }
     }
@@ -321,16 +317,12 @@ impl MainController {
     }
 
     pub fn streams_selected(&mut self) {
-        let pipeline = self.pipeline.take().unwrap();
-        {
-            let info = pipeline.info.read().unwrap();
-            self.audio_ctrl.streams_changed(&info);
-            self.info_ctrl.streams_changed(&info);
-            self.perspective_ctrl.streams_changed(&info);
-            self.split_ctrl.streams_changed(&info);
-            self.video_ctrl.streams_changed(&info);
-        }
-        self.set_pipeline(pipeline);
+        let info = self.pipeline.as_ref().unwrap().info.read().unwrap();
+        self.audio_ctrl.streams_changed(&info);
+        self.info_ctrl.streams_changed(&info);
+        self.perspective_ctrl.streams_changed(&info);
+        self.split_ctrl.streams_changed(&info);
+        self.video_ctrl.streams_changed(&info);
     }
 
     pub fn hold(&mut self) {
@@ -445,7 +437,7 @@ impl MainController {
                 }
             }
             MediaEvent::InitDone => {
-                let pipeline = self.pipeline.take().unwrap();
+                let pipeline = self.pipeline.as_ref().unwrap();
 
                 self.header_bar
                     .set_subtitle(Some(pipeline.info.read().unwrap().file_name.as_str()));
@@ -457,8 +449,6 @@ impl MainController {
                 self.split_ctrl.new_media(&pipeline);
                 self.streams_ctrl.new_media(&pipeline);
                 self.video_ctrl.new_media(&pipeline);
-
-                self.set_pipeline(pipeline);
 
                 if let Some(message) = self.check_missing_plugins() {
                     self.show_error(message);
