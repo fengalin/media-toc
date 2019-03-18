@@ -246,18 +246,15 @@ impl AudioController {
             return;
         }
 
-        let is_playing = self.state == AudioControllerState::Playing;
-        {
-            self.waveform_mtx
-                .lock()
-                .unwrap()
-                .as_mut_any()
-                .downcast_mut::<WaveformBuffer>()
-                .unwrap()
-                .seek(position, is_playing);
-        }
+        self.waveform_mtx
+            .lock()
+            .unwrap()
+            .as_mut_any()
+            .downcast_mut::<WaveformBuffer>()
+            .unwrap()
+            .seek(position);
 
-        if !is_playing {
+        if self.state != AudioControllerState::Playing {
             // refresh the buffer in order to render the waveform
             // with samples that might not be rendered in current WaveformImage yet
             self.dbl_buffer_mtx.lock().unwrap().refresh();
@@ -268,7 +265,9 @@ impl AudioController {
     pub fn switch_to_not_playing(&mut self) {
         if self.state != AudioControllerState::Disabled {
             self.state = AudioControllerState::Paused;
+            self.refresh_buffer();
             self.remove_tick_callback();
+            self.redraw();
         }
     }
 
@@ -309,7 +308,6 @@ impl AudioController {
         if self.tick_cb_src.is_some() {
             return;
         }
-
         let tick_cb = Rc::clone(
             self.tick_cb
                 .as_ref()
@@ -419,7 +417,7 @@ impl AudioController {
                     self.area_height as i32,
                 );
             }
-            self.refresh();
+            self.redraw();
         }
     }
 
@@ -443,18 +441,16 @@ impl AudioController {
         self.seek_step = self.requested_duration as u64 / SEEK_STEP_DURATION_DIVISOR;
     }
 
+    pub fn refresh_buffer(&self) {
+        self.dbl_buffer_mtx.lock().unwrap().refresh();
+    }
+
     pub fn tick(&mut self) {
         if self.playback_needs_refresh {
             trace!("tick forcing refresh");
-
-            self.dbl_buffer_mtx.lock().unwrap().refresh();
+            self.refresh_buffer();
         }
 
-        self.redraw();
-    }
-
-    pub fn refresh(&mut self) {
-        self.dbl_buffer_mtx.lock().unwrap().refresh();
         self.redraw();
     }
 

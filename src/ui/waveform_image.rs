@@ -258,7 +258,7 @@ impl WaveformImage {
         // between redraws.
         let mut lower = lower / self.sample_step * self.sample_step;
         let upper = upper / self.sample_step * self.sample_step;
-        if audio_buffer.eos && upper == audio_buffer.upper
+        if audio_buffer.eos && upper + self.sample_step > audio_buffer.upper
             || self.contains_eos
                 && (upper == self.upper || (!self.force_redraw && lower >= self.lower))
         {

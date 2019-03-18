@@ -6,13 +6,13 @@ use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 
-use log::{error, info};
+use log::{debug, error, info};
 
 use std::{cell::RefCell, collections::HashSet, path::Path, rc::Rc, sync::Arc};
 
 use crate::{
     application::{APP_ID, APP_PATH, CONFIG},
-    media::{MediaEvent, PlaybackPipeline},
+    media::{MediaEvent, PlaybackPipeline, PlaybackState},
 };
 
 use super::{
@@ -23,14 +23,7 @@ use super::{
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
 const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
 
-#[derive(Clone, Copy, PartialEq)]
-pub enum PostSeekAction {
-    KeepPaused,
-    SwitchToPlay,
-    KeepPlaying,
-}
-
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ControllerState {
     EOS,
     Paused,
@@ -38,11 +31,7 @@ pub enum ControllerState {
     PendingSelectMedia,
     Playing,
     PlayingRange(u64),
-    Ready,
-    Seeking {
-        seek_pos: u64,
-        post_seek_action: PostSeekAction,
-    },
+    Seeking,
     Stopped,
     TwoStepsSeek(u64),
 }
@@ -231,54 +220,34 @@ impl MainController {
     }
 
     pub fn seek(&mut self, position: u64, flags: gst::SeekFlags) {
-        let mut must_sync_ctrl = false;
         let mut seek_pos = position;
         let mut flags = flags;
-        match self.state {
-            ControllerState::Seeking { .. } => (),
-            ControllerState::EOS | ControllerState::Ready => {
-                self.state = ControllerState::Seeking {
-                    seek_pos: position,
-                    post_seek_action: PostSeekAction::SwitchToPlay,
-                };
-            }
+        self.state = match self.state {
+            ControllerState::Playing => ControllerState::Seeking,
             ControllerState::Paused => {
                 flags = gst::SeekFlags::ACCURATE;
                 let seek_1st_step = self.audio_ctrl.get_seek_back_1st_position(position);
-                self.state = match seek_1st_step {
+                match seek_1st_step {
                     Some(seek_1st_step) => {
                         seek_pos = seek_1st_step;
                         ControllerState::TwoStepsSeek(position)
                     }
-                    None => ControllerState::Seeking {
-                        seek_pos: position,
-                        post_seek_action: PostSeekAction::KeepPaused,
-                    },
-                };
+                    None => ControllerState::Seeking,
+                }
             }
             ControllerState::TwoStepsSeek(target) => {
-                must_sync_ctrl = true;
-                seek_pos = target;
-                self.state = ControllerState::Seeking {
-                    seek_pos: position,
-                    post_seek_action: PostSeekAction::KeepPaused,
-                };
+                debug_assert!(position == target);
+                ControllerState::Seeking
             }
-            ControllerState::Playing => {
-                must_sync_ctrl = true;
-                self.state = ControllerState::Seeking {
-                    seek_pos: position,
-                    post_seek_action: PostSeekAction::KeepPlaying,
-                };
+            ControllerState::EOS => {
+                self.audio_ctrl.switch_to_playing();
+                ControllerState::Seeking
             }
             _ => return,
         };
 
-        if must_sync_ctrl {
-            self.info_ctrl.seek(seek_pos, &self.state);
-            self.audio_ctrl.seek(seek_pos);
-        }
-
+        self.info_ctrl.seek(seek_pos, &self.state);
+        self.audio_ctrl.seek(seek_pos);
         self.pipeline.as_ref().unwrap().seek(seek_pos, flags);
     }
 
@@ -297,12 +266,12 @@ impl MainController {
     }
 
     pub fn refresh(&mut self) {
-        self.audio_ctrl.refresh();
+        self.audio_ctrl.redraw();
     }
 
     pub fn refresh_info(&mut self, position: u64) {
         match self.state {
-            ControllerState::Seeking { .. } => (),
+            ControllerState::Seeking => (),
             _ => self.info_ctrl.tick(position, false),
         }
     }
@@ -412,31 +381,16 @@ impl MainController {
         let mut keep_going = true;
 
         match event {
-            MediaEvent::AsyncDone => {
-                if let ControllerState::Seeking {
-                    seek_pos,
-                    post_seek_action,
-                } = self.state
-                {
-                    match post_seek_action {
-                        PostSeekAction::SwitchToPlay => {
-                            self.pipeline.as_mut().unwrap().play().unwrap();
-                            self.play_pause_btn.set_icon_name(PAUSE_ICON);
-                            self.state = ControllerState::Playing;
-                            self.audio_ctrl.switch_to_playing();
-                        }
-                        PostSeekAction::KeepPaused => {
-                            self.state = ControllerState::Paused;
-                            self.info_ctrl.seek(seek_pos, &self.state);
-                            self.audio_ctrl.seek(seek_pos);
-                        }
-                        PostSeekAction::KeepPlaying => {
-                            self.state = ControllerState::Playing;
-                        }
-                    }
+            MediaEvent::AsyncDone(playback_state) => {
+                if let ControllerState::Seeking = self.state {
+                    self.state = match playback_state {
+                        PlaybackState::Playing => ControllerState::Playing,
+                        PlaybackState::Paused => ControllerState::Paused,
+                    };
                 }
             }
             MediaEvent::InitDone => {
+                debug!("received `InitDone`");
                 let pipeline = self.pipeline.as_ref().unwrap();
 
                 self.header_bar
@@ -453,7 +407,9 @@ impl MainController {
                 if let Some(message) = self.check_missing_plugins() {
                     self.show_error(message);
                 }
-                self.state = ControllerState::Ready;
+
+                self.audio_ctrl.switch_to_not_playing();
+                self.state = ControllerState::Paused;
             }
             MediaEvent::MissingPlugin(plugin) => {
                 error!(
@@ -463,9 +419,12 @@ impl MainController {
                 self.missing_plugins.insert(plugin);
             }
             MediaEvent::ReadyForRefresh => match self.state {
-                ControllerState::Paused | ControllerState::Ready => self.refresh(),
+                ControllerState::Playing => (),
+                ControllerState::Paused => {
+                    self.refresh();
+                }
                 ControllerState::TwoStepsSeek(target) => {
-                    self.seek(target, gst::SeekFlags::ACCURATE)
+                    self.seek(target, gst::SeekFlags::ACCURATE);
                 }
                 ControllerState::PendingSelectMedia => self.select_media(),
                 ControllerState::PendingTakePipeline => self.have_pipeline(),
@@ -483,10 +442,8 @@ impl MainController {
                     }
                     _ => {
                         self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
-                        self.state = ControllerState::EOS;
-
-                        // The tick callback will be register again in case of a seek
                         self.audio_ctrl.switch_to_not_playing();
+                        self.state = ControllerState::EOS;
                     }
                 }
             }

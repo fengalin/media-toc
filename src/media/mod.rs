@@ -19,9 +19,15 @@ pub use self::splitter_pipeline::SplitterPipeline;
 pub mod toc_setter_pipeline;
 pub use self::toc_setter_pipeline::TocSetterPipeline;
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PlaybackState {
+    Paused,
+    Playing,
+}
+
+#[derive(Clone, Debug)]
 pub enum MediaEvent {
-    AsyncDone,
+    AsyncDone(PlaybackState),
     Eos,
     FailedToOpenMedia(String),
     FailedToExport(String),

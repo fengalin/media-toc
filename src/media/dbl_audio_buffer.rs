@@ -1,7 +1,7 @@
 use gstreamer as gst;
 use gstreamer_audio as gst_audio;
 
-use log::info;
+use log::{debug, info};
 
 use smallvec::SmallVec;
 
@@ -91,12 +91,16 @@ impl DoubleAudioBuffer {
     }
 
     pub fn set_state(&mut self, state: gst::State) {
+        debug!("changing state from {:?} to {:?}", self.state, state);
         self.state = state;
         {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
             exposed_buffer_box.set_state(state);
         }
         self.working_buffer.as_mut().unwrap().set_state(state);
+        if state == gst::State::Paused {
+            self.refresh();
+        }
     }
 
     pub fn clean_samples(&mut self) {
@@ -110,7 +114,7 @@ impl DoubleAudioBuffer {
     }
 
     pub fn set_caps(&mut self, caps: &gst::CapsRef) {
-        info!("Changing caps");
+        info!("changing caps");
         let audio_info = gst_audio::AudioInfo::from_caps(caps).unwrap();
 
         self.reset();

@@ -8,7 +8,7 @@ use super::{AudioBuffer, AudioChannel};
 pub struct SampleExtractionState {
     pub sample_duration: u64,
     pub duration_per_1000_samples: f64,
-    state: gst::State,
+    pub state: gst::State,
     audio_ref: Option<gst::Element>,
     pub basetime: Option<(u64, u64)>, // (base_time, base_frame_time)
     pub last_pos: u64,

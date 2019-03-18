@@ -1,3 +1,5 @@
+use gstreamer as gst;
+
 use log::{debug, trace};
 
 use std::{
@@ -149,7 +151,7 @@ impl WaveformBuffer {
         self.half_req_sample_window as u64 * self.state.sample_duration
     }
 
-    pub fn seek(&mut self, position: u64, is_playing: bool) {
+    pub fn seek(&mut self, position: u64) {
         if self.image.sample_step == 0 {
             return;
         }
@@ -159,17 +161,21 @@ impl WaveformBuffer {
             * self.image.sample_step;
 
         debug!(
-            "{}_seek cursor_sample {}, sought sample {} ({}), image [{}, {}], contains_eos: {}",
+            concat!(
+                "{}_seek cursor_sample {}, sought sample {} ({}), ",
+                "state: {:?}, image [{}, {}], contains_eos: {}",
+            ),
             self.image.id,
             self.cursor_sample,
             sought_sample,
             position,
+            self.state.state,
             self.image.lower,
             self.image.upper,
             self.image.contains_eos,
         );
 
-        if is_playing {
+        if self.state.state == gst::State::Playing {
             // stream is playing => let the cursor jump from current position
             // to the sought position without shifting the waveform if possible
 
@@ -194,16 +200,13 @@ impl WaveformBuffer {
         } else {
             // not playing
             self.first_visible_sample = match self.first_visible_sample_lock.take() {
-                Some((first_visible_sample, lock_state)) => match lock_state {
-                    LockState::PlayingRange => {
-                        // Range is complete => we are restoring the initial position
-                        self.first_visible_sample_lock =
-                            Some((first_visible_sample, LockState::RestoringInitialPos));
-                        Some(first_visible_sample as usize)
-                    }
-                    _ => None,
-                },
-                None => None,
+                Some((first_visible_sample, LockState::PlayingRange)) => {
+                    // Range is complete => we are restoring the initial position
+                    self.first_visible_sample_lock =
+                        Some((first_visible_sample, LockState::RestoringInitialPos));
+                    Some(first_visible_sample as usize)
+                }
+                _ => None,
             };
         }
 

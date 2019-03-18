@@ -191,8 +191,6 @@ impl TocSetterPipeline {
                     if !init_done {
                         init_done = true;
                         sender.send(MediaEvent::InitDone).unwrap();
-                    } else {
-                        sender.send(MediaEvent::AsyncDone).unwrap();
                     }
                 }
                 _ => (),

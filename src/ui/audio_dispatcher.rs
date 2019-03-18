@@ -41,6 +41,7 @@ impl UIDispatcher for AudioDispatcher {
                     audio_ctrl.area_height = f64::from(alloc.height);
                     audio_ctrl.area_width = f64::from(alloc.width);
                     audio_ctrl.update_conditions();
+                    audio_ctrl.redraw();
                 }
             });
 
@@ -174,7 +175,10 @@ impl UIDispatcher for AudioDispatcher {
         // Update conditions asynchronously
         let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
         audio_ctrl.update_conditions_async = Some(Rc::new(move || {
-            main_ctrl_rc_cb.borrow_mut().audio_ctrl.update_conditions();
+            let mut main_ctrl = main_ctrl_rc_cb.borrow_mut();
+            main_ctrl.audio_ctrl.update_conditions();
+            main_ctrl.audio_ctrl.refresh_buffer();
+            main_ctrl.audio_ctrl.redraw();
         }));
 
         // Tick callback
