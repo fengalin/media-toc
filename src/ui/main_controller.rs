@@ -360,6 +360,7 @@ impl MainController {
         }
     }
 
+    #[allow(clippy::redundant_closure)]
     fn register_media_event_handler(&mut self, receiver: glib::Receiver<MediaEvent>) {
         let media_event_handler = Rc::clone(
             self.media_event_handler
