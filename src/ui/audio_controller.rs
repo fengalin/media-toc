@@ -417,6 +417,8 @@ impl AudioController {
                     self.area_height as i32,
                 );
             }
+
+            self.refresh_buffer();
             self.redraw();
         }
     }
