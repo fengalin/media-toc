@@ -127,21 +127,19 @@ impl MainController {
     pub fn about(&self) {
         let dialog = gtk::AboutDialog::new();
         dialog.set_modal(true);
-        dialog.set_transient_for(&self.window);
+        dialog.set_transient_for(Some(&self.window));
 
         dialog.set_program_name(env!("CARGO_PKG_NAME"));
-        dialog.set_logo_icon_name(&APP_ID[..]);
-        dialog.set_comments(
-            &gettext(
-                "Build a table of contents from a media file\nor split a media file into chapters",
-            )[..],
-        );
-        dialog.set_copyright(&gettext("© 2017–2019 François Laignel")[..]);
-        dialog.set_translator_credits(&gettext("translator-credits")[..]);
+        dialog.set_logo_icon_name(Some(&APP_ID));
+        dialog.set_comments(Some(&gettext(
+            "Build a table of contents from a media file\nor split a media file into chapters",
+        )));
+        dialog.set_copyright(Some(&gettext("© 2017–2019 François Laignel")));
+        dialog.set_translator_credits(Some(&gettext("translator-credits")));
         dialog.set_license_type(gtk::License::MitX11);
-        dialog.set_version(env!("CARGO_PKG_VERSION"));
-        dialog.set_website(env!("CARGO_PKG_HOMEPAGE"));
-        dialog.set_website_label(&gettext("Learn more about media-toc")[..]);
+        dialog.set_version(Some(env!("CARGO_PKG_VERSION")));
+        dialog.set_website(Some(env!("CARGO_PKG_HOMEPAGE")));
+        dialog.set_website_label(Some(&gettext("Learn more about media-toc")));
 
         dialog.connect_response(|dialog, _| dialog.close());
         dialog.show();
@@ -194,14 +192,14 @@ impl MainController {
         if self.state != ControllerState::EOS {
             match pipeline.get_state() {
                 gst::State::Paused => {
-                    self.play_pause_btn.set_icon_name(PAUSE_ICON);
+                    self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
                     self.state = ControllerState::Playing;
                     self.audio_ctrl.switch_to_playing();
                     pipeline.play().unwrap();
                 }
                 gst::State::Playing => {
                     pipeline.pause().unwrap();
-                    self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
+                    self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
                     self.state = ControllerState::Paused;
                     self.audio_ctrl.switch_to_not_playing();
                 }
@@ -297,7 +295,7 @@ impl MainController {
     pub fn hold(&mut self) {
         self.switch_to_busy();
         self.audio_ctrl.switch_to_not_playing();
-        self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
+        self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
 
         if let Some(pipeline) = self.pipeline.as_mut() {
             pipeline.pause().unwrap();
@@ -309,7 +307,7 @@ impl MainController {
         callback: Box<dyn FnMut(&mut MainController, PlaybackPipeline)>,
     ) {
         self.audio_ctrl.switch_to_not_playing();
-        self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
+        self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
 
         if let Some(pipeline) = self.pipeline.as_mut() {
             pipeline.pause().unwrap();
@@ -442,7 +440,7 @@ impl MainController {
                         self.seek(pos_to_restore, gst::SeekFlags::ACCURATE);
                     }
                     _ => {
-                        self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
+                        self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
                         self.audio_ctrl.switch_to_not_playing();
                         self.state = ControllerState::EOS;
                     }
@@ -475,10 +473,10 @@ impl MainController {
 
     pub fn set_cursor_waiting(&self) {
         let gdk_window = self.window.get_window().unwrap();
-        gdk_window.set_cursor(&Cursor::new_for_display(
+        gdk_window.set_cursor(Some(&Cursor::new_for_display(
             &gdk_window.get_display(),
             CursorType::Watch,
-        ));
+        )));
     }
 
     pub fn reset_cursor(&self) {
@@ -520,7 +518,7 @@ impl MainController {
         self.split_ctrl.cleanup();
         self.streams_ctrl.cleanup();
         self.perspective_ctrl.cleanup();
-        self.header_bar.set_subtitle("");
+        self.header_bar.set_subtitle(Some(""));
 
         let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 

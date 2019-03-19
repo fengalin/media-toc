@@ -1,5 +1,5 @@
 use nom::{
-    alt, call, do_parse, eof, flat_map, named, opt, parse_to, tag, take_while1, types::CompleteStr,
+    alt, do_parse, eof, flat_map, named, opt, parse_to, tag, take_while1, types::CompleteStr,
 };
 
 use std::fmt;

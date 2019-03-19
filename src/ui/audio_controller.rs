@@ -101,8 +101,8 @@ pub struct AudioController {
 
     pub(super) update_conditions_async: Option<Rc<Fn()>>,
 
-    pub(super) tick_cb: Option<Rc<Fn(&gtk::Widget, &gdk::FrameClock)>>,
-    tick_cb_src: Option<u32>,
+    pub(super) tick_cb: Option<Rc<Fn(&gtk::DrawingArea, &gdk::FrameClock)>>,
+    tick_cb_id: Option<gtk::TickCallbackId>,
 }
 
 impl UIController for AudioController {
@@ -208,7 +208,7 @@ impl AudioController {
             update_conditions_async: None,
 
             tick_cb: None,
-            tick_cb_src: None,
+            tick_cb_id: None,
         }
     }
 
@@ -299,13 +299,13 @@ impl AudioController {
     }
 
     fn remove_tick_callback(&mut self) {
-        if let Some(tick_cb_src) = self.tick_cb_src.take() {
-            self.drawingarea.remove_tick_callback(tick_cb_src);
+        if let Some(tick_cb_id) = self.tick_cb_id.take() {
+            tick_cb_id.remove();
         }
     }
 
     fn register_tick_callback(&mut self) {
-        if self.tick_cb_src.is_some() {
+        if self.tick_cb_id.is_some() {
             return;
         }
         let tick_cb = Rc::clone(
@@ -313,18 +313,18 @@ impl AudioController {
                 .as_ref()
                 .expect("AudioController: no tick callback defined"),
         );
-        self.tick_cb_src = Some(self.drawingarea.add_tick_callback(move |da, frame_clock| {
+        self.tick_cb_id = Some(self.drawingarea.add_tick_callback(move |da, frame_clock| {
             tick_cb(da, frame_clock);
-            true
+            glib::Continue(true)
         }));
     }
 
     pub fn set_cursor(&self, cursor_type: CursorType) {
         let gdk_window = self.window.get_window().unwrap();
-        gdk_window.set_cursor(&Cursor::new_for_display(
+        gdk_window.set_cursor(Some(&Cursor::new_for_display(
             &gdk_window.get_display(),
             cursor_type,
-        ));
+        )));
     }
 
     pub fn reset_cursor(&self) {

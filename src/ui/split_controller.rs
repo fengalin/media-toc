@@ -50,7 +50,7 @@ macro_rules! update_list_with_format(
     ($self_:expr, $format:expr, $row:ident, $label:ident) => {
         match SplitterPipeline::check_requirements($format) {
             Ok(_) => if !$self_.is_usable {
-                $self_.split_list.select_row(&$self_.$row);
+                $self_.split_list.select_row(Some(&$self_.$row));
                 $self_.is_usable = true;
             },
             Err(err) => {

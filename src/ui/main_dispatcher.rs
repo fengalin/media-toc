@@ -23,10 +23,13 @@ impl MainDispatcher {
         main_ctrl_rc: &Rc<RefCell<MainController>>,
         is_gst_ok: bool,
     ) {
-        main_ctrl_rc.borrow_mut().window.set_application(gtk_app);
+        main_ctrl_rc
+            .borrow_mut()
+            .window
+            .set_application(Some(gtk_app));
 
         let app_menu = gio::Menu::new();
-        gtk_app.set_app_menu(&app_menu);
+        gtk_app.set_app_menu(Some(&app_menu));
 
         let app_section = gio::Menu::new();
         app_menu.append_section(None, &app_section);
@@ -37,7 +40,7 @@ impl MainDispatcher {
         let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
         about.connect_activate(move |_, _| main_ctrl_rc_cb.borrow().about());
         gtk_app.set_accels_for_action("app.about", &["<Ctrl>A"]);
-        app_section.append(&gettext("About")[..], "app.about");
+        app_section.append(Some(&gettext("About")), Some("app.about"));
 
         // Register Quit action
         let quit = gio::SimpleAction::new("quit", None);
@@ -45,7 +48,7 @@ impl MainDispatcher {
         let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
         quit.connect_activate(move |_, _| main_ctrl_rc_cb.borrow_mut().quit());
         gtk_app.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
-        app_section.append(&gettext("Quit")[..], "app.quit");
+        app_section.append(Some(&gettext("Quit")), Some("app.quit"));
 
         let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
         main_ctrl_rc
@@ -98,7 +101,7 @@ impl MainDispatcher {
                 }
             });
             gtk_app.set_accels_for_action("app.open", &["<Ctrl>O"]);
-            main_section.append(&gettext("Open media file")[..], "app.open");
+            main_section.append(Some(&gettext("Open media file")), Some("app.open"));
 
             main_ctrl.open_btn.set_sensitive(true);
 

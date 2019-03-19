@@ -377,7 +377,7 @@ impl ChapterTreeManager {
                         &[END_COL, END_STR_COL],
                         &[&position, &Timestamp::format(position, false)],
                     );
-                    let new_iter = self.store.insert_after(None, &selected_iter);
+                    let new_iter = self.store.insert_after(None, Some(&selected_iter));
                     (new_iter, current_end, current_end_str)
                 } else {
                     // attempting to add the new chapter at current position
@@ -406,7 +406,7 @@ impl ChapterTreeManager {
                             );
                         }
 
-                        let new_iter = self.store.insert_before(None, &iter);
+                        let new_iter = self.store.insert_before(None, Some(&iter));
                         (new_iter, new_chapter_end, iter_chapter.start_str())
                     }
                     None => {

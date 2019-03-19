@@ -42,7 +42,7 @@ pub fn run(is_gst_ok: bool, args: CommandLineArguments) {
     register_resource(include_bytes!("../../target/resources/icons.gresource"));
     register_resource(include_bytes!("../../target/resources/ui.gresource"));
 
-    let gtk_app = gtk::Application::new(&APP_ID[..], gio::ApplicationFlags::empty())
+    let gtk_app = gtk::Application::new(Some(&APP_ID), gio::ApplicationFlags::empty())
         .expect("Failed to initialize GtkApplication");
 
     gtk_app.connect_activate(move |gtk_app| {
