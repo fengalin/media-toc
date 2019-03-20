@@ -423,16 +423,15 @@ impl MediaProcessor for SplitControllerImpl {
         }
     }
 
-    fn report_progress(&mut self) -> f64 {
+    fn report_progress(&mut self) -> Option<f64> {
         let duration = self.src_info.as_ref().unwrap().read().unwrap().duration;
         if duration > 0 {
-            let position = match self.splitter_pipeline.as_mut() {
-                Some(splitter_pipeline) => splitter_pipeline.get_position(),
-                None => 0,
-            };
-            position as f64 / duration as f64
+            self.splitter_pipeline
+                .as_mut()
+                .map(|splitter_pipeline| splitter_pipeline.get_position())?
+                .map(|position| position as f64 / duration as f64)
         } else {
-            0f64
+            Some(0f64)
         }
     }
 }

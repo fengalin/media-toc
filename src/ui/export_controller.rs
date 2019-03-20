@@ -193,16 +193,15 @@ impl MediaProcessor for ExportControllerImpl {
         }
     }
 
-    fn report_progress(&mut self) -> f64 {
+    fn report_progress(&mut self) -> Option<f64> {
         let duration = self.src_info.as_ref().unwrap().read().unwrap().duration;
         if duration > 0 {
-            let position = match self.toc_setter_pipeline.as_mut() {
-                Some(toc_setter_pipeline) => toc_setter_pipeline.get_position(),
-                None => 0,
-            };
-            position as f64 / duration as f64
+            self.toc_setter_pipeline
+                .as_mut()
+                .map(|toc_setter_pipeline| toc_setter_pipeline.get_position())?
+                .map(|position| position as f64 / duration as f64)
         } else {
-            0f64
+            Some(0f64)
         }
     }
 }

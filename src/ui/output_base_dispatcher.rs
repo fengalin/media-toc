@@ -82,8 +82,9 @@ where
             let mut main_ctrl = main_ctrl_rc_clone.borrow_mut();
             let ctrl = Impl::controller(&mut main_ctrl);
 
-            let progress = ctrl.report_progress();
-            ctrl.progress_bar.set_fraction(progress);
+            if let Some(progress) = ctrl.report_progress() {
+                ctrl.progress_bar.set_fraction(progress);
+            }
 
             glib::Continue(true)
         });

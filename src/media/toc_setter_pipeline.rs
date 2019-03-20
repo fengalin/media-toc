@@ -79,9 +79,14 @@ impl TocSetterPipeline {
             .map_err(|_| gettext("Could not set media in Playing mode"))
     }
 
-    pub fn get_position(&mut self) -> u64 {
+    pub fn get_position(&mut self) -> Option<u64> {
         self.pipeline.query(&mut self.position_query);
-        self.position_query.get_result().get_value() as u64
+        let position = self.position_query.get_result().get_value();
+        if position >= 0 {
+            Some(position as u64)
+        } else {
+            None
+        }
     }
 
     fn build_pipeline(

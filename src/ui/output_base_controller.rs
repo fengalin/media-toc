@@ -31,7 +31,7 @@ pub trait MediaProcessor {
     fn init(&mut self) -> ProcessingType;
     fn start(&mut self) -> Result<ProcessingStatus, String>;
     fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingStatus, String>;
-    fn report_progress(&mut self) -> f64;
+    fn report_progress(&mut self) -> Option<f64>;
 }
 
 pub trait OutputControllerImpl {
@@ -173,7 +173,7 @@ where
         self.impl_.handle_media_event(event)
     }
 
-    fn report_progress(&mut self) -> f64 {
+    fn report_progress(&mut self) -> Option<f64> {
         self.impl_.report_progress()
     }
 }
