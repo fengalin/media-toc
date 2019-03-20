@@ -14,6 +14,20 @@ pub fn get_default_chapter_title() -> String {
 }
 
 #[macro_export]
+macro_rules! get_album (
+    ($tags:expr) => (
+        $tags.get_index::<gst::tags::Album>(0)
+            .map(|value| value.get().unwrap())
+            .or_else(|| {
+                $tags
+                    .get_index::<gst::tags::AlbumSortname>(0)
+                    .map(|value| value.get().unwrap())
+            })
+            .map(|value| value.to_string())
+    )
+);
+
+#[macro_export]
 macro_rules! get_artist (
     ($tags:expr) => (
         $tags.get_index::<gst::tags::Artist>(0)
@@ -41,7 +55,13 @@ macro_rules! get_artist (
 macro_rules! get_title (
     ($tags:expr) => (
         $tags.get_index::<gst::tags::Title>(0)
-            .map(|value| value.get().unwrap().to_string())
+            .map(|value| value.get().unwrap())
+            .or_else(|| {
+                $tags
+                    .get_index::<gst::tags::TitleSortname>(0)
+                    .map(|value| value.get().unwrap())
+            })
+            .map(|value| value.to_string())
     )
 );
 

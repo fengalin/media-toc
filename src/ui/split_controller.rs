@@ -11,7 +11,7 @@ use std::{
 };
 
 use crate::{
-    get_artist, get_title,
+    get_album, get_artist, get_title,
     media::{MediaEvent, PlaybackPipeline, SplitterPipeline},
     metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor},
 };
@@ -329,6 +329,16 @@ impl SplitControllerImpl {
                     .or_else(|| src_info.get_artist());
                 if let Some(artist) = artist {
                     tags.add::<gst::tags::Artist>(&artist.as_str(), gst::TagMergeMode::ReplaceAll);
+                }
+            }
+
+            if tags.get::<gst::tags::Album>().is_none() {
+                let album = chapter
+                    .get_tags()
+                    .and_then(|tags| get_album!(tags))
+                    .or_else(|| src_info.get_title());
+                if let Some(album) = album {
+                    tags.add::<gst::tags::Album>(&album.as_str(), gst::TagMergeMode::ReplaceAll);
                 }
             }
 
