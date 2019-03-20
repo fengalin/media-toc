@@ -13,6 +13,38 @@ pub fn get_default_chapter_title() -> String {
     gettext("untitled")
 }
 
+#[macro_export]
+macro_rules! get_artist (
+    ($tags:expr) => (
+        $tags.get_index::<gst::tags::Artist>(0)
+            .map(|value| value.get().unwrap())
+            .or_else(|| {
+                $tags
+                    .get_index::<gst::tags::AlbumArtist>(0)
+                    .map(|value| value.get().unwrap())
+            })
+            .or_else(|| {
+                $tags
+                    .get_index::<gst::tags::ArtistSortname>(0)
+                    .map(|value| value.get().unwrap())
+            })
+            .or_else(|| {
+                $tags
+                    .get_index::<gst::tags::AlbumArtistSortname>(0)
+                    .map(|value| value.get().unwrap())
+            })
+            .map(|value| value.to_string())
+    )
+);
+
+#[macro_export]
+macro_rules! get_title (
+    ($tags:expr) => (
+        $tags.get_index::<gst::tags::Title>(0)
+            .map(|value| value.get().unwrap().to_string())
+    )
+);
+
 #[derive(Clone)]
 pub struct Stream {
     pub id: Arc<str>,
@@ -242,35 +274,60 @@ impl MediaInfo {
         self.content.add_stream_type(gst_stream.get_stream_type());
     }
 
+    pub fn add_tags(&mut self, tags: &gst::TagList) {
+        self.tags = self.tags.merge(tags, gst::TagMergeMode::Keep);
+    }
+
+    pub fn fix_tags(&mut self) {
+        let title = get_title!(self.tags).or_else(|| {
+            let tags = if let Some(selected_audio) = self.streams.selected_audio() {
+                Some(&selected_audio.tags)
+            } else if let Some(selected_video) = self.streams.selected_video() {
+                Some(&selected_video.tags)
+            } else {
+                None
+            }?;
+
+            match tags {
+                Some(tags) => get_title!(tags),
+                None => None,
+            }
+        });
+        if let Some(title) = title {
+            let tags = self.tags.get_mut().unwrap();
+            tags.add::<gst::tags::Title>(&title.as_str(), gst::TagMergeMode::ReplaceAll);
+        }
+
+        let artist = get_artist!(self.tags).or_else(|| {
+            let tags = if let Some(selected_audio) = self.streams.selected_audio() {
+                Some(&selected_audio.tags)
+            } else if let Some(selected_video) = self.streams.selected_video() {
+                Some(&selected_video.tags)
+            } else {
+                None
+            }?;
+
+            match tags {
+                Some(tags) => get_artist!(tags),
+                None => None,
+            }
+        });
+        if let Some(artist) = artist {
+            let tags = self.tags.get_mut().unwrap();
+            tags.add::<gst::tags::Artist>(&artist.as_str(), gst::TagMergeMode::ReplaceAll);
+        }
+    }
+
     pub fn get_file_name(&self) -> &str {
         &self.file_name
     }
 
-    pub fn get_artist(&self) -> Option<&str> {
-        self.tags
-            .get_index::<gst::tags::Artist>(0)
-            .map(|value| value.get().unwrap())
-            .or_else(|| {
-                self.tags
-                    .get_index::<gst::tags::AlbumArtist>(0)
-                    .map(|value| value.get().unwrap())
-            })
-            .or_else(|| {
-                self.tags
-                    .get_index::<gst::tags::ArtistSortname>(0)
-                    .map(|value| value.get().unwrap())
-            })
-            .or_else(|| {
-                self.tags
-                    .get_index::<gst::tags::AlbumArtistSortname>(0)
-                    .map(|value| value.get().unwrap())
-            })
+    pub fn get_artist(&self) -> Option<String> {
+        get_artist!(self.tags)
     }
 
-    pub fn get_title(&self) -> Option<&str> {
-        self.tags
-            .get_index::<gst::tags::Title>(0)
-            .map(|value| value.get().unwrap())
+    pub fn get_title(&self) -> Option<String> {
+        get_title!(self.tags)
     }
 
     pub fn get_image(&self, index: u32) -> Option<gst::Sample> {

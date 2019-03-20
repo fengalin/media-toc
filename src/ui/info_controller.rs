@@ -107,14 +107,8 @@ impl UIController for InfoController {
                 }
             }
 
-            self.title_lbl
-                .set_label(info.get_title().unwrap_or(&EMPTY_REPLACEMENT));
-            self.artist_lbl
-                .set_label(info.get_artist().unwrap_or(&EMPTY_REPLACEMENT));
             self.container_lbl
                 .set_label(info.get_container().unwrap_or(&EMPTY_REPLACEMENT));
-
-            self.streams_changed(&info);
 
             let extern_toc = toc_candidates
                 .next()
@@ -202,7 +196,14 @@ impl UIController for InfoController {
         self.duration = 0;
     }
 
-    fn streams_changed(&mut self, info: &MediaInfo) {
+    fn streams_changed(&mut self, info: &mut MediaInfo) {
+        info.fix_tags();
+
+        self.title_lbl
+            .set_label(&info.get_title().unwrap_or(EMPTY_REPLACEMENT.to_string()));
+        self.artist_lbl
+            .set_label(&info.get_artist().unwrap_or(EMPTY_REPLACEMENT.to_string()));
+
         self.audio_codec_lbl
             .set_label(info.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));
         self.video_codec_lbl

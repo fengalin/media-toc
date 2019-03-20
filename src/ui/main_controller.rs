@@ -284,12 +284,12 @@ impl MainController {
     }
 
     pub fn streams_selected(&mut self) {
-        let info = self.pipeline.as_ref().unwrap().info.read().unwrap();
-        self.audio_ctrl.streams_changed(&info);
-        self.info_ctrl.streams_changed(&info);
-        self.perspective_ctrl.streams_changed(&info);
-        self.split_ctrl.streams_changed(&info);
-        self.video_ctrl.streams_changed(&info);
+        let mut info = self.pipeline.as_ref().unwrap().info.write().unwrap();
+        self.audio_ctrl.streams_changed(&mut info);
+        self.info_ctrl.streams_changed(&mut info);
+        self.perspective_ctrl.streams_changed(&mut info);
+        self.split_ctrl.streams_changed(&mut info);
+        self.video_ctrl.streams_changed(&mut info);
     }
 
     pub fn hold(&mut self) {
@@ -390,18 +390,22 @@ impl MainController {
             }
             MediaEvent::InitDone => {
                 debug!("received `InitDone`");
-                let pipeline = self.pipeline.as_ref().unwrap();
+                {
+                    let pipeline = self.pipeline.as_ref().unwrap();
 
-                self.header_bar
-                    .set_subtitle(Some(pipeline.info.read().unwrap().file_name.as_str()));
+                    self.header_bar
+                        .set_subtitle(Some(pipeline.info.read().unwrap().file_name.as_str()));
 
-                self.audio_ctrl.new_media(&pipeline);
-                self.export_ctrl.new_media(&pipeline);
-                self.info_ctrl.new_media(&pipeline);
-                self.perspective_ctrl.new_media(&pipeline);
-                self.split_ctrl.new_media(&pipeline);
-                self.streams_ctrl.new_media(&pipeline);
-                self.video_ctrl.new_media(&pipeline);
+                    self.audio_ctrl.new_media(&pipeline);
+                    self.export_ctrl.new_media(&pipeline);
+                    self.info_ctrl.new_media(&pipeline);
+                    self.perspective_ctrl.new_media(&pipeline);
+                    self.split_ctrl.new_media(&pipeline);
+                    self.streams_ctrl.new_media(&pipeline);
+                    self.video_ctrl.new_media(&pipeline);
+                }
+
+                self.streams_selected();
 
                 if let Some(message) = self.check_missing_plugins() {
                     self.show_error(message);

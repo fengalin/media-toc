@@ -367,7 +367,7 @@ dependencies = [
 [[package]]
 name = "gstreamer"
 version = "0.14.0"
-source = "git+https://gitlab.freedesktop.org/gstreamer/gstreamer-rs#4ce27c130b764b0d8c510f649a07af0a445a30ac"
+source = "git+https://gitlab.freedesktop.org/gstreamer/gstreamer-rs#9a01bd6202e4456a41f64ed787718ee92ca3bf74"
 dependencies = [
  "bitflags 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "cfg-if 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -384,7 +384,7 @@ dependencies = [
 [[package]]
 name = "gstreamer-audio"
 version = "0.14.0"
-source = "git+https://gitlab.freedesktop.org/gstreamer/gstreamer-rs#4ce27c130b764b0d8c510f649a07af0a445a30ac"
+source = "git+https://gitlab.freedesktop.org/gstreamer/gstreamer-rs#9a01bd6202e4456a41f64ed787718ee92ca3bf74"
 dependencies = [
  "array-init 0.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "bitflags 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",

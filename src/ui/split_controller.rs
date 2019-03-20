@@ -11,6 +11,7 @@ use std::{
 };
 
 use crate::{
+    get_artist, get_title,
     media::{MediaEvent, PlaybackPipeline, SplitterPipeline},
     metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor},
 };
@@ -98,12 +99,6 @@ impl OutputControllerImpl for SplitControllerImpl {
 impl UIController for SplitControllerImpl {
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         let info_arc = Arc::clone(&pipeline.info);
-
-        {
-            let info = info_arc.read().unwrap();
-            self.streams_changed(&info);
-        }
-
         self.src_info = Some(info_arc);
     }
 
@@ -111,7 +106,7 @@ impl UIController for SplitControllerImpl {
         self.src_info = None;
     }
 
-    fn streams_changed(&mut self, info: &MediaInfo) {
+    fn streams_changed(&mut self, info: &mut MediaInfo) {
         self.selected_audio = info
             .streams
             .selected_audio()
@@ -290,47 +285,52 @@ impl SplitControllerImpl {
         let mut tags = gst::TagList::new();
         {
             let tags = tags.get_mut().unwrap();
-            let chapter_count = {
-                let src_info = self.src_info.as_ref().unwrap().read().unwrap();
+            let src_info = self.src_info.as_ref().unwrap().read().unwrap();
 
-                // Select tags suitable for a track
-                for (tag_name, tag_iter) in src_info.tags.iter_generic() {
-                    if TAGS_TO_SKIP
-                        .iter()
-                        .find(|&&tag_to_skip| tag_to_skip == tag_name)
-                        .is_none()
-                    {
-                        // can add tag
-                        for tag_value in tag_iter {
-                            if tags
-                                .add_generic(tag_name, tag_value, gst::TagMergeMode::Append)
-                                .is_err()
-                            {
-                                warn!(
-                                    "{}",
-                                    gettext("couldn't add tag {tag_name}").replacen(
-                                        "{tag_name}",
-                                        tag_name,
-                                        1
-                                    )
-                                );
-                            }
+            // Select tags suitable for a track
+            for (tag_name, tag_iter) in src_info.tags.iter_generic() {
+                if TAGS_TO_SKIP
+                    .iter()
+                    .find(|&&tag_to_skip| tag_to_skip == tag_name)
+                    .is_none()
+                {
+                    // can add tag
+                    for tag_value in tag_iter {
+                        if tags
+                            .add_generic(tag_name, tag_value, gst::TagMergeMode::Append)
+                            .is_err()
+                        {
+                            warn!(
+                                "{}",
+                                gettext("couldn't add tag {tag_name}").replacen(
+                                    "{tag_name}",
+                                    tag_name,
+                                    1
+                                )
+                            );
                         }
                     }
                 }
+            }
 
-                src_info.chapter_count.unwrap_or(1)
-            };
+            let chapter_count = src_info.chapter_count.unwrap_or(1);
 
             // Add track specific tags
             let title = chapter
                 .get_tags()
-                .and_then(|tags| {
-                    tags.get::<gst::tags::Title>()
-                        .map(|tag| tag.get().unwrap().to_owned())
-                })
+                .and_then(|tags| get_title!(tags))
                 .unwrap_or_else(get_default_chapter_title);
             tags.add::<gst::tags::Title>(&title.as_str(), gst::TagMergeMode::ReplaceAll);
+
+            if tags.get::<gst::tags::Artist>().is_none() {
+                let artist = chapter
+                    .get_tags()
+                    .and_then(|tags| get_artist!(tags))
+                    .or_else(|| src_info.get_artist());
+                if let Some(artist) = artist {
+                    tags.add::<gst::tags::Artist>(&artist.as_str(), gst::TagMergeMode::ReplaceAll);
+                }
+            }
 
             let (start, end) = chapter.get_start_stop_times().unwrap();
 

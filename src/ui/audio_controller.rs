@@ -109,7 +109,6 @@ impl UIController for AudioController {
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         let is_audio_selected = {
             let info = pipeline.info.read().unwrap();
-            self.streams_changed(&info);
             info.streams.is_audio_selected()
         };
 
@@ -151,7 +150,7 @@ impl UIController for AudioController {
         self.redraw();
     }
 
-    fn streams_changed(&mut self, info: &MediaInfo) {
+    fn streams_changed(&mut self, info: &mut MediaInfo) {
         if info.streams.is_audio_selected() {
             debug!("streams_changed audio selected");
             self.zoom_in_btn.set_sensitive(true);

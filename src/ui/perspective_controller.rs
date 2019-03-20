@@ -28,17 +28,15 @@ impl UIController for PerspectiveController {
         self.cleanup();
     }
 
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+    fn new_media(&mut self, _pipeline: &PlaybackPipeline) {
         self.menu_btn.set_sensitive(true);
-        let info = pipeline.info.read().unwrap();
-        self.streams_changed(&info);
     }
 
     fn cleanup(&mut self) {
         self.menu_btn.set_sensitive(false);
     }
 
-    fn streams_changed(&mut self, info: &MediaInfo) {
+    fn streams_changed(&mut self, info: &mut MediaInfo) {
         self.split_btn
             .set_sensitive(info.streams.is_audio_selected());
     }

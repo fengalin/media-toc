@@ -5,7 +5,7 @@ use gtk;
 use gtk::prelude::*;
 use log::debug;
 
-use crate::{application::CONFIG, media::PlaybackPipeline, metadata::MediaInfo};
+use crate::{application::CONFIG, metadata::MediaInfo};
 
 use super::UIController;
 
@@ -68,11 +68,6 @@ impl UIController for VideoController {
         self.cleanup();
     }
 
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
-        let info = pipeline.info.read().unwrap();
-        self.streams_changed(&info);
-    }
-
     fn cleanup(&mut self) {
         if let Some(video_widget) = self.get_video_widget() {
             if self.cleaner_id.is_none() {
@@ -94,7 +89,7 @@ impl UIController for VideoController {
         }
     }
 
-    fn streams_changed(&mut self, info: &MediaInfo) {
+    fn streams_changed(&mut self, info: &mut MediaInfo) {
         if self.video_output.is_some() {
             if let Some(cleaner_id) = self.cleaner_id.take() {
                 self.container.get_children()[0].disconnect(cleaner_id);

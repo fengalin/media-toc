@@ -164,7 +164,7 @@ impl MediaProcessor for ExportControllerImpl {
     fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingStatus, String> {
         match event {
             MediaEvent::InitDone => {
-                let mut toc_setter_pipeline = self.toc_setter_pipeline.take().unwrap();
+                let toc_setter_pipeline = self.toc_setter_pipeline.as_mut().unwrap();
 
                 let exporter = MatroskaTocFormat::new();
                 {
@@ -177,7 +177,6 @@ impl MediaProcessor for ExportControllerImpl {
                     .export()
                     .map_err(|err| gettext("Failed to export media. {}").replacen("{}", &err, 1))?;
 
-                self.toc_setter_pipeline = Some(toc_setter_pipeline);
                 Ok(ProcessingStatus::InProgress)
             }
             MediaEvent::Eos => {

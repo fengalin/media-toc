@@ -590,11 +590,13 @@ impl PlaybackPipeline {
                 gst::MessageView::Tag(msg_tag) => match pipeline_state {
                     PipelineState::Playable(_) => (),
                     _ => {
-                        let tags = &mut info_arc_mtx
-                            .write()
-                            .expect("Failed to lock media info while receiving tags")
-                            .tags;
-                        *tags = tags.merge(&msg_tag.get_tags(), gst::TagMergeMode::Append);
+                        let tags = msg_tag.get_tags();
+                        if tags.get_scope() == gst::TagScope::Global {
+                            info_arc_mtx
+                                .write()
+                                .expect("Failed to lock media info while receiving tags")
+                                .add_tags(&tags);
+                        }
                     }
                 },
                 gst::MessageView::Toc(msg_toc) => {
@@ -602,11 +604,13 @@ impl PlaybackPipeline {
                         PipelineState::Playable(_) => (),
                         _ => {
                             // FIXME: use updated
-                            let (toc, _updated) = msg_toc.get_toc();
-                            if toc.get_scope() == gst::TocScope::Global {
-                                info_arc_mtx.write().unwrap().toc = Some(toc);
-                            } else {
-                                warn!("skipping toc with scope: {:?}", toc.get_scope());
+                            if info_arc_mtx.write().unwrap().toc.is_none() {
+                                let (toc, _updated) = msg_toc.get_toc();
+                                if toc.get_scope() == gst::TocScope::Global {
+                                    info_arc_mtx.write().unwrap().toc = Some(toc);
+                                } else {
+                                    warn!("skipping toc with scope: {:?}", toc.get_scope());
+                                }
                             }
                         }
                     }
