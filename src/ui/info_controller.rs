@@ -197,10 +197,14 @@ impl UIController for InfoController {
     }
 
     fn streams_changed(&mut self, info: &MediaInfo) {
-        self.title_lbl
-            .set_label(&info.get_title().unwrap_or(EMPTY_REPLACEMENT.to_string()));
-        self.artist_lbl
-            .set_label(&info.get_artist().unwrap_or(EMPTY_REPLACEMENT.to_string()));
+        match info.get_artist() {
+            Some(artist) => self.artist_lbl.set_label(&artist),
+            None => self.artist_lbl.set_label(&EMPTY_REPLACEMENT),
+        }
+        match info.get_title() {
+            Some(title) => self.title_lbl.set_label(&title),
+            None => self.title_lbl.set_label(&EMPTY_REPLACEMENT),
+        }
 
         self.audio_codec_lbl
             .set_label(info.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));

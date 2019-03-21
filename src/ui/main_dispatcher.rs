@@ -174,7 +174,7 @@ impl MainDispatcher {
             file_dlg.set_current_folder(last_path);
         }
 
-        if file_dlg.run() == gtk::ResponseType::Accept.into() {
+        if file_dlg.run() == gtk::ResponseType::Accept {
             main_ctrl_rc
                 .borrow_mut()
                 .open_media(&file_dlg.get_filename().unwrap());
