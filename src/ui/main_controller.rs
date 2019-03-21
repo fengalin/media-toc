@@ -234,7 +234,13 @@ impl MainController {
                 }
             }
             ControllerState::TwoStepsSeek(target) => {
-                debug_assert!(position == target);
+                // seeked position and target might be different if the user
+                // seeks repeatedly and rapidly: we can receive a new seek while still
+                // being in the `TwoStepsSeek` step from previous seek.
+                // Currently, I think it is better to favor completing the in-progress
+                // `TwoStepsSeek` (which purpose is to center the cursor on the waveform)
+                // than reaching for the latest seeked position
+                seek_pos = target;
                 ControllerState::Seeking
             }
             ControllerState::EOS => {
