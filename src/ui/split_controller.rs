@@ -106,7 +106,7 @@ impl UIController for SplitControllerImpl {
         self.src_info = None;
     }
 
-    fn streams_changed(&mut self, info: &mut MediaInfo) {
+    fn streams_changed(&mut self, info: &MediaInfo) {
         self.selected_audio = info
             .streams
             .selected_audio()

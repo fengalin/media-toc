@@ -298,27 +298,34 @@ impl MediaInfo {
         self.tags = self.tags.merge(tags, gst::TagMergeMode::Keep);
     }
 
-    pub fn fix_tags(&mut self) {
-        let title = get_title!(self.tags).or_else(|| {
-            let tags = if let Some(selected_audio) = self.streams.selected_audio() {
-                Some(&selected_audio.tags)
-            } else if let Some(selected_video) = self.streams.selected_video() {
-                Some(&selected_video.tags)
-            } else {
-                None
-            }?;
+    pub fn get_fixed_tags(&self) -> gst::TagList {
+        let mut tags = gst::TagList::new();
+        {
+            let tags = tags.get_mut().unwrap();
+            tags.insert(&self.tags, gst::TagMergeMode::ReplaceAll);
+            tags.add::<gst::tags::ApplicationName>(&"media-toc", gst::TagMergeMode::ReplaceAll);
 
-            match tags {
-                Some(tags) => get_title!(tags),
-                None => None,
+            // Attempt to fill missing global tags with current stream tags
+            if tags.get::<gst::tags::Artist>().is_none() {
+                if let Some(artist) = self.get_artist() {
+                    tags.add::<gst::tags::Artist>(&artist.as_str(), gst::TagMergeMode::ReplaceAll);
+                }
             }
-        });
-        if let Some(title) = title {
-            let tags = self.tags.get_mut().unwrap();
-            tags.add::<gst::tags::Title>(&title.as_str(), gst::TagMergeMode::ReplaceAll);
+            if tags.get::<gst::tags::Title>().is_none() {
+                if let Some(title) = self.get_title() {
+                    tags.add::<gst::tags::Title>(&title.as_str(), gst::TagMergeMode::ReplaceAll);
+                }
+            }
         }
+        tags
+    }
 
-        let artist = get_artist!(self.tags).or_else(|| {
+    pub fn get_file_name(&self) -> &str {
+        &self.file_name
+    }
+
+    pub fn get_artist(&self) -> Option<String> {
+        get_artist!(self.tags).or_else(|| {
             let tags = if let Some(selected_audio) = self.streams.selected_audio() {
                 Some(&selected_audio.tags)
             } else if let Some(selected_video) = self.streams.selected_video() {
@@ -331,23 +338,24 @@ impl MediaInfo {
                 Some(tags) => get_artist!(tags),
                 None => None,
             }
-        });
-        if let Some(artist) = artist {
-            let tags = self.tags.get_mut().unwrap();
-            tags.add::<gst::tags::Artist>(&artist.as_str(), gst::TagMergeMode::ReplaceAll);
-        }
-    }
-
-    pub fn get_file_name(&self) -> &str {
-        &self.file_name
-    }
-
-    pub fn get_artist(&self) -> Option<String> {
-        get_artist!(self.tags)
+        })
     }
 
     pub fn get_title(&self) -> Option<String> {
-        get_title!(self.tags)
+        get_title!(self.tags).or_else(|| {
+            let tags = if let Some(selected_audio) = self.streams.selected_audio() {
+                Some(&selected_audio.tags)
+            } else if let Some(selected_video) = self.streams.selected_video() {
+                Some(&selected_video.tags)
+            } else {
+                None
+            }?;
+
+            match tags {
+                Some(tags) => get_title!(tags),
+                None => None,
+            }
+        })
     }
 
     pub fn get_image(&self, index: u32) -> Option<gst::Sample> {

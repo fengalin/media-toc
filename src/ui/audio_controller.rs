@@ -150,7 +150,7 @@ impl UIController for AudioController {
         self.redraw();
     }
 
-    fn streams_changed(&mut self, info: &mut MediaInfo) {
+    fn streams_changed(&mut self, info: &MediaInfo) {
         if info.streams.is_audio_selected() {
             debug!("streams_changed audio selected");
             self.zoom_in_btn.set_sensitive(true);

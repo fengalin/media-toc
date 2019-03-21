@@ -89,7 +89,7 @@ impl UIController for VideoController {
         }
     }
 
-    fn streams_changed(&mut self, info: &mut MediaInfo) {
+    fn streams_changed(&mut self, info: &MediaInfo) {
         if self.video_output.is_some() {
             if let Some(cleaner_id) = self.cleaner_id.take() {
                 self.container.get_children()[0].disconnect(cleaner_id);

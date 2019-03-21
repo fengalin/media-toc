@@ -32,7 +32,7 @@ impl Exporter for MatroskaTocFormat {
                 .dynamic_cast::<gst::TagSetter>()
                 .expect("MatroskaTocFormat::export muxer is not a TagSetter");
 
-            tag_setter.merge_tags(&info.tags, gst::TagMergeMode::Replace)
+            tag_setter.merge_tags(&info.get_fixed_tags(), gst::TagMergeMode::Replace)
         }
 
         if let Some(ref toc) = info.toc {

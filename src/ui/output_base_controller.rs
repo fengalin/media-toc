@@ -152,7 +152,7 @@ where
         self.impl_.cleanup();
     }
 
-    fn streams_changed(&mut self, info: &mut MediaInfo) {
+    fn streams_changed(&mut self, info: &MediaInfo) {
         self.impl_.streams_changed(info);
     }
 }

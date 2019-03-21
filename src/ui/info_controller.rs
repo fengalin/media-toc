@@ -196,9 +196,7 @@ impl UIController for InfoController {
         self.duration = 0;
     }
 
-    fn streams_changed(&mut self, info: &mut MediaInfo) {
-        info.fix_tags();
-
+    fn streams_changed(&mut self, info: &MediaInfo) {
         self.title_lbl
             .set_label(&info.get_title().unwrap_or(EMPTY_REPLACEMENT.to_string()));
         self.artist_lbl

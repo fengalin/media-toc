@@ -284,12 +284,13 @@ impl MainController {
     }
 
     pub fn streams_selected(&mut self) {
-        let mut info = self.pipeline.as_ref().unwrap().info.write().unwrap();
-        self.audio_ctrl.streams_changed(&mut info);
-        self.info_ctrl.streams_changed(&mut info);
-        self.perspective_ctrl.streams_changed(&mut info);
-        self.split_ctrl.streams_changed(&mut info);
-        self.video_ctrl.streams_changed(&mut info);
+        let info = self.pipeline.as_ref().unwrap().info.read().unwrap();
+        self.audio_ctrl.streams_changed(&info);
+        self.export_ctrl.streams_changed(&info);
+        self.info_ctrl.streams_changed(&info);
+        self.perspective_ctrl.streams_changed(&info);
+        self.split_ctrl.streams_changed(&info);
+        self.video_ctrl.streams_changed(&info);
     }
 
     pub fn hold(&mut self) {

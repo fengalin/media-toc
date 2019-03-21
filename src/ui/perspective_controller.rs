@@ -36,7 +36,7 @@ impl UIController for PerspectiveController {
         self.menu_btn.set_sensitive(false);
     }
 
-    fn streams_changed(&mut self, info: &mut MediaInfo) {
+    fn streams_changed(&mut self, info: &MediaInfo) {
         self.split_btn
             .set_sensitive(info.streams.is_audio_selected());
     }

@@ -73,7 +73,7 @@ pub trait UIController {
     fn setup(&mut self) {}
     fn new_media(&mut self, _pipeline: &super::media::PlaybackPipeline) {}
     fn cleanup(&mut self);
-    fn streams_changed(&mut self, _info: &mut super::metadata::MediaInfo) {}
+    fn streams_changed(&mut self, _info: &super::metadata::MediaInfo) {}
 }
 
 pub trait UIDispatcher {
