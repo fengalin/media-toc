@@ -41,7 +41,30 @@ where
         main_ctrl.reset_cursor();
     }
 
-    fn register_media_event_handler(
+    fn handle_processing_res(
+        main_ctrl: &mut MainController,
+        res: Result<ProcessingStatus, String>,
+    ) {
+        let expect_more = match res {
+            Ok(ProcessingStatus::Completed(msg)) => {
+                main_ctrl.show_info(msg);
+                false
+            }
+            Ok(ProcessingStatus::InProgress) => true,
+            Err(err) => {
+                error!("{}", err);
+                main_ctrl.show_error(err);
+                false
+            }
+        };
+
+        if !expect_more {
+            Self::restore_pipeline(main_ctrl);
+            Self::switch_to_available(main_ctrl);
+        }
+    }
+
+    fn attach_media_event_async_handler(
         main_ctrl_rc: &Rc<RefCell<MainController>>,
         receiver: glib::Receiver<MediaEvent>,
     ) {
@@ -49,27 +72,10 @@ where
 
         receiver.attach(None, move |event| {
             let mut main_ctrl = main_ctrl_rc_clone.borrow_mut();
-            let ctrl = Impl::controller(&mut main_ctrl);
-
-            let is_in_progress = match ctrl.handle_media_event(event) {
-                Ok(ProcessingStatus::Completed(msg)) => {
-                    main_ctrl.show_info(msg);
-                    false
-                }
-                Ok(ProcessingStatus::InProgress) => true,
-                Err(err) => {
-                    main_ctrl.show_error(err);
-                    false
-                }
-            };
-
-            if is_in_progress {
-                glib::Continue(true)
-            } else {
-                Self::restore_pipeline(&mut main_ctrl);
-                Self::switch_to_available(&mut main_ctrl);
-                glib::Continue(false)
-            }
+            let res = Impl::controller(&mut main_ctrl).handle_media_event(event);
+            let keep_going = res == Ok(ProcessingStatus::InProgress);
+            Self::handle_processing_res(&mut main_ctrl, res);
+            glib::Continue(keep_going)
         });
     }
 
@@ -123,28 +129,13 @@ where
                         match Impl::controller(main_ctrl).init() {
                             ProcessingType::Sync => (),
                             ProcessingType::Async(receiver) => {
-                                Self::register_media_event_handler(&main_ctrl_rc_fn, receiver);
+                                Self::attach_media_event_async_handler(&main_ctrl_rc_fn, receiver);
                                 Self::register_progress_timer(main_ctrl, &main_ctrl_rc_fn);
                             }
                         }
 
-                        let is_in_progress = match Impl::controller(main_ctrl).start() {
-                            Ok(ProcessingStatus::Completed(msg)) => {
-                                main_ctrl.show_info(msg);
-                                false
-                            }
-                            Ok(ProcessingStatus::InProgress) => true,
-                            Err(err) => {
-                                error!("{}", err);
-                                main_ctrl.show_error(err);
-                                false
-                            }
-                        };
-
-                        if !is_in_progress {
-                            Self::restore_pipeline(main_ctrl);
-                            Self::switch_to_available(main_ctrl);
-                        }
+                        let res = Impl::controller(main_ctrl).start();
+                        Self::handle_processing_res(main_ctrl, res);
                     },
                 ));
             });

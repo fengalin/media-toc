@@ -22,6 +22,7 @@ pub enum ProcessingType {
     Sync,
 }
 
+#[derive(PartialEq)]
 pub enum ProcessingStatus {
     Completed(String),
     InProgress,

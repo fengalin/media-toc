@@ -61,8 +61,8 @@ pub struct MainController {
     pub(super) state: ControllerState,
 
     pub(super) select_media_fn: Option<Rc<Fn()>>,
-    pub(super) media_event_handler: Option<Rc<Fn(MediaEvent) -> glib::Continue>>,
-    media_event_handler_src: Option<glib::SourceId>,
+    pub(super) media_event_aync_handler: Option<Rc<Fn(MediaEvent) -> glib::Continue>>,
+    media_event_aync_handler_src: Option<glib::SourceId>,
 }
 
 impl MainController {
@@ -94,8 +94,8 @@ impl MainController {
             state: ControllerState::Stopped,
 
             select_media_fn: None,
-            media_event_handler: None,
-            media_event_handler_src: None,
+            media_event_aync_handler: None,
+            media_event_aync_handler_src: None,
         }))
     }
 
@@ -149,7 +149,7 @@ impl MainController {
         if let Some(pipeline) = self.pipeline.take() {
             pipeline.stop();
         }
-        self.remove_media_event_handler();
+        self.remove_media_event_aync_handler();
 
         {
             let size = self.window.get_size();
@@ -366,19 +366,19 @@ impl MainController {
     }
 
     #[allow(clippy::redundant_closure)]
-    fn register_media_event_handler(&mut self, receiver: glib::Receiver<MediaEvent>) {
-        let media_event_handler = Rc::clone(
-            self.media_event_handler
+    fn attach_media_event_async_handler(&mut self, receiver: glib::Receiver<MediaEvent>) {
+        let media_event_aync_handler = Rc::clone(
+            self.media_event_aync_handler
                 .as_ref()
-                .expect("MainController: media_event_handler is not defined"),
+                .expect("MainController: media_event_async handler is not defined"),
         );
 
-        self.media_event_handler_src =
-            Some(receiver.attach(None, move |event| media_event_handler(event)));
+        self.media_event_aync_handler_src =
+            Some(receiver.attach(None, move |event| media_event_aync_handler(event)));
     }
 
-    fn remove_media_event_handler(&mut self) {
-        if let Some(source_id) = self.media_event_handler_src.take() {
+    fn remove_media_event_aync_handler(&mut self) {
+        if let Some(source_id) = self.media_event_aync_handler_src.take() {
             glib::source_remove(source_id);
         }
     }
@@ -475,7 +475,7 @@ impl MainController {
         }
 
         if !keep_going {
-            self.remove_media_event_handler();
+            self.remove_media_event_aync_handler();
             self.audio_ctrl.switch_to_not_playing();
         }
 
@@ -520,7 +520,7 @@ impl MainController {
             pipeline.stop();
         }
 
-        self.remove_media_event_handler();
+        self.remove_media_event_aync_handler();
 
         self.info_ctrl.cleanup();
         self.audio_ctrl.cleanup();
@@ -535,7 +535,7 @@ impl MainController {
 
         self.state = ControllerState::Stopped;
         self.missing_plugins.clear();
-        self.register_media_event_handler(receiver);
+        self.attach_media_event_async_handler(receiver);
 
         let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.dbl_buffer_mtx);
         match PlaybackPipeline::try_new(
