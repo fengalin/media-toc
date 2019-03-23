@@ -71,7 +71,7 @@ impl MainDispatcher {
             let mut main_ctrl = main_ctrl_rc.borrow_mut();
 
             let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
-            main_ctrl.media_event_aync_handler = Some(Rc::new(move |event| {
+            main_ctrl.media_event_async_handler = Some(Rc::new(move |event| {
                 main_ctrl_rc_cb.borrow_mut().handle_media_event(event)
             }));
 
