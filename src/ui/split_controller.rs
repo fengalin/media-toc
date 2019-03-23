@@ -377,7 +377,7 @@ impl MediaProcessor for SplitControllerImpl {
         self.current_chapter = Some(self.update_tags(&mut chapter));
 
         Ok(ProcessingState::WouldOutputTo(
-            self.get_split_path(&chapter),
+            self.get_split_path(&chapter).into(),
         ))
     }
 

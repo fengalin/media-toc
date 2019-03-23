@@ -140,7 +140,7 @@ impl MediaProcessor for ExportControllerImpl {
         self.idx += 1;
 
         Ok(ProcessingState::WouldOutputTo(
-            export_file_info.path.to_owned(),
+            export_file_info.path.clone().into(),
         ))
     }
 
