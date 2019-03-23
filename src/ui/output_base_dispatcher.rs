@@ -103,8 +103,8 @@ where
                         main_ctrl.reset_cursor();
                         let main_ctrl_cb = Rc::clone(main_ctrl_rc);
                         main_ctrl.show_question(
-                            gettext("{}\nAlready exists. Overwrite?").replacen(
-                                "{}",
+                            gettext("{output_file}\nalready exists. Overwrite?").replacen(
+                                "{output_file}",
                                 path.to_str().as_ref().unwrap(),
                                 1,
                             ),
