@@ -6,7 +6,7 @@ use gtk::prelude::*;
 use log::warn;
 
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, RwLock},
 };
 
@@ -18,7 +18,7 @@ use crate::{
 
 use super::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
-    ProcessingStatus, ProcessingType, UIController,
+    ProcessingState, ProcessingType, UIController,
 };
 
 pub type SplitController = OutputBaseController<SplitControllerImpl>;
@@ -74,6 +74,7 @@ pub struct SplitControllerImpl {
     splitter_pipeline: Option<SplitterPipeline>,
     toc_visitor: Option<TocVisitor>,
     idx: usize,
+    current_chapter: Option<gst::TocEntry>,
 
     split_list: gtk::ListBox,
     split_to_flac_row: gtk::ListBoxRow,
@@ -146,6 +147,7 @@ impl SplitControllerImpl {
             splitter_pipeline: None,
             toc_visitor: None,
             idx: 0,
+            current_chapter: None,
 
             split_list: builder.get_object(Self::LIST_NAME).unwrap(),
             split_to_flac_row: builder.get_object("flac_split-row").unwrap(),
@@ -161,74 +163,6 @@ impl SplitControllerImpl {
 
             split_btn: builder.get_object(Self::BTN_NAME).unwrap(),
         }
-    }
-
-    fn next(&mut self) -> Result<ProcessingStatus, String> {
-        let mut chapter = match self.toc_visitor.as_mut() {
-            Some(toc_visitor) => match toc_visitor.next_chapter() {
-                Some(chapter) => {
-                    self.idx += 1;
-                    chapter
-                }
-                None => {
-                    self.split_file_info = None;
-                    return Ok(ProcessingStatus::Completed(gettext(
-                        "Media split succesfully",
-                    )));
-                }
-            },
-            None => {
-                // No chapter defined => build a fake chapter corresponding to the whole file
-                self.idx += 1;
-
-                let src_info = self.src_info.as_ref().unwrap().read().unwrap();
-                let mut toc_entry = gst::TocEntry::new(gst::TocEntryType::Chapter, &"".to_owned());
-                toc_entry
-                    .get_mut()
-                    .unwrap()
-                    .set_start_stop_times(0, src_info.duration as i64);
-
-                let mut tag_list = gst::TagList::new();
-                tag_list.get_mut().unwrap().add::<gst::tags::Title>(
-                    &src_info.path.file_stem().unwrap().to_str().unwrap(),
-                    gst::TagMergeMode::Replace,
-                );
-                toc_entry.get_mut().unwrap().set_tags(tag_list);
-
-                toc_entry
-            }
-        };
-
-        // Unfortunately, we need to make a copy here
-        // because the chapter is also owned by the self.toc
-        // and the TocVisitor so the chapters entries ref_count is > 1
-        let chapter = self.update_tags(&mut chapter);
-        let output_path = self.get_split_path(&chapter);
-
-        let res = {
-            let src_info = self.src_info.as_ref().unwrap().read().unwrap();
-            let split_file_info = self.split_file_info.as_ref().expect(
-                "SplitControllerImpl: split_file_info not defined in `next()`, did you call `init()`?"
-            );
-            SplitterPipeline::try_new(
-                &src_info.path,
-                &output_path,
-                &self.selected_audio.as_ref().unwrap().id,
-                split_file_info.format,
-                chapter,
-                self.sender
-                    .as_ref()
-                    .expect("SplitControllerImpl: no sender in `next()` did you call `init()`?")
-                    .clone(),
-            )
-        };
-
-        self.splitter_pipeline = Some(res.map_err(|err| {
-            self.split_file_info = None;
-            gettext("Failed to prepare for split. {}").replacen("{}", &err, 1)
-        })?);
-
-        Ok(ProcessingStatus::InProgress)
     }
 
     fn get_split_path(&self, chapter: &gst::TocEntry) -> PathBuf {
@@ -378,18 +312,6 @@ impl MediaProcessor for SplitControllerImpl {
             unreachable!("`SplitController`: unknown split type");
         };
 
-        self.split_file_info = Some({
-            let src_info = self.src_info.as_ref().unwrap().read().unwrap();
-            OutputMediaFileInfo::new(format, &src_info)
-        });
-
-        let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-        self.sender = Some(sender);
-
-        ProcessingType::Async(receiver)
-    }
-
-    fn start(&mut self) -> Result<ProcessingStatus, String> {
         // Split button is not sensible when no audio
         // stream is selected (see `streams_changed`)
         debug_assert!(self.selected_audio.is_some());
@@ -405,21 +327,100 @@ impl MediaProcessor for SplitControllerImpl {
             .map(|toc| TocVisitor::new(toc));
         self.idx = 0;
 
-        match self.next()? {
-            ProcessingStatus::InProgress => Ok(ProcessingStatus::InProgress),
-            ProcessingStatus::Completed(_) => {
-                unreachable!("`SplitController`: split completed immediately")
-            }
-        }
+        self.split_file_info = Some({
+            let src_info = self.src_info.as_ref().unwrap().read().unwrap();
+            OutputMediaFileInfo::new(format, &src_info)
+        });
+
+        let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        self.sender = Some(sender);
+
+        ProcessingType::Async(receiver)
     }
 
-    fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingStatus, String> {
+    fn next(&mut self) -> Result<ProcessingState, String> {
+        let mut chapter = match self.toc_visitor.as_mut() {
+            Some(toc_visitor) => match toc_visitor.next_chapter() {
+                Some(chapter) => {
+                    self.idx += 1;
+                    chapter
+                }
+                None => {
+                    self.split_file_info = None;
+                    return Ok(ProcessingState::AllComplete(gettext(
+                        "Media split succesfully",
+                    )));
+                }
+            },
+            None => {
+                // No chapter defined => build a fake chapter corresponding to the whole file
+                self.idx += 1;
+
+                let src_info = self.src_info.as_ref().unwrap().read().unwrap();
+                let mut toc_entry = gst::TocEntry::new(gst::TocEntryType::Chapter, &"".to_owned());
+                toc_entry
+                    .get_mut()
+                    .unwrap()
+                    .set_start_stop_times(0, src_info.duration as i64);
+
+                let mut tag_list = gst::TagList::new();
+                tag_list.get_mut().unwrap().add::<gst::tags::Title>(
+                    &src_info.path.file_stem().unwrap().to_str().unwrap(),
+                    gst::TagMergeMode::Replace,
+                );
+                toc_entry.get_mut().unwrap().set_tags(tag_list);
+
+                toc_entry
+            }
+        };
+
+        self.current_chapter = Some(self.update_tags(&mut chapter));
+
+        Ok(ProcessingState::WouldOutputTo(
+            self.get_split_path(&chapter),
+        ))
+    }
+
+    fn process(&mut self, output_path: &Path) -> Result<(), String> {
+        let res = {
+            let src_info = self.src_info.as_ref().unwrap().read().unwrap();
+            let split_file_info = self.split_file_info.as_ref().expect(
+                "SplitControllerImpl: split_file_info not defined in `next()`, did you call `init()`?"
+            );
+            SplitterPipeline::try_new(
+                &src_info.path,
+                output_path,
+                &self.selected_audio.as_ref().unwrap().id,
+                split_file_info.format,
+                self.current_chapter.take().expect(concat!(
+                    "SplitControllerImpl: no current_chapter ",
+                    "in `process_current_chapter()`",
+                )),
+                self.sender
+                    .as_ref()
+                    .expect(concat!(
+                        "SplitControllerImpl: no sender in `process_current_chapter()` ",
+                        "did you call `init()`?",
+                    ))
+                    .clone(),
+            )
+        };
+
+        self.splitter_pipeline = Some(res.map_err(|err| {
+            self.split_file_info = None;
+            gettext("Failed to prepare for split. {}").replacen("{}", &err, 1)
+        })?);
+
+        Ok(())
+    }
+
+    fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingState, String> {
         match event {
-            MediaEvent::Eos => self.next(),
+            MediaEvent::Eos => Ok(ProcessingState::DoneWithCurrent),
             MediaEvent::FailedToExport(err) => {
                 Err(gettext("Failed to split media. {}").replacen("{}", &err, 1))
             }
-            _ => Ok(ProcessingStatus::InProgress),
+            other => unimplemented!("SplitController: can't handle media event {:?}", other),
         }
     }
 

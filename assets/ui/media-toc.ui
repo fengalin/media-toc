@@ -1684,10 +1684,16 @@ Tags support.</property>
                     <property name="can_focus">False</property>
                     <property name="show_close_button">True</property>
                     <child internal-child="action_area">
-                      <object class="GtkButtonBox">
+                      <object class="GtkButtonBox" id="info_bar-btnbox">
                         <property name="can_focus">False</property>
                         <property name="spacing">6</property>
                         <property name="layout_style">end</property>
+                        <child>
+                          <placeholder/>
+                        </child>
+                        <child>
+                          <placeholder/>
+                        </child>
                         <child>
                           <placeholder/>
                         </child>

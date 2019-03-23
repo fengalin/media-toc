@@ -167,7 +167,7 @@ impl UIDispatcher for InfoDispatcher {
 
         let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
         info_ctrl.show_msg_fn = Some(Rc::new(move |msg_type, msg| {
-            main_ctrl_rc_cb.borrow().show_message(msg_type, msg);
+            main_ctrl_rc_cb.borrow_mut().show_message(msg_type, msg);
         }));
     }
 }

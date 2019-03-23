@@ -5,7 +5,7 @@ use gtk::prelude::*;
 
 use std::{
     collections::HashSet,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, RwLock},
 };
 
@@ -22,16 +22,22 @@ pub enum ProcessingType {
     Sync,
 }
 
-#[derive(PartialEq)]
-pub enum ProcessingStatus {
-    Completed(String),
+#[derive(Debug, PartialEq)]
+pub enum ProcessingState {
+    AllComplete(String),
+    Cancelled,
+    ConfirmedOutputTo(PathBuf),
+    CurrentSkipped,
+    DoneWithCurrent,
     InProgress,
+    WouldOutputTo(PathBuf),
 }
 
 pub trait MediaProcessor {
     fn init(&mut self) -> ProcessingType;
-    fn start(&mut self) -> Result<ProcessingStatus, String>;
-    fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingStatus, String>;
+    fn next(&mut self) -> Result<ProcessingState, String>;
+    fn process(&mut self, path: &Path) -> Result<(), String>;
+    fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingState, String>;
     fn report_progress(&mut self) -> Option<f64>;
 }
 
@@ -75,6 +81,7 @@ pub struct OutputBaseController<Impl> {
 
     pub(super) playback_pipeline: Option<PlaybackPipeline>,
 
+    pub(super) media_event_async_handler_src: Option<glib::SourceId>,
     pub(super) progress_timer_src: Option<glib::SourceId>,
 }
 
@@ -96,6 +103,7 @@ where
 
             playback_pipeline: None,
 
+            media_event_async_handler_src: None,
             progress_timer_src: None,
         }
     }
@@ -105,9 +113,15 @@ where
         self.progress_timer_src = Some(src);
     }
 
+    fn remove_media_event_async_handler_timer(&mut self) {
+        if let Some(src) = self.media_event_async_handler_src.take() {
+            let _res = glib::Source::remove(src);
+        }
+    }
+
     fn remove_progress_timer(&mut self) {
-        if let Some(src_id) = self.progress_timer_src.take() {
-            let _res = glib::Source::remove(src_id);
+        if let Some(src) = self.progress_timer_src.take() {
+            let _res = glib::Source::remove(src);
         }
     }
 
@@ -121,6 +135,7 @@ where
     }
 
     pub fn switch_to_available(&mut self) {
+        self.remove_media_event_async_handler_timer();
         self.remove_progress_timer();
 
         self.progress_bar.set_fraction(0f64);
@@ -166,11 +181,15 @@ where
         self.impl_.init()
     }
 
-    fn start(&mut self) -> Result<ProcessingStatus, String> {
-        self.impl_.start()
+    fn next(&mut self) -> Result<ProcessingState, String> {
+        self.impl_.next()
     }
 
-    fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingStatus, String> {
+    fn process(&mut self, path: &Path) -> Result<(), String> {
+        self.impl_.process(path)
+    }
+
+    fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingState, String> {
         self.impl_.handle_media_event(event)
     }
 

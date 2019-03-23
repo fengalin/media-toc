@@ -78,7 +78,7 @@ impl MainDispatcher {
             let _ = PlaybackPipeline::check_requirements().map_err(|err| {
                 let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
                 gtk::idle_add(move || {
-                    main_ctrl_rc_cb.borrow().show_error(&err);
+                    main_ctrl_rc_cb.borrow_mut().show_error(&err);
                     glib::Continue(false)
                 });
             });
@@ -134,7 +134,7 @@ impl MainDispatcher {
                 .connect_response(move |_, _| revealer.set_reveal_child(false));
         } else {
             // GStreamer initialization failed
-            let main_ctrl = main_ctrl_rc.borrow();
+            let mut main_ctrl = main_ctrl_rc.borrow_mut();
 
             // Register Close info bar action
             let close_info_bar = gio::SimpleAction::new("close_info_bar", None);

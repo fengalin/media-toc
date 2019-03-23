@@ -32,7 +32,7 @@ pub use self::main_dispatcher::MainDispatcher;
 mod output_base_controller;
 use self::output_base_controller::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
-    ProcessingStatus, ProcessingType,
+    ProcessingState, ProcessingType,
 };
 mod output_base_dispatcher;
 use self::output_base_dispatcher::{OutputBaseDispatcher, OutputDispatcherImpl};

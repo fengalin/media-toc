@@ -46,6 +46,7 @@ pub struct MainController {
     pub(super) info_bar_revealer: gtk::Revealer,
     pub(super) info_bar: gtk::InfoBar,
     info_bar_lbl: gtk::Label,
+    info_bar_btn_box: gtk::ButtonBox,
 
     pub(super) perspective_ctrl: PerspectiveController,
     pub(super) video_ctrl: VideoController,
@@ -60,6 +61,7 @@ pub struct MainController {
     missing_plugins: HashSet<String>,
     pub(super) state: ControllerState,
 
+    info_bar_response_src: Option<glib::signal::SignalHandlerId>,
     pub(super) select_media_fn: Option<Rc<Fn()>>,
     pub(super) media_event_aync_handler: Option<Rc<Fn(MediaEvent) -> glib::Continue>>,
     media_event_aync_handler_src: Option<glib::SourceId>,
@@ -79,6 +81,7 @@ impl MainController {
             info_bar_revealer: builder.get_object("info_bar-revealer").unwrap(),
             info_bar: builder.get_object("info_bar").unwrap(),
             info_bar_lbl: builder.get_object("info_bar-lbl").unwrap(),
+            info_bar_btn_box: builder.get_object("info_bar-btnbox").unwrap(),
 
             perspective_ctrl: PerspectiveController::new(&builder),
             video_ctrl: VideoController::new(&builder, disable_gl),
@@ -93,6 +96,7 @@ impl MainController {
             missing_plugins: HashSet::<String>::new(),
             state: ControllerState::Stopped,
 
+            info_bar_response_src: None,
             select_media_fn: None,
             media_event_aync_handler: None,
             media_event_aync_handler_src: None,
@@ -100,6 +104,13 @@ impl MainController {
     }
 
     pub fn setup(&mut self, is_gst_ok: bool) {
+        self.info_bar
+            .add_button(&gettext("Yes"), gtk::ResponseType::Yes);
+        self.info_bar
+            .add_button(&gettext("No"), gtk::ResponseType::No);
+        self.info_bar
+            .add_button(&gettext("Cancel"), gtk::ResponseType::Cancel);
+
         if is_gst_ok {
             {
                 let config = CONFIG.read().unwrap();
@@ -107,6 +118,8 @@ impl MainController {
                     self.window.resize(config.ui.width, config.ui.height);
                     self.playback_paned.set_position(config.ui.paned_pos);
                 }
+
+                self.open_btn.set_sensitive(true);
             }
 
             self.perspective_ctrl.setup();
@@ -164,20 +177,48 @@ impl MainController {
         self.window.destroy();
     }
 
-    pub fn show_message<Msg: AsRef<str>>(&self, type_: gtk::MessageType, message: Msg) {
+    pub fn show_message<Msg: AsRef<str>>(&mut self, type_: gtk::MessageType, message: Msg) {
+        if type_ == gtk::MessageType::Question {
+            self.info_bar_btn_box.set_visible(true);
+            self.info_bar.set_show_close_button(false);
+        } else {
+            if let Some(src) = self.info_bar_response_src.take() {
+                self.info_bar.disconnect(src);
+            }
+            self.info_bar_btn_box.set_visible(false);
+            self.info_bar.set_show_close_button(true);
+        }
+
         self.info_bar.set_message_type(type_);
         self.info_bar_lbl.set_label(message.as_ref());
         self.info_bar_revealer.set_reveal_child(true);
     }
 
-    pub fn show_error<Msg: AsRef<str>>(&self, message: Msg) {
+    pub fn show_error<Msg: AsRef<str>>(&mut self, message: Msg) {
         error!("{}", message.as_ref());
-        self.show_message(gtk::MessageType::Error, message);
+        self.show_message(gtk::MessageType::Question, message);
     }
 
-    pub fn show_info<Msg: AsRef<str>>(&self, message: Msg) {
+    pub fn show_info<Msg: AsRef<str>>(&mut self, message: Msg) {
         info!("{}", message.as_ref());
         self.show_message(gtk::MessageType::Info, message);
+    }
+
+    pub fn show_question<Q: AsRef<str>>(
+        &mut self,
+        question: Q,
+        response_cb: Box<Fn(gtk::ResponseType)>,
+    ) {
+        let info_bar_revealer = self.info_bar_revealer.clone();
+        if let Some(src) = self.info_bar_response_src.take() {
+            self.info_bar.disconnect(src);
+        }
+        self.info_bar_response_src =
+            Some(self.info_bar.connect_response(move |_, response_type| {
+                info_bar_revealer.set_reveal_child(false);
+                response_cb(response_type);
+            }));
+        self.show_message(gtk::MessageType::Question, question);
     }
 
     pub fn play_pause(&mut self) {
@@ -508,7 +549,6 @@ impl MainController {
                 .as_ref()
                 .expect("MainController: select_media_fn is not defined"),
         );
-
         gtk::idle_add(move || {
             select_media_fn();
             glib::Continue(false)
