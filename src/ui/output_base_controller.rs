@@ -30,6 +30,7 @@ pub enum ProcessingState {
     CurrentSkipped,
     DoneWithCurrent,
     InProgress,
+    Start,
     WouldOutputTo(PathBuf),
 }
 

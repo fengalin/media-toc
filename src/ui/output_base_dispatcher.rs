@@ -37,7 +37,10 @@ where
     }
 
     fn switch_to_available(main_ctrl: &mut MainController) {
-        Impl::controller(main_ctrl).switch_to_available();
+        let ctrl = Impl::controller(main_ctrl);
+        ctrl.switch_to_available();
+        let playback_pipeline = ctrl.playback_pipeline.take().unwrap();
+        main_ctrl.set_pipeline(playback_pipeline);
         main_ctrl.reset_cursor();
     }
 
@@ -48,8 +51,12 @@ where
     ) {
         loop {
             match res {
+                Ok(ProcessingState::AllComplete(msg)) => {
+                    Self::switch_to_available(main_ctrl);
+                    main_ctrl.show_info(msg);
+                    break;
+                }
                 Ok(ProcessingState::Cancelled) => {
-                    Self::restore_pipeline(main_ctrl);
                     Self::switch_to_available(main_ctrl);
                     main_ctrl.show_info(gettext("Operation cancelled"));
                     break;
@@ -76,7 +83,6 @@ where
                             ProcessingState::AllComplete(_) => {
                                 // Don't display the success message when the user decided
                                 // to skip (not overwrite) last part as it seems missleading
-                                Self::restore_pipeline(main_ctrl);
                                 Self::switch_to_available(main_ctrl);
                                 break;
                             }
@@ -92,11 +98,20 @@ where
                     // Next steps handled asynchronously (media event handler)
                     break;
                 }
-                Ok(ProcessingState::AllComplete(msg)) => {
-                    Self::restore_pipeline(main_ctrl);
-                    Self::switch_to_available(main_ctrl);
-                    main_ctrl.show_info(msg);
-                    break;
+                Ok(ProcessingState::Start) => {
+                    match Impl::controller(main_ctrl).init() {
+                        ProcessingType::Sync => (),
+                        ProcessingType::Async(receiver) => {
+                            Self::attach_media_event_async_handler(
+                                main_ctrl,
+                                &main_ctrl_rc,
+                                receiver,
+                            );
+                            Self::register_progress_timer(main_ctrl, &main_ctrl_rc);
+                        }
+                    }
+
+                    res = Impl::controller(main_ctrl).next();
                 }
                 Ok(ProcessingState::WouldOutputTo(path)) => {
                     if path.exists() {
@@ -142,7 +157,6 @@ where
                 }
                 Err(err) => {
                     error!("{}", err);
-                    Self::restore_pipeline(main_ctrl);
                     Self::switch_to_available(main_ctrl);
                     main_ctrl.show_error(&err);
                     break;
@@ -186,14 +200,6 @@ where
 
         Impl::controller(main_ctrl).set_progress_timer_src(progress_timer_src);
     }
-
-    fn restore_pipeline(main_ctrl: &mut MainController) {
-        let playback_pipeline = Impl::controller(main_ctrl)
-            .playback_pipeline
-            .take()
-            .unwrap();
-        main_ctrl.set_pipeline(playback_pipeline);
-    }
 }
 
 impl<Impl> UIDispatcher for OutputBaseDispatcher<Impl>
@@ -212,23 +218,12 @@ where
                 main_ctrl_rc_cb.borrow_mut().request_pipeline(Box::new(
                     move |main_ctrl, pipeline| {
                         Impl::controller(main_ctrl).playback_pipeline = Some(pipeline);
-
                         Self::switch_to_busy(main_ctrl);
-
-                        match Impl::controller(main_ctrl).init() {
-                            ProcessingType::Sync => (),
-                            ProcessingType::Async(receiver) => {
-                                Self::attach_media_event_async_handler(
-                                    main_ctrl,
-                                    &main_ctrl_rc_fn,
-                                    receiver,
-                                );
-                                Self::register_progress_timer(main_ctrl, &main_ctrl_rc_fn);
-                            }
-                        }
-
-                        let res = Impl::controller(main_ctrl).next();
-                        Self::handle_processing_states(main_ctrl, &main_ctrl_rc_fn, res);
+                        Self::handle_processing_states(
+                            main_ctrl,
+                            &main_ctrl_rc_fn,
+                            Ok(ProcessingState::Start),
+                        );
                     },
                 ));
             });
