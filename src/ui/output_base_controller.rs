@@ -6,6 +6,7 @@ use gtk::prelude::*;
 use std::{
     borrow::Cow,
     collections::HashSet,
+    ops::{Deref, DerefMut},
     path::{Path, PathBuf},
     rc::Rc,
     sync::{Arc, RwLock},
@@ -372,27 +373,22 @@ where
     }
 }
 
-impl<Impl> MediaProcessor for OutputBaseController<Impl>
+impl<Impl> Deref for OutputBaseController<Impl>
 where
     Impl: OutputControllerImpl + MediaProcessor + UIController + 'static,
 {
-    fn init(&mut self) -> ProcessingType {
-        self.impl_.init()
-    }
+    type Target = MediaProcessor;
 
-    fn next(&mut self) -> Result<ProcessingState, String> {
-        self.impl_.next()
+    fn deref(&self) -> &Self::Target {
+        &self.impl_
     }
+}
 
-    fn process(&mut self, path: &Path) -> Result<(), String> {
-        self.impl_.process(path)
-    }
-
-    fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingState, String> {
-        self.impl_.handle_media_event(event)
-    }
-
-    fn report_progress(&mut self) -> Option<f64> {
-        self.impl_.report_progress()
+impl<Impl> DerefMut for OutputBaseController<Impl>
+where
+    Impl: OutputControllerImpl + MediaProcessor + UIController + 'static,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.impl_
     }
 }
