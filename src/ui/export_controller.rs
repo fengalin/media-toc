@@ -18,16 +18,17 @@ use crate::{
 
 use super::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
-    ProcessingState, ProcessingType, UIController,
+    ProcessingState, ProcessingType, UIController, UIEventSender,
 };
 
 pub type ExportController = OutputBaseController<ExportControllerImpl>;
 
 impl ExportController {
-    pub fn new(builder: &gtk::Builder) -> Self {
+    pub fn new(builder: &gtk::Builder, ui_event_sender: UIEventSender) -> Self {
         OutputBaseController::<ExportControllerImpl>::new_base(
             ExportControllerImpl::new(builder),
             builder,
+            ui_event_sender,
         )
     }
 }
@@ -37,7 +38,7 @@ pub struct ExportControllerImpl {
     idx: u64,
 
     export_file_info: Option<OutputMediaFileInfo>,
-    sender: Option<glib::Sender<MediaEvent>>,
+    media_event_sender: Option<glib::Sender<MediaEvent>>,
     toc_setter_pipeline: Option<TocSetterPipeline>,
 
     export_list: gtk::ListBox,
@@ -86,7 +87,7 @@ impl ExportControllerImpl {
             idx: 0,
 
             export_file_info: None,
-            sender: None,
+            media_event_sender: None,
             toc_setter_pipeline: None,
 
             export_list: builder.get_object(Self::LIST_NAME).unwrap(),
@@ -108,7 +109,7 @@ impl MediaProcessor for ExportControllerImpl {
             (Format::CueSheet, ProcessingType::Sync)
         } else if self.mkv_row.is_selected() {
             let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-            self.sender = Some(sender);
+            self.media_event_sender = Some(sender);
 
             (Format::Matroska, ProcessingType::Async(receiver))
         } else {
@@ -165,10 +166,10 @@ impl MediaProcessor for ExportControllerImpl {
                     &self.src_info.as_ref().unwrap().read().unwrap().path,
                     path,
                     Arc::clone(&export_file_info.stream_ids),
-                    self.sender
+                    self.media_event_sender
                         .as_ref()
                         .expect(
-                            "ExportControllerImpl: no sender in `start()` did you call `init()`?",
+                            "ExportControllerImpl: no media_event_sender in `start()` did you call `init()`?",
                         )
                         .clone(),
                 )

@@ -4,7 +4,6 @@ use gtk;
 use gtk::prelude::*;
 
 use std::{
-    borrow::Cow,
     collections::HashSet,
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
@@ -18,7 +17,7 @@ use crate::{
     metadata::{Format, MediaInfo},
 };
 
-use super::UIController;
+use super::{UIController, UIEventSender};
 
 const PROGRESS_TIMER_PERIOD: u32 = 250; // 250 ms
 
@@ -75,8 +74,11 @@ impl OutputMediaFileInfo {
     }
 }
 
+type OverwriteResponseCb = Fn(gtk::ResponseType, &Rc<Path>);
+
 pub struct OutputBaseController<Impl> {
     impl_: Impl,
+    ui_event: UIEventSender,
 
     pub(super) progress_bar: gtk::ProgressBar,
     list: gtk::ListBox,
@@ -88,26 +90,23 @@ pub struct OutputBaseController<Impl> {
 
     pub(super) playback_pipeline: Option<PlaybackPipeline>,
 
-    pub(super) handle_media_event_async: Option<Rc<Fn(MediaEvent) -> glib::Continue>>,
-    pub(super) handle_media_event_async_src: Option<glib::SourceId>,
+    pub(super) media_event_handler: Option<Rc<Fn(MediaEvent)>>,
+    pub(super) media_event_handler_src: Option<glib::SourceId>,
 
-    pub(super) progress_updater: Option<Rc<Fn() -> glib::Continue>>,
+    pub(super) progress_updater: Option<Rc<Fn()>>,
     pub(super) progress_timer_src: Option<glib::SourceId>,
 
-    pub(super) cursor_waiting_dispatcher: Option<Box<Fn()>>,
-    pub(super) hand_back_to_main_ctrl_dispatcher: Option<Box<Fn()>>,
-    pub(super) overwrite_question_dispatcher: Option<Box<Fn(String, Rc<Path>)>>,
-    pub(super) show_error_dispatcher: Option<Box<Fn(Cow<'static, str>)>>,
-    pub(super) show_info_dispatcher: Option<Box<Fn(Cow<'static, str>)>>,
+    pub(super) overwrite_response_cb: Option<Rc<OverwriteResponseCb>>,
 }
 
 impl<Impl> OutputBaseController<Impl>
 where
     Impl: OutputControllerImpl + MediaProcessor + UIController + 'static,
 {
-    pub fn new_base(impl_: Impl, builder: &gtk::Builder) -> Self {
+    pub fn new_base(impl_: Impl, builder: &gtk::Builder, ui_event_sender: UIEventSender) -> Self {
         OutputBaseController {
             impl_,
+            ui_event: ui_event_sender,
 
             btn: builder.get_object(Impl::BTN_NAME).unwrap(),
             list: builder.get_object(Impl::LIST_NAME).unwrap(),
@@ -119,36 +118,30 @@ where
 
             playback_pipeline: None,
 
-            handle_media_event_async: None,
-            handle_media_event_async_src: None,
+            media_event_handler: None,
+            media_event_handler_src: None,
 
             progress_updater: None,
             progress_timer_src: None,
 
-            cursor_waiting_dispatcher: None,
-            hand_back_to_main_ctrl_dispatcher: None,
-            overwrite_question_dispatcher: None,
-            show_error_dispatcher: None,
-            show_info_dispatcher: None,
+            overwrite_response_cb: None,
         }
     }
 
     #[allow(clippy::redundant_closure)]
-    fn attach_handle_media_event_async(&mut self, receiver: glib::Receiver<MediaEvent>) {
-        debug_assert!(self.handle_media_event_async_src.is_none());
+    fn attach_media_event_handler(&mut self, receiver: glib::Receiver<MediaEvent>) {
+        debug_assert!(self.media_event_handler_src.is_none());
 
-        let handle_media_event_async = Rc::clone(
-            self.handle_media_event_async
-                .as_ref()
-                .expect("OutputBaseController: handle_media_event_async is not defined"),
-        );
-
-        self.handle_media_event_async_src =
-            Some(receiver.attach(None, move |event| handle_media_event_async(event)));
+        let media_event_handler = Rc::clone(self.media_event_handler.as_ref().unwrap());
+        self.media_event_handler_src = Some(receiver.attach(None, move |event| {
+            media_event_handler(event);
+            // will be removed in `OutputBaseController::switch_to_available`
+            glib::Continue(true)
+        }));
     }
 
-    fn remove_handle_media_event_async_timer(&mut self) {
-        if let Some(src) = self.handle_media_event_async_src.take() {
+    fn remove_media_event_handler(&mut self) {
+        if let Some(src) = self.media_event_handler_src.take() {
             let _res = glib::Source::remove(src);
         }
     }
@@ -156,14 +149,10 @@ where
     fn register_progress_timer(&mut self) {
         debug_assert!(self.progress_timer_src.is_none());
 
-        let progress_updater = Rc::clone(
-            self.progress_updater
-                .as_ref()
-                .expect("OutputBaseController: progress_updater is not defined"),
-        );
-
+        let progress_updater = Rc::clone(self.progress_updater.as_ref().unwrap());
         self.progress_timer_src = Some(glib::timeout_add_local(PROGRESS_TIMER_PERIOD, move || {
-            progress_updater()
+            progress_updater();
+            glib::Continue(true)
         }));
     }
 
@@ -173,50 +162,28 @@ where
         }
     }
 
-    fn dispatch_overwrite_question(&self, path: Rc<Path>) {
-        let overwrite_question_dispatcher = self
-            .overwrite_question_dispatcher
-            .as_ref()
-            .expect("OutputBasController: `overwrite_question_dispatcher` not defined");
+    fn ask_overwrite_question(&self, path: &Rc<Path>) {
+        self.ui_event.reset_cursor();
 
-        overwrite_question_dispatcher(
-            gettext("{output_file}\nalready exists. Overwrite?")
-                .replacen("{output_file}", path.to_str().as_ref().unwrap(), 1)
-                .into(),
-            path,
+        let question = gettext("{output_file}\nalready exists. Overwrite?").replacen(
+            "{output_file}",
+            path.to_str().as_ref().unwrap(),
+            1,
+        );
+
+        let path_cb = Rc::clone(path);
+        let overwrite_response_cb = Rc::clone(self.overwrite_response_cb.as_ref().unwrap());
+        self.ui_event.ask_question(
+            question,
+            Rc::new(move |response_type| overwrite_response_cb(response_type, &path_cb)),
         );
     }
 
-    fn show_error<Msg>(&self, msg: Msg)
-    where
-        Msg: Into<Cow<'static, str>>,
-    {
-        let show_error_dispatcher = self
-            .show_error_dispatcher
-            .as_ref()
-            .expect("OutputBasController: `show_error_dispatcher` not defined");
-        let msg = msg.into();
-        show_error_dispatcher(msg);
-    }
-
-    fn show_info<Msg>(&self, msg: Msg)
-    where
-        Msg: Into<Cow<'static, str>>,
-    {
-        let show_info_dispatcher = self
-            .show_info_dispatcher
-            .as_ref()
-            .expect("OutputBasController: `show_info_dispatcher` not defined");
-        let msg = msg.into();
-        show_info_dispatcher(msg);
-    }
-
-    fn set_cursor_waiting(&self) {
-        let cursor_waiting_dispatcher = self
-            .cursor_waiting_dispatcher
-            .as_ref()
-            .expect("OutputBaseController: cursor_waiting_dispatcher is not defined");
-        cursor_waiting_dispatcher();
+    pub fn handle_overwrite_response(&mut self, response_type: gtk::ResponseType, path: &Rc<Path>) {
+        self.handle_processing_states(Ok(ProcessingState::GotUserResponse(
+            response_type,
+            Rc::clone(path),
+        )));
     }
 
     fn switch_to_busy(&self) {
@@ -227,11 +194,11 @@ where
         self.open_btn.set_sensitive(false);
         self.chapter_grid.set_sensitive(false);
 
-        self.set_cursor_waiting();
+        self.ui_event.set_cursor_waiting();
     }
 
     fn switch_to_available(&mut self) {
-        self.remove_handle_media_event_async_timer();
+        self.remove_media_event_handler();
         self.remove_progress_timer();
 
         self.progress_bar.set_fraction(0f64);
@@ -242,11 +209,12 @@ where
         self.open_btn.set_sensitive(true);
         self.chapter_grid.set_sensitive(true);
 
-        let hand_back_to_main_ctrl_dispatcher = self
-            .hand_back_to_main_ctrl_dispatcher
-            .as_ref()
-            .expect("OutputBaseController: hand_back_to_main_ctrl_dispatcher is not defined");
-        hand_back_to_main_ctrl_dispatcher();
+        let playback_pipeline = self.playback_pipeline.take().expect(concat!(
+            "OutputBaseController: `playback_pipeline` is already taken in ",
+            "`switch_to_available`",
+        ));
+        self.ui_event.hand_back_pipeline(playback_pipeline);
+        self.ui_event.reset_cursor();
     }
 
     pub fn handle_processing_states(&mut self, mut res: Result<ProcessingState, String>) {
@@ -254,18 +222,18 @@ where
             match res {
                 Ok(ProcessingState::AllComplete(msg)) => {
                     self.switch_to_available();
-                    self.show_info(msg);
+                    self.ui_event.show_info(msg);
                     break;
                 }
                 Ok(ProcessingState::Cancelled) => {
                     self.switch_to_available();
-                    self.show_info(gettext("Operation cancelled"));
+                    self.ui_event.show_info(gettext("Operation cancelled"));
                     break;
                 }
                 Ok(ProcessingState::ConfirmedOutputTo(path)) => {
                     res = match self.process(path.as_ref()) {
                         Ok(()) => {
-                            if self.handle_media_event_async_src.is_some() {
+                            if self.media_event_handler_src.is_some() {
                                 // Don't handle `next()` locally if processing asynchronously
                                 // Next steps handled asynchronously (media event handler)
                                 break;
@@ -295,9 +263,11 @@ where
                     res = self.next();
                 }
                 Ok(ProcessingState::GotUserResponse(response_type, path)) => {
-                    self.set_cursor_waiting();
                     res = Ok(match response_type {
-                        gtk::ResponseType::Yes => ProcessingState::ConfirmedOutputTo(path),
+                        gtk::ResponseType::Yes => {
+                            self.ui_event.set_cursor_waiting();
+                            ProcessingState::ConfirmedOutputTo(path)
+                        }
                         gtk::ResponseType::No => ProcessingState::CurrentSkipped,
                         gtk::ResponseType::Cancel => ProcessingState::Cancelled,
                         other => unimplemented!(
@@ -319,7 +289,7 @@ where
                     match self.init() {
                         ProcessingType::Sync => (),
                         ProcessingType::Async(receiver) => {
-                            self.attach_handle_media_event_async(receiver);
+                            self.attach_media_event_handler(receiver);
                             self.register_progress_timer();
                         }
                     }
@@ -328,9 +298,8 @@ where
                 }
                 Ok(ProcessingState::WouldOutputTo(path)) => {
                     if path.exists() {
-                        self.dispatch_overwrite_question(path);
-
-                        // Pending user confirmation
+                        self.ask_overwrite_question(&path);
+                        // Pending user response
                         // Next steps handled asynchronously (see closure above)
                         break;
                     } else {
@@ -340,7 +309,7 @@ where
                 }
                 Err(err) => {
                     self.switch_to_available();
-                    self.show_error(err);
+                    self.ui_event.show_error(err);
                     break;
                 }
             }

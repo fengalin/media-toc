@@ -17,7 +17,8 @@ use crate::{
 
 use super::{
     AudioController, ChaptersBoundaries, ExportController, InfoController, PerspectiveController,
-    PositionStatus, SplitController, StreamsController, UIController, VideoController,
+    PositionStatus, SplitController, StreamsController, UIController, UIEvent, UIEventSender,
+    VideoController,
 };
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
@@ -37,6 +38,8 @@ pub enum ControllerState {
 }
 
 pub struct MainController {
+    pub(super) ui_event_receiver: Option<glib::Receiver<UIEvent>>,
+
     pub(super) window: gtk::ApplicationWindow,
 
     header_bar: gtk::HeaderBar,
@@ -62,17 +65,22 @@ pub struct MainController {
     pub(super) state: ControllerState,
 
     info_bar_response_src: Option<glib::signal::SignalHandlerId>,
-    pub(super) select_media_fn: Option<Rc<Fn()>>,
-    pub(super) media_event_async_handler: Option<Rc<Fn(MediaEvent) -> glib::Continue>>,
-    media_event_async_handler_src: Option<glib::SourceId>,
+    pub(super) select_media_async: Option<Box<Fn()>>,
+    pub(super) media_event_handler: Option<Rc<Fn(MediaEvent) -> glib::Continue>>,
+    media_event_handler_src: Option<glib::SourceId>,
 }
 
 impl MainController {
     pub fn new_rc(disable_gl: bool) -> Rc<RefCell<Self>> {
         let builder = gtk::Builder::new_from_resource(&format!("{}/{}", *APP_PATH, "media-toc.ui"));
+        let (ui_event_sender, ui_event_receiver) =
+            glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        let ui_event_sender: UIEventSender = ui_event_sender.into();
         let chapters_boundaries = Rc::new(RefCell::new(ChaptersBoundaries::new()));
 
         Rc::new(RefCell::new(MainController {
+            ui_event_receiver: Some(ui_event_receiver),
+
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
             open_btn: builder.get_object("open-btn").unwrap(),
@@ -85,10 +93,18 @@ impl MainController {
 
             perspective_ctrl: PerspectiveController::new(&builder),
             video_ctrl: VideoController::new(&builder, disable_gl),
-            info_ctrl: InfoController::new(&builder, Rc::clone(&chapters_boundaries)),
-            audio_ctrl: AudioController::new(&builder, chapters_boundaries),
-            export_ctrl: ExportController::new(&builder),
-            split_ctrl: SplitController::new(&builder),
+            info_ctrl: InfoController::new(
+                &builder,
+                ui_event_sender.clone(),
+                Rc::clone(&chapters_boundaries),
+            ),
+            audio_ctrl: AudioController::new(
+                &builder,
+                ui_event_sender.clone(),
+                chapters_boundaries,
+            ),
+            export_ctrl: ExportController::new(&builder, ui_event_sender.clone()),
+            split_ctrl: SplitController::new(&builder, ui_event_sender.clone()),
             streams_ctrl: StreamsController::new(&builder),
 
             pipeline: None,
@@ -97,9 +113,9 @@ impl MainController {
             state: ControllerState::Stopped,
 
             info_bar_response_src: None,
-            select_media_fn: None,
-            media_event_async_handler: None,
-            media_event_async_handler_src: None,
+            select_media_async: None,
+            media_event_handler: None,
+            media_event_handler_src: None,
         }))
     }
 
@@ -162,7 +178,7 @@ impl MainController {
         if let Some(pipeline) = self.pipeline.take() {
             pipeline.stop();
         }
-        self.remove_media_event_async_handler();
+        self.remove_media_event_handler();
 
         {
             let size = self.window.get_size();
@@ -196,7 +212,7 @@ impl MainController {
 
     pub fn show_error<Msg: AsRef<str>>(&mut self, message: Msg) {
         error!("{}", message.as_ref());
-        self.show_message(gtk::MessageType::Question, message);
+        self.show_message(gtk::MessageType::Error, message);
     }
 
     pub fn show_info<Msg: AsRef<str>>(&mut self, message: Msg) {
@@ -207,7 +223,7 @@ impl MainController {
     pub fn show_question<Q: AsRef<str>>(
         &mut self,
         question: Q,
-        response_cb: Box<Fn(gtk::ResponseType)>,
+        response_cb: Rc<Fn(gtk::ResponseType)>,
     ) {
         let info_bar_revealer = self.info_bar_revealer.clone();
         if let Some(src) = self.info_bar_response_src.take() {
@@ -407,19 +423,14 @@ impl MainController {
     }
 
     #[allow(clippy::redundant_closure)]
-    fn attach_media_event_async_handler(&mut self, receiver: glib::Receiver<MediaEvent>) {
-        let media_event_async_handler = Rc::clone(
-            self.media_event_async_handler
-                .as_ref()
-                .expect("MainController: media_event_async handler is not defined"),
-        );
-
-        self.media_event_async_handler_src =
-            Some(receiver.attach(None, move |event| media_event_async_handler(event)));
+    fn attach_media_event_handler(&mut self, receiver: glib::Receiver<MediaEvent>) {
+        let media_event_handler = Rc::clone(self.media_event_handler.as_ref().unwrap());
+        self.media_event_handler_src =
+            Some(receiver.attach(None, move |event| media_event_handler(event)));
     }
 
-    fn remove_media_event_async_handler(&mut self) {
-        if let Some(source_id) = self.media_event_async_handler_src.take() {
+    fn remove_media_event_handler(&mut self) {
+        if let Some(source_id) = self.media_event_handler_src.take() {
             glib::source_remove(source_id);
         }
     }
@@ -516,7 +527,7 @@ impl MainController {
         }
 
         if !keep_going {
-            self.remove_media_event_async_handler();
+            self.remove_media_event_handler();
             self.audio_ctrl.switch_to_not_playing();
         }
 
@@ -544,15 +555,7 @@ impl MainController {
     }
 
     pub fn select_media(&mut self) {
-        let select_media_fn = Rc::clone(
-            self.select_media_fn
-                .as_ref()
-                .expect("MainController: select_media_fn is not defined"),
-        );
-        gtk::idle_add(move || {
-            select_media_fn();
-            glib::Continue(false)
-        });
+        self.select_media_async.as_ref().unwrap()();
     }
 
     pub fn open_media(&mut self, filepath: &Path) {
@@ -560,7 +563,7 @@ impl MainController {
             pipeline.stop();
         }
 
-        self.remove_media_event_async_handler();
+        self.remove_media_event_handler();
 
         self.info_ctrl.cleanup();
         self.audio_ctrl.cleanup();
@@ -575,7 +578,7 @@ impl MainController {
 
         self.state = ControllerState::Stopped;
         self.missing_plugins.clear();
-        self.attach_media_event_async_handler(receiver);
+        self.attach_media_event_handler(receiver);
 
         let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.dbl_buffer_mtx);
         match PlaybackPipeline::try_new(

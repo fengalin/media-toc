@@ -18,16 +18,17 @@ use crate::{
 
 use super::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
-    ProcessingState, ProcessingType, UIController,
+    ProcessingState, ProcessingType, UIController, UIEventSender,
 };
 
 pub type SplitController = OutputBaseController<SplitControllerImpl>;
 
 impl SplitController {
-    pub fn new(builder: &gtk::Builder) -> Self {
+    pub fn new(builder: &gtk::Builder, ui_event_sender: UIEventSender) -> Self {
         OutputBaseController::<SplitControllerImpl>::new_base(
             SplitControllerImpl::new(builder),
             builder,
+            ui_event_sender,
         )
     }
 }
@@ -70,7 +71,7 @@ pub struct SplitControllerImpl {
     selected_audio: Option<Stream>,
 
     split_file_info: Option<OutputMediaFileInfo>,
-    sender: Option<glib::Sender<MediaEvent>>,
+    media_event_sender: Option<glib::Sender<MediaEvent>>,
     splitter_pipeline: Option<SplitterPipeline>,
     toc_visitor: Option<TocVisitor>,
     idx: usize,
@@ -143,7 +144,7 @@ impl SplitControllerImpl {
             selected_audio: None,
 
             split_file_info: None,
-            sender: None,
+            media_event_sender: None,
             splitter_pipeline: None,
             toc_visitor: None,
             idx: 0,
@@ -333,7 +334,7 @@ impl MediaProcessor for SplitControllerImpl {
         });
 
         let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-        self.sender = Some(sender);
+        self.media_event_sender = Some(sender);
 
         ProcessingType::Async(receiver)
     }
@@ -396,10 +397,10 @@ impl MediaProcessor for SplitControllerImpl {
                     "SplitControllerImpl: no current_chapter ",
                     "in `process_current_chapter()`",
                 )),
-                self.sender
+                self.media_event_sender
                     .as_ref()
                     .expect(concat!(
-                        "SplitControllerImpl: no sender in `process_current_chapter()` ",
+                        "SplitControllerImpl: no media_event_sender in `process_current_chapter()` ",
                         "did you call `init()`?",
                     ))
                     .clone(),

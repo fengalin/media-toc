@@ -30,10 +30,10 @@ pub enum PipelineState {
     StreamsSelected,
 }
 
+#[derive(Clone)]
 pub struct PlaybackPipeline {
     pipeline: gst::Pipeline,
     decodebin: gst::Element,
-    position_query: gst::query::Position<gst::Query>,
     dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
 
     pub info: Arc<RwLock<MediaInfo>>,
@@ -63,7 +63,6 @@ impl PlaybackPipeline {
         let mut this = PlaybackPipeline {
             pipeline: gst::Pipeline::new("playback_pipeline"),
             decodebin: gst::ElementFactory::make("decodebin3", "decodebin").unwrap(),
-            position_query: gst::Query::new_position(gst::Format::Time),
             dbl_audio_buffer_mtx: Arc::clone(dbl_audio_buffer_mtx),
 
             info: Arc::new(RwLock::new(MediaInfo::new(path))),
@@ -108,8 +107,9 @@ impl PlaybackPipeline {
     }
 
     pub fn get_position(&mut self) -> u64 {
-        self.pipeline.query(&mut self.position_query);
-        self.position_query.get_result().get_value() as u64
+        let mut position_query = gst::Query::new_position(gst::Format::Time);
+        self.pipeline.query(&mut position_query);
+        position_query.get_result().get_value() as u64
     }
 
     pub fn get_state(&self) -> gst::State {

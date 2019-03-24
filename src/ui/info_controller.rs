@@ -1,13 +1,12 @@
 use cairo;
 use gettextrs::gettext;
-use glib;
 use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 use lazy_static::lazy_static;
-use log::{error, info, warn};
+use log::{info, warn};
 
-use std::{borrow::Cow, cell::RefCell, fs::File, rc::Rc};
+use std::{cell::RefCell, fs::File, rc::Rc};
 
 use crate::{
     application::CONFIG,
@@ -18,6 +17,7 @@ use crate::{
 
 use super::{
     ChapterTreeManager, ChaptersBoundaries, ControllerState, Image, PositionStatus, UIController,
+    UIEventSender,
 };
 
 const GO_TO_PREV_CHAPTER_THRESHOLD: u64 = 1_000_000_000; // 1 s
@@ -27,6 +27,8 @@ lazy_static! {
 }
 
 pub struct InfoController {
+    ui_event: UIEventSender,
+
     pub(super) info_container: gtk::Grid,
     pub(super) show_chapters_btn: gtk::ToggleButton,
 
@@ -52,9 +54,6 @@ pub struct InfoController {
 
     duration: u64,
     pub(super) repeat_chapter: bool,
-
-    pub(super) seek_fn: Option<Rc<Fn(u64, gst::SeekFlags)>>,
-    pub(super) show_msg_fn: Option<Rc<Fn(gtk::MessageType, &str)>>,
 }
 
 impl UIController for InfoController {
@@ -123,11 +122,11 @@ impl UIController for InfoController {
                                     1,
                                 );
                                 info!("{}", msg);
-                                self.show_info(msg);
+                                self.ui_event.show_info(msg);
                                 None
                             }
                             Err(err) => {
-                                self.show_error(
+                                self.ui_event.show_error(
                                     gettext("Error opening toc file \"{}\":\n{}")
                                         .replacen(
                                             "{}",
@@ -141,7 +140,8 @@ impl UIController for InfoController {
                         }
                     }
                     Err(_) => {
-                        self.show_error(gettext("Failed to open toc file."));
+                        self.ui_event
+                            .show_error(gettext("Failed to open toc file."));
                         None
                     }
                 });
@@ -214,7 +214,11 @@ impl UIController for InfoController {
 }
 
 impl InfoController {
-    pub fn new(builder: &gtk::Builder, boundaries: Rc<RefCell<ChaptersBoundaries>>) -> Self {
+    pub fn new(
+        builder: &gtk::Builder,
+        ui_event_sender: UIEventSender,
+        boundaries: Rc<RefCell<ChaptersBoundaries>>,
+    ) -> Self {
         let mut chapter_manager = ChapterTreeManager::new(
             builder.get_object("chapters-tree-store").unwrap(),
             boundaries,
@@ -223,6 +227,8 @@ impl InfoController {
         chapter_manager.init_treeview(&chapter_treeview);
 
         InfoController {
+            ui_event: ui_event_sender,
+
             info_container: builder.get_object("info-chapter_list-grid").unwrap(),
             show_chapters_btn: builder.get_object("show_chapters-toggle").unwrap(),
 
@@ -248,9 +254,6 @@ impl InfoController {
 
             duration: 0,
             repeat_chapter: false,
-
-            seek_fn: None,
-            show_msg_fn: None,
         }
     }
 
@@ -281,32 +284,6 @@ impl InfoController {
         }
     }
 
-    fn show_message<Msg>(&self, msg_type: gtk::MessageType, msg: Msg)
-    where
-        Msg: Into<Cow<'static, str>>,
-    {
-        let show_msg_fn = Rc::clone(
-            self.show_msg_fn
-                .as_ref()
-                .expect("InfoContoller: no show_msg_fn defined"),
-        );
-        let msg = msg.into();
-        gtk::idle_add(move || {
-            show_msg_fn(msg_type, msg.as_ref());
-            glib::Continue(false)
-        });
-    }
-
-    fn show_error<Msg: Into<Cow<'static, str>> + AsRef<str>>(&self, message: Msg) {
-        error!("{}", message.as_ref());
-        self.show_message(gtk::MessageType::Error, message);
-    }
-
-    fn show_info<Msg: Into<Cow<'static, str>> + AsRef<str>>(&self, message: Msg) {
-        info!("{}", message.as_ref());
-        self.show_message(gtk::MessageType::Info, message);
-    }
-
     fn update_marks(&self) {
         self.timeline_scale.clear_marks();
 
@@ -318,15 +295,7 @@ impl InfoController {
     }
 
     fn repeat_at(&self, position: u64) {
-        let seek_fn = Rc::clone(
-            self.seek_fn
-                .as_ref()
-                .expect("InfoContoller: no seek_fn defined"),
-        );
-        gtk::idle_add(move || {
-            seek_fn(position, gst::SeekFlags::ACCURATE);
-            glib::Continue(false)
-        });
+        self.ui_event.seek(position, gst::SeekFlags::ACCURATE)
     }
 
     pub fn tick(&mut self, position: u64, is_eos: bool) {

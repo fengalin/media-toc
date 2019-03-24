@@ -2,6 +2,7 @@ use cairo;
 use gdk;
 use gdk::{Cursor, CursorType, FrameClockExt, WindowExt};
 use glib;
+use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 use log::{debug, trace};
@@ -22,7 +23,8 @@ use crate::{
 };
 
 use super::{
-    ChaptersBoundaries, DoubleWaveformBuffer, UIController, WaveformBuffer, BACKGROUND_COLOR,
+    ChaptersBoundaries, DoubleWaveformBuffer, UIController, UIEventSender, WaveformBuffer,
+    BACKGROUND_COLOR,
 };
 
 const BUFFER_DURATION: u64 = 60_000_000_000; // 60 s
@@ -59,12 +61,9 @@ pub enum AudioControllerState {
     Paused,
 }
 
-pub enum AudioControllerAction {
-    Seek(u64),
-    PlayRange { start: u64, end: u64, current: u64 },
-}
-
 pub struct AudioController {
+    ui_event: UIEventSender,
+
     window: gtk::ApplicationWindow,
     container: gtk::Box,
     pub(super) drawingarea: gtk::DrawingArea,
@@ -99,7 +98,7 @@ pub struct AudioController {
     waveform_mtx: Arc<Mutex<Box<dyn SampleExtractor>>>,
     pub dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
 
-    pub(super) update_conditions_async: Option<Rc<Fn()>>,
+    pub(super) update_conditions_async: Option<Box<Fn() -> glib::SourceId>>,
 
     pub(super) tick_cb: Option<Rc<Fn(&gtk::DrawingArea, &gdk::FrameClock)>>,
     tick_cb_id: Option<gtk::TickCallbackId>,
@@ -117,15 +116,7 @@ impl UIController for AudioController {
 
             // Refresh conditions asynchronously so that
             // all widgets are arranged to their target positions
-            let update_conditions_fn = Rc::clone(
-                self.update_conditions_async
-                    .as_ref()
-                    .expect("AudioController: no update_conditions_async defined"),
-            );
-            gtk::idle_add(move || {
-                update_conditions_fn();
-                glib::Continue(false)
-            });
+            self.update_conditions_async.as_ref().unwrap()();
         }
     }
 
@@ -164,11 +155,17 @@ impl UIController for AudioController {
 }
 
 impl AudioController {
-    pub fn new(builder: &gtk::Builder, boundaries: Rc<RefCell<ChaptersBoundaries>>) -> Self {
+    pub fn new(
+        builder: &gtk::Builder,
+        ui_event_sender: UIEventSender,
+        boundaries: Rc<RefCell<ChaptersBoundaries>>,
+    ) -> Self {
         let dbl_buffer_mtx = DoubleWaveformBuffer::new_mutex(BUFFER_DURATION);
         let waveform_mtx = dbl_buffer_mtx.lock().unwrap().get_exposed_buffer_mtx();
 
         AudioController {
+            ui_event: ui_event_sender,
+
             window: builder.get_object("application-window").unwrap(),
             container: builder.get_object("audio-container").unwrap(),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
@@ -660,40 +657,34 @@ impl AudioController {
         }
     }
 
-    pub fn button_press(
-        &mut self,
-        event_button: &gdk::EventButton,
-    ) -> Option<AudioControllerAction> {
+    pub fn button_press(&mut self, event_button: &gdk::EventButton) {
         match event_button.get_button() {
             1 => {
                 // left button
-                let position = self.get_position_at(event_button.get_position().0)?;
-                let must_seek = match self.state {
-                    AudioControllerState::Paused => self
-                        .get_boundary_at(event_button.get_position().0)
-                        .map_or(true, |boundary| {
-                            self.state = AudioControllerState::MovingBoundary(boundary);
-                            false
-                        }),
-                    _ => true,
-                };
+                if let Some(position) = self.get_position_at(event_button.get_position().0) {
+                    let must_seek = match self.state {
+                        AudioControllerState::Paused => self
+                            .get_boundary_at(event_button.get_position().0)
+                            .map_or(true, |boundary| {
+                                self.state = AudioControllerState::MovingBoundary(boundary);
+                                false
+                            }),
+                        _ => true,
+                    };
 
-                if must_seek {
-                    Some(AudioControllerAction::Seek(position))
-                } else {
-                    None
+                    if must_seek {
+                        self.ui_event.seek(position, gst::SeekFlags::ACCURATE);
+                    }
                 }
             }
             3 => {
                 // right button => segment playback
-                self.get_position_at(event_button.get_position().0)
-                    .map(|start| AudioControllerAction::PlayRange {
-                        start,
-                        end: start + MIN_RANGE_DURATION.max(self.last_visible_pos - start),
-                        current: self.current_position,
-                    })
+                if let Some(start) = self.get_position_at(event_button.get_position().0) {
+                    let end = start + MIN_RANGE_DURATION.max(self.last_visible_pos - start);
+                    self.ui_event.play_range(start, end, self.current_position);
+                }
             }
-            _ => None,
+            _ => (),
         }
     }
 }

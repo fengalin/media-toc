@@ -6,6 +6,8 @@ use log::error;
 
 use std::{cell::RefCell, rc::Rc};
 
+use crate::with_main_ctrl;
+
 use super::{MainController, UIDispatcher};
 
 pub struct VideoDispatcher;
@@ -20,13 +22,15 @@ impl UIDispatcher for VideoDispatcher {
                     .widget
                     .set_events(gdk::EventMask::BUTTON_PRESS_MASK);
 
-                let main_ctrl_rc_cb = Rc::clone(main_ctrl_rc);
-                main_ctrl.video_ctrl.container.connect_button_press_event(
-                    move |_, _event_button| {
-                        main_ctrl_rc_cb.borrow_mut().play_pause();
-                        Inhibit(true)
-                    },
-                );
+                main_ctrl
+                    .video_ctrl
+                    .container
+                    .connect_button_press_event(with_main_ctrl!(
+                        main_ctrl_rc => move |&mut main_ctrl, _, _event_button| {
+                            main_ctrl.play_pause();
+                            Inhibit(true)
+                        }
+                    ));
             }
             None => {
                 error!("{}", gettext("Couldn't find GStreamer GTK video sink."));
