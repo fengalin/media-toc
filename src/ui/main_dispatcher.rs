@@ -146,8 +146,8 @@ impl MainDispatcher {
             // Register Close info bar action
             let close_info_bar = gio::SimpleAction::new("close_info_bar", None);
             gtk_app.add_action(&close_info_bar);
-            let revealer = main_ctrl.info_bar_revealer.clone();
-            close_info_bar.connect_activate(move |_, _| revealer.set_reveal_child(false));
+            let info_bar = main_ctrl.info_bar.clone();
+            close_info_bar.connect_activate(move |_, _| info_bar.emit_close());
             gtk_app.set_accels_for_action("app.close_info_bar", &["Escape"]);
 
             let revealer = main_ctrl.info_bar_revealer.clone();

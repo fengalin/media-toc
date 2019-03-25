@@ -205,9 +205,9 @@ where
                 self.overwrite_all = true;
                 ProcessingState::ConfirmedOutputTo(Rc::clone(path))
             }
-            gtk::ResponseType::Yes => ProcessingState::ConfirmedOutputTo(Rc::clone(path)),
-            gtk::ResponseType::No => ProcessingState::SkipCurrent,
             gtk::ResponseType::Cancel => ProcessingState::Cancelled,
+            gtk::ResponseType::No => ProcessingState::SkipCurrent,
+            gtk::ResponseType::Yes => ProcessingState::ConfirmedOutputTo(Rc::clone(path)),
             other => unimplemented!(
                 concat!(
                     "Response type {:?} in ",
