@@ -152,13 +152,14 @@ where
     }
 
     fn register_progress_timer(&mut self) {
-        debug_assert!(self.progress_timer_src.is_none());
-
-        let progress_updater = Rc::clone(self.progress_updater.as_ref().unwrap());
-        self.progress_timer_src = Some(glib::timeout_add_local(PROGRESS_TIMER_PERIOD, move || {
-            progress_updater();
-            glib::Continue(true)
-        }));
+        if self.progress_timer_src.is_none() {
+            let progress_updater = Rc::clone(self.progress_updater.as_ref().unwrap());
+            self.progress_timer_src =
+                Some(glib::timeout_add_local(PROGRESS_TIMER_PERIOD, move || {
+                    progress_updater();
+                    glib::Continue(true)
+                }));
+        }
     }
 
     fn remove_progress_timer(&mut self) {
@@ -177,7 +178,8 @@ where
         self.playback_pipeline = Some(playback_pipeline);
     }
 
-    fn ask_overwrite_question(&self, path: &Rc<Path>) {
+    fn ask_overwrite_question(&mut self, path: &Rc<Path>) {
+        self.remove_progress_timer();
         self.ui_event.reset_cursor();
 
         let filename = path.file_name().expect("no `filename` in `path`");
@@ -213,6 +215,12 @@ where
                 other,
             ),
         };
+
+        if next_state != ProcessingState::Cancelled {
+            self.ui_event.set_cursor_waiting();
+            self.register_progress_timer();
+        }
+
         self.handle_processing_states(Ok(next_state));
     }
 
@@ -261,7 +269,6 @@ where
                     break;
                 }
                 Ok(ProcessingState::ConfirmedOutputTo(path)) => {
-                    self.ui_event.set_cursor_waiting();
                     res = self.impl_.process(path.as_ref());
                     if res == Ok(ProcessingState::PendingAsyncMediaEvent) {
                         // Next state handled asynchronously in media event handler
