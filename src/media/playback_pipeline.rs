@@ -106,7 +106,7 @@ impl PlaybackPipeline {
         )
     }
 
-    pub fn get_position(&mut self) -> u64 {
+    pub fn get_position(&self) -> u64 {
         let mut position_query = gst::Query::new_position(gst::Format::Time);
         self.pipeline.query(&mut position_query);
         position_query.get_result().get_value() as u64

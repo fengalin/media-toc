@@ -145,7 +145,7 @@ impl MediaProcessor for ExportControllerImpl {
         ))
     }
 
-    fn process(&mut self, path: &Path) -> Result<(), String> {
+    fn process(&mut self, path: &Path) -> Result<ProcessingState, String> {
         let export_file_info = self.export_file_info.as_ref().expect(concat!(
             "ExportControllerImpl: export_file_info not defined in `process()`, ",
             "did you call `init()`?"
@@ -160,6 +160,8 @@ impl MediaProcessor for ExportControllerImpl {
                     .write(&src_info, &mut output_file)?;
 
                 self.export_file_info = None;
+
+                Ok(ProcessingState::DoneWithCurrent)
             }
             Format::Matroska => {
                 let toc_setter_pipeline = TocSetterPipeline::try_new(
@@ -177,11 +179,11 @@ impl MediaProcessor for ExportControllerImpl {
                     gettext("Failed to prepare for export. {}").replacen("{}", &err, 1)
                 })?;
                 self.toc_setter_pipeline = Some(toc_setter_pipeline);
+
+                Ok(ProcessingState::PendingAsyncMediaEvent)
             }
             format => unimplemented!("ExportControllerImpl for format {:?}", format),
         }
-
-        Ok(())
     }
 
     fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingState, String> {
@@ -200,7 +202,7 @@ impl MediaProcessor for ExportControllerImpl {
                     .export()
                     .map_err(|err| gettext("Failed to export media. {}").replacen("{}", &err, 1))?;
 
-                Ok(ProcessingState::InProgress)
+                Ok(ProcessingState::PendingAsyncMediaEvent)
             }
             MediaEvent::Eos => {
                 self.export_file_info = None;
@@ -214,11 +216,11 @@ impl MediaProcessor for ExportControllerImpl {
         }
     }
 
-    fn report_progress(&mut self) -> Option<f64> {
+    fn report_progress(&self) -> Option<f64> {
         let duration = self.src_info.as_ref().unwrap().read().unwrap().duration;
         if duration > 0 {
             self.toc_setter_pipeline
-                .as_mut()
+                .as_ref()
                 .map(|toc_setter_pipeline| toc_setter_pipeline.get_position())?
                 .map(|position| position as f64 / duration as f64)
         } else {

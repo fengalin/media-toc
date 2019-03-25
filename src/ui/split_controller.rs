@@ -382,7 +382,7 @@ impl MediaProcessor for SplitControllerImpl {
         ))
     }
 
-    fn process(&mut self, output_path: &Path) -> Result<(), String> {
+    fn process(&mut self, output_path: &Path) -> Result<ProcessingState, String> {
         let res = {
             let src_info = self.src_info.as_ref().unwrap().read().unwrap();
             let split_file_info = self.split_file_info.as_ref().expect(
@@ -412,7 +412,7 @@ impl MediaProcessor for SplitControllerImpl {
             gettext("Failed to prepare for split. {}").replacen("{}", &err, 1)
         })?);
 
-        Ok(())
+        Ok(ProcessingState::PendingAsyncMediaEvent)
     }
 
     fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingState, String> {
@@ -425,11 +425,11 @@ impl MediaProcessor for SplitControllerImpl {
         }
     }
 
-    fn report_progress(&mut self) -> Option<f64> {
+    fn report_progress(&self) -> Option<f64> {
         let duration = self.src_info.as_ref().unwrap().read().unwrap().duration;
         if duration > 0 {
             self.splitter_pipeline
-                .as_mut()
+                .as_ref()
                 .map(|splitter_pipeline| splitter_pipeline.get_position())?
                 .map(|position| position as f64 / duration as f64)
         } else {

@@ -20,7 +20,6 @@ use super::MediaEvent;
 pub struct TocSetterPipeline {
     pipeline: gst::Pipeline,
     muxer: Option<gst::Element>,
-    position_query: gst::query::Position<gst::Query>,
 }
 
 impl TocSetterPipeline {
@@ -56,7 +55,6 @@ impl TocSetterPipeline {
         let mut this = TocSetterPipeline {
             pipeline: gst::Pipeline::new("toc_setter_pipeline"),
             muxer: None,
-            position_query: gst::Query::new_position(gst::Format::Time),
         };
 
         this.build_pipeline(input_path, output_path, streams);
@@ -79,9 +77,10 @@ impl TocSetterPipeline {
             .map_err(|_| gettext("Could not set media in Playing mode"))
     }
 
-    pub fn get_position(&mut self) -> Option<u64> {
-        self.pipeline.query(&mut self.position_query);
-        let position = self.position_query.get_result().get_value();
+    pub fn get_position(&self) -> Option<u64> {
+        let mut position_query = gst::Query::new_position(gst::Format::Time);
+        self.pipeline.query(&mut position_query);
+        let position = position_query.get_result().get_value();
         if position >= 0 {
             Some(position as u64)
         } else {

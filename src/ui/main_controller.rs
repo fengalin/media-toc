@@ -125,6 +125,8 @@ impl MainController {
         self.info_bar
             .add_button(&gettext("No"), gtk::ResponseType::No);
         self.info_bar
+            .add_button(&gettext("Yes to all"), gtk::ResponseType::Apply);
+        self.info_bar
             .add_button(&gettext("Cancel"), gtk::ResponseType::Cancel);
 
         if is_gst_ok {

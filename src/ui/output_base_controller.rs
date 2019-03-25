@@ -5,7 +5,6 @@ use gtk::prelude::*;
 
 use std::{
     collections::HashSet,
-    ops::{Deref, DerefMut},
     path::{Path, PathBuf},
     rc::Rc,
     sync::{Arc, RwLock},
@@ -31,10 +30,9 @@ pub enum ProcessingState {
     AllComplete(String),
     Cancelled,
     ConfirmedOutputTo(Rc<Path>),
-    CurrentSkipped,
+    SkipCurrent,
     DoneWithCurrent,
-    GotUserResponse(gtk::ResponseType, Rc<Path>),
-    InProgress,
+    PendingAsyncMediaEvent,
     Start,
     WouldOutputTo(Rc<Path>),
 }
@@ -42,9 +40,9 @@ pub enum ProcessingState {
 pub trait MediaProcessor {
     fn init(&mut self) -> ProcessingType;
     fn next(&mut self) -> Result<ProcessingState, String>;
-    fn process(&mut self, path: &Path) -> Result<(), String>;
+    fn process(&mut self, path: &Path) -> Result<ProcessingState, String>;
     fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingState, String>;
-    fn report_progress(&mut self) -> Option<f64>;
+    fn report_progress(&self) -> Option<f64>;
 }
 
 pub trait OutputControllerImpl {
@@ -80,7 +78,7 @@ pub struct OutputBaseController<Impl> {
     impl_: Impl,
     ui_event: UIEventSender,
 
-    pub(super) progress_bar: gtk::ProgressBar,
+    progress_bar: gtk::ProgressBar,
     list: gtk::ListBox,
     pub(super) btn: gtk::Button,
 
@@ -88,15 +86,16 @@ pub struct OutputBaseController<Impl> {
     open_btn: gtk::Button,
     chapter_grid: gtk::Grid,
 
-    pub(super) playback_pipeline: Option<PlaybackPipeline>,
+    playback_pipeline: Option<PlaybackPipeline>,
 
     pub(super) media_event_handler: Option<Rc<Fn(MediaEvent)>>,
-    pub(super) media_event_handler_src: Option<glib::SourceId>,
+    media_event_handler_src: Option<glib::SourceId>,
 
     pub(super) progress_updater: Option<Rc<Fn()>>,
-    pub(super) progress_timer_src: Option<glib::SourceId>,
+    progress_timer_src: Option<glib::SourceId>,
 
     pub(super) overwrite_response_cb: Option<Rc<OverwriteResponseCb>>,
+    overwrite_all: bool,
 }
 
 impl<Impl> OutputBaseController<Impl>
@@ -125,6 +124,7 @@ where
             progress_timer_src: None,
 
             overwrite_response_cb: None,
+            overwrite_all: false,
         }
     }
 
@@ -146,6 +146,11 @@ where
         }
     }
 
+    pub fn handle_media_event(&mut self, event: MediaEvent) {
+        let res = self.impl_.handle_media_event(event);
+        self.handle_processing_states(res);
+    }
+
     fn register_progress_timer(&mut self) {
         debug_assert!(self.progress_timer_src.is_none());
 
@@ -162,12 +167,26 @@ where
         }
     }
 
+    pub fn update_progress(&self) {
+        if let Some(progress) = self.impl_.report_progress() {
+            self.progress_bar.set_fraction(progress);
+        }
+    }
+
+    pub fn have_pipeline(&mut self, playback_pipeline: PlaybackPipeline) {
+        self.playback_pipeline = Some(playback_pipeline);
+    }
+
     fn ask_overwrite_question(&self, path: &Rc<Path>) {
         self.ui_event.reset_cursor();
 
+        let filename = path.file_name().expect("no `filename` in `path`");
+        let filename = filename
+            .to_str()
+            .expect("can't get printable `str` from `filename`");
         let question = gettext("{output_file}\nalready exists. Overwrite?").replacen(
             "{output_file}",
-            path.to_str().as_ref().unwrap(),
+            filename,
             1,
         );
 
@@ -180,10 +199,24 @@ where
     }
 
     pub fn handle_overwrite_response(&mut self, response_type: gtk::ResponseType, path: &Rc<Path>) {
-        self.handle_processing_states(Ok(ProcessingState::GotUserResponse(
-            response_type,
-            Rc::clone(path),
-        )));
+        let next_state = match response_type {
+            gtk::ResponseType::Apply => {
+                // This one is used for "Yes to all"
+                self.overwrite_all = true;
+                ProcessingState::ConfirmedOutputTo(Rc::clone(path))
+            }
+            gtk::ResponseType::Yes => ProcessingState::ConfirmedOutputTo(Rc::clone(path)),
+            gtk::ResponseType::No => ProcessingState::SkipCurrent,
+            gtk::ResponseType::Cancel => ProcessingState::Cancelled,
+            other => unimplemented!(
+                concat!(
+                    "Response type {:?} in ",
+                    "OutputBaseController::handle_processing_states (`GotUserResponse`)",
+                ),
+                other,
+            ),
+        };
+        self.handle_processing_states(Ok(next_state));
     }
 
     fn switch_to_busy(&self) {
@@ -231,22 +264,36 @@ where
                     break;
                 }
                 Ok(ProcessingState::ConfirmedOutputTo(path)) => {
-                    res = match self.process(path.as_ref()) {
-                        Ok(()) => {
-                            if self.media_event_handler_src.is_some() {
-                                // Don't handle `next()` locally if processing asynchronously
-                                // Next steps handled asynchronously (media event handler)
-                                break;
-                            } else {
-                                // processing synchronously
-                                Ok(ProcessingState::DoneWithCurrent)
-                            }
-                        }
-                        Err(err) => Err(err),
-                    };
+                    self.ui_event.set_cursor_waiting();
+                    res = self.impl_.process(path.as_ref());
+                    if res == Ok(ProcessingState::PendingAsyncMediaEvent) {
+                        // Next state handled asynchronously in media event handler
+                        break;
+                    }
                 }
-                Ok(ProcessingState::CurrentSkipped) => {
-                    res = match self.next() {
+                Ok(ProcessingState::DoneWithCurrent) => {
+                    res = self.impl_.next();
+                }
+                Ok(ProcessingState::PendingAsyncMediaEvent) => {
+                    // Next state handled asynchronously in media event handler
+                    break;
+                }
+                Ok(ProcessingState::Start) => {
+                    self.switch_to_busy();
+                    self.overwrite_all = false;
+
+                    match self.impl_.init() {
+                        ProcessingType::Sync => (),
+                        ProcessingType::Async(receiver) => {
+                            self.attach_media_event_handler(receiver);
+                            self.register_progress_timer();
+                        }
+                    }
+
+                    res = self.impl_.next();
+                }
+                Ok(ProcessingState::SkipCurrent) => {
+                    res = match self.impl_.next() {
                         Ok(state) => match state {
                             ProcessingState::AllComplete(_) => {
                                 // Don't display the success message when the user decided
@@ -259,45 +306,8 @@ where
                         Err(err) => Err(err),
                     };
                 }
-                Ok(ProcessingState::DoneWithCurrent) => {
-                    res = self.next();
-                }
-                Ok(ProcessingState::GotUserResponse(response_type, path)) => {
-                    res = Ok(match response_type {
-                        gtk::ResponseType::Yes => {
-                            self.ui_event.set_cursor_waiting();
-                            ProcessingState::ConfirmedOutputTo(path)
-                        }
-                        gtk::ResponseType::No => ProcessingState::CurrentSkipped,
-                        gtk::ResponseType::Cancel => ProcessingState::Cancelled,
-                        other => unimplemented!(
-                            concat!(
-                                "Response type {:?} in ",
-                                "OutputBaseController::handle_processing_states (`GotUserResponse`)",
-                            ),
-                            other,
-                        ),
-                    });
-                }
-                Ok(ProcessingState::InProgress) => {
-                    // Next steps handled asynchronously (media event handler)
-                    break;
-                }
-                Ok(ProcessingState::Start) => {
-                    self.switch_to_busy();
-
-                    match self.init() {
-                        ProcessingType::Sync => (),
-                        ProcessingType::Async(receiver) => {
-                            self.attach_media_event_handler(receiver);
-                            self.register_progress_timer();
-                        }
-                    }
-
-                    res = self.next();
-                }
                 Ok(ProcessingState::WouldOutputTo(path)) => {
-                    if path.exists() {
+                    if !self.overwrite_all && path.exists() {
                         self.ask_overwrite_question(&path);
                         // Pending user response
                         // Next steps handled asynchronously (see closure above)
@@ -334,30 +344,11 @@ where
     fn cleanup(&mut self) {
         self.progress_bar.set_fraction(0f64);
         self.btn.set_sensitive(false);
+        self.overwrite_all = false;
         self.impl_.cleanup();
     }
 
     fn streams_changed(&mut self, info: &MediaInfo) {
         self.impl_.streams_changed(info);
-    }
-}
-
-impl<Impl> Deref for OutputBaseController<Impl>
-where
-    Impl: OutputControllerImpl + MediaProcessor + UIController + 'static,
-{
-    type Target = MediaProcessor;
-
-    fn deref(&self) -> &Self::Target {
-        &self.impl_
-    }
-}
-
-impl<Impl> DerefMut for OutputBaseController<Impl>
-where
-    Impl: OutputControllerImpl + MediaProcessor + UIController + 'static,
-{
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.impl_
     }
 }

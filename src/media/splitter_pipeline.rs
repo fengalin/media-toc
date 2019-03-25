@@ -19,8 +19,6 @@ use super::MediaEvent;
 
 pub struct SplitterPipeline {
     pipeline: gst::Pipeline,
-    position_query: gst::query::Position<gst::Query>,
-
     format: Format,
     chapter: gst::TocEntry,
 }
@@ -108,7 +106,6 @@ impl SplitterPipeline {
 
         let mut this = SplitterPipeline {
             pipeline: gst::Pipeline::new("splitter_pipeline"),
-            position_query: gst::Query::new_position(gst::Format::Time),
             format,
             chapter,
         };
@@ -122,9 +119,10 @@ impl SplitterPipeline {
             .map_err(|_| gettext("Could not set media in Paused mode"))
     }
 
-    pub fn get_position(&mut self) -> Option<u64> {
-        self.pipeline.query(&mut self.position_query);
-        let position = self.position_query.get_result().get_value();
+    pub fn get_position(&self) -> Option<u64> {
+        let mut position_query = gst::Query::new_position(gst::Format::Time);
+        self.pipeline.query(&mut position_query);
+        let position = position_query.get_result().get_value();
         if position >= 0 {
             Some(position as u64)
         } else {
