@@ -209,10 +209,7 @@ where
             gtk::ResponseType::No => ProcessingState::SkipCurrent,
             gtk::ResponseType::Yes => ProcessingState::ConfirmedOutputTo(Rc::clone(path)),
             other => unimplemented!(
-                concat!(
-                    "Response type {:?} in ",
-                    "OutputBaseController::handle_processing_states (`GotUserResponse`)",
-                ),
+                "Response type {:?} in OutputBaseController::handle_overwrite_response",
                 other,
             ),
         };
