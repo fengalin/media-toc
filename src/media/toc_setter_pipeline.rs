@@ -137,10 +137,6 @@ impl TocSetterPipeline {
 
             let queue_src_pad = queue.get_static_pad("src").unwrap();
 
-            if pad.get_stream_id().is_none() {
-                println!("Pad {} has no stream_id", pad.get_name());
-            }
-
             if streams
                 .read()
                 .expect("TocSetterPipeline: `paserbin.pad_added` cand read streams to use")
