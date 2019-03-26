@@ -133,13 +133,13 @@ impl SplitterPipeline {
     fn build_pipeline(&mut self, input_path: &Path, output_path: &Path, stream_id: &str) {
         /* There are multiple showstoppers to implementing something ideal
          * to export splitted chapters with audio and video (and subtitles):
-         * 1. matroska-mux drops seek events explicitely (a message states: "discard for now").
+         * 1. matroska-mux drops seek events explicitly (a message states: "discard for now").
          * This means that it is currently not possible to build a pipeline that would allow
          * seeking in a matroska media (using demux to interprete timestamps) and mux back to
          * to matroska. One solution would be to export streams to files and mux back
-         * crossing fingers to make sure everything remains in sync.
+         * crossing fingers everything remains in sync.
          * 2. nlesrc (from gstreamer-editing-services) allows extracting frames from a starting
-         * positiong for a given duration. However, it is designed to work with single stream
+         * position for a given duration. However, it is designed to work with single stream
          * medias and decodes to raw formats.
          * 3. filesink can't change the file location without setting the pipeline to Null
          * which also unlinks elements.
@@ -149,8 +149,8 @@ impl SplitterPipeline {
          * Issues 3 & 4 lead to building a new pipeline for each chapter.
          *
          * Until I design a GUI for the user to select which stream to export to which codec,
-         * current solution is to keep only the audio track and to save it as a flac file
-         * which matches the initial purpose of this application */
+         * current solution is to keep only the audio track which matches the initial purpose
+         * of this application */
 
         // Input
         let filesrc = gst::ElementFactory::make("filesrc", None).unwrap();
@@ -255,13 +255,12 @@ impl SplitterPipeline {
                 audio_enc.link(&id3v2_muxer).unwrap();
                 (id3v2_muxer.clone(), id3v2_muxer)
             }
-            _ => panic!(
-                "SplitterPipeline::build_pipeline unsupported format: {:?}",
+            _ => unimplemented!(
+                "SplitterPipeline::build_pipeline for format: {:?}",
                 self.format
             ),
         };
 
-        // FIXME: `TrackNumber`, `TrackCount` and other tags seem to be replaced by the encoder
         if let Some(tags) = self.chapter.get_tags() {
             let tag_setter = tag_setter.clone().dynamic_cast::<gst::TagSetter>().unwrap();
             tag_setter.merge_tags(&tags, gst::TagMergeMode::ReplaceAll);

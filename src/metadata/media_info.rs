@@ -1,6 +1,7 @@
 use gettextrs::gettext;
 use gst::tags::*;
 use gstreamer as gst;
+use lazy_static::lazy_static;
 use log::warn;
 
 use std::{
@@ -14,32 +15,46 @@ use super::{Format, MediaContent};
 pub fn get_default_chapter_title() -> String {
     gettext("untitled")
 }
+macro_rules! add_tag_names (
+    ($($tag_type:ident),+) => {
+        {
+            let mut tag_names = Vec::new();
+            $(tag_names.push($tag_type::tag_name());)+
+            tag_names
+        }
+    };
+);
 
-const TAGS_TO_SKIP_FOR_TRACK: [&str; 23] = [
-    "AlbumArtist",
-    "AlbumArtistSortname",
-    "Album",
-    "AlbumSortname",
-    "ApplicationName",
-    "ApplicationData",
-    "Artist",
-    "ArtistSortname",
-    "AudioCodec",
-    "Codec",
-    "ContainerFormat",
-    "Duration",
-    "Encoder",
-    "EncoderVersion",
-    "Image",
-    "ImageOrientation",
-    "PreviewImage",
-    "SubtitleCodec",
-    "TrackCount",
-    "Title",
-    "TitleSortname",
-    "TrackNumber",
-    "VideoCodec",
-];
+lazy_static! {
+    static ref TAGS_TO_SKIP_FOR_TRACK: Vec<&'static str> = {
+        add_tag_names!(
+            Album,
+            AlbumSortname,
+            AlbumSortname,
+            AlbumArtist,
+            AlbumArtistSortname,
+            ApplicationName,
+            ApplicationData,
+            Artist,
+            ArtistSortname,
+            AudioCodec,
+            Codec,
+            ContainerFormat,
+            Duration,
+            Encoder,
+            EncoderVersion,
+            Image,
+            ImageOrientation,
+            PreviewImage,
+            SubtitleCodec,
+            Title,
+            TitleSortname,
+            TrackCount,
+            TrackNumber,
+            VideoCodec
+        )
+    };
+}
 
 macro_rules! add_first_str_tag (
     ($tags_src:expr, $tags_dest:expr, $tag_type:ty, $merge_mode:expr) => {
@@ -467,7 +482,6 @@ impl MediaInfo {
                     }
                 }
             }
-
             let chapter_count = self.chapter_count.unwrap_or(1);
 
             // FIXME: add Sortname variantes
