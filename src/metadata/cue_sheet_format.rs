@@ -39,17 +39,17 @@ impl Writer for CueSheetFormat {
             return Err(msg);
         }
 
-        let media_title = info.get_title().map(|title| title.to_owned());
+        let media_title = info.get_media_title();
         if let Some(ref title) = media_title {
             write_fmt!(destination, "TITLE \"{}\"\n", title);
         }
 
-        let media_artist = info.get_artist().map(|artist| artist.to_owned());
+        let media_artist = info.get_media_artist();
         if let Some(ref artist) = media_artist {
             write_fmt!(destination, "PERFORMER \"{}\"\n", artist);
         }
 
-        let audio_codec = match info.get_audio_codec() {
+        let audio_codec = match info.streams.get_audio_codec() {
             Some(audio_codec) => {
                 if audio_codec.to_lowercase().find("mp3").is_some() {
                     "MP3"

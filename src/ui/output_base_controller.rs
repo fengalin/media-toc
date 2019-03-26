@@ -60,7 +60,7 @@ pub struct OutputMediaFileInfo {
 
 impl OutputMediaFileInfo {
     pub fn new(format: Format, src_info: &MediaInfo) -> Self {
-        let (stream_ids, content) = src_info.get_stream_ids_to_export(format);
+        let (stream_ids, content) = src_info.streams.get_ids_to_export(format);
         let extension = metadata::Factory::get_extension(format, content).to_owned();
 
         OutputMediaFileInfo {

@@ -11,7 +11,6 @@ use std::{
 };
 
 use crate::{
-    get_album, get_artist, get_title,
     media::{MediaEvent, PlaybackPipeline, SplitterPipeline},
     metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor},
 };
@@ -32,21 +31,6 @@ impl SplitController {
         )
     }
 }
-
-const TAGS_TO_SKIP: [&str; 12] = [
-    "ApplicationName",
-    "ApplicationData",
-    "AudioCodec",
-    "Codec",
-    "ContainerFormat",
-    "Duration",
-    "Encoder",
-    "EncoderVersion",
-    "SubtitleCodec",
-    "TrackCount",
-    "TrackNumber",
-    "VideoCodec",
-];
 
 macro_rules! update_list_with_format(
     ($self_:expr, $format:expr, $row:ident, $label:ident) => {
@@ -172,38 +156,42 @@ impl SplitControllerImpl {
         let src_info = self.src_info.as_ref().unwrap().read().unwrap();
 
         // TODO: make format customisable
-        if let Some(artist) = src_info.get_artist() {
+        let artist = src_info
+            .get_media_artist_sortname()
+            .or_else(|| src_info.get_media_artist());
+        if let Some(artist) = artist {
             split_name += &format!("{} - ", artist);
         }
-        if let Some(album_title) = src_info.get_title() {
+
+        let album_title = src_info
+            .get_media_title_sortname()
+            .or_else(|| src_info.get_media_title());
+        if let Some(album_title) = album_title {
             split_name += &format!("{} - ", album_title);
+        }
+
+        if self.toc_visitor.is_some() {
+            split_name += &format!("{:02}", self.idx);
         }
 
         let track_title = chapter
             .get_tags()
             .and_then(|tags| {
                 tags.get::<gst::tags::Title>()
-                    .map(|tag| tag.get().unwrap().to_owned())
+                    .and_then(|tag| tag.get().map(|value| value.to_string()))
             })
             .unwrap_or_else(get_default_chapter_title);
+        split_name += &format!(". {}", track_title);
 
-        if self.toc_visitor.is_some() {
-            split_name += &format!("{:02}. ", self.idx);
-        }
-
-        split_name += &track_title;
-
-        if let Some(ref stream) = self.selected_audio {
-            if let Some(ref tags) = stream.tags {
-                match tags.get_index::<gst::tags::LanguageName>(0) {
-                    Some(ref language) => split_name += &format!(" ({})", language.get().unwrap()),
-                    None => {
-                        if let Some(ref code) = tags.get_index::<gst::tags::LanguageCode>(0) {
-                            split_name += &format!(" ({})", code.get().unwrap());
-                        }
-                    }
-                }
-            }
+        let lang = self.selected_audio.as_ref().and_then(|stream| {
+            stream
+                .tags
+                .get_index::<gst::tags::LanguageName>(0)
+                .or_else(|| stream.tags.get_index::<gst::tags::LanguageCode>(0))
+                .and_then(|value| value.get().map(|value| value.to_string()))
+        });
+        if let Some(lang) = lang {
+            split_name += &format!(" ({})", lang);
         }
 
         let split_file_info = self.split_file_info.as_ref().expect(concat!(
@@ -214,86 +202,6 @@ impl SplitControllerImpl {
         split_name += &format!(".{}", split_file_info.extension);
 
         split_file_info.path.with_file_name(split_name)
-    }
-
-    fn update_tags(&self, chapter: &mut gst::TocEntry) -> gst::TocEntry {
-        let mut tags = gst::TagList::new();
-        {
-            let tags = tags.get_mut().unwrap();
-            let src_info = self.src_info.as_ref().unwrap().read().unwrap();
-
-            // Select tags suitable for a track
-            for (tag_name, tag_iter) in src_info.tags.iter_generic() {
-                if TAGS_TO_SKIP
-                    .iter()
-                    .find(|&&tag_to_skip| tag_to_skip == tag_name)
-                    .is_none()
-                {
-                    // can add tag
-                    for tag_value in tag_iter {
-                        if tags
-                            .add_generic(tag_name, tag_value, gst::TagMergeMode::Append)
-                            .is_err()
-                        {
-                            warn!(
-                                "{}",
-                                gettext("couldn't add tag {tag_name}").replacen(
-                                    "{tag_name}",
-                                    tag_name,
-                                    1
-                                )
-                            );
-                        }
-                    }
-                }
-            }
-
-            let chapter_count = src_info.chapter_count.unwrap_or(1);
-
-            // Add track specific tags
-            let title = chapter
-                .get_tags()
-                .and_then(|tags| get_title!(tags))
-                .unwrap_or_else(get_default_chapter_title);
-            tags.add::<gst::tags::Title>(&title.as_str(), gst::TagMergeMode::ReplaceAll);
-
-            if tags.get::<gst::tags::Artist>().is_none() {
-                let artist = chapter
-                    .get_tags()
-                    .and_then(|tags| get_artist!(tags))
-                    .or_else(|| src_info.get_artist());
-                if let Some(artist) = artist {
-                    tags.add::<gst::tags::Artist>(&artist.as_str(), gst::TagMergeMode::ReplaceAll);
-                }
-            }
-
-            if tags.get::<gst::tags::Album>().is_none() {
-                let album = chapter
-                    .get_tags()
-                    .and_then(|tags| get_album!(tags))
-                    .or_else(|| src_info.get_title());
-                if let Some(album) = album {
-                    tags.add::<gst::tags::Album>(&album.as_str(), gst::TagMergeMode::ReplaceAll);
-                }
-            }
-
-            let (start, end) = chapter.get_start_stop_times().unwrap();
-
-            tags.add::<gst::tags::TrackNumber>(&(self.idx as u32), gst::TagMergeMode::ReplaceAll);
-            tags.add::<gst::tags::TrackCount>(
-                &(chapter_count as u32),
-                gst::TagMergeMode::ReplaceAll,
-            );
-            tags.add::<gst::tags::Duration>(
-                &gst::ClockTime::from_nseconds((end - start) as u64),
-                gst::TagMergeMode::ReplaceAll,
-            );
-            tags.add::<gst::tags::ApplicationName>(&"media-toc", gst::TagMergeMode::ReplaceAll);
-        }
-
-        let chapter = chapter.make_mut();
-        chapter.set_tags(tags);
-        chapter.to_owned()
     }
 }
 
@@ -340,7 +248,7 @@ impl MediaProcessor for SplitControllerImpl {
     }
 
     fn next(&mut self) -> Result<ProcessingState, String> {
-        let mut chapter = match self.toc_visitor.as_mut() {
+        let chapter = match self.toc_visitor.as_mut() {
             Some(toc_visitor) => match toc_visitor.next_chapter() {
                 Some(chapter) => {
                     self.idx += 1;
@@ -375,7 +283,14 @@ impl MediaProcessor for SplitControllerImpl {
             }
         };
 
-        self.current_chapter = Some(self.update_tags(&mut chapter));
+        self.current_chapter = Some(
+            self.src_info
+                .as_ref()
+                .unwrap()
+                .read()
+                .unwrap()
+                .get_chapter_with_track_tags(&chapter, self.idx),
+        );
 
         Ok(ProcessingState::WouldOutputTo(
             self.get_split_path(&chapter).into(),

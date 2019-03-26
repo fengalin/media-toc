@@ -95,16 +95,15 @@ impl UIController for InfoController {
             self.duration_lbl
                 .set_label(&Timestamp::format(info.duration, false));
 
-            if let Some(ref image_sample) = info.get_image(0) {
-                if let Some(ref image_buffer) = image_sample.get_buffer() {
-                    if let Some(ref image_map) = image_buffer.map_readable() {
-                        match Image::from_unknown(image_map.as_slice()) {
-                            Ok(image) => self.thumbnail = Some(image),
-                            Err(err) => warn!("{}", err),
-                        }
-                    }
-                }
-            }
+            self.thumbnail = info.get_media_image().and_then(|image| {
+                image.get_buffer().and_then(|image_buffer| {
+                    image_buffer.map_readable().and_then(|image_map| {
+                        Image::from_unknown(image_map.as_slice())
+                            .map_err(|err| warn!("{}", err))
+                            .ok()
+                    })
+                })
+            });
 
             self.container_lbl
                 .set_label(info.get_container().unwrap_or(&EMPTY_REPLACEMENT));
@@ -197,19 +196,19 @@ impl UIController for InfoController {
     }
 
     fn streams_changed(&mut self, info: &MediaInfo) {
-        match info.get_artist() {
+        match info.get_media_artist() {
             Some(artist) => self.artist_lbl.set_label(&artist),
             None => self.artist_lbl.set_label(&EMPTY_REPLACEMENT),
         }
-        match info.get_title() {
+        match info.get_media_title() {
             Some(title) => self.title_lbl.set_label(&title),
             None => self.title_lbl.set_label(&EMPTY_REPLACEMENT),
         }
 
         self.audio_codec_lbl
-            .set_label(info.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));
+            .set_label(info.streams.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));
         self.video_codec_lbl
-            .set_label(info.get_video_codec().unwrap_or(&EMPTY_REPLACEMENT));
+            .set_label(info.streams.get_video_codec().unwrap_or(&EMPTY_REPLACEMENT));
     }
 }
 
