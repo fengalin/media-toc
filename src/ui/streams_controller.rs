@@ -6,7 +6,7 @@ use gtk::prelude::*;
 
 use std::sync::Arc;
 
-use crate::{media::PlaybackPipeline, metadata::Stream};
+use crate::{application::CommandLineArguments, media::PlaybackPipeline, metadata::Stream};
 
 use super::UIController;
 
@@ -44,7 +44,7 @@ pub struct StreamsController {
 }
 
 impl UIController for StreamsController {
-    fn setup(&mut self) {
+    fn setup(&mut self, _args: &CommandLineArguments) {
         self.cleanup();
         self.init_treeviews();
     }

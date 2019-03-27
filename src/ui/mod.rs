@@ -72,8 +72,10 @@ pub enum PositionStatus {
     ChapterNotChanged,
 }
 
+use crate::application::CommandLineArguments;
+
 pub trait UIController {
-    fn setup(&mut self) {}
+    fn setup(&mut self, _args: &CommandLineArguments) {}
     fn new_media(&mut self, _pipeline: &super::media::PlaybackPipeline) {}
     fn cleanup(&mut self);
     fn streams_changed(&mut self, _info: &super::metadata::MediaInfo) {}

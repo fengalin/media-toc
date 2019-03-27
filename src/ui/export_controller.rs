@@ -11,6 +11,7 @@ use std::{
 };
 
 use crate::{
+    application::CommandLineArguments,
     media::{MediaEvent, PlaybackPipeline, TocSetterPipeline},
     metadata,
     metadata::{Exporter, Format, MatroskaTocFormat, MediaInfo},
@@ -57,7 +58,7 @@ impl OutputControllerImpl for ExportControllerImpl {
 }
 
 impl UIController for ExportControllerImpl {
-    fn setup(&mut self) {
+    fn setup(&mut self, _args: &CommandLineArguments) {
         match TocSetterPipeline::check_requirements() {
             Ok(_) => self.export_list.select_row(Some(&self.mkvmerge_txt_row)),
             Err(err) => {

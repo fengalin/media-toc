@@ -11,6 +11,7 @@ use std::{
 };
 
 use crate::{
+    application::CommandLineArguments,
     media::{MediaEvent, PlaybackPipeline, SplitterPipeline},
     metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor},
 };
@@ -102,7 +103,7 @@ impl UIController for SplitControllerImpl {
         }
     }
 
-    fn setup(&mut self) {
+    fn setup(&mut self, _args: &CommandLineArguments) {
         update_list_with_format!(self, Format::Flac, split_to_flac_row, flac_warning_lbl);
         update_list_with_format!(self, Format::Wave, split_to_wave_row, wave_warning_lbl);
         update_list_with_format!(self, Format::Opus, split_to_opus_row, opus_warning_lbl);

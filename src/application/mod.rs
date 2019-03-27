@@ -48,8 +48,8 @@ pub fn run() {
         .expect("Failed to initialize GtkApplication");
 
     gtk_app.connect_activate(move |gtk_app| {
-        let main_ctrl_rc = MainController::new_rc(args.disable_gl);
-        main_ctrl_rc.borrow_mut().setup();
+        let main_ctrl_rc = MainController::new_rc();
+        main_ctrl_rc.borrow_mut().setup(&args);
         MainDispatcher::setup(gtk_app, &main_ctrl_rc);
         let ui_event = main_ctrl_rc.borrow().get_ui_event_sender();
         ui_event.show_all();

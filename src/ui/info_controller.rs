@@ -9,7 +9,7 @@ use log::{info, warn};
 use std::{cell::RefCell, fs::File, rc::Rc};
 
 use crate::{
-    application::CONFIG,
+    application::{CommandLineArguments, CONFIG},
     media::PlaybackPipeline,
     metadata,
     metadata::{MediaInfo, Timestamp},
@@ -57,7 +57,7 @@ pub struct InfoController {
 }
 
 impl UIController for InfoController {
-    fn setup(&mut self) {
+    fn setup(&mut self, _args: &CommandLineArguments) {
         self.cleanup();
 
         // Show chapters toggle

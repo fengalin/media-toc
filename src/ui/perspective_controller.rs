@@ -1,7 +1,7 @@
 use gtk;
 use gtk::prelude::*;
 
-use crate::{media::PlaybackPipeline, metadata::MediaInfo};
+use crate::{application::CommandLineArguments, media::PlaybackPipeline, metadata::MediaInfo};
 
 use super::UIController;
 
@@ -24,7 +24,7 @@ impl PerspectiveController {
 }
 
 impl UIController for PerspectiveController {
-    fn setup(&mut self) {
+    fn setup(&mut self, _args: &CommandLineArguments) {
         self.cleanup();
     }
 

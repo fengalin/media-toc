@@ -11,7 +11,7 @@ use log::{debug, error, info};
 use std::{cell::RefCell, collections::HashSet, path::PathBuf, rc::Rc, sync::Arc};
 
 use crate::{
-    application::{APP_ID, APP_PATH, CONFIG},
+    application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG},
     media::{MediaEvent, PlaybackPipeline, PlaybackState},
 };
 
@@ -73,7 +73,7 @@ pub struct MainController {
 }
 
 impl MainController {
-    pub fn new_rc(disable_gl: bool) -> Rc<RefCell<Self>> {
+    pub fn new_rc() -> Rc<RefCell<Self>> {
         let builder = gtk::Builder::new_from_resource(&format!("{}/{}", *APP_PATH, "media-toc.ui"));
         let (ui_event_sender, ui_event_receiver) =
             glib::MainContext::channel(glib::PRIORITY_DEFAULT);
@@ -95,7 +95,7 @@ impl MainController {
             info_bar_btn_box: builder.get_object("info_bar-btnbox").unwrap(),
 
             perspective_ctrl: PerspectiveController::new(&builder),
-            video_ctrl: VideoController::new(&builder, disable_gl),
+            video_ctrl: VideoController::new(&builder),
             info_ctrl: InfoController::new(
                 &builder,
                 ui_event_sender.clone(),
@@ -122,7 +122,7 @@ impl MainController {
         }))
     }
 
-    pub fn setup(&mut self) {
+    pub fn setup(&mut self, args: &CommandLineArguments) {
         self.info_bar
             .add_button(&gettext("Yes"), gtk::ResponseType::Yes);
         self.info_bar
@@ -143,13 +143,13 @@ impl MainController {
                 self.open_btn.set_sensitive(true);
             }
 
-            self.perspective_ctrl.setup();
-            self.video_ctrl.setup();
-            self.info_ctrl.setup();
-            self.audio_ctrl.setup();
-            self.export_ctrl.setup();
-            self.split_ctrl.setup();
-            self.streams_ctrl.setup();
+            self.perspective_ctrl.setup(&args);
+            self.video_ctrl.setup(&args);
+            self.info_ctrl.setup(&args);
+            self.audio_ctrl.setup(&args);
+            self.export_ctrl.setup(&args);
+            self.split_ctrl.setup(&args);
+            self.streams_ctrl.setup(&args);
         }
     }
 

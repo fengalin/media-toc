@@ -11,6 +11,7 @@ use std::{
 };
 
 use crate::{
+    application::CommandLineArguments,
     media::{MediaEvent, PlaybackPipeline},
     metadata,
     metadata::{Format, MediaInfo},
@@ -335,9 +336,9 @@ impl<Impl> UIController for OutputBaseController<Impl>
 where
     Impl: OutputControllerImpl + MediaProcessor + UIController + 'static,
 {
-    fn setup(&mut self) {
+    fn setup(&mut self, args: &CommandLineArguments) {
         self.btn.set_sensitive(false);
-        self.impl_.setup();
+        self.impl_.setup(args);
     }
 
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {

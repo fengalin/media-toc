@@ -5,7 +5,10 @@ use gtk;
 use gtk::prelude::*;
 use log::debug;
 
-use crate::{application::CONFIG, metadata::MediaInfo};
+use crate::{
+    application::{CommandLineArguments, CONFIG},
+    metadata::MediaInfo,
+};
 
 use super::UIController;
 
@@ -15,15 +18,14 @@ pub struct VideoOutput {
 }
 
 pub struct VideoController {
-    disable_gl: bool,
     pub(super) video_output: Option<VideoOutput>,
     pub(super) container: gtk::Box,
     cleaner_id: Option<SignalHandlerId>,
 }
 
 impl UIController for VideoController {
-    fn setup(&mut self) {
-        self.video_output = if !self.disable_gl && !CONFIG.read().unwrap().media.is_gl_disabled {
+    fn setup(&mut self, args: &CommandLineArguments) {
+        self.video_output = if !args.disable_gl && !CONFIG.read().unwrap().media.is_gl_disabled {
             gst::ElementFactory::make("gtkglsink", "gtkglsink").map(|gtkglsink| {
                 let glsinkbin = gst::ElementFactory::make("glsinkbin", "video_sink")
                     .expect("PlaybackPipeline: couldn't get `glsinkbin` from `gtkglsink`");
@@ -107,9 +109,8 @@ impl UIController for VideoController {
 }
 
 impl VideoController {
-    pub fn new(builder: &gtk::Builder, disable_gl: bool) -> Self {
+    pub fn new(builder: &gtk::Builder) -> Self {
         VideoController {
-            disable_gl,
             video_output: None,
             container: builder.get_object("video-container").unwrap(),
             cleaner_id: None,
