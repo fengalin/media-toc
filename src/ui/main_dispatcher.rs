@@ -122,11 +122,40 @@ impl MainDispatcher {
 
             main_ctrl.open_btn.set_sensitive(true);
 
-            let main_ctrl_rc_box = Rc::clone(main_ctrl_rc);
+            let window_box = main_ctrl.window.clone();
+            let ui_event_box = main_ctrl.get_ui_event_sender();
             main_ctrl.select_media_async = Some(Box::new(move || {
-                let main_ctrl_rc_idle = Rc::clone(&main_ctrl_rc_box);
+                let window = window_box.clone();
+                let ui_event = ui_event_box.clone();
                 gtk::idle_add(move || {
-                    MainDispatcher::select_media(&main_ctrl_rc_idle);
+                    let file_dlg = gtk::FileChooserDialog::with_buttons(
+                        Some(gettext("Open a media file").as_str()),
+                        Some(&window),
+                        gtk::FileChooserAction::Open,
+                        &[
+                            (&gettext("Cancel"), gtk::ResponseType::Cancel),
+                            (&gettext("Open"), gtk::ResponseType::Accept),
+                        ],
+                    );
+                    if let Some(ref last_path) = CONFIG.read().unwrap().media.last_path {
+                        file_dlg.set_current_folder(last_path);
+                    }
+
+                    if file_dlg.run() == gtk::ResponseType::Accept {
+                        let path = file_dlg.get_filename().map(|path| path.to_owned());
+                        match path {
+                            Some(path) => {
+                                ui_event.set_cursor_waiting();
+                                ui_event.open_media(path);
+                            }
+                            None => ui_event.cancel_select_media(),
+                        }
+                    } else {
+                        ui_event.cancel_select_media();
+                    }
+
+                    file_dlg.close();
+
                     glib::Continue(false)
                 });
             }));
@@ -175,51 +204,17 @@ impl MainDispatcher {
         }
     }
 
-    fn select_media(main_ctrl_rc: &Rc<RefCell<MainController>>) {
-        let window = {
-            let mut main_ctrl = main_ctrl_rc.borrow_mut();
-            main_ctrl.info_bar_revealer.set_reveal_child(false);
-            main_ctrl.switch_to_busy();
-            main_ctrl.window.clone()
-        };
-
-        let file_dlg = gtk::FileChooserDialog::with_buttons(
-            Some(gettext("Open a media file").as_str()),
-            Some(&window),
-            gtk::FileChooserAction::Open,
-            &[
-                (&gettext("Cancel"), gtk::ResponseType::Cancel),
-                (&gettext("Open"), gtk::ResponseType::Accept),
-            ],
-        );
-        if let Some(ref last_path) = CONFIG.read().unwrap().media.last_path {
-            file_dlg.set_current_folder(last_path);
-        }
-
-        if file_dlg.run() == gtk::ResponseType::Accept {
-            main_ctrl_rc
-                .borrow_mut()
-                .open_media(&file_dlg.get_filename().unwrap());
-        } else {
-            let mut main_ctrl = main_ctrl_rc.borrow_mut();
-            if main_ctrl.pipeline.is_some() {
-                main_ctrl.state = ControllerState::Paused;
-            }
-            main_ctrl.switch_to_default();
-        }
-
-        file_dlg.close();
-    }
-
     fn handle_ui_event(main_ctrl: &mut MainController, event: UIEvent) {
         match event {
             UIEvent::AskQuestion {
                 question,
                 response_cb,
             } => main_ctrl.show_question(&question, response_cb),
+            UIEvent::CancelSelectMedia => main_ctrl.cancel_select_media(),
             UIEvent::HandBackPipeline(playback_pipeline) => {
-                main_ctrl.set_pipeline(playback_pipeline)
+                main_ctrl.set_pipeline(playback_pipeline);
             }
+            UIEvent::OpenMedia(path) => main_ctrl.open_media(path),
             UIEvent::PlayRange {
                 start,
                 end,
@@ -228,7 +223,9 @@ impl MainDispatcher {
                 main_ctrl.play_range(start, end, pos_to_restore);
             }
             UIEvent::ResetCursor => main_ctrl.reset_cursor(),
+            UIEvent::ShowAll => main_ctrl.show_all(),
             UIEvent::Seek { position, flags } => main_ctrl.seek(position, flags),
+            UIEvent::SetCursorDoubleArrow => main_ctrl.set_cursor_double_arrow(),
             UIEvent::SetCursorWaiting => main_ctrl.set_cursor_waiting(),
             UIEvent::ShowError(msg) => main_ctrl.show_error(&msg),
             UIEvent::ShowInfo(msg) => main_ctrl.show_info(&msg),

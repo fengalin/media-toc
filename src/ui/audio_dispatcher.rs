@@ -1,5 +1,3 @@
-use gdk;
-use gdk::CursorType;
 use gio;
 use gio::prelude::*;
 use gstreamer as gst;
@@ -10,7 +8,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::with_main_ctrl;
 
-use super::{AudioControllerState, MainController, PositionStatus, UIDispatcher};
+use super::{audio_controller::ControllerState, MainController, PositionStatus, UIDispatcher};
 
 pub struct AudioDispatcher;
 impl UIDispatcher for AudioDispatcher {
@@ -51,7 +49,7 @@ impl UIDispatcher for AudioDispatcher {
                         if main_ctrl.move_chapter_boundary(boundary, position)
                             == PositionStatus::ChapterChanged
                         {
-                            main_ctrl.audio_ctrl.state = AudioControllerState::MovingBoundary(position);
+                            main_ctrl.audio_ctrl.state = ControllerState::MovingBoundary(position);
                             main_ctrl.audio_ctrl.redraw();
                         }
                     }
@@ -63,11 +61,8 @@ impl UIDispatcher for AudioDispatcher {
         audio_ctrl
             .drawingarea
             .connect_leave_notify_event(with_main_ctrl!(
-                main_ctrl_rc => move |&main_ctrl, _, _event_crossing| {
-                    let audio_ctrl = &main_ctrl.audio_ctrl;
-                    if let AudioControllerState::Paused = audio_ctrl.state {
-                        audio_ctrl.reset_cursor();
-                    }
+                main_ctrl_rc => move |&mut main_ctrl, _, _event_crossing| {
+                    main_ctrl.audio_ctrl.leave_drawing_area();
                     Inhibit(true)
                 }
             ));
@@ -77,7 +72,7 @@ impl UIDispatcher for AudioDispatcher {
             .drawingarea
             .connect_button_press_event(with_main_ctrl!(
                 main_ctrl_rc => move |&mut main_ctrl, _, event_button| {
-                    main_ctrl.audio_ctrl.button_press(event_button);
+                    main_ctrl.audio_ctrl.button_pressed(event_button);
                     Inhibit(true)
                 }
             ));
@@ -87,22 +82,7 @@ impl UIDispatcher for AudioDispatcher {
             .drawingarea
             .connect_button_release_event(with_main_ctrl!(
                 main_ctrl_rc => move |&mut main_ctrl, _, event_button| {
-                    if 1 == event_button.get_button() {
-                        // left button
-                        let mut audio_ctrl = &mut main_ctrl.audio_ctrl;
-                        if let AudioControllerState::MovingBoundary(_boundary) = audio_ctrl.state {
-                            audio_ctrl.state = AudioControllerState::Paused;
-
-                            match audio_ctrl.get_boundary_at(event_button.get_position().0) {
-                                Some(_boundary) => {
-                                    audio_ctrl.set_cursor(CursorType::SbHDoubleArrow);
-                                }
-                                None => {
-                                    audio_ctrl.reset_cursor();
-                                }
-                            }
-                        }
-                    }
+                    main_ctrl.audio_ctrl.button_released(event_button);
                     Inhibit(true)
                 }
             ));

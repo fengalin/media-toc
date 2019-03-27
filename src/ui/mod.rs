@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 mod audio_controller;
-use self::audio_controller::{AudioController, AudioControllerState};
+use self::audio_controller::AudioController;
 mod audio_dispatcher;
 use self::audio_dispatcher::AudioDispatcher;
 

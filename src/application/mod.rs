@@ -49,11 +49,13 @@ pub fn run(is_gst_ok: bool, args: CommandLineArguments) {
         let main_ctrl_rc = MainController::new_rc(args.disable_gl);
         main_ctrl_rc.borrow_mut().setup(is_gst_ok);
         MainDispatcher::setup(gtk_app, &main_ctrl_rc, is_gst_ok);
-        main_ctrl_rc.borrow().show_all();
+        let ui_event = main_ctrl_rc.borrow().get_ui_event_sender();
+        ui_event.show_all();
 
         if is_gst_ok {
-            if let Some(ref input_file) = args.input_file {
-                main_ctrl_rc.borrow_mut().open_media(input_file);
+            if let Some(input_file) = args.input_file.to_owned() {
+                ui_event.set_cursor_waiting();
+                ui_event.open_media(input_file);
             }
         }
     });

@@ -2,7 +2,7 @@ use crate::media::PlaybackPipeline;
 use glib;
 use gstreamer as gst;
 use gtk;
-use std::{borrow::Cow, rc::Rc};
+use std::{borrow::Cow, path::PathBuf, rc::Rc};
 
 #[derive(Clone)]
 pub enum UIEvent {
@@ -10,7 +10,9 @@ pub enum UIEvent {
         question: Cow<'static, str>,
         response_cb: Rc<Fn(gtk::ResponseType)>,
     },
+    CancelSelectMedia,
     HandBackPipeline(PlaybackPipeline),
+    OpenMedia(PathBuf),
     PlayRange {
         start: u64,
         end: u64,
@@ -21,7 +23,9 @@ pub enum UIEvent {
         position: u64,
         flags: gst::SeekFlags,
     },
+    ShowAll,
     SetCursorWaiting,
+    SetCursorDoubleArrow,
     ShowError(Cow<'static, str>),
     ShowInfo(Cow<'static, str>),
 }
@@ -41,8 +45,24 @@ impl UIEventSender {
         });
     }
 
+    pub fn cancel_select_media(&self) {
+        self.0.send(UIEvent::CancelSelectMedia);
+    }
+
     pub fn hand_back_pipeline(&self, pipeline: PlaybackPipeline) {
         self.0.send(UIEvent::HandBackPipeline(pipeline));
+    }
+
+    pub fn open_media(&self, path: PathBuf) {
+        // Trigger the message asynchronously otherwise the waiting cursor might not show up
+        let mut path = Some(path);
+        let sender = self.0.clone();
+        gtk::idle_add(move || {
+            if let Some(path) = path.take() {
+                sender.send(UIEvent::OpenMedia(path));
+            }
+            glib::Continue(false)
+        });
     }
 
     pub fn play_range(&self, start: u64, end: u64, pos_to_restore: u64) {
@@ -57,8 +77,16 @@ impl UIEventSender {
         self.0.send(UIEvent::ResetCursor);
     }
 
+    pub fn show_all(&self) {
+        self.0.send(UIEvent::ShowAll);
+    }
+
     pub fn seek(&self, position: u64, flags: gst::SeekFlags) {
         self.0.send(UIEvent::Seek { position, flags });
+    }
+
+    pub fn set_cursor_double_arrow(&self) {
+        self.0.send(UIEvent::SetCursorDoubleArrow);
     }
 
     pub fn set_cursor_waiting(&self) {

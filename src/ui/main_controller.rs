@@ -8,7 +8,7 @@ use gtk::prelude::*;
 
 use log::{debug, error, info};
 
-use std::{cell::RefCell, collections::HashSet, path::Path, rc::Rc, sync::Arc};
+use std::{cell::RefCell, collections::HashSet, path::PathBuf, rc::Rc, sync::Arc};
 
 use crate::{
     application::{APP_ID, APP_PATH, CONFIG},
@@ -30,6 +30,7 @@ pub enum ControllerState {
     Paused,
     PendingTakePipeline,
     PendingSelectMedia,
+    PendingSelectMediaDecision,
     Playing,
     PlayingRange(u64),
     Seeking,
@@ -39,6 +40,7 @@ pub enum ControllerState {
 
 pub struct MainController {
     pub(super) ui_event_receiver: Option<glib::Receiver<UIEvent>>,
+    ui_event_sender: UIEventSender,
 
     pub(super) window: gtk::ApplicationWindow,
 
@@ -80,6 +82,7 @@ impl MainController {
 
         Rc::new(RefCell::new(MainController {
             ui_event_receiver: Some(ui_event_receiver),
+            ui_event_sender: ui_event_sender.clone(),
 
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
@@ -148,6 +151,10 @@ impl MainController {
             self.split_ctrl.setup();
             self.streams_ctrl.setup();
         }
+    }
+
+    pub fn get_ui_event_sender(&self) -> UIEventSender {
+        self.ui_event_sender.clone()
     }
 
     pub fn show_all(&self) {
@@ -359,7 +366,7 @@ impl MainController {
     }
 
     pub fn hold(&mut self) {
-        self.switch_to_busy();
+        self.set_cursor_waiting();
         self.audio_ctrl.switch_to_not_playing();
         self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
 
@@ -399,7 +406,6 @@ impl MainController {
     pub fn set_pipeline(&mut self, pipeline: PlaybackPipeline) {
         self.pipeline = Some(pipeline);
         self.state = ControllerState::Paused;
-        self.switch_to_default();
     }
 
     fn check_missing_plugins(&self) -> Option<String> {
@@ -473,6 +479,7 @@ impl MainController {
                 }
 
                 self.audio_ctrl.switch_to_not_playing();
+                self.reset_cursor();
                 self.state = ControllerState::Paused;
             }
             MediaEvent::MissingPlugin(plugin) => {
@@ -490,7 +497,9 @@ impl MainController {
                 ControllerState::TwoStepsSeek(target) => {
                     self.seek(target, gst::SeekFlags::ACCURATE);
                 }
-                ControllerState::PendingSelectMedia => self.select_media(),
+                ControllerState::PendingSelectMedia => {
+                    self.select_media();
+                }
                 ControllerState::PendingTakePipeline => self.have_pipeline(),
                 _ => (),
             },
@@ -514,7 +523,7 @@ impl MainController {
             MediaEvent::FailedToOpenMedia(error) => {
                 self.pipeline = None;
                 self.state = ControllerState::Stopped;
-                self.switch_to_default();
+                self.reset_cursor();
 
                 keep_going = false;
 
@@ -537,31 +546,37 @@ impl MainController {
     }
 
     pub fn set_cursor_waiting(&self) {
-        let gdk_window = self.window.get_window().unwrap();
-        gdk_window.set_cursor(Some(&Cursor::new_for_display(
-            &gdk_window.get_display(),
-            CursorType::Watch,
-        )));
+        if let Some(gdk_window) = self.window.get_window() {
+            gdk_window.set_cursor(Some(&Cursor::new_for_display(
+                &gdk_window.get_display(),
+                CursorType::Watch,
+            )));
+        }
+    }
+
+    pub fn set_cursor_double_arrow(&self) {
+        if let Some(gdk_window) = self.window.get_window() {
+            gdk_window.set_cursor(Some(&Cursor::new_for_display(
+                &gdk_window.get_display(),
+                CursorType::SbHDoubleArrow,
+            )));
+        }
     }
 
     pub fn reset_cursor(&self) {
-        self.window.get_window().unwrap().set_cursor(None);
-    }
-
-    pub fn switch_to_busy(&mut self) {
-        self.set_cursor_waiting();
-    }
-
-    pub fn switch_to_default(&mut self) {
-        self.reset_cursor();
+        if let Some(gdk_window) = self.window.get_window() {
+            gdk_window.set_cursor(None);
+        }
     }
 
     pub fn select_media(&mut self) {
+        self.info_bar_revealer.set_reveal_child(false);
+        self.state = ControllerState::PendingSelectMediaDecision;
         self.select_media_async.as_ref().unwrap()();
     }
 
-    pub fn open_media(&mut self, filepath: &Path) {
-        if let Some(ref pipeline) = self.pipeline.take() {
+    pub fn open_media(&mut self, path: PathBuf) {
+        if let Some(pipeline) = self.pipeline.take() {
             pipeline.stop();
         }
 
@@ -584,21 +599,34 @@ impl MainController {
 
         let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.dbl_buffer_mtx);
         match PlaybackPipeline::try_new(
-            filepath,
+            path.as_ref(),
             &dbl_buffer_mtx,
             &self.video_ctrl.get_video_sink(),
             sender,
         ) {
             Ok(pipeline) => {
                 CONFIG.write().unwrap().media.last_path =
-                    filepath.parent().map(|path| path.to_owned());
+                    path.parent().map(|parent_path| parent_path.to_owned());
                 self.pipeline = Some(pipeline);
             }
             Err(error) => {
-                self.switch_to_default();
+                self.reset_cursor();
                 let error = gettext("Error opening file.\n\n{}").replace("{}", &error);
                 self.show_error(error);
             }
         };
+    }
+
+    pub fn cancel_select_media(&mut self) {
+        self.reset_cursor();
+        match self.state {
+            ControllerState::PendingSelectMediaDecision => {
+                self.state = self
+                    .pipeline
+                    .as_ref()
+                    .map_or(ControllerState::Stopped, |_| ControllerState::Paused);
+            }
+            other => panic!("Called `cancel_select_media()` in state {:?}", other),
+        }
     }
 }
