@@ -266,7 +266,6 @@ where
                 }
                 Ok(ProcessingState::Cancelled) => {
                     self.switch_to_available();
-                    self.ui_event.show_info(gettext("Operation cancelled"));
                     break;
                 }
                 Ok(ProcessingState::ConfirmedOutputTo(path)) => {
