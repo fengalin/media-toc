@@ -18,7 +18,7 @@ lazy_static! {
 }
 
 mod command_line;
-pub use self::command_line::{handle_command_line, CommandLineArguments};
+pub use self::command_line::{get_command_line, CommandLineArguments};
 
 mod configuration;
 pub use self::configuration::CONFIG;
@@ -38,7 +38,9 @@ fn register_resource(resource: &[u8]) {
         });
 }
 
-pub fn run(is_gst_ok: bool, args: CommandLineArguments) {
+pub fn run() {
+    let args = get_command_line();
+
     register_resource(include_bytes!("../../target/resources/icons.gresource"));
     register_resource(include_bytes!("../../target/resources/ui.gresource"));
 
@@ -47,12 +49,12 @@ pub fn run(is_gst_ok: bool, args: CommandLineArguments) {
 
     gtk_app.connect_activate(move |gtk_app| {
         let main_ctrl_rc = MainController::new_rc(args.disable_gl);
-        main_ctrl_rc.borrow_mut().setup(is_gst_ok);
-        MainDispatcher::setup(gtk_app, &main_ctrl_rc, is_gst_ok);
+        main_ctrl_rc.borrow_mut().setup();
+        MainDispatcher::setup(gtk_app, &main_ctrl_rc);
         let ui_event = main_ctrl_rc.borrow().get_ui_event_sender();
         ui_event.show_all();
 
-        if is_gst_ok {
+        if gstreamer::init().is_ok() {
             if let Some(input_file) = args.input_file.to_owned() {
                 ui_event.set_cursor_waiting();
                 ui_event.open_media(input_file);

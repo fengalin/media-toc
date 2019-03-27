@@ -122,7 +122,7 @@ impl MainController {
         }))
     }
 
-    pub fn setup(&mut self, is_gst_ok: bool) {
+    pub fn setup(&mut self) {
         self.info_bar
             .add_button(&gettext("Yes"), gtk::ResponseType::Yes);
         self.info_bar
@@ -132,7 +132,7 @@ impl MainController {
         self.info_bar
             .add_button(&gettext("Cancel"), gtk::ResponseType::Cancel);
 
-        if is_gst_ok {
+        if gst::init().is_ok() {
             {
                 let config = CONFIG.read().unwrap();
                 if config.ui.width > 0 && config.ui.height > 0 {

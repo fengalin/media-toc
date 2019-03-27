@@ -8,7 +8,7 @@ pub struct CommandLineArguments {
     pub disable_gl: bool,
 }
 
-pub fn handle_command_line() -> CommandLineArguments {
+pub fn get_command_line() -> CommandLineArguments {
     let about_msg =
         gettext("Build a table of contents from a media file\nor split a media file into chapters");
     let help_msg = gettext("Display this message");

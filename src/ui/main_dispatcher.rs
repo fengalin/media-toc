@@ -18,11 +18,7 @@ use super::{
 
 pub struct MainDispatcher;
 impl MainDispatcher {
-    pub fn setup(
-        gtk_app: &gtk::Application,
-        main_ctrl_rc: &Rc<RefCell<MainController>>,
-        is_gst_ok: bool,
-    ) {
+    pub fn setup(gtk_app: &gtk::Application, main_ctrl_rc: &Rc<RefCell<MainController>>) {
         {
             let mut main_ctrl = main_ctrl_rc.borrow_mut();
             main_ctrl.window.set_application(Some(gtk_app));
@@ -74,7 +70,7 @@ impl MainDispatcher {
                 }
             ));
 
-        if is_gst_ok {
+        if gstreamer::init().is_ok() {
             PerspectiveDispatcher::setup(gtk_app, main_ctrl_rc);
             VideoDispatcher::setup(gtk_app, main_ctrl_rc);
             InfoDispatcher::setup(gtk_app, main_ctrl_rc);
