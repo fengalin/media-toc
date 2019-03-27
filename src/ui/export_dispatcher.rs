@@ -1,6 +1,6 @@
 use super::{
-    ExportController, ExportControllerImpl, MainController, OutputBaseDispatcher,
-    OutputDispatcherImpl,
+    export_controller::ExportControllerImpl, ExportController, MainController,
+    OutputBaseDispatcher, OutputDispatcherImpl,
 };
 
 pub type ExportDispatcher = OutputBaseDispatcher<ExportDispatcherImpl>;

@@ -12,7 +12,7 @@ mod chapter_tree_manager;
 use self::chapter_tree_manager::ChapterTreeManager;
 
 mod export_controller;
-use self::export_controller::{ExportController, ExportControllerImpl};
+use self::export_controller::ExportController;
 mod export_dispatcher;
 use self::export_dispatcher::ExportDispatcher;
 
@@ -48,7 +48,7 @@ mod streams_dispatcher;
 use self::streams_dispatcher::StreamsDispatcher;
 
 mod split_controller;
-use self::split_controller::{SplitController, SplitControllerImpl};
+use self::split_controller::SplitController;
 mod split_dispatcher;
 use self::split_dispatcher::SplitDispatcher;
 

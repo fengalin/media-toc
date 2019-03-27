@@ -1,6 +1,6 @@
 use super::{
-    MainController, OutputBaseDispatcher, OutputDispatcherImpl, SplitController,
-    SplitControllerImpl,
+    split_controller::SplitControllerImpl, MainController, OutputBaseDispatcher,
+    OutputDispatcherImpl, SplitController,
 };
 
 pub type SplitDispatcher = OutputBaseDispatcher<SplitDispatcherImpl>;
