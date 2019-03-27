@@ -234,7 +234,7 @@ impl ChapterTreeManager {
                         .get_tags()
                         .and_then(|tags| {
                             tags.get::<gst::tags::Title>()
-                                .map(|tag| tag.get().unwrap().into())
+                                .and_then(|tag| tag.get().map(|value| value.to_string()))
                         })
                         .unwrap_or_else(get_default_chapter_title);
                     let iter = self.store.insert_with_values(

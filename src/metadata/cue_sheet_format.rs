@@ -40,17 +40,19 @@ impl Writer for CueSheetFormat {
         }
 
         let media_title = info.get_media_title();
-        if let Some(ref title) = media_title {
+        if let Some(title) = &media_title {
             write_fmt!(destination, "TITLE \"{}\"\n", title);
         }
 
         let media_artist = info.get_media_artist();
-        if let Some(ref artist) = media_artist {
+        if let Some(artist) = &media_artist {
             write_fmt!(destination, "PERFORMER \"{}\"\n", artist);
         }
 
-        let audio_codec = match info.streams.get_audio_codec() {
-            Some(audio_codec) => {
+        let audio_codec = info
+            .streams
+            .get_audio_codec()
+            .map_or("WAVE", |audio_codec| {
                 if audio_codec.to_lowercase().find("mp3").is_some() {
                     "MP3"
                 } else if audio_codec.to_lowercase().find("aiff").is_some() {
@@ -58,9 +60,7 @@ impl Writer for CueSheetFormat {
                 } else {
                     "WAVE"
                 }
-            }
-            None => "WAVE",
-        };
+            });
         write_fmt!(
             destination,
             "FILE \"{}\" {}\n",
@@ -79,7 +79,7 @@ impl Writer for CueSheetFormat {
                 .get_tags()
                 .and_then(|tags| {
                     tags.get::<gst::tags::Title>()
-                        .map(|tag| tag.get().unwrap().to_owned())
+                        .and_then(|tag| tag.get().map(|value| value.to_string()))
                 })
                 .or_else(|| media_title.clone())
                 .unwrap_or_else(get_default_chapter_title);
@@ -89,7 +89,7 @@ impl Writer for CueSheetFormat {
                 .get_tags()
                 .and_then(|tags| {
                     tags.get::<gst::tags::Artist>()
-                        .map(|tag| tag.get().unwrap().to_owned())
+                        .and_then(|tag| tag.get().map(|value| value.to_string()))
                 })
                 .or_else(|| media_artist.clone())
                 .unwrap_or_else(get_default_chapter_title);

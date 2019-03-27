@@ -78,10 +78,10 @@ fn parse_chapter_test() {
     assert_eq!(0, i.input_len());
     assert_eq!(1_000_000_000, toc_entry.get_start_stop_times().unwrap().0);
     assert_eq!(
-        Some("test".to_owned()),
+        Some("test".to_string()),
         toc_entry.get_tags().and_then(|tags| tags
             .get::<gst::tags::Title>()
-            .map(|tag| tag.get().unwrap().to_owned())),
+            .and_then(|tag| tag.get().map(|value| value.to_string()))),
     );
 
     let res = parse_chapter(CompleteStr(
@@ -94,7 +94,7 @@ fn parse_chapter_test() {
         Some("test".to_owned()),
         toc_entry.get_tags().and_then(|tags| tags
             .get::<gst::tags::Title>()
-            .map(|tag| tag.get().unwrap().to_owned())),
+            .and_then(|tag| tag.get().map(|value| value.to_string()))),
     );
 
     let res = parse_chapter(CompleteStr("CHAPTER0x=00:00:01.000"));

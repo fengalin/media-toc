@@ -15,6 +15,7 @@ use super::{Format, MediaContent};
 pub fn get_default_chapter_title() -> String {
     gettext("untitled")
 }
+
 macro_rules! add_tag_names (
     ($($tag_type:ident),+) => {
         {
@@ -135,8 +136,7 @@ macro_rules! get_tag_for_display (
                 tag_list
                     .get_index::<$primary_tag>(0)
                     .or_else(|| tag_list.get_index::<$secondary_tag>(0))
-                    .and_then(|tag| tag.get())
-                    .map(|value| value.to_owned())
+                    .and_then(|tag| tag.get().map(|value| value.to_owned()))
             })
     };
 );
@@ -167,22 +167,24 @@ impl Stream {
             _ => panic!("Stream::new can't handle {:?}", type_),
         }
         .or_else(|| tags.get_index::<Codec>(0).clone())
-        .and_then(|codec_value| codec_value.get())
-        .and_then(|codec_str| Some(codec_str.to_string()))
-        .unwrap_or_else(|| {
-            // codec in caps in the form "streamtype/x-codec"
-            let codec = caps.get_structure(0).unwrap().get_name();
-            let id_parts: Vec<&str> = codec.split('/').collect();
-            if id_parts.len() == 2 {
-                if id_parts[1].starts_with("x-") {
-                    id_parts[1][2..].to_string()
+        .and_then(|codec_tag| codec_tag.get())
+        .map_or_else(
+            || {
+                // codec in caps in the form "streamtype/x-codec"
+                let codec = caps.get_structure(0).unwrap().get_name();
+                let id_parts: Vec<&str> = codec.split('/').collect();
+                if id_parts.len() == 2 {
+                    if id_parts[1].starts_with("x-") {
+                        id_parts[1][2..].to_string()
+                    } else {
+                        id_parts[1].to_string()
+                    }
                 } else {
-                    id_parts[1].to_string()
+                    codec.to_string()
                 }
-            } else {
-                codec.to_string()
-            }
-        });
+            },
+            |codec_str| codec_str.to_string(),
+        );
 
         Stream {
             id: stream.get_stream_id().unwrap().as_str().into(),
@@ -578,6 +580,6 @@ impl MediaInfo {
 
         self.tags
             .get_index::<ContainerFormat>(0)
-            .map(|value| value.get().unwrap())
+            .and_then(|tag| tag.get())
     }
 }

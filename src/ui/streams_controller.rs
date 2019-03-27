@@ -198,21 +198,20 @@ impl StreamsController {
             &[&true, &stream.id.as_ref(), &stream_id_display],
         );
 
-        let language = match stream.tags.get_index::<gst::tags::LanguageName>(0) {
-            Some(ref language) => language.get().unwrap(),
-            None => match stream.tags.get_index::<gst::tags::LanguageCode>(0) {
-                Some(ref language) => language.get().unwrap(),
-                None => "-",
-            },
-        };
-        store.set_value(&iter, LANGUAGE_COL, &gtk::Value::from(language));
+        let lang = stream
+            .tags
+            .get_index::<gst::tags::LanguageName>(0)
+            .or_else(|| stream.tags.get_index::<gst::tags::LanguageCode>(0))
+            .and_then(|lang_tag| lang_tag.get())
+            .unwrap_or("-");
+        store.set_value(&iter, LANGUAGE_COL, &gtk::Value::from(lang));
 
-        if let Some(ref comment) = stream.tags.get_index::<gst::tags::Comment>(0) {
-            store.set_value(
-                &iter,
-                COMMENT_COL,
-                &gtk::Value::from(comment.get().unwrap()),
-            );
+        if let Some(comment) = stream
+            .tags
+            .get_index::<gst::tags::Comment>(0)
+            .and_then(|tag| tag.get())
+        {
+            store.set_value(&iter, COMMENT_COL, &gtk::Value::from(comment));
         }
 
         store.set_value(&iter, CODEC_COL, &gtk::Value::from(&stream.codec_printable));

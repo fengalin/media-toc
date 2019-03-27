@@ -463,27 +463,16 @@ impl AudioController {
         }
 
         // Get frame timings
-        let (last_frame_time, next_frame_time) = {
-            let frame_clock = da.get_frame_clock().unwrap();
-            match frame_clock.get_current_timings() {
-                Some(frame_timings) => {
+        let (last_frame_time, next_frame_time) =
+            da.get_frame_clock()?
+                .get_current_timings()
+                .map(|frame_timings| {
                     let frame_time = frame_timings.get_frame_time() as u64;
-                    match frame_timings.get_predicted_presentation_time() {
-                        Some(predicted_presentation_time) => {
-                            (frame_time, predicted_presentation_time.get())
-                        }
-                        None => {
-                            // predicted_presentation_time not available => estimate it
-                            (frame_time, frame_time + EXPECTED_FRAME_DURATION)
-                        }
-                    }
-                }
-                None => {
-                    debug!("can't get frame timings");
-                    return None;
-                }
-            }
-        };
+                    frame_timings.get_predicted_presentation_time().map_or_else(
+                        || (frame_time, frame_time + EXPECTED_FRAME_DURATION),
+                        |predicted_pres_time| (frame_time, predicted_pres_time.get()),
+                    )
+                })?;
 
         // Get waveform and positions
         let (current_position, image_positions) = {
@@ -497,20 +486,18 @@ impl AudioController {
 
             let (current_position, image_opt) =
                 waveform_buffer.get_image(last_frame_time, next_frame_time);
-            match image_opt {
-                Some((image, image_positions)) => {
-                    image.with_surface_external_context(cr, |cr, surface| {
-                        cr.set_source_surface(surface, -image_positions.first.x, 0f64);
-                        cr.paint();
-                    });
 
-                    (current_position, image_positions)
-                }
-                None => {
-                    debug!("draw no image");
-                    return None;
-                }
+            if image_opt.is_none() {
+                debug!("draw no image");
             }
+
+            let (image, image_positions) = image_opt?;
+            image.with_surface_external_context(cr, |cr, surface| {
+                cr.set_source_surface(surface, -image_positions.first.x, 0f64);
+                cr.paint();
+            });
+
+            (current_position, image_positions)
         };
 
         self.current_position = current_position;
@@ -613,29 +600,22 @@ impl AudioController {
         // update other UI position
         // Note: we go through the audio controller here in order
         // to reduce position queries on the ref gst element
-        // TODO: see if a local clock reduces percetibles short hangs
-        // while the waveform scrolls
-        let must_refresh_other_ui = {
-            match self.state {
-                AudioControllerState::Playing => {
-                    if self.current_position >= self.last_other_ui_refresh {
-                        self.current_position > self.last_other_ui_refresh + OTHER_UI_REFRESH_PERIOD
-                    } else {
-                        true
-                    }
+        match self.state {
+            AudioControllerState::Playing => {
+                if self.current_position >= self.last_other_ui_refresh
+                    && self.current_position <= self.last_other_ui_refresh + OTHER_UI_REFRESH_PERIOD
+                {
+                    return None;
                 }
-                AudioControllerState::Paused => true,
-                AudioControllerState::MovingBoundary(_boundary) => true,
-                _ => false,
             }
-        };
-
-        if must_refresh_other_ui {
-            self.last_other_ui_refresh = self.current_position;
-            Some(current_position)
-        } else {
-            None
+            AudioControllerState::Paused => (),
+            AudioControllerState::MovingBoundary(_) => (),
+            _ => return None,
         }
+
+        self.last_other_ui_refresh = self.current_position;
+
+        Some(current_position)
     }
 
     pub fn motion_notify(&mut self, event_motion: &gdk::EventMotion) -> Option<(u64, u64)> {
