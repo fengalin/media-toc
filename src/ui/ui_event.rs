@@ -1,4 +1,3 @@
-use crate::media::PlaybackPipeline;
 use glib;
 use gstreamer as gst;
 use gtk;
@@ -11,7 +10,6 @@ pub enum UIEvent {
         response_cb: Rc<Fn(gtk::ResponseType)>,
     },
     CancelSelectMedia,
-    HandBackPipeline(PlaybackPipeline),
     OpenMedia(PathBuf),
     PlayRange {
         start: u64,
@@ -47,10 +45,6 @@ impl UIEventSender {
 
     pub fn cancel_select_media(&self) {
         self.0.send(UIEvent::CancelSelectMedia);
-    }
-
-    pub fn hand_back_pipeline(&self, pipeline: PlaybackPipeline) {
-        self.0.send(UIEvent::HandBackPipeline(pipeline));
     }
 
     pub fn open_media(&self, path: PathBuf) {

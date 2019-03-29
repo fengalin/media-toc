@@ -37,10 +37,12 @@ where
 
         ctrl.btn.connect_clicked(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _| {
-                main_ctrl.request_pipeline(Box::new(move |main_ctrl, pipeline| {
-                    let ctrl = Impl::controller_mut(main_ctrl);
-                    ctrl.have_pipeline(pipeline);
-                    ctrl.handle_processing_states(Ok(ProcessingState::Start));
+                main_ctrl.pause_and_callback(Box::new(|main_ctrl: &mut MainController| {
+                    if let Some(pipeline) = main_ctrl.pipeline.as_mut() {
+                        main_ctrl.info_ctrl.export_chapters(&mut pipeline.info.write().unwrap());
+                        Impl::controller_mut(main_ctrl)
+                            .handle_processing_states(Ok(ProcessingState::Start));
+                    }
                 }));
             }
         ));

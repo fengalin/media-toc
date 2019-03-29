@@ -418,9 +418,8 @@ impl InfoController {
         self.update_marks();
     }
 
-    pub fn export_chapters(&self, pipeline: &mut PlaybackPipeline) {
+    pub fn export_chapters(&self, info: &mut MediaInfo) {
         if let Some((toc, count)) = self.chapter_manager.get_toc() {
-            let mut info = pipeline.info.write().unwrap();
             info.toc = Some(toc);
             info.chapter_count = Some(count);
         }

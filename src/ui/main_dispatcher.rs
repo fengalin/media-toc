@@ -104,12 +104,12 @@ impl MainDispatcher {
             gtk_app.add_action(&open);
             open.connect_activate(with_main_ctrl!(
                 main_ctrl_rc => move |&mut main_ctrl, _, _| {
-                    let state = main_ctrl.state;
-                    if state == ControllerState::Playing || state == ControllerState::EOS {
-                        main_ctrl.hold();
-                        main_ctrl.state = ControllerState::PendingSelectMedia;
-                    } else {
-                        main_ctrl.select_media();
+                    match main_ctrl.state {
+                        ControllerState::Playing | ControllerState::EOS => {
+                            main_ctrl.hold();
+                            main_ctrl.state = ControllerState::PendingSelectMedia;
+                        }
+                        _ => main_ctrl.select_media(),
                     }
                 }
             ));
@@ -207,9 +207,6 @@ impl MainDispatcher {
                 response_cb,
             } => main_ctrl.show_question(&question, response_cb),
             UIEvent::CancelSelectMedia => main_ctrl.cancel_select_media(),
-            UIEvent::HandBackPipeline(playback_pipeline) => {
-                main_ctrl.set_pipeline(playback_pipeline);
-            }
             UIEvent::OpenMedia(path) => main_ctrl.open_media(path),
             UIEvent::PlayRange {
                 start,

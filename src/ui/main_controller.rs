@@ -24,11 +24,11 @@ use super::{
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
 const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum ControllerState {
     EOS,
     Paused,
-    PendingTakePipeline,
+    PendingPaused,
     PendingSelectMedia,
     PendingSelectMediaDecision,
     Playing,
@@ -62,7 +62,6 @@ pub struct MainController {
     pub(super) streams_ctrl: StreamsController,
 
     pub(super) pipeline: Option<PlaybackPipeline>,
-    take_pipeline_cb: Option<Box<dyn FnMut(&mut MainController, PlaybackPipeline)>>,
     missing_plugins: HashSet<String>,
     pub(super) state: ControllerState,
 
@@ -70,6 +69,7 @@ pub struct MainController {
     pub(super) select_media_async: Option<Box<Fn()>>,
     pub(super) media_event_handler: Option<Rc<Fn(MediaEvent) -> glib::Continue>>,
     media_event_handler_src: Option<glib::SourceId>,
+    callback_when_paused: Option<Box<dyn Fn(&mut MainController)>>,
 }
 
 impl MainController {
@@ -111,7 +111,6 @@ impl MainController {
             streams_ctrl: StreamsController::new(&builder),
 
             pipeline: None,
-            take_pipeline_cb: None,
             missing_plugins: HashSet::<String>::new(),
             state: ControllerState::Stopped,
 
@@ -119,6 +118,7 @@ impl MainController {
             select_media_async: None,
             media_event_handler: None,
             media_event_handler_src: None,
+            callback_when_paused: None,
         }))
     }
 
@@ -375,10 +375,7 @@ impl MainController {
         };
     }
 
-    pub fn request_pipeline(
-        &mut self,
-        callback: Box<dyn FnMut(&mut MainController, PlaybackPipeline)>,
-    ) {
+    pub fn pause_and_callback(&mut self, callback: Box<dyn Fn(&mut MainController)>) {
         self.audio_ctrl.switch_to_not_playing();
         self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
 
@@ -386,26 +383,14 @@ impl MainController {
             pipeline.pause().unwrap();
         };
 
-        self.take_pipeline_cb = Some(callback);
-        if self.state == ControllerState::Playing || self.state == ControllerState::EOS {
-            self.state = ControllerState::PendingTakePipeline;
-        } else {
-            self.have_pipeline();
+        match &self.state {
+            ControllerState::Playing | ControllerState::EOS => {
+                self.callback_when_paused = Some(callback);
+                self.state = ControllerState::PendingPaused;
+            }
+            ControllerState::Paused => callback(self),
+            other => unimplemented!("MainController::pause_and_callback in {:?}", other),
         }
-    }
-
-    fn have_pipeline(&mut self) {
-        if let Some(mut pipeline) = self.pipeline.take() {
-            self.info_ctrl.export_chapters(&mut pipeline);
-            let mut callback = self.take_pipeline_cb.take().unwrap();
-            callback(self, pipeline);
-            self.state = ControllerState::Paused;
-        }
-    }
-
-    pub fn set_pipeline(&mut self, pipeline: PlaybackPipeline) {
-        self.pipeline = Some(pipeline);
-        self.state = ControllerState::Paused;
     }
 
     fn check_missing_plugins(&self) -> Option<String> {
@@ -489,18 +474,23 @@ impl MainController {
                 );
                 self.missing_plugins.insert(plugin);
             }
-            MediaEvent::ReadyForRefresh => match self.state {
+            MediaEvent::ReadyForRefresh => match &self.state {
                 ControllerState::Playing => (),
                 ControllerState::Paused => {
                     self.refresh();
                 }
                 ControllerState::TwoStepsSeek(target) => {
-                    self.seek(target, gst::SeekFlags::ACCURATE);
+                    self.seek(*target, gst::SeekFlags::ACCURATE);
                 }
                 ControllerState::PendingSelectMedia => {
                     self.select_media();
                 }
-                ControllerState::PendingTakePipeline => self.have_pipeline(),
+                ControllerState::PendingPaused => {
+                    self.state = ControllerState::Paused;
+                    if let Some(callback) = self.callback_when_paused.take() {
+                        callback(self)
+                    }
+                }
                 _ => (),
             },
             MediaEvent::StreamsSelected => self.streams_selected(),
@@ -619,7 +609,7 @@ impl MainController {
 
     pub fn cancel_select_media(&mut self) {
         self.reset_cursor();
-        match self.state {
+        match &self.state {
             ControllerState::PendingSelectMediaDecision => {
                 self.state = self
                     .pipeline

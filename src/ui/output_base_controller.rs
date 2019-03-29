@@ -87,8 +87,6 @@ pub struct OutputBaseController<Impl> {
     open_btn: gtk::Button,
     chapter_grid: gtk::Grid,
 
-    playback_pipeline: Option<PlaybackPipeline>,
-
     pub(super) media_event_handler: Option<Rc<Fn(MediaEvent)>>,
     media_event_handler_src: Option<glib::SourceId>,
 
@@ -115,8 +113,6 @@ where
             perspective_selector: builder.get_object("perspective-menu-btn").unwrap(),
             open_btn: builder.get_object("open-btn").unwrap(),
             chapter_grid: builder.get_object("info-chapter_list-grid").unwrap(),
-
-            playback_pipeline: None,
 
             media_event_handler: None,
             media_event_handler_src: None,
@@ -173,10 +169,6 @@ where
         if let Some(progress) = self.impl_.report_progress() {
             self.progress_bar.set_fraction(progress);
         }
-    }
-
-    pub fn have_pipeline(&mut self, playback_pipeline: PlaybackPipeline) {
-        self.playback_pipeline = Some(playback_pipeline);
     }
 
     fn ask_overwrite_question(&mut self, path: &Rc<Path>) {
@@ -248,11 +240,6 @@ where
         self.open_btn.set_sensitive(true);
         self.chapter_grid.set_sensitive(true);
 
-        let playback_pipeline = self.playback_pipeline.take().expect(concat!(
-            "OutputBaseController: `playback_pipeline` is already taken in ",
-            "`switch_to_available`",
-        ));
-        self.ui_event.hand_back_pipeline(playback_pipeline);
         self.ui_event.reset_cursor();
     }
 
