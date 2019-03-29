@@ -26,7 +26,6 @@ const INIT_HEIGHT: i32 = 500;
 #[cfg(feature = "dump-waveform")]
 const WAVEFORM_DUMP_DIR: &str = "target/waveforms";
 
-#[derive(Debug, Clone)]
 pub struct WaveformSample {
     pub x: f64,
     pub values: SmallVec<[f64; INLINE_CHANNELS]>,

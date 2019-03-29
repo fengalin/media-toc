@@ -117,7 +117,7 @@ fn parse_string() {
     }
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Default)]
 pub struct Timestamp {
     pub nano_total: u64,
     pub nano: u64,

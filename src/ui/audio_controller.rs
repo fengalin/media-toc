@@ -53,7 +53,7 @@ const CURSOR_TEXT_MN: &str = "00:00.000.000";
 const BOUNDARY_TEXT_H: &str = "00:00:00.000";
 const CURSOR_TEXT_H: &str = "00:00:00.000.000";
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum ControllerState {
     Disabled,
     CursorAboveBoundary(u64),

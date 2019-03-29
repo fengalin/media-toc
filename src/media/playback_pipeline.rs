@@ -23,14 +23,13 @@ use super::{DoubleAudioBuffer, MediaEvent, PlaybackState};
 // This is the max duration that queues can hold
 pub const QUEUE_SIZE_NS: u64 = 5_000_000_000u64; // 5s
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum PipelineState {
     None,
     Playable(PlaybackState),
     StreamsSelected,
 }
 
-#[derive(Clone)]
 pub struct PlaybackPipeline {
     pipeline: gst::Pipeline,
     decodebin: gst::Element,
