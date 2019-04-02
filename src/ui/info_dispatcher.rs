@@ -143,7 +143,6 @@ impl UIDispatcher for InfoDispatcher {
                 }
             }
         ));
-        gtk_app.set_accels_for_action("app.next_chapter", &["Down", "AudioNext"]);
 
         // Register previous chapter action
         let previous_chapter = gio::SimpleAction::new("previous_chapter", None);
@@ -155,6 +154,19 @@ impl UIDispatcher for InfoDispatcher {
                 main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
             }
         ));
-        gtk_app.set_accels_for_action("app.previous_chapter", &["Up", "AudioPrev"]);
+
+        // activate Next chapter accels only when the display page is shown
+        // so that other pages can use the Up & Down keys
+        let gtk_app_cb = gtk_app.clone();
+        main_ctrl.display_page.connect_map(move |_| {
+            gtk_app_cb.set_accels_for_action("app.next_chapter", &["Down", "AudioNext"]);
+            gtk_app_cb.set_accels_for_action("app.previous_chapter", &["Up", "AudioPrev"]);
+        });
+
+        let gtk_app_cb = gtk_app.clone();
+        main_ctrl.display_page.connect_unmap(move |_| {
+            gtk_app_cb.set_accels_for_action("app.next_chapter", &[]);
+            gtk_app_cb.set_accels_for_action("app.previous_chapter", &[]);
+        });
     }
 }

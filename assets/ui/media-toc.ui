@@ -716,7 +716,8 @@ Author: François Laignel <fengalin@free.fr>
                             <child>
                               <object class="GtkToolButton" id="play_pause-toolbutton">
                                 <property name="visible">True</property>
-                                <property name="can_focus">False</property>
+                                <property name="can_focus">True</property>
+                                <property name="can_default">True</property>
                                 <property name="tooltip_text" translatable="yes" comments="Button tooltip">Play / Pause</property>
                                 <property name="halign">end</property>
                                 <property name="valign">end</property>
@@ -942,7 +943,7 @@ Author: François Laignel <fengalin@free.fr>
                     <child>
                       <object class="GtkListBox" id="export-list-box">
                         <property name="visible">True</property>
-                        <property name="can_focus">False</property>
+                        <property name="can_focus">True</property>
                         <property name="margin_top">6</property>
                         <property name="margin_bottom">6</property>
                         <child>
@@ -1126,6 +1127,7 @@ Time resolution: 1 ns.</property>
                         <property name="label" translatable="yes" comments="Button label">Export</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
+                        <property name="can_default">True</property>
                         <property name="receives_default">True</property>
                         <property name="tooltip_text" translatable="yes" comments="Button tooltip">Export media to selected format</property>
                         <property name="halign">center</property>
@@ -1133,6 +1135,7 @@ Time resolution: 1 ns.</property>
                         <property name="margin_left">10</property>
                         <property name="margin_right">10</property>
                         <property name="margin_bottom">10</property>
+                        <property name="action_name">app.export</property>
                       </object>
                       <packing>
                         <property name="left_attach">2</property>
@@ -1243,7 +1246,7 @@ Time resolution: 1 ns.</property>
                     <child>
                       <object class="GtkListBox" id="split-list-box">
                         <property name="visible">True</property>
-                        <property name="can_focus">False</property>
+                        <property name="can_focus">True</property>
                         <property name="margin_top">6</property>
                         <property name="margin_bottom">6</property>
                         <child>
@@ -1597,6 +1600,7 @@ Tags support.</property>
                         <property name="label" translatable="yes" comments="Button label">Split</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
+                        <property name="can_default">True</property>
                         <property name="receives_default">True</property>
                         <property name="tooltip_text" translatable="yes" comments="Button tooltip">Split audio stream and encode to selected format</property>
                         <property name="halign">center</property>
@@ -1604,6 +1608,7 @@ Tags support.</property>
                         <property name="margin_left">10</property>
                         <property name="margin_right">10</property>
                         <property name="margin_bottom">10</property>
+                        <property name="action_name">app.split</property>
                       </object>
                       <packing>
                         <property name="left_attach">2</property>

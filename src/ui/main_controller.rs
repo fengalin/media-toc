@@ -46,10 +46,12 @@ pub struct MainController {
 
     header_bar: gtk::HeaderBar,
     pub(super) open_btn: gtk::Button,
+    pub(super) display_page: gtk::Box,
     playback_paned: gtk::Paned,
     pub(super) play_pause_btn: gtk::ToolButton,
     pub(super) info_bar_revealer: gtk::Revealer,
     pub(super) info_bar: gtk::InfoBar,
+    info_bar_ok: gtk::Button,
     info_bar_lbl: gtk::Label,
     info_bar_btn_box: gtk::ButtonBox,
 
@@ -80,6 +82,15 @@ impl MainController {
         let ui_event_sender: UIEventSender = ui_event_sender.into();
         let chapters_boundaries = Rc::new(RefCell::new(ChaptersBoundaries::new()));
 
+        let info_bar: gtk::InfoBar = builder.get_object("info_bar").unwrap();
+        let info_bar_ok = info_bar
+            .add_button(&gettext("Yes"), gtk::ResponseType::Yes)
+            .unwrap();
+        info_bar.add_button(&gettext("No"), gtk::ResponseType::No);
+        info_bar.add_button(&gettext("Yes to all"), gtk::ResponseType::Apply);
+        info_bar.add_button(&gettext("Cancel"), gtk::ResponseType::Cancel);
+        info_bar.set_default_response(gtk::ResponseType::Yes);
+
         Rc::new(RefCell::new(MainController {
             ui_event_receiver: Some(ui_event_receiver),
             ui_event_sender: ui_event_sender.clone(),
@@ -87,10 +98,12 @@ impl MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
             open_btn: builder.get_object("open-btn").unwrap(),
+            display_page: builder.get_object("display-box").unwrap(),
             playback_paned: builder.get_object("playback-paned").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
             info_bar_revealer: builder.get_object("info_bar-revealer").unwrap(),
-            info_bar: builder.get_object("info_bar").unwrap(),
+            info_bar,
+            info_bar_ok,
             info_bar_lbl: builder.get_object("info_bar-lbl").unwrap(),
             info_bar_btn_box: builder.get_object("info_bar-btnbox").unwrap(),
 
@@ -123,15 +136,6 @@ impl MainController {
     }
 
     pub fn setup(&mut self, args: &CommandLineArguments) {
-        self.info_bar
-            .add_button(&gettext("Yes"), gtk::ResponseType::Yes);
-        self.info_bar
-            .add_button(&gettext("No"), gtk::ResponseType::No);
-        self.info_bar
-            .add_button(&gettext("Yes to all"), gtk::ResponseType::Apply);
-        self.info_bar
-            .add_button(&gettext("Cancel"), gtk::ResponseType::Cancel);
-
         if gst::init().is_ok() {
             {
                 let config = CONFIG.read().unwrap();
@@ -238,11 +242,17 @@ impl MainController {
         if let Some(src) = self.info_bar_response_src.take() {
             self.info_bar.disconnect(src);
         }
+
+        let default_widget = self.window.get_default_widget();
         self.info_bar_response_src =
             Some(self.info_bar.connect_response(move |_, response_type| {
                 info_bar_revealer.set_reveal_child(false);
+                if let Some(default_widget) = &default_widget {
+                    default_widget.grab_default();
+                }
                 response_cb(response_type);
             }));
+        self.info_bar_ok.grab_default();
         self.show_message(gtk::MessageType::Question, question);
     }
 

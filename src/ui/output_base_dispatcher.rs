@@ -35,6 +35,15 @@ where
         let mut main_ctrl = main_ctrl_rc.borrow_mut();
         let ctrl = Impl::controller_mut(&mut main_ctrl);
 
+        ctrl.btn.connect_map(move |btn| {
+            btn.grab_default();
+        });
+        ctrl.list.connect_map(move |list| {
+            if let Some(selected_row) = list.get_selected_row() {
+                selected_row.grab_focus();
+            }
+        });
+
         ctrl.btn.connect_clicked(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _| {
                 main_ctrl.pause_and_callback(Box::new(|main_ctrl: &mut MainController| {

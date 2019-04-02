@@ -80,7 +80,7 @@ pub struct OutputBaseController<Impl> {
     ui_event: UIEventSender,
 
     progress_bar: gtk::ProgressBar,
-    list: gtk::ListBox,
+    pub(super) list: gtk::ListBox,
     pub(super) btn: gtk::Button,
 
     perspective_selector: gtk::MenuButton,
