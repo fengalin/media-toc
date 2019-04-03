@@ -6,7 +6,7 @@ use gstreamer::prelude::*;
 use glib;
 use glib::ObjectExt;
 
-use log::info;
+use log::{info, warn};
 
 use std::{
     collections::HashSet,
@@ -172,6 +172,12 @@ impl TocSetterPipeline {
                 fakesink.sync_state_with_parent().unwrap();
             }
         });
+    }
+
+    pub fn cancel(&self) {
+        if self.pipeline.set_state(gst::State::Null).is_err() {
+            warn!("could not stop the media");
+        }
     }
 
     // Uses sender to notify the UI controllers about the inspection process

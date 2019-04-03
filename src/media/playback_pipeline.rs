@@ -137,7 +137,7 @@ impl PlaybackPipeline {
 
     pub fn stop(&self) {
         if self.pipeline.set_state(gst::State::Null).is_err() {
-            warn!("could not set media in Null state");
+            warn!("could not stop the media");
         }
     }
 

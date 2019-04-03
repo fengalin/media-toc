@@ -5,7 +5,7 @@ use gstreamer::{prelude::*, ClockTime};
 
 use glib;
 
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 
 use std::{
     error::Error,
@@ -310,6 +310,12 @@ impl SplitterPipeline {
                 fakesink.sync_state_with_parent().unwrap();
             }
         });
+    }
+
+    pub fn cancel(&self) {
+        if self.pipeline.set_state(gst::State::Null).is_err() {
+            warn!("could not stop the media");
+        }
     }
 
     // Uses sender to notify the UI controllers

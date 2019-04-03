@@ -6,8 +6,8 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 use crate::with_main_ctrl;
 
 use super::{
-    MainController, MediaProcessor, OutputBaseController, OutputControllerImpl, ProcessingState,
-    UIController, UIDispatcher,
+    MainController, MediaProcessor, OutputBaseController, OutputControllerImpl, UIController,
+    UIDispatcher,
 };
 
 pub trait OutputDispatcherImpl {
@@ -47,10 +47,13 @@ where
         ctrl.btn.connect_clicked(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _| {
                 main_ctrl.pause_and_callback(Box::new(|main_ctrl: &mut MainController| {
-                    if let Some(pipeline) = main_ctrl.pipeline.as_mut() {
-                        main_ctrl.info_ctrl.export_chapters(&mut pipeline.info.write().unwrap());
-                        Impl::controller_mut(main_ctrl)
-                            .handle_processing_states(Ok(ProcessingState::Start));
+                    if !Impl::controller_mut(main_ctrl).is_busy() {
+                        if let Some(pipeline) = main_ctrl.pipeline.as_mut() {
+                            main_ctrl.info_ctrl.export_chapters(&mut pipeline.info.write().unwrap());
+                            Impl::controller_mut(main_ctrl).start();
+                        }
+                    } else {
+                        Impl::controller_mut(main_ctrl).cancel();
                     }
                 }));
             }

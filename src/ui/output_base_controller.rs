@@ -5,7 +5,7 @@ use gtk::prelude::*;
 
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::Path,
     rc::Rc,
     sync::{Arc, RwLock},
 };
@@ -42,6 +42,7 @@ pub trait MediaProcessor {
     fn init(&mut self) -> ProcessingType;
     fn next(&mut self) -> Result<ProcessingState, String>;
     fn process(&mut self, path: &Path) -> Result<ProcessingState, String>;
+    fn cancel(&mut self);
     fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingState, String>;
     fn report_progress(&self) -> Option<f64>;
 }
@@ -54,7 +55,7 @@ pub trait OutputControllerImpl {
 
 pub struct OutputMediaFileInfo {
     pub format: Format,
-    pub path: PathBuf,
+    pub path: Rc<Path>,
     pub extension: String,
     pub stream_ids: Arc<RwLock<HashSet<String>>>,
 }
@@ -65,7 +66,7 @@ impl OutputMediaFileInfo {
         let extension = metadata::Factory::get_extension(format, content).to_owned();
 
         OutputMediaFileInfo {
-            path: src_info.path.with_extension(&extension),
+            path: src_info.path.with_extension(&extension).into(),
             extension,
             format,
             stream_ids: Arc::new(RwLock::new(stream_ids)),
@@ -82,6 +83,7 @@ pub struct OutputBaseController<Impl> {
     progress_bar: gtk::ProgressBar,
     pub(super) list: gtk::ListBox,
     pub(super) btn: gtk::Button,
+    btn_default_label: glib::GString,
 
     perspective_selector: gtk::MenuButton,
     open_btn: gtk::Button,
@@ -102,11 +104,14 @@ where
     Impl: OutputControllerImpl + MediaProcessor + UIController + 'static,
 {
     pub fn new_base(impl_: Impl, builder: &gtk::Builder, ui_event_sender: UIEventSender) -> Self {
+        let btn: gtk::Button = builder.get_object(Impl::BTN_NAME).unwrap();
+
         OutputBaseController {
             impl_,
             ui_event: ui_event_sender,
 
-            btn: builder.get_object(Impl::BTN_NAME).unwrap(),
+            btn_default_label: btn.get_label().unwrap(),
+            btn,
             list: builder.get_object(Impl::LIST_NAME).unwrap(),
             progress_bar: builder.get_object(Impl::PROGRESS_BAR_NAME).unwrap(),
 
@@ -123,6 +128,30 @@ where
             overwrite_response_cb: None,
             overwrite_all: false,
         }
+    }
+
+    pub fn start(&mut self) {
+        self.switch_to_busy();
+        self.overwrite_all = false;
+
+        match self.impl_.init() {
+            ProcessingType::Sync => (),
+            ProcessingType::Async(receiver) => {
+                self.attach_media_event_handler(receiver);
+                self.register_progress_timer();
+            }
+        }
+
+        self.handle_processing_states(Ok(ProcessingState::Start));
+    }
+
+    pub fn cancel(&mut self) {
+        self.impl_.cancel();
+        self.handle_processing_states(Ok(ProcessingState::Cancelled));
+    }
+
+    pub fn is_busy(&self) -> bool {
+        self.media_event_handler_src.is_some()
     }
 
     #[allow(clippy::redundant_closure)]
@@ -172,6 +201,8 @@ where
     }
 
     fn ask_overwrite_question(&mut self, path: &Rc<Path>) {
+        self.btn.set_sensitive(false);
+
         self.remove_progress_timer();
         self.ui_event.reset_cursor();
 
@@ -194,6 +225,8 @@ where
     }
 
     pub fn handle_overwrite_response(&mut self, response_type: gtk::ResponseType, path: &Rc<Path>) {
+        self.btn.set_sensitive(true);
+
         let next_state = match response_type {
             gtk::ResponseType::Apply => {
                 // This one is used for "Yes to all"
@@ -219,7 +252,7 @@ where
 
     fn switch_to_busy(&self) {
         self.list.set_sensitive(false);
-        self.btn.set_sensitive(false);
+        self.btn.set_label(&gettext("Cancel"));
 
         self.perspective_selector.set_sensitive(false);
         self.open_btn.set_sensitive(false);
@@ -234,7 +267,7 @@ where
 
         self.progress_bar.set_fraction(0f64);
         self.list.set_sensitive(true);
-        self.btn.set_sensitive(true);
+        self.btn.set_label(self.btn_default_label.as_str());
 
         self.perspective_selector.set_sensitive(true);
         self.open_btn.set_sensitive(true);
@@ -243,7 +276,7 @@ where
         self.ui_event.reset_cursor();
     }
 
-    pub fn handle_processing_states(&mut self, mut res: Result<ProcessingState, String>) {
+    fn handle_processing_states(&mut self, mut res: Result<ProcessingState, String>) {
         loop {
             match res {
                 Ok(ProcessingState::AllComplete(msg)) => {
@@ -270,17 +303,6 @@ where
                     break;
                 }
                 Ok(ProcessingState::Start) => {
-                    self.switch_to_busy();
-                    self.overwrite_all = false;
-
-                    match self.impl_.init() {
-                        ProcessingType::Sync => (),
-                        ProcessingType::Async(receiver) => {
-                            self.attach_media_event_handler(receiver);
-                            self.register_progress_timer();
-                        }
-                    }
-
                     res = self.impl_.next();
                 }
                 Ok(ProcessingState::SkipCurrent) => {

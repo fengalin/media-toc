@@ -7,6 +7,7 @@ use log::warn;
 use std::{
     fs::File,
     path::Path,
+    rc::Rc,
     sync::{Arc, RwLock},
 };
 
@@ -36,8 +37,8 @@ impl ExportController {
 
 pub struct ExportControllerImpl {
     src_info: Option<Arc<RwLock<MediaInfo>>>,
-    idx: u64,
 
+    idx: u64,
     export_file_info: Option<OutputMediaFileInfo>,
     media_event_sender: Option<glib::Sender<MediaEvent>>,
     toc_setter_pipeline: Option<TocSetterPipeline>,
@@ -77,7 +78,7 @@ impl UIController for ExportControllerImpl {
 
     fn cleanup(&mut self) {
         self.src_info = None;
-        self.idx = 0;
+        self.reset();
     }
 }
 
@@ -85,8 +86,8 @@ impl ExportControllerImpl {
     pub fn new(builder: &gtk::Builder) -> Self {
         ExportControllerImpl {
             src_info: None,
-            idx: 0,
 
+            idx: 0,
             export_file_info: None,
             media_event_sender: None,
             toc_setter_pipeline: None,
@@ -100,10 +101,19 @@ impl ExportControllerImpl {
             export_btn: builder.get_object(Self::BTN_NAME).unwrap(),
         }
     }
+
+    fn reset(&mut self) {
+        self.idx = 0;
+        self.export_file_info = None;
+        self.media_event_sender = None;
+        self.toc_setter_pipeline = None;
+    }
 }
 
 impl MediaProcessor for ExportControllerImpl {
     fn init(&mut self) -> ProcessingType {
+        self.reset();
+
         let (format, processing_type) = if self.mkvmerge_txt_row.is_selected() {
             (Format::MKVMergeText, ProcessingType::Sync)
         } else if self.cue_row.is_selected() {
@@ -122,8 +132,6 @@ impl MediaProcessor for ExportControllerImpl {
             OutputMediaFileInfo::new(format, &src_info)
         });
 
-        self.idx = 0;
-
         processing_type
     }
 
@@ -141,56 +149,100 @@ impl MediaProcessor for ExportControllerImpl {
         ));
         self.idx += 1;
 
-        Ok(ProcessingState::WouldOutputTo(
-            export_file_info.path.clone().into(),
-        ))
+        Ok(ProcessingState::WouldOutputTo(Rc::clone(
+            &export_file_info.path,
+        )))
     }
 
     fn process(&mut self, path: &Path) -> Result<ProcessingState, String> {
-        let export_file_info = self.export_file_info.as_ref().expect(concat!(
-            "ExportControllerImpl: export_file_info not defined in `process()`, ",
-            "did you call `init()`?"
-        ));
-        match export_file_info.format {
+        let format = self
+            .export_file_info
+            .as_ref()
+            .expect(concat!(
+                "ExportControllerImpl: export_file_info not defined in `process()`, ",
+                "did you call `init()`?"
+            ))
+            .format;
+        let res = match format {
             Format::MKVMergeText | Format::CueSheet => {
                 // export toc as a standalone file
-                let mut output_file = File::create(&path)
-                    .map_err(|_| gettext("Failed to create the file for the table of contents"))?;
-                let src_info = self.src_info.as_ref().unwrap().read().unwrap();
-                metadata::Factory::get_writer(export_file_info.format)
-                    .write(&src_info, &mut output_file)?;
-
-                self.export_file_info = None;
-
-                Ok(ProcessingState::DoneWithCurrent)
+                File::create(&path)
+                    .map_err(|_| gettext("Failed to create the file for the table of contents"))
+                    .and_then(|mut output_file| {
+                        let res = {
+                            let src_info = self.src_info.as_ref().unwrap().read().unwrap();
+                            metadata::Factory::get_writer(format).write(&src_info, &mut output_file)
+                        };
+                        res.map(|_| {
+                            self.export_file_info = None;
+                            ProcessingState::DoneWithCurrent
+                        })
+                    })
             }
             Format::Matroska => {
-                let toc_setter_pipeline = TocSetterPipeline::try_new(
+                let res = TocSetterPipeline::try_new(
                     &self.src_info.as_ref().unwrap().read().unwrap().path,
                     path,
-                    Arc::clone(&export_file_info.stream_ids),
+                    Arc::clone(&self.export_file_info.as_ref().unwrap().stream_ids),
                     self.media_event_sender
                         .as_ref()
                         .expect(
                             "ExportControllerImpl: no media_event_sender in `start()` did you call `init()`?",
                         )
                         .clone(),
-                )
-                .map_err(|err| {
-                    gettext("Failed to prepare for export. {}").replacen("{}", &err, 1)
-                })?;
-                self.toc_setter_pipeline = Some(toc_setter_pipeline);
+                );
 
-                Ok(ProcessingState::PendingAsyncMediaEvent)
+                res.map_err(|err| {
+                    gettext("Failed to prepare for export. {}").replacen("{}", &err, 1)
+                })
+                .map(|toc_setter_pipeline| {
+                    self.toc_setter_pipeline = Some(toc_setter_pipeline);
+                    ProcessingState::PendingAsyncMediaEvent
+                })
             }
             format => unimplemented!("ExportControllerImpl for format {:?}", format),
+        };
+
+        if res.is_err() {
+            self.reset();
         }
+
+        res
+    }
+
+    fn cancel(&mut self) {
+        self.toc_setter_pipeline
+            .as_mut()
+            .expect("ExportController::cancel no toc_setter_pipeline")
+            .cancel();
+
+        {
+            let path = &self
+                .export_file_info
+                .as_ref()
+                .expect(concat!(
+                    "ExportControllerImpl: export_file_info not defined in `cancel()`, ",
+                    "did you call `init()`?"
+                ))
+                .path;
+
+            if std::fs::remove_file(path).is_err() {
+                if let Some(printable_path) = path.to_str() {
+                    warn!("Failed to remove canceled export file {}", printable_path);
+                }
+            }
+        }
+
+        self.reset();
     }
 
     fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingState, String> {
         match event {
             MediaEvent::InitDone => {
-                let toc_setter_pipeline = self.toc_setter_pipeline.as_mut().unwrap();
+                let toc_setter_pipeline = self
+                    .toc_setter_pipeline
+                    .as_mut()
+                    .expect("ExportController::handle_media_event no toc_setter_pipeline");
 
                 let exporter = MatroskaTocFormat::new();
                 {
@@ -199,9 +251,10 @@ impl MediaProcessor for ExportControllerImpl {
                     exporter.export(&src_info, muxer);
                 }
 
-                toc_setter_pipeline
-                    .export()
-                    .map_err(|err| gettext("Failed to export media. {}").replacen("{}", &err, 1))?;
+                toc_setter_pipeline.export().map_err(|err| {
+                    self.reset();
+                    gettext("Failed to export media. {}").replacen("{}", &err, 1)
+                })?;
 
                 Ok(ProcessingState::PendingAsyncMediaEvent)
             }
@@ -210,7 +263,7 @@ impl MediaProcessor for ExportControllerImpl {
                 Ok(ProcessingState::DoneWithCurrent)
             }
             MediaEvent::FailedToExport(err) => {
-                self.export_file_info = None;
+                self.reset();
                 Err(gettext("Failed to export media. {}").replacen("{}", &err, 1))
             }
             other => unimplemented!("ExportController: can't handle media event {:?}", other),

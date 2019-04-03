@@ -6,7 +6,8 @@ use gtk::prelude::*;
 use log::warn;
 
 use std::{
-    path::{Path, PathBuf},
+    path::Path,
+    rc::Rc,
     sync::{Arc, RwLock},
 };
 
@@ -61,6 +62,7 @@ pub struct SplitControllerImpl {
     toc_visitor: Option<TocVisitor>,
     idx: usize,
     current_chapter: Option<gst::TocEntry>,
+    current_path: Option<Rc<Path>>,
 
     split_list: gtk::ListBox,
     split_to_flac_row: gtk::ListBoxRow,
@@ -91,6 +93,9 @@ impl UIController for SplitControllerImpl {
 
     fn cleanup(&mut self) {
         self.src_info = None;
+        self.selected_audio = None;
+
+        self.reset();
     }
 
     fn streams_changed(&mut self, info: &MediaInfo) {
@@ -134,6 +139,7 @@ impl SplitControllerImpl {
             toc_visitor: None,
             idx: 0,
             current_chapter: None,
+            current_path: None,
 
             split_list: builder.get_object(Self::LIST_NAME).unwrap(),
             split_to_flac_row: builder.get_object("flac_split-row").unwrap(),
@@ -151,7 +157,17 @@ impl SplitControllerImpl {
         }
     }
 
-    fn get_split_path(&self, chapter: &gst::TocEntry) -> PathBuf {
+    fn reset(&mut self) {
+        self.split_file_info = None;
+        self.media_event_sender = None;
+        self.splitter_pipeline = None;
+        self.toc_visitor = None;
+        self.idx = 0;
+        self.current_chapter = None;
+        self.current_path = None;
+    }
+
+    fn get_split_path(&self, chapter: &gst::TocEntry) -> Rc<Path> {
         let mut split_name = String::new();
 
         let src_info = self.src_info.as_ref().unwrap().read().unwrap();
@@ -202,7 +218,7 @@ impl SplitControllerImpl {
 
         split_name += &format!(".{}", split_file_info.extension);
 
-        split_file_info.path.with_file_name(split_name)
+        split_file_info.path.with_file_name(split_name).into()
     }
 }
 
@@ -293,9 +309,10 @@ impl MediaProcessor for SplitControllerImpl {
                 .get_chapter_with_track_tags(&chapter, self.idx),
         );
 
-        Ok(ProcessingState::WouldOutputTo(
-            self.get_split_path(&chapter).into(),
-        ))
+        let split_path = self.get_split_path(&chapter);
+        self.current_path = Some(Rc::clone(&split_path));
+
+        Ok(ProcessingState::WouldOutputTo(split_path))
     }
 
     fn process(&mut self, output_path: &Path) -> Result<ProcessingState, String> {
@@ -324,17 +341,39 @@ impl MediaProcessor for SplitControllerImpl {
         };
 
         self.splitter_pipeline = Some(res.map_err(|err| {
-            self.split_file_info = None;
+            self.reset();
             gettext("Failed to prepare for split. {}").replacen("{}", &err, 1)
         })?);
 
         Ok(ProcessingState::PendingAsyncMediaEvent)
     }
 
+    fn cancel(&mut self) {
+        self.splitter_pipeline
+            .as_mut()
+            .expect("SplitController::cancel no splitter_pipeline")
+            .cancel();
+
+        if let Some(current_path) = self.current_path.take() {
+            if std::fs::remove_file(&current_path).is_err() {
+                if let Some(printable_path) = current_path.to_str() {
+                    warn!("Failed to remove canceled split file {}", printable_path);
+                }
+            }
+        }
+
+        self.reset();
+    }
+
     fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingState, String> {
         match event {
-            MediaEvent::Eos => Ok(ProcessingState::DoneWithCurrent),
+            MediaEvent::Eos => {
+                self.current_chapter = None;
+                self.current_path = None;
+                Ok(ProcessingState::DoneWithCurrent)
+            }
             MediaEvent::FailedToExport(err) => {
+                self.reset();
                 Err(gettext("Failed to split media. {}").replacen("{}", &err, 1))
             }
             other => unimplemented!("SplitController: can't handle media event {:?}", other),
