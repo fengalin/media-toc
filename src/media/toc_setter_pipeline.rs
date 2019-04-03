@@ -63,7 +63,7 @@ impl TocSetterPipeline {
         this.pipeline
             .set_state(gst::State::Paused)
             .map(|_| this)
-            .map_err(|_| gettext("Could not set media in Paused mode"))
+            .map_err(|_| gettext("do you have permission to write the file?"))
     }
 
     pub fn get_muxer(&self) -> Option<&gst::Element> {
@@ -190,11 +190,9 @@ impl TocSetterPipeline {
                     return glib::Continue(false);
                 }
                 gst::MessageView::Error(err) => {
-                    sender
-                        .send(MediaEvent::FailedToExport(
-                            err.get_error().description().to_owned(),
-                        ))
-                        .unwrap();
+                    let _ = sender.send(MediaEvent::FailedToExport(
+                        err.get_error().description().to_owned(),
+                    ));
                     return glib::Continue(false);
                 }
                 gst::MessageView::AsyncDone(_) => {
