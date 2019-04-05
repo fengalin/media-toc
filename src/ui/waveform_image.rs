@@ -11,7 +11,7 @@ use std::{
     io::ErrorKind,
 };
 
-use crate::media::{AudioBuffer, AudioChannel, AudioChannelSide, INLINE_CHANNELS};
+use crate::media::{AudioBuffer, AudioChannel, AudioChannelSide, SampleValue, INLINE_CHANNELS};
 
 use super::Image;
 
@@ -28,7 +28,7 @@ const WAVEFORM_DUMP_DIR: &str = "target/waveforms";
 
 pub struct WaveformSample {
     pub x: f64,
-    pub values: SmallVec<[f64; INLINE_CHANNELS]>,
+    pub values: SmallVec<[SampleValue; INLINE_CHANNELS]>,
 }
 
 pub struct WaveformImage {
@@ -44,8 +44,8 @@ pub struct WaveformImage {
     image_width: i32,
     image_width_f: f64,
     image_height: i32,
-    half_range: f64,
-    full_range: f64,
+    half_range: SampleValue,
+    full_range: SampleValue,
 
     req_width: i32,
     req_height: i32,
@@ -93,8 +93,8 @@ impl WaveformImage {
             image_width: 0,
             image_width_f: 0f64,
             image_height: 0,
-            half_range: 0f64,
-            full_range: 0f64,
+            half_range: SampleValue::default(),
+            full_range: SampleValue::default(),
 
             req_width: 0,
             req_height: 0,
@@ -125,8 +125,8 @@ impl WaveformImage {
         self.image_width = 0;
         self.image_width_f = 0f64;
         self.image_height = 0;
-        self.half_range = 0f64;
-        self.full_range = 0f64;
+        self.half_range = SampleValue::default();
+        self.full_range = SampleValue::default();
 
         self.req_width = 0;
         self.req_height = 0;
@@ -358,8 +358,8 @@ impl WaveformImage {
                 self.image_width = target_width;
                 self.image_width_f = f64::from(target_width);
                 self.image_height = self.req_height;
-                self.half_range = f64::from(self.req_height / 2);
-                self.full_range = f64::from(self.req_height);
+                self.half_range = SampleValue::from(self.req_height / 2);
+                self.full_range = SampleValue::from(self.req_height);
 
                 debug!(
                     "{}_render new images w {}, h {}",
@@ -710,7 +710,7 @@ impl WaveformImage {
         &self,
         x: f64,
         audio_buffer: &AudioBuffer,
-    ) -> Option<(usize, SmallVec<[f64; INLINE_CHANNELS]>)> {
+    ) -> Option<(usize, SmallVec<[SampleValue; INLINE_CHANNELS]>)> {
         let sample = self.lower + (x as usize) / self.x_step * self.sample_step;
 
         #[cfg(test)]
@@ -774,18 +774,22 @@ impl WaveformImage {
             #[cfg(not(test))]
             self.set_channel_color(cr, channel);
 
-            cr.move_to(from.x, from.values[channel]);
-            cr.line_to(to.x, to.values[channel]);
+            cr.move_to(from.x, from.values[channel].as_f64());
+            cr.line_to(to.x, to.values[channel].as_f64());
             cr.stroke();
         }
     }
 
-    fn convert_sample(&self, value: f64) -> f64 {
+    fn convert_sample(&self, value: SampleValue) -> SampleValue {
         value * self.half_range
     }
 
-    fn convert_sample_values(&self, values: &[f64]) -> SmallVec<[f64; INLINE_CHANNELS]> {
-        let mut result: SmallVec<[f64; INLINE_CHANNELS]> = SmallVec::with_capacity(values.len());
+    fn convert_sample_values(
+        &self,
+        values: &[SampleValue],
+    ) -> SmallVec<[SampleValue; INLINE_CHANNELS]> {
+        let mut result: SmallVec<[SampleValue; INLINE_CHANNELS]> =
+            SmallVec::with_capacity(values.len());
         for value in values {
             result.push(self.convert_sample(*value));
         }
@@ -842,13 +846,13 @@ impl WaveformImage {
             // the start and end of each chunk
             cr.set_source_rgb(0f64, 0f64, 1f64);
             cr.move_to(first_x, 0f64);
-            cr.line_to(first_x, 0.5f64 * self.half_range);
+            cr.line_to(first_x, 0.5f64 * self.half_range.as_f64());
             cr.stroke();
         }
 
-        let mut first_values: SmallVec<[f64; INLINE_CHANNELS]> =
+        let mut first_values: SmallVec<[SampleValue; INLINE_CHANNELS]> =
             SmallVec::with_capacity(audio_buffer.channels);
-        let mut last_values: SmallVec<[f64; INLINE_CHANNELS]> =
+        let mut last_values: SmallVec<[SampleValue; INLINE_CHANNELS]> =
             SmallVec::with_capacity(audio_buffer.channels);
 
         let sample = sample_iter.next();
@@ -882,10 +886,10 @@ impl WaveformImage {
 
             for (channel, value) in sample.iter().enumerate() {
                 self.set_channel_color(cr, channel);
-                cr.move_to(prev_x, last_values[channel]);
+                cr.move_to(prev_x, last_values[channel].as_f64());
 
                 last_values[channel] = self.convert_sample(*value);
-                cr.line_to(x, last_values[channel]);
+                cr.line_to(x, last_values[channel].as_f64());
                 cr.stroke();
             }
         }
@@ -914,8 +918,8 @@ impl WaveformImage {
             // in test mode, draw marks at
             // the start and end of each chunk
             cr.set_source_rgb(1f64, 0f64, 1f64);
-            cr.move_to(x, 1.5f64 * self.half_range);
-            cr.line_to(x, self.full_range);
+            cr.move_to(x, 1.5f64 * self.half_range.as_f64());
+            cr.line_to(x, self.full_range.as_f64());
             cr.stroke();
         }
 
@@ -931,15 +935,15 @@ impl WaveformImage {
             AMPLITUDE_0_COLOR.2,
         );
 
-        cr.move_to(first_x, self.half_range);
-        cr.line_to(last_x, self.half_range);
+        cr.move_to(first_x, self.half_range.as_f64());
+        cr.line_to(last_x, self.half_range.as_f64());
         cr.stroke();
     }
 
     // clear samples previously rendered
     fn clear_area(&self, cr: &cairo::Context, first_x: f64, limit_x: f64) {
         cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
-        cr.rectangle(first_x, 0f64, limit_x - first_x, self.full_range);
+        cr.rectangle(first_x, 0f64, limit_x - first_x, self.full_range.as_f64());
         cr.fill();
     }
 }
@@ -951,12 +955,9 @@ mod tests {
     use gstreamer_audio as gst_audio;
     use gstreamer_audio::AUDIO_FORMAT_S16;
     use log::info;
-    use smallvec::SmallVec;
 
     use std::fs::{create_dir, File};
     use std::io::ErrorKind;
-
-    use std::i16;
 
     use crate::media::{AudioBuffer, AudioChannel, AudioChannelSide};
     use crate::ui::WaveformImage;
@@ -1008,12 +1009,11 @@ mod tests {
     // which would be rendered as a diagonal on a Waveform image
     // from left top corner to right bottom of the target image
     // if all samples are rendered in the range [0:SAMPLE_RATE]
-    fn build_buffer(lower_value: usize, upper_value: usize) -> SmallVec<[i16; 2]> {
-        let mut buffer: SmallVec<[i16; 2]> = SmallVec::new();
+    fn build_buffer(lower_value: usize, upper_value: usize) -> Vec<[i16; 2]> {
+        let mut buffer: Vec<[i16; 2]> = Vec::with_capacity(upper_value - lower_value);
         for index in lower_value..upper_value {
-            let value = (index as f64 / SAMPLE_RATE as f64 * f64::from(i16::MAX)) as i16;
-            buffer.push(value as i16);
-            buffer.push(-(value as i16)); // second channel <= opposite value
+            let value = (index as f64 / SAMPLE_RATE as f64 * f64::from(std::i16::MAX)) as i16;
+            buffer.push([value, -value]);
         }
         buffer
     }
@@ -1022,7 +1022,7 @@ mod tests {
         prefix: &str,
         waveform: &mut WaveformImage,
         audio_buffer: &mut AudioBuffer,
-        incoming_samples: &[i16],
+        incoming_samples: Vec<[i16; 2]>,
         lower: usize,
         is_new_segement: bool,
         sample_window: usize,
@@ -1031,7 +1031,7 @@ mod tests {
         info!("*** {}", prefix);
 
         let incoming_lower = lower;
-        let incoming_upper = lower + incoming_samples.len() / audio_buffer.channels;
+        let incoming_upper = lower + incoming_samples.len();
 
         audio_buffer.push_samples(incoming_samples, lower, is_new_segement);
 
@@ -1107,7 +1107,7 @@ mod tests {
             "additive_0 init",
             &mut waveform,
             &mut audio_buffer,
-            &build_buffer(100, 200),
+            build_buffer(100, 200),
             100,
             true,
             samples_window,
@@ -1117,7 +1117,7 @@ mod tests {
             "additive_1 overlap on the left and on the right",
             &mut waveform,
             &mut audio_buffer,
-            &build_buffer(50, 250),
+            build_buffer(50, 250),
             50,
             true,
             samples_window,
@@ -1127,7 +1127,7 @@ mod tests {
             "additive_2 overlap on the left",
             &mut waveform,
             &mut audio_buffer,
-            &build_buffer(0, 100),
+            build_buffer(0, 100),
             0,
             true,
             samples_window,
@@ -1137,7 +1137,7 @@ mod tests {
             "additive_3 scrolling and overlap on the right",
             &mut waveform,
             &mut audio_buffer,
-            &build_buffer(150, 340),
+            build_buffer(150, 340),
             150,
             true,
             samples_window,
@@ -1147,7 +1147,7 @@ mod tests {
             "additive_4 scrolling and overlaping on the right",
             &mut waveform,
             &mut audio_buffer,
-            &build_buffer(0, 200),
+            build_buffer(0, 200),
             250,
             true,
             samples_window,
@@ -1164,7 +1164,7 @@ mod tests {
             "link_0",
             &mut waveform,
             &mut audio_buffer,
-            &build_buffer(100, 200),
+            build_buffer(100, 200),
             100,
             true,
             samples_window,
@@ -1175,7 +1175,7 @@ mod tests {
             "link_1",
             &mut waveform,
             &mut audio_buffer,
-            &build_buffer(25, 125),
+            build_buffer(25, 125),
             0,
             true,
             samples_window,
@@ -1186,7 +1186,7 @@ mod tests {
             "link_2",
             &mut waveform,
             &mut audio_buffer,
-            &build_buffer(175, 275),
+            build_buffer(175, 275),
             200,
             true,
             samples_window,
@@ -1203,7 +1203,7 @@ mod tests {
             "seek_0",
             &mut waveform,
             &mut audio_buffer,
-            &build_buffer(0, 100),
+            build_buffer(0, 100),
             100,
             true,
             samples_window,
@@ -1214,7 +1214,7 @@ mod tests {
             "seek_1",
             &mut waveform,
             &mut audio_buffer,
-            &build_buffer(0, 100),
+            build_buffer(0, 100),
             500,
             true,
             samples_window,
@@ -1225,7 +1225,7 @@ mod tests {
             "seek_2",
             &mut waveform,
             &mut audio_buffer,
-            &build_buffer(100, 200),
+            build_buffer(100, 200),
             600,
             true,
             samples_window,
@@ -1236,7 +1236,7 @@ mod tests {
             "seek_3",
             &mut waveform,
             &mut audio_buffer,
-            &build_buffer(200, 300),
+            build_buffer(200, 300),
             700,
             true,
             samples_window,
@@ -1253,7 +1253,7 @@ mod tests {
             "oveflow_0",
             &mut waveform,
             &mut audio_buffer,
-            &build_buffer(0, 200),
+            build_buffer(0, 200),
             250,
             true,
             samples_window,
@@ -1264,7 +1264,7 @@ mod tests {
             "oveflow_1",
             &mut waveform,
             &mut audio_buffer,
-            &build_buffer(0, 300),
+            build_buffer(0, 300),
             0,
             true,
             samples_window,
@@ -1275,7 +1275,7 @@ mod tests {
             "oveflow_2",
             &mut waveform,
             &mut audio_buffer,
-            &build_buffer(0, 100),
+            build_buffer(0, 100),
             400,
             true,
             samples_window,
