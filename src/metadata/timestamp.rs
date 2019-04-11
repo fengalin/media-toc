@@ -31,28 +31,33 @@ named!(pub parse_timestamp<CompleteStr<'_>, Timestamp>,
             let mut ts = {
                 if nb1_is_hours.unwrap_or(false) {
                     Timestamp {
-                        h: nb1,
-                        m: nb2,
-                        s: nb3.unwrap_or(0),
-                        ms: nb4.unwrap_or(0),
-                        us: nb5.unwrap_or(0),
+                        h: nb1 as u8,
+                        m: nb2 as u8,
+                        s: nb3.unwrap_or(0) as u8,
+                        ms: nb4.unwrap_or(0) as u16,
+                        us: nb5.unwrap_or(0) as u16,
                         .. Timestamp::default()
                     }
                 } else {
                     Timestamp {
-                        h: 0,
-                        m: nb1,
-                        s: nb2,
-                        ms: nb3.unwrap_or(0),
-                        us: nb4.unwrap_or(0),
-                        nano: nb5.unwrap_or(0),
+                        h: 0u8,
+                        m: nb1 as u8,
+                        s: nb2 as u8,
+                        ms: nb3.unwrap_or(0) as u16,
+                        us: nb4.unwrap_or(0) as u16,
+                        nano: nb5.unwrap_or(0) as u16,
                         .. Timestamp::default()
                     }
                 }
             };
             ts.nano_total =
-                ((((ts.h * 60 + ts.m) * 60 + ts.s) * 1_000 + ts.ms) * 1_000 + ts.us) * 1_000
-                + ts.nano;
+                (
+                    (
+                        (
+                            (ts.h as u64 * 60 + ts.m as u64) * 60 + ts.s as u64
+                        ) * 1_000 + ts.ms as u64
+                    ) * 1_000 + ts.us as u64
+                ) * 1_000 + ts.nano as u64;
             ts
         })
     )
@@ -120,12 +125,12 @@ fn parse_string() {
 #[derive(Default)]
 pub struct Timestamp {
     pub nano_total: u64,
-    pub nano: u64,
-    pub us: u64,
-    pub ms: u64,
-    pub s: u64,
-    pub m: u64,
-    pub h: u64,
+    pub nano: u16,
+    pub us: u16,
+    pub ms: u16,
+    pub s: u8,
+    pub m: u8,
+    pub h: u8,
 }
 
 impl Timestamp {
@@ -137,12 +142,12 @@ impl Timestamp {
 
         Timestamp {
             nano_total,
-            nano: nano_total % 1_000,
-            us: us_total % 1_000,
-            ms: ms_total % 1_000,
-            s: s_total % 60,
-            m: m_total % 60,
-            h: m_total / 60,
+            nano: (nano_total % 1_000) as u16,
+            us: (us_total % 1_000) as u16,
+            ms: (ms_total % 1_000) as u16,
+            s: (s_total % 60) as u8,
+            m: (m_total % 60) as u8,
+            h: (m_total / 60) as u8,
         }
     }
 
