@@ -310,11 +310,11 @@ impl AudioBuffer {
             && self.samples.len() + (upper_to_add_rel - lower_to_add_rel).as_usize() * self.channels
                 > self.capacity
             && lower_to_keep.min(incoming_lower)
-                > self.lower + SampleIndex::new(self.drain_size / self.channels)
+                > self.lower + SampleIndexRange::new(self.drain_size / self.channels)
         {
             debug!("draining... len before: {}", self.samples.len());
             self.samples.drain(..self.drain_size);
-            self.lower += SampleIndex::new(self.drain_size / self.channels);
+            self.lower += SampleIndexRange::new(self.drain_size / self.channels);
         }
 
         if upper_to_add_rel > SampleIndex::default() {
