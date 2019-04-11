@@ -223,7 +223,7 @@ impl AudioController {
         };
 
         // don't step back more than the pipeline queues can handle
-        let target_step_back = (half_window_duration.as_u64().min(QUEUE_SIZE_NS)).into();
+        let target_step_back = (half_window_duration.min(QUEUE_SIZE_NS)).into();
         if target > target_step_back {
             if target < lower_ts + target_step_back || target > upper_ts {
                 Some(target - target_step_back)

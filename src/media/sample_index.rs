@@ -1,7 +1,10 @@
-use std::fmt;
-use std::ops::{Add, AddAssign, Sub};
+use std::{
+    cmp::Ordering,
+    fmt,
+    ops::{Add, AddAssign, Sub},
+};
 
-use super::Timestamp;
+use super::{SampleIndexRange, Timestamp};
 
 #[derive(Clone, Copy, Default, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct SampleIndex(usize);
@@ -15,12 +18,12 @@ impl SampleIndex {
         SampleIndex((ts.as_u64() / sample_duration) as usize)
     }
 
-    pub fn get_aligned(&self, step: SampleIndex) -> SampleIndex {
-        SampleIndex(self.0 / step.0 * step.0)
+    pub fn get_aligned(&self, sample_step: SampleIndexRange) -> SampleIndex {
+        SampleIndex(self.0 / sample_step.as_usize() * sample_step.as_usize())
     }
 
-    pub fn get_step_index(&self, sample_step: SampleIndex) -> usize {
-        self.0 / sample_step.0
+    pub fn get_step_index(&self, sample_step: SampleIndexRange) -> usize {
+        self.0 / sample_step.as_usize()
     }
 
     pub fn get_ts(&self, sample_duration: u64) -> Timestamp {
@@ -86,15 +89,42 @@ impl Sub for SampleIndex {
     }
 }
 
-impl fmt::Display for SampleIndex {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "idx {}", self.0)
+impl Add<SampleIndexRange> for SampleIndex {
+    type Output = SampleIndex;
+
+    fn add(self, rhs: SampleIndexRange) -> Self::Output {
+        SampleIndex::new(self.0 + rhs.as_usize())
     }
 }
 
-#[cfg(test)]
-impl From<i32> for SampleIndex {
-    fn from(inner: i32) -> Self {
-        Self(inner as usize)
+impl AddAssign<SampleIndexRange> for SampleIndex {
+    fn add_assign(&mut self, rhs: SampleIndexRange) {
+        *self = SampleIndex(self.0 + rhs.as_usize());
+    }
+}
+
+impl Sub<SampleIndexRange> for SampleIndex {
+    type Output = SampleIndex;
+
+    fn sub(self, rhs: SampleIndexRange) -> Self::Output {
+        SampleIndex::new(self.0 - rhs.as_usize())
+    }
+}
+
+impl PartialOrd<SampleIndexRange> for SampleIndex {
+    fn partial_cmp(&self, rhs: &SampleIndexRange) -> Option<Ordering> {
+        Some(self.0.cmp(&rhs.as_usize()))
+    }
+}
+
+impl PartialEq<SampleIndexRange> for SampleIndex {
+    fn eq(&self, rhs: &SampleIndexRange) -> bool {
+        self.0 == rhs.as_usize()
+    }
+}
+
+impl fmt::Display for SampleIndex {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "idx {}", self.0)
     }
 }

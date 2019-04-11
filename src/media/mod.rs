@@ -16,6 +16,9 @@ pub use self::sample_extractor::SampleExtractor;
 pub mod sample_index;
 pub use self::sample_index::SampleIndex;
 
+pub mod sample_index_range;
+pub use self::sample_index_range::SampleIndexRange;
+
 pub mod sample_value;
 pub use self::sample_value::SampleValue;
 

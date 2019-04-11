@@ -11,11 +11,11 @@ use std::{
 };
 
 use super::{
-    AudioBuffer, AudioChannel, SampleExtractor, SampleIndex, INLINE_CHANNELS, QUEUE_SIZE_NS,
+    AudioBuffer, AudioChannel, SampleExtractor, SampleIndex, SampleIndexRange, INLINE_CHANNELS,
+    QUEUE_SIZE_NS,
 };
 
-// FIXME: update this when const fn is stable for this
-const EXTRACTION_THRESHOLD: usize = 1024;
+const EXTRACTION_THRESHOLD: SampleIndexRange = SampleIndexRange::new(1024);
 
 // The DoubleBuffer is reponsible for ensuring a thread safe double buffering
 // mechanism that receives samples from GStreamer, prepares an extraction of
@@ -36,8 +36,8 @@ pub struct DoubleAudioBuffer {
     working_buffer: Option<Box<dyn SampleExtractor>>,
     lower_to_keep: SampleIndex,
     sample_gauge: Option<SampleIndex>,
-    sample_window: Option<SampleIndex>,
-    max_sample_window: SampleIndex,
+    sample_window: Option<SampleIndexRange>,
+    max_sample_window: SampleIndexRange,
     can_handle_eos: bool, // accept / ignore eos (required for range seeks handling)
     has_new_position: bool,
 }
@@ -59,7 +59,7 @@ impl DoubleAudioBuffer {
             lower_to_keep: SampleIndex::default(),
             sample_gauge: None,
             sample_window: None,
-            max_sample_window: SampleIndex::default(),
+            max_sample_window: SampleIndexRange::default(),
             can_handle_eos: true,
             has_new_position: false,
         }
@@ -88,7 +88,7 @@ impl DoubleAudioBuffer {
         self.lower_to_keep = SampleIndex::default();
         self.sample_gauge = None;
         self.sample_window = None;
-        self.max_sample_window = SampleIndex::default();
+        self.max_sample_window = SampleIndexRange::default();
         self.can_handle_eos = true;
         self.has_new_position = false;
     }
@@ -126,7 +126,7 @@ impl DoubleAudioBuffer {
         let channels = audio_info.channels() as usize;
 
         let sample_duration = 1_000_000_000 / rate;
-        self.max_sample_window = (QUEUE_SIZE_NS / sample_duration).into();
+        self.max_sample_window = SampleIndexRange::from_duration(QUEUE_SIZE_NS, sample_duration);
         let duration_for_1000_samples = 1_000_000_000_000f64 / (rate as f64);
 
         let mut channels: SmallVec<[AudioChannel; INLINE_CHANNELS]> =
@@ -221,7 +221,7 @@ impl DoubleAudioBuffer {
             false
         };
 
-        if must_notify || self.samples_since_last_extract >= EXTRACTION_THRESHOLD.into() {
+        if must_notify || self.samples_since_last_extract >= EXTRACTION_THRESHOLD {
             // extract new samples and swap
             self.extract_samples();
             self.samples_since_last_extract = SampleIndex::default();

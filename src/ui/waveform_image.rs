@@ -12,7 +12,8 @@ use std::{
 };
 
 use crate::media::{
-    AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex, SampleValue, INLINE_CHANNELS,
+    AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex, SampleIndexRange, SampleValue,
+    INLINE_CHANNELS,
 };
 
 use super::Image;
@@ -62,7 +63,7 @@ pub struct WaveformImage {
     pub last: Option<WaveformSample>,
 
     pub sample_step_f: f64,
-    pub sample_step: SampleIndex,
+    pub sample_step: SampleIndexRange,
     x_step_f: f64,
     pub x_step: usize,
 }
@@ -111,7 +112,7 @@ impl WaveformImage {
             last: None,
 
             sample_step_f: 0f64,
-            sample_step: SampleIndex::default(),
+            sample_step: SampleIndexRange::default(),
             x_step_f: 0f64,
             x_step: 0,
         }
@@ -152,7 +153,7 @@ impl WaveformImage {
         self.last = None;
 
         self.sample_step_f = 0f64;
-        self.sample_step = SampleIndex::default();
+        self.sample_step = SampleIndexRange::default();
         self.x_step_f = 0f64;
         self.x_step = 0;
     }
@@ -179,7 +180,7 @@ impl WaveformImage {
 
         if self.force_redraw {
             self.shareable_state_changed = true;
-            self.is_initialized = self.sample_step != SampleIndex::default();
+            self.is_initialized = self.sample_step != SampleIndexRange::default();
 
             debug!(
                 "{}_upd.dim prev. f.redraw {}, w {}, h {}, sample_step_f. {}",
@@ -715,11 +716,11 @@ impl WaveformImage {
         x: f64,
         audio_buffer: &AudioBuffer,
     ) -> Option<(SampleIndex, SmallVec<[SampleValue; INLINE_CHANNELS]>)> {
-        let sample = self.lower + ((x as usize) / self.x_step * self.sample_step.as_usize()).into();
+        let sample_idx = self.lower + self.sample_step.get_scaled(x as usize, self.x_step);
 
         #[cfg(test)]
         {
-            let values = match audio_buffer.get(sample) {
+            let values = match audio_buffer.get(sample_idx) {
                 Some(values) => format!("{:?}", values.to_vec()),
                 None => "-".to_owned(),
             };
@@ -730,7 +731,7 @@ impl WaveformImage {
                 ),
                 self.id,
                 x,
-                sample,
+                sample_idx,
                 values,
                 self.x_step,
                 self.sample_step,
@@ -740,8 +741,8 @@ impl WaveformImage {
         }
 
         audio_buffer
-            .get(sample)
-            .map(|values| (sample, self.convert_sample_values(values)))
+            .get(sample_idx)
+            .map(|values| (sample_idx, self.convert_sample_values(values)))
     }
 
     fn translate_previous(
@@ -963,7 +964,9 @@ mod tests {
     use std::fs::{create_dir, File};
     use std::io::ErrorKind;
 
-    use crate::media::{AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex};
+    use crate::media::{
+        AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex, SampleIndexRange,
+    };
     use crate::ui::WaveformImage;
 
     const OUT_DIR: &str = "target/test";
@@ -1038,7 +1041,7 @@ mod tests {
         info!("*** {}", prefix);
 
         let incoming_lower = lower;
-        let incoming_upper = lower + incoming_samples.len().into();
+        let incoming_upper = lower + SampleIndexRange::new(incoming_samples.len());
 
         audio_buffer.push_samples(incoming_samples, lower, is_new_segement);
 

@@ -3,7 +3,7 @@ use gstreamer::ElementExtManual;
 
 use std::any::Any;
 
-use super::{AudioBuffer, AudioChannel, SampleIndex, Timestamp};
+use super::{AudioBuffer, AudioChannel, SampleIndex, SampleIndexRange, Timestamp};
 
 pub struct SampleExtractionState {
     pub sample_duration: u64,
@@ -81,7 +81,7 @@ pub trait SampleExtractor: Send {
 
     fn get_lower(&self) -> SampleIndex;
 
-    fn get_requested_sample_window(&self) -> Option<SampleIndex>;
+    fn get_requested_sample_window(&self) -> Option<SampleIndexRange>;
 
     fn switch_to_paused(&mut self);
 

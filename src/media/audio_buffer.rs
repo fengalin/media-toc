@@ -14,7 +14,7 @@ use std::{
     io::{Cursor, Read},
 };
 
-use super::{SampleIndex, SampleValue, Timestamp};
+use super::{SampleIndex, SampleIndexRange, SampleValue, Timestamp};
 
 #[cfg(test)]
 use byteorder::ByteOrder;
@@ -29,6 +29,7 @@ pub struct AudioBuffer {
     pub sample_duration: u64,
     pub channels: usize,
     bytes_per_sample: usize,
+    // FIXME: drain_size can be a SampleIndexRange once all channles are gathered together
     drain_size: usize,
 
     pub eos: bool,
@@ -309,11 +310,11 @@ impl AudioBuffer {
             && self.samples.len() + (upper_to_add_rel - lower_to_add_rel).as_usize() * self.channels
                 > self.capacity
             && lower_to_keep.min(incoming_lower)
-                > self.lower + (self.drain_size / self.channels).into()
+                > self.lower + SampleIndex::new(self.drain_size / self.channels)
         {
             debug!("draining... len before: {}", self.samples.len());
             self.samples.drain(..self.drain_size);
-            self.lower += (self.drain_size / self.channels).into();
+            self.lower += SampleIndex::new(self.drain_size / self.channels);
         }
 
         if upper_to_add_rel > SampleIndex::default() {
@@ -355,7 +356,7 @@ impl AudioBuffer {
         &self,
         lower: SampleIndex,
         upper: SampleIndex,
-        sample_step: SampleIndex,
+        sample_step: SampleIndexRange,
     ) -> Option<Iter<'_>> {
         Iter::try_new(self, lower, upper, sample_step)
     }
@@ -512,7 +513,7 @@ pub struct Iter<'iter> {
     channels: usize,
     idx: SampleIndex,
     upper: SampleIndex,
-    step: SampleIndex,
+    step: SampleIndexRange,
 }
 
 impl<'iter> Iter<'iter> {
@@ -520,7 +521,7 @@ impl<'iter> Iter<'iter> {
         buffer: &'iter AudioBuffer,
         lower: SampleIndex,
         upper: SampleIndex,
-        sample_step: SampleIndex,
+        sample_step: SampleIndexRange,
     ) -> Option<Iter<'iter>> {
         if upper > lower && lower >= buffer.lower && upper <= buffer.upper {
             let slices = buffer.samples.as_slices();
@@ -590,7 +591,7 @@ mod tests {
     use log::{debug, info};
 
     use crate::i16_to_sample_value;
-    use crate::media::{AudioBuffer, SampleIndex, SampleValue};
+    use crate::media::{AudioBuffer, SampleIndex, SampleIndexRange, SampleValue};
 
     const SAMPLE_RATE: u32 = 300;
 
@@ -607,6 +608,23 @@ mod tests {
         buffer
     }
 
+    macro_rules! check_values(
+        ($audio_buffer:expr, $idx:expr, $expected:expr) => (
+            assert_eq!(
+                $audio_buffer.get($idx),
+                Some(&[i16_to_sample_value!($expected), i16_to_sample_value!(-$expected)][..])
+            );
+        );
+    );
+
+    macro_rules! check_last_values(
+        ($audio_buffer:expr, $expected:expr) => (
+            let mut last = $audio_buffer.upper;
+            last.dec();
+            check_values!($audio_buffer, last, $expected);
+        );
+    );
+
     #[test]
     fn multiple_gst_buffers() {
         //env_logger::try_init();
@@ -620,107 +638,65 @@ mod tests {
         );
 
         info!("samples [100:200] init");
-        audio_buffer.push_samples(build_buffer(100, 200), 100, true);
-        assert_eq!(audio_buffer.lower, 100.into());
-        assert_eq!(audio_buffer.upper, 200.into());
-        assert_eq!(
-            audio_buffer.get(audio_buffer.lower),
-            Some(&[i16_to_sample_value!(100), i16_to_sample_value!(-100)][..])
-        );
-        assert_eq!(
-            audio_buffer.get(audio_buffer.upper - 1.into()),
-            Some(&[i16_to_sample_value!(199), i16_to_sample_value!(-199)][..])
-        );
+        audio_buffer.push_samples(build_buffer(100, 200), SampleIndex::new(100), true);
+        assert_eq!(audio_buffer.lower, SampleIndex::new(100));
+        assert_eq!(audio_buffer.upper, SampleIndex::new(200));
+        check_values!(audio_buffer, audio_buffer.lower, 100);
+        check_last_values!(audio_buffer, 199);
 
         info!("samples [50:100]: appending to the begining");
-        audio_buffer.push_samples(build_buffer(50, 100), 50, true);
-        assert_eq!(audio_buffer.lower, 50.into());
-        assert_eq!(audio_buffer.upper, 200.into());
-        assert_eq!(
-            audio_buffer.get(audio_buffer.lower),
-            Some(&[i16_to_sample_value!(50), i16_to_sample_value!(-50)][..])
-        );
-        assert_eq!(
-            audio_buffer.get(audio_buffer.upper - 1.into()),
-            Some(&[i16_to_sample_value!(199), i16_to_sample_value!(-199)][..])
-        );
+        audio_buffer.push_samples(build_buffer(50, 100), SampleIndex::new(50), true);
+        assert_eq!(audio_buffer.lower, SampleIndex::new(50));
+        assert_eq!(audio_buffer.upper, SampleIndex::new(200));
+        check_values!(audio_buffer, audio_buffer.lower, 50);
+        check_last_values!(audio_buffer, 199);
 
         info!("samples [0:75]: overlaping on the begining");
-        audio_buffer.push_samples(build_buffer(0, 75), 0, true);
-        assert_eq!(audio_buffer.lower, 0.into());
-        assert_eq!(audio_buffer.upper, 200.into());
-        assert_eq!(
-            audio_buffer.get(audio_buffer.lower),
-            Some(&[i16_to_sample_value!(0), i16_to_sample_value!(0)][..])
-        );
-        assert_eq!(
-            audio_buffer.get(audio_buffer.upper - 1.into()),
-            Some(&[i16_to_sample_value!(199), i16_to_sample_value!(-199)][..])
-        );
+        audio_buffer.push_samples(build_buffer(0, 75), SampleIndex::new(0), true);
+        assert_eq!(audio_buffer.lower, SampleIndex::new(0));
+        assert_eq!(audio_buffer.upper, SampleIndex::new(200));
+        check_values!(audio_buffer, audio_buffer.lower, 0);
+        check_last_values!(audio_buffer, 199);
 
         info!("samples [200:300]: appending to the end - different segment");
-        audio_buffer.push_samples(build_buffer(200, 300), 200, true);
-        assert_eq!(audio_buffer.lower, 0.into());
-        assert_eq!(audio_buffer.upper, 300.into());
-        assert_eq!(
-            audio_buffer.get(audio_buffer.lower),
-            Some(&[i16_to_sample_value!(0), i16_to_sample_value!(0)][..])
-        );
-        assert_eq!(
-            audio_buffer.get(audio_buffer.upper - 1.into()),
-            Some(&[i16_to_sample_value!(299), i16_to_sample_value!(-299)][..])
-        );
+        audio_buffer.push_samples(build_buffer(200, 300), SampleIndex::new(200), true);
+        assert_eq!(audio_buffer.lower, SampleIndex::new(0));
+        assert_eq!(audio_buffer.upper, SampleIndex::new(300));
+        check_values!(audio_buffer, audio_buffer.lower, 0);
+        check_last_values!(audio_buffer, 299);
 
         info!("samples [250:275]: contained in current - different segment");
-        audio_buffer.push_samples(build_buffer(250, 275), 250, true);
-        assert_eq!(audio_buffer.lower, 0.into());
-        assert_eq!(audio_buffer.upper, 300.into());
-        assert_eq!(
-            audio_buffer.get(audio_buffer.lower),
-            Some(&[i16_to_sample_value!(0), i16_to_sample_value!(0)][..])
-        );
-        assert_eq!(
-            audio_buffer.get(audio_buffer.upper - 1.into()),
-            Some(&[i16_to_sample_value!(299), i16_to_sample_value!(-299)][..])
-        );
+        audio_buffer.push_samples(build_buffer(250, 275), SampleIndex::new(250), true);
+        assert_eq!(audio_buffer.lower, SampleIndex::new(0));
+        assert_eq!(audio_buffer.upper, SampleIndex::new(300));
+        check_values!(audio_buffer, audio_buffer.lower, 0);
+        check_last_values!(audio_buffer, 299);
 
         info!("samples [275:400]: overlaping on the end");
-        audio_buffer.push_samples(build_buffer(275, 400), 275, false);
-        assert_eq!(audio_buffer.lower, 0.into());
-        assert_eq!(audio_buffer.upper, 400.into());
-        assert_eq!(
-            audio_buffer.get(audio_buffer.lower),
-            Some(&[i16_to_sample_value!(0), i16_to_sample_value!(0)][..])
-        );
-        assert_eq!(
-            audio_buffer.get(audio_buffer.upper - 1.into()),
-            Some(&[i16_to_sample_value!(399), i16_to_sample_value!(-399)][..])
-        );
+        audio_buffer.push_samples(build_buffer(275, 400), SampleIndex::new(275), false);
+        assert_eq!(audio_buffer.lower, SampleIndex::new(0));
+        assert_eq!(audio_buffer.upper, SampleIndex::new(400));
+        check_values!(audio_buffer, audio_buffer.lower, 0);
+        check_last_values!(audio_buffer, 399);
 
         info!("samples [400:450]: appending to the end");
-        audio_buffer.push_samples(build_buffer(400, 450), 400, false);
-        assert_eq!(audio_buffer.lower, 0.into());
-        assert_eq!(audio_buffer.upper, 450.into());
-        assert_eq!(
-            audio_buffer.get(audio_buffer.lower),
-            Some(&[i16_to_sample_value!(0), i16_to_sample_value!(0)][..])
-        );
-        assert_eq!(
-            audio_buffer.get(audio_buffer.upper - 1.into()),
-            Some(&[i16_to_sample_value!(449), i16_to_sample_value!(-449)][..])
-        );
+        audio_buffer.push_samples(build_buffer(400, 450), SampleIndex::new(400), false);
+        assert_eq!(audio_buffer.lower, SampleIndex::new(0));
+        assert_eq!(audio_buffer.upper, SampleIndex::new(450));
+        check_values!(audio_buffer, audio_buffer.lower, 0);
+        check_last_values!(audio_buffer, 449);
     }
 
-    fn check_iter<Index: Into<SampleIndex>>(
+    fn check_iter(
         audio_buffer: &AudioBuffer,
-        lower: Index,
-        upper: Index,
-        step: Index,
+        lower: usize,
+        upper: usize,
+        step: usize,
         expected_values: &[i16],
     ) {
-        let lower = lower.into();
-        let upper = upper.into();
-        let step = step.into();
+        let lower = SampleIndex::new(lower);
+        let upper = SampleIndex::new(upper);
+        let step = SampleIndexRange::new(step);
 
         debug!("checking iter for [{}, {}], step {}...", lower, upper, step);
         let mut iter = audio_buffer.iter(lower, upper, step).unwrap();
@@ -754,7 +730,7 @@ mod tests {
 
         info!("* samples [100:200] init");
         // 1. init
-        audio_buffer.push_samples(build_buffer(100, 200), 100, true);
+        audio_buffer.push_samples(build_buffer(100, 200), SampleIndex::new(100), true);
 
         // buffer ranges: front: [, ], back: [100, 200]
         // check bounds
@@ -762,7 +738,7 @@ mod tests {
         check_iter(&audio_buffer, 196, 200, 3, &vec![196, 199]);
 
         // 2. appending to the beginning
-        audio_buffer.push_samples(build_buffer(50, 100), 50, true);
+        audio_buffer.push_samples(build_buffer(50, 100), SampleIndex::new(50), true);
 
         // buffer ranges: front: [50, 100], back: [100, 200]
         // check beginning
@@ -772,7 +748,7 @@ mod tests {
         check_iter(&audio_buffer, 90, 110, 5, &vec![90, 95, 100, 105]);
 
         // 3. appending to the beginning
-        audio_buffer.push_samples(build_buffer(0, 75), 0, true);
+        audio_buffer.push_samples(build_buffer(0, 75), SampleIndex::new(0), true);
 
         // buffer ranges: front: [0, 100], back: [100, 200]
 
@@ -781,7 +757,7 @@ mod tests {
 
         // appending to the end
         // 4
-        audio_buffer.push_samples(build_buffer(200, 300), 200, true);
+        audio_buffer.push_samples(build_buffer(200, 300), SampleIndex::new(200), true);
 
         // buffer ranges: front: [0, 100], back: [100, 300]
 
@@ -789,7 +765,7 @@ mod tests {
         check_iter(&audio_buffer, 190, 210, 5, &vec![190, 195, 200, 205]);
 
         // 5 append in same segment
-        audio_buffer.push_samples(build_buffer(300, 400), 300, false);
+        audio_buffer.push_samples(build_buffer(300, 400), SampleIndex::new(300), false);
 
         // buffer ranges: front: [0, 100], back: [100, 400]
         // check end

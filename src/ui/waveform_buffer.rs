@@ -10,7 +10,7 @@ use std::{
 
 use crate::media::{
     sample_extractor::SampleExtractionState, AudioBuffer, AudioChannel, DoubleAudioBuffer,
-    SampleExtractor, SampleIndex, Timestamp,
+    SampleExtractor, SampleIndex, SampleIndexRange, Timestamp,
 };
 
 use super::{Image, WaveformImage};
@@ -80,9 +80,9 @@ pub struct WaveformBuffer {
     width: i32,
     width_f: f64,
     sample_step_f: f64,
-    req_sample_window: SampleIndex,
-    half_req_sample_window: SampleIndex,
-    quarter_req_sample_window: SampleIndex,
+    req_sample_window: SampleIndexRange,
+    half_req_sample_window: SampleIndexRange,
+    quarter_req_sample_window: SampleIndexRange,
 }
 
 impl WaveformBuffer {
@@ -104,9 +104,9 @@ impl WaveformBuffer {
             width: 0,
             width_f: 0f64,
             sample_step_f: 0f64,
-            req_sample_window: SampleIndex::default(),
-            half_req_sample_window: SampleIndex::default(),
-            quarter_req_sample_window: SampleIndex::default(),
+            req_sample_window: SampleIndexRange::default(),
+            half_req_sample_window: SampleIndexRange::default(),
+            quarter_req_sample_window: SampleIndexRange::default(),
         }
     }
 
@@ -133,9 +133,9 @@ impl WaveformBuffer {
         self.playback_needs_refresh = false;
 
         self.sample_step_f = 0f64;
-        self.req_sample_window = SampleIndex::default();
-        self.half_req_sample_window = SampleIndex::default();
-        self.quarter_req_sample_window = SampleIndex::default();
+        self.req_sample_window = SampleIndexRange::default();
+        self.half_req_sample_window = SampleIndexRange::default();
+        self.quarter_req_sample_window = SampleIndexRange::default();
 
         self.image.cleanup_sample_conditions();
     }
@@ -147,14 +147,13 @@ impl WaveformBuffer {
         )
     }
 
-    // FIXME: use range types for these
-    pub fn get_half_window_duration(&self) -> Timestamp {
+    pub fn get_half_window_duration(&self) -> u64 {
         self.half_req_sample_window
-            .get_ts(self.state.sample_duration)
+            .get_duration(self.state.sample_duration)
     }
 
     pub fn seek(&mut self, target: Timestamp) {
-        if self.image.sample_step == SampleIndex::default() {
+        if self.image.sample_step == SampleIndexRange::default() {
             return;
         }
 
@@ -216,7 +215,7 @@ impl WaveformBuffer {
     }
 
     pub fn start_play_range(&mut self) {
-        if self.image.sample_step == SampleIndex::default() {
+        if self.image.sample_step == SampleIndexRange::default() {
             return;
         }
 
@@ -280,8 +279,8 @@ impl WaveformBuffer {
                                         .lower
                                         .max(self.cursor_sample - self.half_req_sample_window),
                                 )
-                            } else if self.req_sample_window
-                                + (first_visible_sample_lock as usize).into()
+                            } else if SampleIndex::new(first_visible_sample_lock as usize)
+                                + self.req_sample_window
                                 < self.image.upper
                             {
                                 match self.previous_sample {
@@ -822,8 +821,8 @@ impl SampleExtractor for WaveformBuffer {
             })
     }
 
-    fn get_requested_sample_window(&self) -> Option<SampleIndex> {
-        if self.req_sample_window == SampleIndex::default() {
+    fn get_requested_sample_window(&self) -> Option<SampleIndexRange> {
+        if self.req_sample_window == SampleIndexRange::default() {
             None
         } else {
             Some(self.req_sample_window)
@@ -918,7 +917,7 @@ impl SampleExtractor for WaveformBuffer {
     // the playback position and target rendering dimensions and
     // resolution.
     fn extract_samples(&mut self, audio_buffer: &AudioBuffer) {
-        if self.req_sample_window == SampleIndex::default() {
+        if self.req_sample_window == SampleIndexRange::default() {
             // conditions not defined yet
             return;
         }
