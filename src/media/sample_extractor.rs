@@ -3,7 +3,7 @@ use gstreamer::ElementExtManual;
 
 use std::any::Any;
 
-use super::{AudioBuffer, AudioChannel};
+use super::{AudioBuffer, AudioChannel, SampleIndex};
 
 pub struct SampleExtractionState {
     pub sample_duration: u64,
@@ -79,9 +79,9 @@ pub trait SampleExtractor: Send {
 
     fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64);
 
-    fn get_lower(&self) -> usize;
+    fn get_lower(&self) -> SampleIndex;
 
-    fn get_requested_sample_window(&self) -> Option<usize>;
+    fn get_requested_sample_window(&self) -> Option<SampleIndex>;
 
     fn switch_to_paused(&mut self);
 
@@ -91,7 +91,11 @@ pub trait SampleExtractor: Send {
     // extraction process by keeping conditions between frames
     fn update_concrete_state(&mut self, other: &mut dyn SampleExtractor);
 
-    fn get_current_sample(&mut self, last_frame_time: u64, next_frame_time: u64) -> (u64, usize) {
+    fn get_current_sample(
+        &mut self,
+        last_frame_time: u64,
+        next_frame_time: u64,
+    ) -> (u64, SampleIndex) {
         // (position, sample)
         let state = &mut self.get_extraction_state_mut();
 
@@ -142,7 +146,7 @@ pub trait SampleExtractor: Send {
 
         state.last_pos = position;
 
-        (position, (position / state.sample_duration) as usize)
+        (position, (position / state.sample_duration).into())
     }
 
     // Update the extractions taking account new

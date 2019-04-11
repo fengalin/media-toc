@@ -13,6 +13,9 @@ pub use self::playback_pipeline::{PlaybackPipeline, QUEUE_SIZE_NS};
 pub mod sample_extractor;
 pub use self::sample_extractor::SampleExtractor;
 
+pub mod sample_index;
+pub use self::sample_index::SampleIndex;
+
 pub mod sample_value;
 pub use self::sample_value::SampleValue;
 

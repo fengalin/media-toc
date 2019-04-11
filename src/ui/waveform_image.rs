@@ -11,7 +11,9 @@ use std::{
     io::ErrorKind,
 };
 
-use crate::media::{AudioBuffer, AudioChannel, AudioChannelSide, SampleValue, INLINE_CHANNELS};
+use crate::media::{
+    AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex, SampleValue, INLINE_CHANNELS,
+};
 
 use super::Image;
 
@@ -51,8 +53,8 @@ pub struct WaveformImage {
     req_height: i32,
     force_redraw: bool,
 
-    pub lower: usize,
-    pub upper: usize,
+    pub lower: SampleIndex,
+    pub upper: SampleIndex,
 
     pub contains_eos: bool,
 
@@ -60,7 +62,7 @@ pub struct WaveformImage {
     pub last: Option<WaveformSample>,
 
     pub sample_step_f: f64,
-    pub sample_step: usize,
+    pub sample_step: SampleIndex,
     x_step_f: f64,
     pub x_step: usize,
 }
@@ -100,8 +102,8 @@ impl WaveformImage {
             req_height: 0,
             force_redraw: false,
 
-            lower: 0,
-            upper: 0,
+            lower: SampleIndex::default(),
+            upper: SampleIndex::default(),
 
             contains_eos: false,
 
@@ -109,7 +111,7 @@ impl WaveformImage {
             last: None,
 
             sample_step_f: 0f64,
-            sample_step: 0,
+            sample_step: SampleIndex::default(),
             x_step_f: 0f64,
             x_step: 0,
         }
@@ -141,8 +143,8 @@ impl WaveformImage {
 
         self.channel_colors.clear();
 
-        self.lower = 0;
-        self.upper = 0;
+        self.lower = SampleIndex::default();
+        self.upper = SampleIndex::default();
 
         self.contains_eos = false;
 
@@ -150,7 +152,7 @@ impl WaveformImage {
         self.last = None;
 
         self.sample_step_f = 0f64;
-        self.sample_step = 0;
+        self.sample_step = SampleIndex::default();
         self.x_step_f = 0f64;
         self.x_step = 0;
     }
@@ -177,7 +179,7 @@ impl WaveformImage {
 
         if self.force_redraw {
             self.shareable_state_changed = true;
-            self.is_initialized = self.sample_step != 0;
+            self.is_initialized = self.sample_step != SampleIndex::default();
 
             debug!(
                 "{}_upd.dim prev. f.redraw {}, w {}, h {}, sample_step_f. {}",
@@ -199,7 +201,7 @@ impl WaveformImage {
         self.is_initialized = self.force_redraw && (self.req_width != 0);
 
         self.sample_step_f = sample_step_f;
-        self.sample_step = (sample_step_f as usize).max(1);
+        self.sample_step = (sample_step_f as usize).max(1).into();
         self.x_step_f = if sample_step_f < 1f64 {
             (1f64 / sample_step_f).round()
         } else {
@@ -247,7 +249,7 @@ impl WaveformImage {
     // images since none of them is exposed at this very moment.
     // The rendering process reuses the previously rendered image
     // whenever possible.
-    pub fn render(&mut self, audio_buffer: &AudioBuffer, lower: usize, upper: usize) {
+    pub fn render(&mut self, audio_buffer: &AudioBuffer, lower: SampleIndex, upper: SampleIndex) {
         #[cfg(feature = "profile-waveform-image")]
         let start = Utc::now();
 
@@ -255,8 +257,8 @@ impl WaveformImage {
         // a steady offset between redraws. This allows using the same samples
         // for a given req_step_duration and avoiding flickering
         // between redraws.
-        let mut lower = lower / self.sample_step * self.sample_step;
-        let upper = upper / self.sample_step * self.sample_step;
+        let mut lower = lower.get_aligned(self.sample_step);
+        let upper = upper.get_aligned(self.sample_step);
         if audio_buffer.eos && upper + self.sample_step > audio_buffer.upper
             || self.contains_eos
                 && (upper == self.upper || (!self.force_redraw && lower >= self.lower))
@@ -300,8 +302,8 @@ impl WaveformImage {
                 self.id, lower, upper
             );
 
-            self.lower = 0;
-            self.upper = 0;
+            self.lower = SampleIndex::default();
+            self.upper = SampleIndex::default();
             self.first = None;
             self.last = None;
             self.contains_eos = false;
@@ -309,7 +311,7 @@ impl WaveformImage {
             return;
         }
 
-        if upper < lower + 2 * self.sample_step {
+        if upper < lower + self.sample_step {
             debug!(
                 "{}_render range [{}, {}] too small for sample_step: {}",
                 self.id, lower, upper, self.sample_step,
@@ -338,9 +340,10 @@ impl WaveformImage {
         let (exposed_image, secondary_image) = {
             let target_width = if self.image_width > 0 {
                 self.image_width
-                    .max(((upper - lower) * self.x_step / self.sample_step) as i32)
+                    .max(((upper - lower).get_step_index(self.sample_step) * self.x_step) as i32)
             } else {
-                INIT_WIDTH.max(((upper - lower) * self.x_step / self.sample_step) as i32)
+                INIT_WIDTH
+                    .max(((upper - lower).get_step_index(self.sample_step) * self.x_step) as i32)
             };
             if (target_width == self.image_width && self.req_height == self.image_height)
                 || (self.force_redraw
@@ -407,7 +410,7 @@ impl WaveformImage {
                     secondary_image,
                     audio_buffer,
                     lower,
-                    upper.min(audio_buffer.upper / sample_step * sample_step),
+                    upper.min(audio_buffer.upper.get_aligned(sample_step)),
                 );
             }
         } else if upper > self.upper {
@@ -432,7 +435,7 @@ impl WaveformImage {
                     secondary_image,
                     audio_buffer,
                     lower,
-                    upper.min(audio_buffer.upper / sample_step * sample_step),
+                    upper.min(audio_buffer.upper.get_aligned(sample_step)),
                 );
             }
         }
@@ -463,8 +466,8 @@ impl WaveformImage {
         mut exposed_image: Image,
         secondary_image: Image,
         audio_buffer: &AudioBuffer,
-        lower: usize,
-        upper: usize,
+        lower: SampleIndex,
+        upper: SampleIndex,
     ) {
         exposed_image.with_surface(|image_surface| {
             let cr = cairo::Context::new(&image_surface);
@@ -506,10 +509,10 @@ impl WaveformImage {
         mut exposed_image: Image,
         mut secondary_image: Image,
         audio_buffer: &AudioBuffer,
-        lower: usize,
+        lower: SampleIndex,
     ) {
         let sample_offset = self.lower - lower;
-        let x_offset = (sample_offset / self.sample_step * self.x_step) as f64;
+        let x_offset = (sample_offset.get_step_index(self.sample_step) * self.x_step) as f64;
 
         #[cfg(test)]
         debug!(
@@ -601,10 +604,10 @@ impl WaveformImage {
         mut exposed_image: Image,
         mut secondary_image: Image,
         audio_buffer: &AudioBuffer,
-        lower: usize,
-        upper: usize,
+        lower: SampleIndex,
+        upper: SampleIndex,
     ) -> bool {
-        let x_offset = ((lower - self.lower) / self.sample_step * self.x_step) as f64;
+        let x_offset = ((lower - self.lower).get_step_index(self.sample_step) * self.x_step) as f64;
 
         #[cfg(test)]
         debug!(
@@ -617,8 +620,9 @@ impl WaveformImage {
 
         let must_translate = match self.last.as_ref() {
             Some(last) => {
-                let range_to_draw =
-                    ((upper - self.upper.max(lower)) / self.sample_step * self.x_step) as f64;
+                let range_to_draw = ((upper - self.upper.max(lower))
+                    .get_step_index(self.sample_step)
+                    * self.x_step) as f64;
                 last.x + range_to_draw >= self.image_width_f
             }
             None => true,
@@ -682,12 +686,12 @@ impl WaveformImage {
         &mut self,
         cr: &cairo::Context,
         audio_buffer: &AudioBuffer,
-        lower: usize,
-        upper: usize,
+        lower: SampleIndex,
+        upper: SampleIndex,
     ) {
         let first_sample_to_draw = self.upper.max(lower);
-        let first_x_to_draw =
-            ((first_sample_to_draw - self.lower) / self.sample_step * self.x_step) as f64;
+        let first_x_to_draw = ((first_sample_to_draw - self.lower).get_step_index(self.sample_step)
+            * self.x_step) as f64;
 
         if let Some((_first_added, last_added)) = self.draw_samples(
             &cr,
@@ -710,8 +714,8 @@ impl WaveformImage {
         &self,
         x: f64,
         audio_buffer: &AudioBuffer,
-    ) -> Option<(usize, SmallVec<[SampleValue; INLINE_CHANNELS]>)> {
-        let sample = self.lower + (x as usize) / self.x_step * self.sample_step;
+    ) -> Option<(SampleIndex, SmallVec<[SampleValue; INLINE_CHANNELS]>)> {
+        let sample = self.lower + ((x as usize) / self.x_step * self.sample_step.as_usize()).into();
 
         #[cfg(test)]
         {
@@ -802,8 +806,8 @@ impl WaveformImage {
         &self,
         cr: &cairo::Context,
         audio_buffer: &AudioBuffer,
-        lower: usize,
-        upper: usize,
+        lower: SampleIndex,
+        upper: SampleIndex,
         first_x: f64,
     ) -> Option<(WaveformSample, WaveformSample)> {
         if self.x_step == 1 {
@@ -959,7 +963,7 @@ mod tests {
     use std::fs::{create_dir, File};
     use std::io::ErrorKind;
 
-    use crate::media::{AudioBuffer, AudioChannel, AudioChannelSide};
+    use crate::media::{AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex};
     use crate::ui::WaveformImage;
 
     const OUT_DIR: &str = "target/test";
@@ -1018,20 +1022,23 @@ mod tests {
         buffer
     }
 
-    fn render_with_samples(
+    fn render_with_samples<Index: Into<SampleIndex>>(
         prefix: &str,
         waveform: &mut WaveformImage,
         audio_buffer: &mut AudioBuffer,
         incoming_samples: Vec<[i16; 2]>,
-        lower: usize,
+        lower: Index,
         is_new_segement: bool,
-        sample_window: usize,
+        sample_window: Index,
         can_scroll: bool,
     ) {
+        let lower = lower.into();
+        let sample_window = sample_window.into();
+
         info!("*** {}", prefix);
 
         let incoming_lower = lower;
-        let incoming_upper = lower + incoming_samples.len();
+        let incoming_upper = lower + incoming_samples.len().into();
 
         audio_buffer.push_samples(incoming_samples, lower, is_new_segement);
 

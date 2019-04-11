@@ -10,8 +10,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use super::{AudioBuffer, AudioChannel, SampleExtractor, INLINE_CHANNELS, QUEUE_SIZE_NS};
+use super::{
+    AudioBuffer, AudioChannel, SampleExtractor, SampleIndex, INLINE_CHANNELS, QUEUE_SIZE_NS,
+};
 
+// FIXME: update this when const fn is stable for this
 const EXTRACTION_THRESHOLD: usize = 1024;
 
 // The DoubleBuffer is reponsible for ensuring a thread safe double buffering
@@ -28,13 +31,13 @@ const EXTRACTION_THRESHOLD: usize = 1024;
 pub struct DoubleAudioBuffer {
     state: gst::State,
     audio_buffer: AudioBuffer,
-    samples_since_last_extract: usize,
+    samples_since_last_extract: SampleIndex,
     exposed_buffer_mtx: Arc<Mutex<Box<dyn SampleExtractor>>>,
     working_buffer: Option<Box<dyn SampleExtractor>>,
-    lower_to_keep: usize,
-    sample_gauge: Option<usize>,
-    sample_window: Option<usize>,
-    max_sample_window: usize,
+    lower_to_keep: SampleIndex,
+    sample_gauge: Option<SampleIndex>,
+    sample_window: Option<SampleIndex>,
+    max_sample_window: SampleIndex,
     can_handle_eos: bool, // accept / ignore eos (required for range seeks handling)
     has_new_position: bool,
 }
@@ -50,13 +53,13 @@ impl DoubleAudioBuffer {
         DoubleAudioBuffer {
             state: gst::State::Null,
             audio_buffer: AudioBuffer::new(buffer_duration),
-            samples_since_last_extract: 0,
+            samples_since_last_extract: SampleIndex::default(),
             exposed_buffer_mtx: Arc::new(Mutex::new(exposed_buffer)),
             working_buffer: Some(working_buffer),
-            lower_to_keep: 0,
+            lower_to_keep: SampleIndex::default(),
             sample_gauge: None,
             sample_window: None,
-            max_sample_window: 0,
+            max_sample_window: SampleIndex::default(),
             can_handle_eos: true,
             has_new_position: false,
         }
@@ -81,11 +84,11 @@ impl DoubleAudioBuffer {
 
     fn reset(&mut self) {
         self.state = gst::State::Null;
-        self.samples_since_last_extract = 0;
-        self.lower_to_keep = 0;
+        self.samples_since_last_extract = SampleIndex::default();
+        self.lower_to_keep = SampleIndex::default();
         self.sample_gauge = None;
         self.sample_window = None;
-        self.max_sample_window = 0;
+        self.max_sample_window = SampleIndex::default();
         self.can_handle_eos = true;
         self.has_new_position = false;
     }
@@ -123,7 +126,7 @@ impl DoubleAudioBuffer {
         let channels = audio_info.channels() as usize;
 
         let sample_duration = 1_000_000_000 / rate;
-        self.max_sample_window = (QUEUE_SIZE_NS / sample_duration) as usize;
+        self.max_sample_window = (QUEUE_SIZE_NS / sample_duration).into();
         let duration_for_1000_samples = 1_000_000_000_000f64 / (rate as f64);
 
         let mut channels: SmallVec<[AudioChannel; INLINE_CHANNELS]> =
@@ -182,9 +185,9 @@ impl DoubleAudioBuffer {
     }
 
     pub fn have_gst_segment(&mut self, segment: &gst::Segment) {
-        let segment_start = segment.get_start().get_value() as usize;
-        self.audio_buffer.have_gst_segment(segment_start);
-        self.sample_gauge = Some(0);
+        self.audio_buffer
+            .have_gst_segment(segment.get_start().get_value() as u64);
+        self.sample_gauge = Some(SampleIndex::default());
         {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
             exposed_buffer_box.new_segment();
@@ -218,10 +221,10 @@ impl DoubleAudioBuffer {
             false
         };
 
-        if must_notify || self.samples_since_last_extract >= EXTRACTION_THRESHOLD {
+        if must_notify || self.samples_since_last_extract >= EXTRACTION_THRESHOLD.into() {
             // extract new samples and swap
             self.extract_samples();
-            self.samples_since_last_extract = 0;
+            self.samples_since_last_extract = SampleIndex::default();
 
             if must_notify {
                 self.sample_gauge = None;
