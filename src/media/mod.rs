@@ -22,6 +22,9 @@ pub use self::sample_value::SampleValue;
 pub mod splitter_pipeline;
 pub use self::splitter_pipeline::SplitterPipeline;
 
+pub mod timestamp;
+pub use self::timestamp::Timestamp;
+
 pub mod toc_setter_pipeline;
 pub use self::toc_setter_pipeline::TocSetterPipeline;
 

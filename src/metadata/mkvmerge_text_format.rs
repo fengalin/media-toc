@@ -12,7 +12,8 @@ use nom::{
 use std::io::{Read, Write};
 
 use super::{
-    get_default_chapter_title, parse_timestamp, MediaInfo, Reader, Timestamp, TocVisitor, Writer,
+    get_default_chapter_title, parse_timestamp, MediaInfo, Reader, Timestamp4Humans, TocVisitor,
+    Writer,
 };
 
 static EXTENSION: &str = "txt";
@@ -32,7 +33,7 @@ impl MKVMergeTextFormat {
     }
 }
 
-fn new_chapter(nb: usize, start_ts: Timestamp, title: &str) -> gst::TocEntry {
+fn new_chapter(nb: usize, start_ts: Timestamp4Humans, title: &str) -> gst::TocEntry {
     let mut chapter = gst::TocEntry::new(gst::TocEntryType::Chapter, &format!("{:02}", nb));
     let start = start_ts.nano_total as i64;
     chapter
@@ -247,7 +248,7 @@ impl Writer for MKVMergeTextFormat {
                     destination,
                     "{}={}\n",
                     prefix,
-                    Timestamp::from_nano(start as u64).format_with_hours()
+                    Timestamp4Humans::from_nano(start as u64).format_with_hours()
                 );
 
                 let title = chapter

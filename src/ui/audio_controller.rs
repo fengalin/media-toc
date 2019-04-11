@@ -18,8 +18,8 @@ use std::{
 };
 
 use crate::{
-    media::{DoubleAudioBuffer, PlaybackPipeline, SampleExtractor, QUEUE_SIZE_NS},
-    metadata::{MediaInfo, Timestamp},
+    media::{DoubleAudioBuffer, PlaybackPipeline, SampleExtractor, Timestamp, QUEUE_SIZE_NS},
+    metadata::MediaInfo,
 };
 
 use super::{
@@ -56,8 +56,8 @@ const CURSOR_TEXT_H: &str = "00:00:00.000.000";
 #[derive(Debug, PartialEq)]
 pub enum ControllerState {
     Disabled,
-    CursorAboveBoundary(u64),
-    MovingBoundary(u64),
+    CursorAboveBoundary(Timestamp),
+    MovingBoundary(Timestamp),
     Playing,
     Paused,
 }
@@ -86,11 +86,12 @@ pub struct AudioController {
     playback_needs_refresh: bool,
 
     requested_duration: f64,
+    // FIXME: use a Duration
     pub(super) seek_step: u64,
-    pub(super) current_position: u64,
-    last_other_ui_refresh: u64,
-    first_visible_pos: u64,
-    last_visible_pos: u64,
+    pub(super) current_ts: Timestamp,
+    last_other_ui_refresh: Timestamp,
+    first_visible_ts: Timestamp,
+    last_visible_ts: Timestamp,
     sample_duration: u64,
     sample_step: f64,
     boundaries: Rc<RefCell<ChaptersBoundaries>>,
@@ -128,10 +129,10 @@ impl UIController for AudioController {
         self.dbl_buffer_mtx.lock().unwrap().cleanup();
         self.requested_duration = INIT_REQ_DURATION;
         self.seek_step = INIT_REQ_DURATION as u64 / SEEK_STEP_DURATION_DIVISOR;
-        self.current_position = 0;
-        self.last_other_ui_refresh = 0;
-        self.first_visible_pos = 0;
-        self.last_visible_pos = 0;
+        self.current_ts = Timestamp::default();
+        self.last_other_ui_refresh = Timestamp::default();
+        self.first_visible_ts = Timestamp::default();
+        self.last_visible_ts = Timestamp::default();
         self.sample_duration = 0;
         self.sample_step = 0f64;
         // AudioController accesses self.boundaries as readonly
@@ -188,10 +189,10 @@ impl AudioController {
             requested_duration: INIT_REQ_DURATION,
             seek_step: INIT_REQ_DURATION as u64 / SEEK_STEP_DURATION_DIVISOR,
 
-            current_position: 0,
-            last_other_ui_refresh: 0,
-            first_visible_pos: 0,
-            last_visible_pos: 0,
+            current_ts: Timestamp::default(),
+            last_other_ui_refresh: Timestamp::default(),
+            first_visible_ts: Timestamp::default(),
+            last_visible_ts: Timestamp::default(),
             sample_duration: 0,
             sample_step: 0f64,
             boundaries,
@@ -210,32 +211,32 @@ impl AudioController {
         self.drawingarea.queue_draw();
     }
 
-    pub fn get_seek_back_1st_position(&self, target: u64) -> Option<u64> {
-        let (lower_pos, upper_pos, half_window_duration) = {
+    pub fn get_seek_back_1st_ts(&self, target: Timestamp) -> Option<Timestamp> {
+        let (lower_ts, upper_ts, half_window_duration) = {
             let waveform_grd = self.waveform_mtx.lock().unwrap();
             let waveform_buf = waveform_grd
                 .as_any()
                 .downcast_ref::<WaveformBuffer>()
                 .unwrap();
-            let limits = waveform_buf.get_limits_as_pos();
+            let limits = waveform_buf.get_limits_as_ts();
             (limits.0, limits.1, waveform_buf.get_half_window_duration())
         };
 
         // don't step back more than the pipeline queues can handle
-        let target_step_back = half_window_duration.min(QUEUE_SIZE_NS);
+        let target_step_back = (half_window_duration.as_u64().min(QUEUE_SIZE_NS)).into();
         if target > target_step_back {
-            if target < lower_pos + target_step_back || target > upper_pos {
+            if target < lower_ts + target_step_back || target > upper_ts {
                 Some(target - target_step_back)
             } else {
-                // 1st position already available => don't need 2 steps seek back
+                // 1st timestamp already available => don't need 2 steps seek back
                 None
             }
         } else {
-            Some(0)
+            Some(Timestamp::default())
         }
     }
 
-    pub fn seek(&mut self, position: u64) {
+    pub fn seek(&mut self, target: Timestamp) {
         if self.state == ControllerState::Disabled {
             return;
         }
@@ -246,7 +247,7 @@ impl AudioController {
             .as_mut_any()
             .downcast_mut::<WaveformBuffer>()
             .unwrap()
-            .seek(position);
+            .seek(target);
 
         if self.state != ControllerState::Playing {
             // refresh the buffer in order to render the waveform
@@ -313,12 +314,13 @@ impl AudioController {
         }));
     }
 
-    fn get_position_at(&self, x: f64) -> Option<u64> {
+    fn get_ts_at(&self, x: f64) -> Option<Timestamp> {
         if x >= 0f64 && x <= self.area_width {
-            let position = self.first_visible_pos
-                + (x * self.sample_step).round() as u64 * self.sample_duration;
-            if position <= self.last_visible_pos {
-                Some(position)
+            let ts = (self.first_visible_ts.as_u64()
+                + (x * self.sample_step).round() as u64 * self.sample_duration)
+                .into();
+            if ts <= self.last_visible_ts {
+                Some(ts)
             } else {
                 None
             }
@@ -327,10 +329,9 @@ impl AudioController {
         }
     }
 
-    pub fn get_boundary_at(&self, x: f64) -> Option<u64> {
-        let position = self.get_position_at(x);
-        let position = match position {
-            Some(position) => position,
+    pub fn get_boundary_at(&self, x: f64) -> Option<Timestamp> {
+        let ts = match self.get_ts_at(x) {
+            Some(ts) => ts,
             None => return None,
         };
 
@@ -341,12 +342,16 @@ impl AudioController {
         };
 
         let boundaries = self.boundaries.borrow();
-        let lower_bound = if position >= delta {
-            position - delta
+        let lower_bound = if ts.as_u64() >= delta {
+            ts.as_u64() - delta
         } else {
             0
-        };
-        let mut range = boundaries.range((Included(&lower_bound), Included(&(position + delta))));
+        }
+        .into();
+        let mut range = boundaries.range((
+            Included(&lower_bound),
+            Included(&((ts.as_u64() + delta).into())),
+        ));
         range.next().map(|(boundary, _chapters)| *boundary)
     }
 
@@ -438,7 +443,7 @@ impl AudioController {
         self.redraw();
     }
 
-    pub fn draw(&mut self, da: &gtk::DrawingArea, cr: &cairo::Context) -> Option<u64> {
+    pub fn draw(&mut self, da: &gtk::DrawingArea, cr: &cairo::Context) -> Option<Timestamp> {
         cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
         cr.paint();
 
@@ -460,8 +465,8 @@ impl AudioController {
                     )
                 })?;
 
-        // Get waveform and positions
-        let (current_position, image_positions) = {
+        // Get waveform and timestamps
+        let (current_ts, image_positions) = {
             let waveform_grd = &mut *self.waveform_mtx.lock().unwrap();
             let waveform_buffer = waveform_grd
                 .as_mut_any()
@@ -470,7 +475,7 @@ impl AudioController {
 
             self.playback_needs_refresh = waveform_buffer.playback_needs_refresh;
 
-            let (current_position, image_opt) =
+            let (current_ts, image_opt) =
                 waveform_buffer.get_image(last_frame_time, next_frame_time);
 
             if image_opt.is_none() {
@@ -483,11 +488,11 @@ impl AudioController {
                 cr.paint();
             });
 
-            (current_position, image_positions)
+            (current_ts, image_positions)
         };
 
-        self.current_position = current_position;
-        self.first_visible_pos = image_positions.first.timestamp;
+        self.current_ts = current_ts;
+        self.first_visible_ts = image_positions.first.ts;
         self.sample_duration = image_positions.sample_duration;
         self.sample_step = image_positions.sample_step;
 
@@ -496,8 +501,9 @@ impl AudioController {
         self.adjust_waveform_text_width(cr);
 
         // first position
-        let first_text = Timestamp::format(self.first_visible_pos, false);
-        let first_text_end = if self.first_visible_pos < HOUR_IN_NANO {
+        let first_text = self.first_visible_ts.get_4_humans().as_string(false);
+        // FIXME: HOUR_IN_NANO as Duration
+        let first_text_end = if self.first_visible_ts.as_u64() < HOUR_IN_NANO {
             2f64 + self.boundary_text_mn_width
         } else {
             2f64 + self.boundary_text_h_width
@@ -507,8 +513,8 @@ impl AudioController {
 
         // last position
         if let Some(last_pos) = image_positions.last {
-            let last_text = Timestamp::format(last_pos.timestamp, false);
-            let last_text_start = if last_pos.timestamp < HOUR_IN_NANO {
+            let last_text = last_pos.ts.get_4_humans().as_string(false);
+            let last_text_start = if last_pos.ts.as_u64() < HOUR_IN_NANO {
                 2f64 + self.boundary_text_mn_width
             } else {
                 2f64 + self.boundary_text_h_width
@@ -519,14 +525,14 @@ impl AudioController {
                 cr.show_text(&last_text);
             }
 
-            self.last_visible_pos = last_pos.timestamp;
+            self.last_visible_ts = last_pos.ts;
 
             // Draw in-range chapters boundaries
             let boundaries = self.boundaries.borrow();
 
             let chapter_range = boundaries.range((
-                Included(&self.first_visible_pos),
-                Included(&last_pos.timestamp),
+                Included(&self.first_visible_ts),
+                Included(&self.last_visible_ts),
             ));
 
             cr.set_source_rgb(0.5f64, 0.6f64, 1f64);
@@ -535,9 +541,9 @@ impl AudioController {
             let text_base = self.area_height - self.half_font_size;
 
             for (boundary, chapters) in chapter_range {
-                if *boundary >= self.first_visible_pos {
-                    let x = ((boundary - self.first_visible_pos) / image_positions.sample_duration)
-                        as f64
+                if *boundary >= self.first_visible_ts {
+                    let x = ((*boundary - self.first_visible_ts).as_u64()
+                        / image_positions.sample_duration) as f64
                         / image_positions.sample_step;
                     cr.move_to(x, boundary_y0);
                     cr.line_to(x, self.area_height);
@@ -559,12 +565,12 @@ impl AudioController {
             }
         }
 
-        if let Some(current_x) = image_positions.current {
+        if let Some(current_x) = image_positions.current_x {
             // draw current pos
             cr.set_source_rgb(1f64, 1f64, 0f64);
 
-            let cursor_text = Timestamp::format(self.current_position, true);
-            let cursor_text_end = if self.current_position < HOUR_IN_NANO {
+            let cursor_text = self.current_ts.get_4_humans().as_string(true);
+            let cursor_text_end = if self.current_ts.as_u64() < HOUR_IN_NANO {
                 5f64 + self.cursor_text_mn_width
             } else {
                 5f64 + self.cursor_text_h_width
@@ -588,8 +594,9 @@ impl AudioController {
         // to reduce position queries on the ref gst element
         match self.state {
             ControllerState::Playing => {
-                if self.current_position >= self.last_other_ui_refresh
-                    && self.current_position <= self.last_other_ui_refresh + OTHER_UI_REFRESH_PERIOD
+                if self.current_ts >= self.last_other_ui_refresh
+                    && self.current_ts.as_u64()
+                        <= self.last_other_ui_refresh.as_u64() + OTHER_UI_REFRESH_PERIOD
                 {
                     return None;
                 }
@@ -599,18 +606,21 @@ impl AudioController {
             _ => return None,
         }
 
-        self.last_other_ui_refresh = self.current_position;
+        self.last_other_ui_refresh = self.current_ts;
 
-        Some(current_position)
+        Some(current_ts)
     }
 
-    pub fn motion_notify(&mut self, event_motion: &gdk::EventMotion) -> Option<(u64, u64)> {
+    pub fn motion_notify(
+        &mut self,
+        event_motion: &gdk::EventMotion,
+    ) -> Option<(Timestamp, Timestamp)> {
         let (x, _y) = event_motion.get_position();
 
         match self.state {
             ControllerState::Playing => (),
             ControllerState::MovingBoundary(boundary) => {
-                return self.get_position_at(x).map(|position| (boundary, position));
+                return self.get_ts_at(x).map(|position| (boundary, position));
             }
             ControllerState::Paused => {
                 if let Some(boundary) = self.get_boundary_at(x) {
@@ -648,10 +658,10 @@ impl AudioController {
         match event_button.get_button() {
             1 => {
                 // left button
-                if let Some(position) = self.get_position_at(event_button.get_position().0) {
+                if let Some(ts) = self.get_ts_at(event_button.get_position().0) {
                     match self.state {
                         ControllerState::Playing | ControllerState::Paused => {
-                            self.ui_event.seek(position, gst::SeekFlags::ACCURATE);
+                            self.ui_event.seek(ts, gst::SeekFlags::ACCURATE);
                         }
                         ControllerState::CursorAboveBoundary(boundary) => {
                             self.state = ControllerState::MovingBoundary(boundary);
@@ -663,9 +673,11 @@ impl AudioController {
             3 => {
                 // right button => segment playback in Paused state
                 if self.state == ControllerState::Paused {
-                    if let Some(start) = self.get_position_at(event_button.get_position().0) {
-                        let end = start + MIN_RANGE_DURATION.max(self.last_visible_pos - start);
-                        self.ui_event.play_range(start, end, self.current_position);
+                    if let Some(start) = self.get_ts_at(event_button.get_position().0) {
+                        let end = (start.as_u64()
+                            + MIN_RANGE_DURATION.max((self.last_visible_ts - start).as_u64()))
+                        .into();
+                        self.ui_event.play_range(start, end, self.current_ts);
                     }
                 }
             }

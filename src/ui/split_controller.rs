@@ -385,8 +385,8 @@ impl MediaProcessor for SplitControllerImpl {
         if duration > 0 {
             self.splitter_pipeline
                 .as_ref()
-                .map(|splitter_pipeline| splitter_pipeline.get_position())?
-                .map(|position| position as f64 / duration as f64)
+                .map(|splitter_pipeline| splitter_pipeline.get_current_ts())?
+                .map(|ts| ts.as_f64() / duration as f64)
         } else {
             Some(0f64)
         }

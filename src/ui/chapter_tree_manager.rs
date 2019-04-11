@@ -8,7 +8,10 @@ use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::metadata::{get_default_chapter_title, Timestamp, TocVisitor};
+use crate::{
+    media::Timestamp,
+    metadata::{get_default_chapter_title, Timestamp4Humans, TocVisitor},
+};
 
 use super::{ChaptersBoundaries, PositionStatus};
 
@@ -32,20 +35,20 @@ impl<'entry> ChapterEntry<'entry> {
         ChapterEntry::get_title(self.store, self.iter)
     }
 
-    pub fn start(&self) -> u64 {
-        ChapterEntry::get_start(self.store, self.iter)
+    pub fn start(&self) -> Timestamp {
+        ChapterEntry::get_start(self.store, self.iter).into()
     }
 
     pub fn start_str(&self) -> GString {
         ChapterEntry::get_start_str(self.store, self.iter)
     }
 
-    pub fn start_ts(&self) -> Timestamp {
-        Timestamp::from_nano(ChapterEntry::get_start(self.store, self.iter))
+    pub fn start_ts(&self) -> Timestamp4Humans {
+        ChapterEntry::get_start(self.store, self.iter).get_4_humans()
     }
 
-    pub fn end(&self) -> u64 {
-        ChapterEntry::get_end(self.store, self.iter)
+    pub fn end(&self) -> Timestamp {
+        ChapterEntry::get_end(self.store, self.iter).into()
     }
 
     pub fn end_str(&self) -> GString {
@@ -53,8 +56,8 @@ impl<'entry> ChapterEntry<'entry> {
     }
 
     #[allow(dead_code)]
-    pub fn end_ts(&self) -> Timestamp {
-        Timestamp::from_nano(ChapterEntry::get_end(self.store, self.iter))
+    pub fn end_ts(&self) -> Timestamp4Humans {
+        ChapterEntry::get_end(self.store, self.iter).get_4_humans()
     }
 
     pub fn as_toc_entry(&self) -> gst::TocEntry {
@@ -65,7 +68,7 @@ impl<'entry> ChapterEntry<'entry> {
         toc_entry
             .get_mut()
             .unwrap()
-            .set_start_stop_times(self.start() as i64, self.end() as i64);
+            .set_start_stop_times(self.start().as_i64(), self.end().as_i64());
 
         let mut tag_list = gst::TagList::new();
         tag_list
@@ -84,11 +87,12 @@ impl<'entry> ChapterEntry<'entry> {
             .unwrap()
     }
 
-    pub fn get_start(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> u64 {
+    pub fn get_start(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> Timestamp {
         store
             .get_value(iter, START_COL as i32)
             .get::<u64>()
             .unwrap()
+            .into()
     }
 
     pub fn get_start_str(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> GString {
@@ -98,8 +102,12 @@ impl<'entry> ChapterEntry<'entry> {
             .unwrap()
     }
 
-    pub fn get_end(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> u64 {
-        store.get_value(iter, END_COL as i32).get::<u64>().unwrap()
+    pub fn get_end(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> Timestamp {
+        store
+            .get_value(iter, END_COL as i32)
+            .get::<u64>()
+            .unwrap()
+            .into()
     }
 
     pub fn get_end_str(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> GString {
@@ -245,14 +253,17 @@ impl ChapterTreeManager {
                             &start,
                             &end,
                             &title,
-                            &Timestamp::format(start, false),
-                            &Timestamp::format(end, false),
+                            &Timestamp4Humans::format(start, false),
+                            &Timestamp4Humans::format(end, false),
                         ],
                     );
 
-                    self.boundaries
-                        .borrow_mut()
-                        .add_chapter(start, end, title, &iter);
+                    self.boundaries.borrow_mut().add_chapter(
+                        start.into(),
+                        end.into(),
+                        title,
+                        &iter,
+                    );
                 }
             }
         }
@@ -261,7 +272,7 @@ impl ChapterTreeManager {
 
         self.selected_iter = match self.iter {
             Some(ref iter) => {
-                if ChapterEntry::get_start(&self.store, iter) == 0 {
+                if ChapterEntry::get_start(&self.store, iter) == Timestamp::default() {
                     Some(iter.clone())
                 } else {
                     None
@@ -290,15 +301,16 @@ impl ChapterTreeManager {
         while func(ChapterEntry::new(&self.store, &iter)) && self.store.iter_next(&iter) {}
     }
 
-    // Update chapter according to the given position
+    // Update chapter according to the given ts
+    // FIXME: determine whether PositionStatus must be renamed
     // Returns (position_status, prev_selected_iter)
-    pub fn update_position(&mut self, position: u64) -> (PositionStatus, Option<gtk::TreeIter>) {
+    pub fn update_ts(&mut self, ts: Timestamp) -> (PositionStatus, Option<gtk::TreeIter>) {
         let position_status = match self.selected_iter {
             Some(ref selected_iter) => {
-                if position >= ChapterEntry::get_start(&self.store, selected_iter)
-                    && position < ChapterEntry::get_end(&self.store, selected_iter)
+                if ts >= ChapterEntry::get_start(&self.store, selected_iter)
+                    && ts < ChapterEntry::get_end(&self.store, selected_iter)
                 {
-                    // regular case: position in current chapter => don't change anything
+                    // regular case: current timestamp in current chapter => don't change anything
                     // this check is here to save time in the most frequent case
                     return (PositionStatus::ChapterNotChanged, None);
                 }
@@ -312,18 +324,18 @@ impl ChapterTreeManager {
         if let Some(iter) = self.iter.take() {
             // not in selected_iter or selected_iter not defined yet => find current chapter
             let mut searching_forward = true;
-            while if position >= ChapterEntry::get_start(&self.store, &iter)
-                && position < ChapterEntry::get_end(&self.store, &iter)
+            while if ts >= ChapterEntry::get_start(&self.store, &iter)
+                && ts < ChapterEntry::get_end(&self.store, &iter)
             {
-                // position is in iter
+                // current timestamp is in iter
                 self.selected_iter = Some(iter.clone());
                 self.iter = Some(iter);
                 return (PositionStatus::ChapterChanged, prev_selected_iter);
-            } else if position >= ChapterEntry::get_end(&self.store, &iter) && searching_forward {
-                // position is after iter and we were already searching forward
+            } else if ts >= ChapterEntry::get_end(&self.store, &iter) && searching_forward {
+                // current timestamp is after iter and we were already searching forward
                 self.store.iter_next(&iter)
-            } else if position < ChapterEntry::get_start(&self.store, &iter) {
-                // position before iter
+            } else if ts < ChapterEntry::get_start(&self.store, &iter) {
+                // current timestamp before iter
                 searching_forward = false;
                 if self.store.iter_previous(&iter) {
                     // iter is still valid => keep going
@@ -356,7 +368,7 @@ impl ChapterTreeManager {
     }
 
     // Returns an iter on the new chapter
-    pub fn add_chapter(&mut self, position: u64, duration: u64) -> Option<gtk::TreeIter> {
+    pub fn add_chapter(&mut self, target: Timestamp, duration: u64) -> Option<gtk::TreeIter> {
         let (new_iter, end, end_str) = match self.selected_iter.take() {
             Some(selected_iter) => {
                 // a chapter is currently selected
@@ -369,13 +381,13 @@ impl ChapterTreeManager {
                     )
                 };
 
-                if current_start != position {
+                if current_start != target {
                     // update currently selected chapter end
                     // to match the start of the newly added chapter
                     self.store.set(
                         &selected_iter,
                         &[END_COL, END_STR_COL],
-                        &[&position, &Timestamp::format(position, false)],
+                        &[&target.as_u64(), &target.get_4_humans().as_string(false)],
                     );
                     let new_iter = self.store.insert_after(None, Some(&selected_iter));
                     (new_iter, current_end, current_end_str)
@@ -394,13 +406,13 @@ impl ChapterTreeManager {
                         // or in a gap between two chapters
                         let iter_chapter = ChapterEntry::new(&self.store, &iter);
                         let new_chapter_end = iter_chapter.start();
-                        if position > new_chapter_end {
+                        if target > new_chapter_end {
                             panic!(
                                 concat!(
-                                    "ChapterTreeManager::add_chapter inconsistent position",
+                                    "ChapterTreeManager::add_chapter inconsistent target",
                                     " {} with regard to current iter [{}, {}]",
                                 ),
-                                position,
+                                target,
                                 iter_chapter.start(),
                                 iter_chapter.end(),
                             );
@@ -411,7 +423,7 @@ impl ChapterTreeManager {
                     }
                     None => {
                         // No chapter in iter:
-                        // either position is passed the end of last chapter
+                        // either the chapter to add timestamp is passed the end of last chapter
                         // or there is no chapter
                         let insert_position = match self.store.get_iter_first() {
                             None =>
@@ -429,8 +441,8 @@ impl ChapterTreeManager {
                         let new_iter = self.store.insert(None, insert_position);
                         (
                             new_iter,
-                            duration,
-                            Timestamp::format(duration, false).into(),
+                            duration.into(),
+                            Timestamp4Humans::format(duration, false).into(),
                         )
                     }
                 }
@@ -443,16 +455,16 @@ impl ChapterTreeManager {
             &[TITLE_COL, START_COL, START_STR_COL, END_COL, END_STR_COL],
             &[
                 &default_title,
-                &position,
-                &Timestamp::format(position, false),
-                &end,
+                &target.as_u64(),
+                &target.get_4_humans().as_string(false),
+                &end.as_u64(),
                 &end_str,
             ],
         );
 
         self.boundaries
             .borrow_mut()
-            .add_chapter(position, end, &default_title, &new_iter);
+            .add_chapter(target, end, &default_title, &new_iter);
 
         self.selected_iter = Some(new_iter.clone());
         self.iter = Some(new_iter.clone());
@@ -474,7 +486,7 @@ impl ChapterTreeManager {
                         self.store.set(
                             &prev_iter,
                             &[END_COL, END_STR_COL],
-                            &[&selected_end, &selected_chapter.end_str()],
+                            &[&selected_end.as_u64(), &selected_chapter.end_str()],
                         );
 
                         (selected_end, Some(prev_iter))
@@ -506,8 +518,12 @@ impl ChapterTreeManager {
         }
     }
 
-    pub fn move_chapter_boundary(&mut self, boundary: u64, to_position: u64) -> PositionStatus {
-        if boundary == to_position {
+    pub fn move_chapter_boundary(
+        &mut self,
+        boundary: Timestamp,
+        target: Timestamp,
+    ) -> PositionStatus {
+        if boundary == target {
             return PositionStatus::ChapterNotChanged;
         }
 
@@ -526,45 +542,43 @@ impl ChapterTreeManager {
         }
 
         // prevent moving past previous chapter's start
-        let to_position = prev_iter.as_ref().map_or(to_position, |prev_iter| {
+        let target = prev_iter.as_ref().map_or(target, |prev_iter| {
             let prev_start = ChapterEntry::get_start(&self.store, prev_iter);
-            if to_position > prev_start {
-                to_position
+            if target > prev_start {
+                target
             } else {
                 boundary
             }
         });
 
         // prevent moving past next chapter's end
-        let to_position = next_iter.as_ref().map_or(to_position, |next_iter| {
+        let target = next_iter.as_ref().map_or(target, |next_iter| {
             let next_end = ChapterEntry::get_end(&self.store, next_iter);
-            if to_position < next_end {
-                to_position
+            if target < next_end {
+                target
             } else {
                 boundary
             }
         });
 
-        if to_position != boundary {
+        if target != boundary {
             // do the actual move
             if let Some(prev_iter) = prev_iter {
                 self.store.set(
                     &prev_iter,
                     &[END_COL, END_STR_COL],
-                    &[&to_position, &Timestamp::format(to_position, false)],
+                    &[&target.as_u64(), &target.get_4_humans().as_string(false)],
                 );
             }
             if let Some(next_iter) = next_iter {
                 self.store.set(
                     &next_iter,
                     &[START_COL, START_STR_COL],
-                    &[&to_position, &Timestamp::format(to_position, false)],
+                    &[&target.as_u64(), &target.get_4_humans().as_string(false)],
                 );
             }
 
-            self.boundaries
-                .borrow_mut()
-                .move_boundary(boundary, to_position);
+            self.boundaries.borrow_mut().move_boundary(boundary, target);
             PositionStatus::ChapterChanged
         } else {
             PositionStatus::ChapterNotChanged

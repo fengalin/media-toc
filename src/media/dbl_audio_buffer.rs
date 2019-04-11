@@ -186,7 +186,7 @@ impl DoubleAudioBuffer {
 
     pub fn have_gst_segment(&mut self, segment: &gst::Segment) {
         self.audio_buffer
-            .have_gst_segment(segment.get_start().get_value() as u64);
+            .have_gst_segment(segment.get_start().get_value().into());
         self.sample_gauge = Some(SampleIndex::default());
         {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();

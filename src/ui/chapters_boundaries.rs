@@ -3,6 +3,8 @@ use log::debug;
 
 use std::{collections::BTreeMap, ops::Deref};
 
+use crate::media::Timestamp;
+
 #[derive(Clone, Debug)]
 pub struct Chapter {
     pub title: String,
@@ -21,7 +23,7 @@ pub struct SuccessiveChapters {
     pub next: Option<Chapter>,
 }
 
-pub struct ChaptersBoundaries(BTreeMap<u64, SuccessiveChapters>);
+pub struct ChaptersBoundaries(BTreeMap<Timestamp, SuccessiveChapters>);
 
 impl ChaptersBoundaries {
     pub fn new() -> Self {
@@ -32,8 +34,13 @@ impl ChaptersBoundaries {
         self.0.clear();
     }
 
-    pub fn add_chapter<Title>(&mut self, start: u64, end: u64, title: Title, iter: &gtk::TreeIter)
-    where
+    pub fn add_chapter<Title>(
+        &mut self,
+        start: Timestamp,
+        end: Timestamp,
+        title: Title,
+        iter: &gtk::TreeIter,
+    ) where
         Title: ToString,
     {
         let title = title.to_string();
@@ -105,7 +112,7 @@ impl ChaptersBoundaries {
         }
     }
 
-    pub fn remove_chapter(&mut self, start: u64, end: u64) {
+    pub fn remove_chapter(&mut self, start: Timestamp, end: Timestamp) {
         debug!("remove_chapter {}, {}", start, end);
 
         let prev_chapter = self.0.get_mut(&start).unwrap().prev.take();
@@ -125,7 +132,7 @@ impl ChaptersBoundaries {
         }
     }
 
-    pub fn rename_chapter<Title>(&mut self, start: u64, end: u64, new_title: Title)
+    pub fn rename_chapter<Title>(&mut self, start: Timestamp, end: Timestamp, new_title: Title)
     where
         Title: ToString,
     {
@@ -136,19 +143,19 @@ impl ChaptersBoundaries {
         self.0.get_mut(&end).unwrap().prev.as_mut().unwrap().title = new_title;
     }
 
-    pub fn move_boundary(&mut self, boundary: u64, to_position: u64) {
+    pub fn move_boundary(&mut self, boundary: Timestamp, target: Timestamp) {
         let chapters = self.0.remove(&boundary).unwrap();
-        if self.0.insert(to_position, chapters).is_some() {
+        if self.0.insert(target, chapters).is_some() {
             panic!(
                 "ChaptersBoundaries::move_boundary attempt to replace entry at {}",
-                to_position
+                target
             );
         }
     }
 }
 
 impl Deref for ChaptersBoundaries {
-    type Target = BTreeMap<u64, SuccessiveChapters>;
+    type Target = BTreeMap<Timestamp, SuccessiveChapters>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -185,316 +192,341 @@ mod tests {
         // Add incrementally
 
         let chapter_1 = new_chapter(&store, "1");
-        boundaries.add_chapter(0, 1, &chapter_1.title, &chapter_1.iter);
+        boundaries.add_chapter(
+            Timestamp::new(0),
+            Timestamp::new(1),
+            &chapter_1.title,
+            &chapter_1.iter,
+        );
         assert_eq!(2, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_1.clone()),
             }),
-            boundaries.get(&0),
+            boundaries.get(&Timestamp::new(0)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_1.clone()),
                 next: None,
             }),
-            boundaries.get(&1),
+            boundaries.get(&Timestamp::new(1)),
         );
 
         let chapter_2 = new_chapter(&store, "2");
-        boundaries.add_chapter(1, 2, &chapter_2.title, &chapter_2.iter);
+        boundaries.add_chapter(
+            Timestamp::new(1),
+            Timestamp::new(2),
+            &chapter_2.title,
+            &chapter_2.iter,
+        );
         assert_eq!(3, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_1.clone()),
             }),
-            boundaries.get(&0),
+            boundaries.get(&Timestamp::new(0)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_1.clone()),
                 next: Some(chapter_2.clone()),
             }),
-            boundaries.get(&1),
+            boundaries.get(&Timestamp::new(1)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_2.clone()),
                 next: None,
             }),
-            boundaries.get(&2),
+            boundaries.get(&Timestamp::new(2)),
         );
 
         let chapter_3 = new_chapter(&store, "3");
-        boundaries.add_chapter(2, 4, &chapter_3.title, &chapter_3.iter);
+        boundaries.add_chapter(
+            Timestamp::new(2),
+            Timestamp::new(4),
+            &chapter_3.title,
+            &chapter_3.iter,
+        );
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_1.clone()),
             }),
-            boundaries.get(&0),
+            boundaries.get(&Timestamp::new(0)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_1.clone()),
                 next: Some(chapter_2.clone()),
             }),
-            boundaries.get(&1),
+            boundaries.get(&Timestamp::new(1)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_2.clone()),
                 next: Some(chapter_3.clone()),
             }),
-            boundaries.get(&2),
+            boundaries.get(&Timestamp::new(2)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_3.clone()),
                 next: None,
             }),
-            boundaries.get(&4),
+            boundaries.get(&Timestamp::new(4)),
         );
 
         // Rename
         let chapter_r2 = new_chapter(&store, "r2");
-        boundaries.rename_chapter(1, 2, &chapter_r2.title);
+        boundaries.rename_chapter(Timestamp::new(1), Timestamp::new(2), &chapter_r2.title);
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_1.clone()),
             }),
-            boundaries.get(&0),
+            boundaries.get(&Timestamp::new(0)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_1.clone()),
                 next: Some(chapter_r2.clone()),
             }),
-            boundaries.get(&1),
+            boundaries.get(&Timestamp::new(1)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_r2.clone()),
                 next: Some(chapter_3.clone()),
             }),
-            boundaries.get(&2),
+            boundaries.get(&Timestamp::new(2)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_3.clone()),
                 next: None,
             }),
-            boundaries.get(&4),
+            boundaries.get(&Timestamp::new(4)),
         );
 
         let chapter_r1 = new_chapter(&store, "r1");
-        boundaries.rename_chapter(0, 1, &chapter_r1.title);
+        boundaries.rename_chapter(Timestamp::new(0), Timestamp::new(1), &chapter_r1.title);
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_r1.clone()),
             }),
-            boundaries.get(&0),
+            boundaries.get(&Timestamp::new(0)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_r1.clone()),
                 next: Some(chapter_r2.clone()),
             }),
-            boundaries.get(&1),
+            boundaries.get(&Timestamp::new(1)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_r2.clone()),
                 next: Some(chapter_3.clone()),
             }),
-            boundaries.get(&2),
+            boundaries.get(&Timestamp::new(2)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_3.clone()),
                 next: None,
             }),
-            boundaries.get(&4),
+            boundaries.get(&Timestamp::new(4)),
         );
 
         let chapter_r3 = new_chapter(&store, "r3");
-        boundaries.rename_chapter(2, 4, &chapter_r3.title);
+        boundaries.rename_chapter(Timestamp::new(2), Timestamp::new(4), &chapter_r3.title);
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_r1.clone()),
             }),
-            boundaries.get(&0),
+            boundaries.get(&Timestamp::new(0)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_r1.clone()),
                 next: Some(chapter_r2.clone()),
             }),
-            boundaries.get(&1),
+            boundaries.get(&Timestamp::new(1)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_r2.clone()),
                 next: Some(chapter_r3.clone()),
             }),
-            boundaries.get(&2),
+            boundaries.get(&Timestamp::new(2)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_r3.clone()),
                 next: None,
             }),
-            boundaries.get(&4),
+            boundaries.get(&Timestamp::new(4)),
         );
 
         // Remove in the middle
-        boundaries.remove_chapter(1, 2);
+        boundaries.remove_chapter(Timestamp::new(1), Timestamp::new(2));
         assert_eq!(3, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_r1.clone()),
             }),
-            boundaries.get(&0),
+            boundaries.get(&Timestamp::new(0)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_r1.clone()),
                 next: Some(chapter_r3.clone()),
             }),
-            boundaries.get(&2),
+            boundaries.get(&Timestamp::new(2)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_r3.clone()),
                 next: None,
             }),
-            boundaries.get(&4),
+            boundaries.get(&Timestamp::new(4)),
         );
 
         // Add in the middle
         let chapter_n2 = new_chapter(&store, "n2");
-        boundaries.add_chapter(1, 2, &chapter_n2.title, &chapter_n2.iter);
+        boundaries.add_chapter(
+            Timestamp::new(1),
+            Timestamp::new(2),
+            &chapter_n2.title,
+            &chapter_n2.iter,
+        );
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_r1.clone()),
             }),
-            boundaries.get(&0),
+            boundaries.get(&Timestamp::new(0)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_r1.clone()),
                 next: Some(chapter_n2.clone()),
             }),
-            boundaries.get(&1),
+            boundaries.get(&Timestamp::new(1)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_n2.clone()),
                 next: Some(chapter_r3.clone()),
             }),
-            boundaries.get(&2),
+            boundaries.get(&Timestamp::new(2)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_r3.clone()),
                 next: None,
             }),
-            boundaries.get(&4),
+            boundaries.get(&Timestamp::new(4)),
         );
 
         // Remove first
-        boundaries.remove_chapter(0, 1);
+        boundaries.remove_chapter(Timestamp::new(0), Timestamp::new(1));
         assert_eq!(3, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_n2.clone()),
             }),
-            boundaries.get(&1),
+            boundaries.get(&Timestamp::new(1)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_n2.clone()),
                 next: Some(chapter_r3.clone()),
             }),
-            boundaries.get(&2),
+            boundaries.get(&Timestamp::new(2)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_r3.clone()),
                 next: None,
             }),
-            boundaries.get(&4),
+            boundaries.get(&Timestamp::new(4)),
         );
 
         // Add first
         let chapter_n1 = new_chapter(&store, "n1");
-        boundaries.add_chapter(0, 1, &chapter_n1.title, &chapter_n1.iter);
+        boundaries.add_chapter(
+            Timestamp::new(0),
+            Timestamp::new(1),
+            &chapter_n1.title,
+            &chapter_n1.iter,
+        );
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_n1.clone()),
             }),
-            boundaries.get(&0),
+            boundaries.get(&Timestamp::new(0)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_n1.clone()),
                 next: Some(chapter_n2.clone()),
             }),
-            boundaries.get(&1),
+            boundaries.get(&Timestamp::new(1)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_n2.clone()),
                 next: Some(chapter_r3.clone()),
             }),
-            boundaries.get(&2),
+            boundaries.get(&Timestamp::new(2)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_r3.clone()),
                 next: None,
             }),
-            boundaries.get(&4),
+            boundaries.get(&Timestamp::new(4)),
         );
 
         // Remove last
-        boundaries.remove_chapter(2, 4);
+        boundaries.remove_chapter(Timestamp::new(2), Timestamp::new(4));
         assert_eq!(3, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: None,
                 next: Some(chapter_n1.clone()),
             }),
-            boundaries.get(&0),
+            boundaries.get(&Timestamp::new(0)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_n1.clone()),
                 next: Some(chapter_n2.clone()),
             }),
-            boundaries.get(&1),
+            boundaries.get(&Timestamp::new(1)),
         );
         assert_eq!(
             Some(&SuccessiveChapters {
                 prev: Some(chapter_n2.clone()),
                 next: None,
             }),
-            boundaries.get(&4),
+            boundaries.get(&Timestamp::new(4)),
         );
     }
 }

@@ -10,7 +10,7 @@ use std::{
 
 use crate::media::{
     sample_extractor::SampleExtractionState, AudioBuffer, AudioChannel, DoubleAudioBuffer,
-    SampleExtractor, SampleIndex,
+    SampleExtractor, SampleIndex, Timestamp,
 };
 
 use super::{Image, WaveformImage};
@@ -29,13 +29,13 @@ impl DoubleWaveformBuffer {
 
 pub struct SamplePosition {
     pub x: f64,
-    pub timestamp: u64,
+    pub ts: Timestamp,
 }
 
 pub struct ImagePositions {
     pub first: SamplePosition,
     pub last: Option<SamplePosition>,
-    pub current: Option<f64>,
+    pub current_x: Option<f64>,
     pub sample_duration: u64,
     pub sample_step: f64,
 }
@@ -53,10 +53,10 @@ pub enum LockState {
 // It is responsible for preparing an up to date Waveform image which will be
 // diplayed upon UI request. Up to date signifies that the Waveform image
 // contains all the samples that can fit in the target window at the specified
-// resolution for current playback position.
+// resolution for current playback timestamp.
 // Whenever possible, the WaveformBuffer attempts to have the Waveform scroll
 // between frames with current playback position in the middle so that the
-// user can seek forward or backward around current position.
+// user can seek forward or backward around current timestamp.
 pub struct WaveformBuffer {
     state: SampleExtractionState,
     conditions_changed: bool,
@@ -64,11 +64,11 @@ pub struct WaveformBuffer {
     image: WaveformImage,
 
     previous_sample: Option<SampleIndex>,
-    cursor_sample: SampleIndex, // The sample nb currently under the cursor (might be different from
-    // current sample during seeks)
-    cursor_position: u64, // The timestamp at the cursor's position
+    cursor_sample: SampleIndex, // The sample idx currently under the cursor (might be different from
+    // current sample idx during seeks)
+    cursor_ts: Timestamp,
     first_visible_sample: Option<SampleIndex>,
-    first_visible_sample_lock: Option<(i64, LockState)>, // (1st position, LockState)
+    first_visible_sample_lock: Option<(i64, LockState)>, // FIXME: switch to SampleIdex instead of i64
 
     // During playback, we take advantage of the running time and thus
     // the stream of incoming samples to refresh the waveform.
@@ -95,7 +95,7 @@ impl WaveformBuffer {
 
             previous_sample: None,
             cursor_sample: SampleIndex::default(),
-            cursor_position: 0,
+            cursor_ts: Timestamp::default(),
             first_visible_sample: None,
             first_visible_sample_lock: None,
             playback_needs_refresh: false,
@@ -127,7 +127,7 @@ impl WaveformBuffer {
         debug!("{}_reset_sample_conditions", self.image.id);
         self.previous_sample = None;
         self.cursor_sample = SampleIndex::default();
-        self.cursor_position = 0;
+        self.cursor_ts = Timestamp::default();
         self.first_visible_sample = None;
         self.first_visible_sample_lock = None;
         self.playback_needs_refresh = false;
@@ -140,24 +140,25 @@ impl WaveformBuffer {
         self.image.cleanup_sample_conditions();
     }
 
-    pub fn get_limits_as_pos(&self) -> (u64, u64) {
+    pub fn get_limits_as_ts(&self) -> (Timestamp, Timestamp) {
         (
-            self.image.lower.get_position(self.state.sample_duration),
-            self.image.upper.get_position(self.state.sample_duration),
+            self.image.lower.get_ts(self.state.sample_duration),
+            self.image.upper.get_ts(self.state.sample_duration),
         )
     }
 
-    pub fn get_half_window_duration(&self) -> u64 {
+    // FIXME: use range types for these
+    pub fn get_half_window_duration(&self) -> Timestamp {
         self.half_req_sample_window
-            .get_position(self.state.sample_duration)
+            .get_ts(self.state.sample_duration)
     }
 
-    pub fn seek(&mut self, position: u64) {
+    pub fn seek(&mut self, target: Timestamp) {
         if self.image.sample_step == SampleIndex::default() {
             return;
         }
 
-        let sought_sample = SampleIndex::from_position(position, self.state.sample_duration)
+        let sought_sample = SampleIndex::from_ts(target, self.state.sample_duration)
             .get_aligned(self.image.sample_step);
 
         debug!(
@@ -168,7 +169,7 @@ impl WaveformBuffer {
             self.image.id,
             self.cursor_sample,
             sought_sample,
-            position,
+            target,
             self.state.state,
             self.image.lower,
             self.image.upper,
@@ -176,8 +177,8 @@ impl WaveformBuffer {
         );
 
         if self.state.state == gst::State::Playing {
-            // stream is playing => let the cursor jump from current position
-            // to the sought position without shifting the waveform if possible
+            // stream is playing => let the cursor jump from current timestamp
+            // to the sought timestamp without shifting the waveform if possible
 
             if let Some(first_visible_sample) = self.first_visible_sample {
                 if sought_sample >= first_visible_sample
@@ -187,7 +188,7 @@ impl WaveformBuffer {
                     // sought sample is in current window
                     // and the window is large enough for a constraint
                     // => lock the first sample so that the cursor appears
-                    // at the sought position without abrutely scrolling
+                    // at the sought idx without abrutely scrolling
                     // the waveform.
                     self.first_visible_sample_lock =
                         Some((first_visible_sample.as_i64(), LockState::Seeking));
@@ -225,12 +226,11 @@ impl WaveformBuffer {
         }
     }
 
-    fn refresh_position(&mut self, last_frame_time: u64, next_frame_time: u64) {
+    fn refresh_ts(&mut self, last_frame_time: u64, next_frame_time: u64) {
         match self.first_visible_sample_lock {
             Some((_first_visible_sample_lock, LockState::Seeking)) => (),
             _ => {
-                let (position, mut sample) =
-                    self.get_current_sample(last_frame_time, next_frame_time);
+                let (ts, mut sample) = self.get_current_sample(last_frame_time, next_frame_time);
 
                 if self.get_extraction_state().is_stable {
                     // after seek stabilization complete
@@ -242,22 +242,22 @@ impl WaveformBuffer {
                     sample.dec();
                 }
                 self.cursor_sample = sample;
-                self.cursor_position = position;
+                self.cursor_ts = ts;
             }
         }
     }
 
-    // Update to current position and compute the first sample to display.
+    // Update to current timestamp and compute the first sample to display.
     fn update_first_visible_sample(&mut self, last_frame_time: u64, next_frame_time: u64) {
         self.first_visible_sample = if self.image.is_ready {
-            self.refresh_position(last_frame_time, next_frame_time);
+            self.refresh_ts(last_frame_time, next_frame_time);
 
             if self.cursor_sample >= self.image.lower {
                 // current sample appears after first buffer sample
                 if let Some((first_visible_sample_lock, lock_state)) =
                     self.first_visible_sample_lock
                 {
-                    // There is a position lock constraint
+                    // There is a scrolling lock constraint
 
                     match lock_state {
                         LockState::Playing => {
@@ -551,11 +551,11 @@ impl WaveformBuffer {
         &mut self,
         last_frame_time: u64,
         next_frame_time: u64,
-    ) -> (u64, Option<(&mut Image, ImagePositions)>) {
+    ) -> (Timestamp, Option<(&mut Image, ImagePositions)>) {
         self.update_first_visible_sample(last_frame_time, next_frame_time);
         match self.first_visible_sample {
             Some(first_visible_sample) => {
-                let cursor_opt = if self.cursor_sample >= first_visible_sample
+                let current_x = if self.cursor_sample >= first_visible_sample
                     && self.cursor_sample <= first_visible_sample + self.req_sample_window
                 {
                     Some(
@@ -578,9 +578,11 @@ impl WaveformBuffer {
                         if last_x.is_sign_positive() {
                             Some(SamplePosition {
                                 x: last_x,
-                                timestamp: (first_visible_sample.as_u64()
-                                    + (last_x * self.image.sample_step_f) as u64)
-                                    * self.state.sample_duration,
+                                ts: Timestamp::new(
+                                    (first_visible_sample.as_u64()
+                                        + (last_x * self.image.sample_step_f) as u64)
+                                        * self.state.sample_duration,
+                                ),
                             })
                         } else {
                             None
@@ -593,23 +595,23 @@ impl WaveformBuffer {
                 let sample_step = self.image.sample_step_f;
 
                 (
-                    self.cursor_position,
+                    self.cursor_ts,
                     Some((
                         self.image.get_image(),
                         ImagePositions {
                             first: SamplePosition {
                                 x: x_offset,
-                                timestamp: first_visible_sample.get_position(sample_duration),
+                                ts: first_visible_sample.get_ts(sample_duration),
                             },
                             last: last_opt,
-                            current: cursor_opt,
+                            current_x,
                             sample_duration,
                             sample_step,
                         },
                     )),
                 )
             }
-            None => (self.cursor_position, None),
+            None => (self.cursor_ts, None),
         }
     }
 
@@ -882,7 +884,7 @@ impl SampleExtractor for WaveformBuffer {
 
         self.previous_sample = other.previous_sample;
         self.cursor_sample = other.cursor_sample;
-        self.cursor_position = other.cursor_position;
+        self.cursor_ts = other.cursor_ts;
         self.first_visible_sample = other.first_visible_sample;
         self.first_visible_sample_lock = other.first_visible_sample_lock;
 
@@ -904,7 +906,7 @@ impl SampleExtractor for WaveformBuffer {
         } // else: other has nothing new
 
         self.state.basetime = other.state.basetime;
-        self.state.last_pos = other.state.last_pos;
+        self.state.last_ts = other.state.last_ts;
         self.state.is_stable = other.state.is_stable;
 
         self.image.update_from_other(&mut other.image);

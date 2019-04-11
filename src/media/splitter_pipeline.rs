@@ -15,7 +15,7 @@ use std::{
 
 use crate::metadata::Format;
 
-use super::MediaEvent;
+use super::{MediaEvent, Timestamp};
 
 pub struct SplitterPipeline {
     pipeline: gst::Pipeline,
@@ -119,12 +119,12 @@ impl SplitterPipeline {
             .map_err(|_| gettext("do you have permission to write the file?"))
     }
 
-    pub fn get_position(&self) -> Option<u64> {
+    pub fn get_current_ts(&self) -> Option<Timestamp> {
         let mut position_query = gst::Query::new_position(gst::Format::Time);
         self.pipeline.query(&mut position_query);
         let position = position_query.get_result().get_value();
         if position >= 0 {
-            Some(position as u64)
+            Some(position.into())
         } else {
             None
         }

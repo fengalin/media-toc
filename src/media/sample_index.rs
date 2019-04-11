@@ -1,6 +1,8 @@
 use std::fmt;
 use std::ops::{Add, AddAssign, Sub};
 
+use super::Timestamp;
+
 #[derive(Clone, Copy, Default, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct SampleIndex(usize);
 
@@ -9,8 +11,8 @@ impl SampleIndex {
         SampleIndex(inner)
     }
 
-    pub fn from_position(position: u64, sample_duration: u64) -> Self {
-        SampleIndex((position / sample_duration) as usize)
+    pub fn from_ts(ts: Timestamp, sample_duration: u64) -> Self {
+        SampleIndex((ts.as_u64() / sample_duration) as usize)
     }
 
     pub fn get_aligned(&self, step: SampleIndex) -> SampleIndex {
@@ -21,8 +23,8 @@ impl SampleIndex {
         self.0 / sample_step.0
     }
 
-    pub fn get_position(&self, sample_duration: u64) -> u64 {
-        self.0 as u64 * sample_duration
+    pub fn get_ts(&self, sample_duration: u64) -> Timestamp {
+        Timestamp::new(self.0 as u64 * sample_duration)
     }
 
     pub fn as_f64(&self) -> f64 {

@@ -3,6 +3,8 @@ use gstreamer as gst;
 use gtk;
 use std::{borrow::Cow, path::PathBuf, rc::Rc};
 
+use crate::media::Timestamp;
+
 #[derive(Clone)]
 pub enum UIEvent {
     AskQuestion {
@@ -12,13 +14,13 @@ pub enum UIEvent {
     CancelSelectMedia,
     OpenMedia(PathBuf),
     PlayRange {
-        start: u64,
-        end: u64,
-        pos_to_restore: u64,
+        start: Timestamp,
+        end: Timestamp,
+        ts_to_restore: Timestamp,
     },
     ResetCursor,
     Seek {
-        position: u64,
+        target: Timestamp,
         flags: gst::SeekFlags,
     },
     ShowAll,
@@ -59,11 +61,11 @@ impl UIEventSender {
         });
     }
 
-    pub fn play_range(&self, start: u64, end: u64, pos_to_restore: u64) {
+    pub fn play_range(&self, start: Timestamp, end: Timestamp, ts_to_restore: Timestamp) {
         self.0.send(UIEvent::PlayRange {
             start,
             end,
-            pos_to_restore,
+            ts_to_restore,
         });
     }
 
@@ -75,8 +77,8 @@ impl UIEventSender {
         self.0.send(UIEvent::ShowAll);
     }
 
-    pub fn seek(&self, position: u64, flags: gst::SeekFlags) {
-        self.0.send(UIEvent::Seek { position, flags });
+    pub fn seek(&self, target: Timestamp, flags: gst::SeekFlags) {
+        self.0.send(UIEvent::Seek { target, flags });
     }
 
     pub fn set_cursor_double_arrow(&self) {

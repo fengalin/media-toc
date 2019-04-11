@@ -17,7 +17,7 @@ use std::{
 
 use crate::{application::CONFIG, metadata::MediaInfo};
 
-use super::{DoubleAudioBuffer, MediaEvent, PlaybackState};
+use super::{DoubleAudioBuffer, MediaEvent, PlaybackState, Timestamp};
 
 // Buffer size in ns for queues
 // This is the max duration that queues can hold
@@ -105,10 +105,10 @@ impl PlaybackPipeline {
         )
     }
 
-    pub fn get_position(&self) -> u64 {
+    pub fn get_current_ts(&self) -> Timestamp {
         let mut position_query = gst::Query::new_position(gst::Format::Time);
         self.pipeline.query(&mut position_query);
-        position_query.get_result().get_value() as u64
+        position_query.get_result().get_value().into()
     }
 
     pub fn get_state(&self) -> gst::State {
@@ -141,14 +141,17 @@ impl PlaybackPipeline {
         }
     }
 
-    pub fn seek(&self, position: u64, flags: gst::SeekFlags) {
+    pub fn seek(&self, target: Timestamp, flags: gst::SeekFlags) {
         self.pipeline
-            .seek_simple(gst::SeekFlags::FLUSH | flags, ClockTime::from(position))
+            .seek_simple(
+                gst::SeekFlags::FLUSH | flags,
+                ClockTime::from(target.as_u64()),
+            )
             .ok()
             .unwrap();
     }
 
-    pub fn seek_range(&self, start: u64, end: u64) {
+    pub fn seek_range(&self, start: Timestamp, end: Timestamp) {
         // EOS will be emitted at the end of the range
         // => ignore it so as not to confuse mechnisms that expect the actual end of stream
         self.dbl_audio_buffer_mtx
@@ -161,9 +164,9 @@ impl PlaybackPipeline {
                 1f64,
                 gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
                 gst::SeekType::Set,
-                ClockTime::from(start),
+                ClockTime::from(start.as_u64()),
                 gst::SeekType::Set,
-                ClockTime::from(end),
+                ClockTime::from(end.as_u64()),
             )
             .ok()
             .unwrap();

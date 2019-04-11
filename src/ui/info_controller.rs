@@ -10,9 +10,9 @@ use std::{cell::RefCell, fs::File, rc::Rc};
 
 use crate::{
     application::{CommandLineArguments, CONFIG},
-    media::PlaybackPipeline,
+    media::{PlaybackPipeline, Timestamp},
     metadata,
-    metadata::{MediaInfo, Timestamp},
+    metadata::{MediaInfo, Timestamp4Humans},
 };
 
 use super::{
@@ -52,6 +52,7 @@ pub struct InfoController {
 
     pub(super) chapter_manager: ChapterTreeManager,
 
+    // FIXME: use a Duration struct
     duration: u64,
     pub(super) repeat_chapter: bool,
 }
@@ -93,7 +94,7 @@ impl UIController for InfoController {
             self.duration = info.duration;
             self.timeline_scale.set_range(0f64, info.duration as f64);
             self.duration_lbl
-                .set_label(&Timestamp::format(info.duration, false));
+                .set_label(&Timestamp4Humans::format(info.duration, false));
 
             self.thumbnail = info.get_media_image().and_then(|image| {
                 image.get_buffer().and_then(|image_buffer| {
@@ -288,20 +289,19 @@ impl InfoController {
 
         let timeline_scale = self.timeline_scale.clone();
         self.chapter_manager.for_each(None, move |chapter| {
-            timeline_scale.add_mark(chapter.start() as f64, gtk::PositionType::Top, None);
+            timeline_scale.add_mark(chapter.start().as_f64(), gtk::PositionType::Top, None);
             true // keep going until the last chapter
         });
     }
 
-    fn repeat_at(&self, position: u64) {
-        self.ui_event.seek(position, gst::SeekFlags::ACCURATE)
+    fn repeat_at(&self, ts: Timestamp) {
+        self.ui_event.seek(ts, gst::SeekFlags::ACCURATE)
     }
 
-    pub fn tick(&mut self, position: u64, is_eos: bool) {
-        self.timeline_scale.set_value(position as f64);
+    pub fn tick(&mut self, ts: Timestamp, is_eos: bool) {
+        self.timeline_scale.set_value(ts.as_f64());
 
-        let (mut position_status, prev_selected_iter) =
-            self.chapter_manager.update_position(position);
+        let (mut position_status, prev_selected_iter) = self.chapter_manager.update_ts(ts);
 
         if self.repeat_chapter {
             // repeat is activated
@@ -309,13 +309,13 @@ impl InfoController {
                 // postpone chapter selection change until media has synchronized
                 position_status = PositionStatus::ChapterNotChanged;
                 self.chapter_manager.rewind();
-                self.repeat_at(0);
+                self.repeat_at(Timestamp::default());
             } else if position_status == PositionStatus::ChapterChanged {
                 if let Some(ref prev_selected_iter) = prev_selected_iter {
                     // reset position_status because we will be looping on current chapter
                     position_status = PositionStatus::ChapterNotChanged;
 
-                    // unselect chapter in order to avoid tracing change to current position
+                    // unselect chapter in order to avoid tracing change to current timestamp
                     self.chapter_manager.unselect();
                     self.repeat_at(
                         self.chapter_manager
@@ -329,14 +329,14 @@ impl InfoController {
         if position_status == PositionStatus::ChapterChanged {
             match self.chapter_manager.get_selected_iter() {
                 Some(current_iter) => {
-                    // position is in a chapter => select it
+                    // timestamp is in a chapter => select it
                     self.chapter_treeview
                         .get_selection()
                         .select_iter(&current_iter);
                     self.del_chapter_btn.set_sensitive(true);
                 }
                 None =>
-                // position is not in any chapter
+                // timestamp is not in any chapter
                 {
                     if let Some(ref prev_selected_iter) = prev_selected_iter {
                         // but a previous chapter was selected => unselect it
@@ -350,21 +350,24 @@ impl InfoController {
         }
     }
 
-    pub fn move_chapter_boundary(&mut self, boundary: u64, to_position: u64) -> PositionStatus {
-        self.chapter_manager
-            .move_chapter_boundary(boundary, to_position)
+    pub fn move_chapter_boundary(
+        &mut self,
+        boundary: Timestamp,
+        target: Timestamp,
+    ) -> PositionStatus {
+        self.chapter_manager.move_chapter_boundary(boundary, target)
     }
 
-    pub fn seek(&mut self, position: u64, state: &ControllerState) {
+    pub fn seek(&mut self, target: Timestamp, state: &ControllerState) {
         self.chapter_manager.prepare_for_seek();
 
         if *state != ControllerState::Playing {
             // force sync
-            self.tick(position, false);
+            self.tick(target, false);
         }
     }
 
-    pub fn previous_pos(&self, position: u64) -> u64 {
+    pub fn previous_ts(&self, current: Timestamp) -> Timestamp {
         {
             let cur_start = self
                 .chapter_manager
@@ -377,7 +380,8 @@ impl InfoController {
 
             match (cur_start, prev_start) {
                 (Some(cur_start), prev_start_opt) => {
-                    if cur_start + GO_TO_PREV_CHAPTER_THRESHOLD < position {
+                    // FIXME: use Duration for GO_TO_PREV_CHAPTER_THRESHOLD
+                    if cur_start.as_u64() + GO_TO_PREV_CHAPTER_THRESHOLD < current.as_u64() {
                         Some(cur_start)
                     } else {
                         prev_start_opt
@@ -386,20 +390,20 @@ impl InfoController {
                 (None, prev_start_opt) => prev_start_opt,
             }
         }
-        .unwrap_or(0)
+        .unwrap_or(Timestamp::default())
     }
 
     pub fn start_play_range(&mut self) {
         self.chapter_manager.prepare_for_seek();
     }
 
-    pub fn add_chapter(&mut self, position: u64) {
-        if position >= self.duration {
+    pub fn add_chapter(&mut self, ts: Timestamp) {
+        if ts.as_u64() >= self.duration {
             // can't add a chapter starting at last position
             return;
         }
 
-        if let Some(new_iter) = self.chapter_manager.add_chapter(position, self.duration) {
+        if let Some(new_iter) = self.chapter_manager.add_chapter(ts, self.duration) {
             self.chapter_treeview.get_selection().select_iter(&new_iter);
             self.update_marks();
             self.del_chapter_btn.set_sensitive(true);

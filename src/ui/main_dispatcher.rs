@@ -211,13 +211,13 @@ impl MainDispatcher {
             UIEvent::PlayRange {
                 start,
                 end,
-                pos_to_restore,
+                ts_to_restore,
             } => {
-                main_ctrl.play_range(start, end, pos_to_restore);
+                main_ctrl.play_range(start, end, ts_to_restore);
             }
             UIEvent::ResetCursor => main_ctrl.reset_cursor(),
             UIEvent::ShowAll => main_ctrl.show_all(),
-            UIEvent::Seek { position, flags } => main_ctrl.seek(position, flags),
+            UIEvent::Seek { target, flags } => main_ctrl.seek(target, flags),
             UIEvent::SetCursorDoubleArrow => main_ctrl.set_cursor_double_arrow(),
             UIEvent::SetCursorWaiting => main_ctrl.set_cursor_waiting(),
             UIEvent::ShowError(msg) => main_ctrl.show_error(&msg),

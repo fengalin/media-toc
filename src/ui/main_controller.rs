@@ -12,7 +12,7 @@ use std::{cell::RefCell, collections::HashSet, path::PathBuf, rc::Rc, sync::Arc}
 
 use crate::{
     application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG},
-    media::{MediaEvent, PlaybackPipeline, PlaybackState},
+    media::{MediaEvent, PlaybackPipeline, PlaybackState, Timestamp},
 };
 
 use super::{
@@ -32,10 +32,10 @@ pub enum ControllerState {
     PendingSelectMedia,
     PendingSelectMediaDecision,
     Playing,
-    PlayingRange(u64),
+    PlayingRange(Timestamp),
     Seeking,
     Stopped,
-    TwoStepsSeek(u64),
+    TwoStepsSeek(Timestamp),
 }
 
 pub struct MainController {
@@ -285,26 +285,30 @@ impl MainController {
             };
         } else {
             // Restart the stream from the begining
-            self.seek(0, gst::SeekFlags::ACCURATE);
+            self.seek(Timestamp::default(), gst::SeekFlags::ACCURATE);
         }
     }
 
-    pub fn move_chapter_boundary(&mut self, boundary: u64, to_position: u64) -> PositionStatus {
-        self.info_ctrl.move_chapter_boundary(boundary, to_position)
+    pub fn move_chapter_boundary(
+        &mut self,
+        boundary: Timestamp,
+        target: Timestamp,
+    ) -> PositionStatus {
+        self.info_ctrl.move_chapter_boundary(boundary, target)
     }
 
-    pub fn seek(&mut self, position: u64, flags: gst::SeekFlags) {
-        let mut seek_pos = position;
+    pub fn seek(&mut self, target: Timestamp, flags: gst::SeekFlags) {
+        let mut seek_ts = target;
         let mut flags = flags;
         self.state = match self.state {
             ControllerState::Playing => ControllerState::Seeking,
             ControllerState::Paused => {
                 flags = gst::SeekFlags::ACCURATE;
-                let seek_1st_step = self.audio_ctrl.get_seek_back_1st_position(position);
+                let seek_1st_step = self.audio_ctrl.get_seek_back_1st_ts(target);
                 match seek_1st_step {
                     Some(seek_1st_step) => {
-                        seek_pos = seek_1st_step;
-                        ControllerState::TwoStepsSeek(position)
+                        seek_ts = seek_1st_step;
+                        ControllerState::TwoStepsSeek(target)
                     }
                     None => ControllerState::Seeking,
                 }
@@ -316,7 +320,7 @@ impl MainController {
                 // Currently, I think it is better to favor completing the in-progress
                 // `TwoStepsSeek` (which purpose is to center the cursor on the waveform)
                 // than reaching for the latest seeked position
-                seek_pos = target;
+                seek_ts = target;
                 ControllerState::Seeking
             }
             ControllerState::EOS => {
@@ -326,33 +330,33 @@ impl MainController {
             _ => return,
         };
 
-        self.info_ctrl.seek(seek_pos, &self.state);
-        self.audio_ctrl.seek(seek_pos);
-        self.pipeline.as_ref().unwrap().seek(seek_pos, flags);
+        self.info_ctrl.seek(seek_ts, &self.state);
+        self.audio_ctrl.seek(seek_ts);
+        self.pipeline.as_ref().unwrap().seek(seek_ts, flags);
     }
 
-    pub fn play_range(&mut self, start: u64, end: u64, pos_to_restore: u64) {
+    pub fn play_range(&mut self, start: Timestamp, end: Timestamp, to_restore: Timestamp) {
         if self.state == ControllerState::Paused {
             self.info_ctrl.start_play_range();
             self.audio_ctrl.start_play_range();
 
-            self.state = ControllerState::PlayingRange(pos_to_restore);
+            self.state = ControllerState::PlayingRange(to_restore);
             self.pipeline.as_ref().unwrap().seek_range(start, end);
         }
     }
 
-    pub fn get_position(&mut self) -> u64 {
-        self.pipeline.as_mut().unwrap().get_position()
+    pub fn get_current_ts(&mut self) -> Timestamp {
+        self.pipeline.as_mut().unwrap().get_current_ts()
     }
 
     pub fn refresh(&mut self) {
         self.audio_ctrl.redraw();
     }
 
-    pub fn refresh_info(&mut self, position: u64) {
+    pub fn refresh_info(&mut self, ts: Timestamp) {
         match self.state {
             ControllerState::Seeking => (),
-            _ => self.info_ctrl.tick(position, false),
+            _ => self.info_ctrl.tick(ts, false),
         }
     }
 

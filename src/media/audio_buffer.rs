@@ -14,7 +14,7 @@ use std::{
     io::{Cursor, Read},
 };
 
-use super::{SampleIndex, SampleValue};
+use super::{SampleIndex, SampleValue, Timestamp};
 
 #[cfg(test)]
 use byteorder::ByteOrder;
@@ -34,7 +34,7 @@ pub struct AudioBuffer {
     pub eos: bool,
 
     is_new_segment: bool,
-    pub segment_start: Option<u64>,
+    pub segment_start: Option<Timestamp>,
     pub segment_lower: SampleIndex,
     last_buffer_upper: SampleIndex,
     pub lower: SampleIndex,
@@ -128,8 +128,8 @@ impl AudioBuffer {
         self.clean_samples();
     }
 
-    pub fn have_gst_segment(&mut self, segment_start: u64) {
-        debug!("have_gst_segment {:?}", segment_start);
+    pub fn have_gst_segment(&mut self, segment_start: Timestamp) {
+        debug!("have_gst_segment {}", segment_start);
 
         match self.segment_start {
             Some(current_segment_start) => {
@@ -176,7 +176,7 @@ impl AudioBuffer {
 
         if self.is_new_segment {
             self.segment_lower =
-                SampleIndex::from_position(buffer.get_pts().unwrap(), self.sample_duration);
+                SampleIndex::from_ts(buffer.get_pts().unwrap().into(), self.sample_duration);
             self.last_buffer_upper = self.segment_lower;
             self.is_new_segment = false;
         }
@@ -401,8 +401,8 @@ impl AudioBuffer {
             }
         }
 
+        let segment_start = Timestamp::new(lower.get_ts(self.sample_duration).as_u64() + 1);
         if is_new_segment {
-            let segment_start = lower.get_position(self.sample_duration) + 1;
             self.have_gst_segment(segment_start);
         }
 
@@ -412,9 +412,7 @@ impl AudioBuffer {
         {
             let buffer_mut = buffer.get_mut().unwrap();
             buffer_mut.copy_from_slice(0, &samples_u8).unwrap();
-            buffer_mut.set_pts(ClockTime::from(
-                lower.get_position(self.sample_duration) + 1,
-            ));
+            buffer_mut.set_pts(ClockTime::from(segment_start.as_u64()));
         }
         self.push_gst_buffer(&buffer, self_lower); // never drain buffer in this test
     }

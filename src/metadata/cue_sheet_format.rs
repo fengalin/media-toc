@@ -5,7 +5,7 @@ use log::error;
 
 use std::io::Write;
 
-use super::{get_default_chapter_title, MediaInfo, Timestamp, TocVisitor, Writer};
+use super::{get_default_chapter_title, MediaInfo, Timestamp4Humans, TocVisitor, Writer};
 
 static EXTENSION: &str = "cue";
 
@@ -96,7 +96,7 @@ impl Writer for CueSheetFormat {
             write_fmt!(destination, "    PERFORMER \"{}\"\n", &artist);
 
             if let Some((start, _end)) = chapter.get_start_stop_times() {
-                let start_ts = Timestamp::from_nano(start as u64);
+                let start_ts = Timestamp4Humans::from_nano(start as u64);
                 write_fmt!(
                     destination,
                     "    INDEX 01 {:02}:{:02}:{:02}\n",

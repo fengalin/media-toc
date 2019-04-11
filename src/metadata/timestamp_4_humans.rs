@@ -14,7 +14,7 @@ named!(
     opt!(do_parse!(tag!(".") >> nb: parse_digits >> (nb)))
 );
 
-named!(pub parse_timestamp<CompleteStr<'_>, Timestamp>,
+named!(pub parse_timestamp<CompleteStr<'_>, Timestamp4Humans>,
     do_parse!(
         nb1: parse_digits >>
         tag!(":") >>
@@ -30,23 +30,23 @@ named!(pub parse_timestamp<CompleteStr<'_>, Timestamp>,
         ({
             let mut ts = {
                 if nb1_is_hours.unwrap_or(false) {
-                    Timestamp {
+                    Timestamp4Humans {
                         h: nb1 as u8,
                         m: nb2 as u8,
                         s: nb3.unwrap_or(0) as u8,
                         ms: nb4.unwrap_or(0) as u16,
                         us: nb5.unwrap_or(0) as u16,
-                        .. Timestamp::default()
+                        .. Timestamp4Humans::default()
                     }
                 } else {
-                    Timestamp {
+                    Timestamp4Humans {
                         h: 0u8,
                         m: nb1 as u8,
                         s: nb2 as u8,
                         ms: nb3.unwrap_or(0) as u16,
                         us: nb4.unwrap_or(0) as u16,
                         nano: nb5.unwrap_or(0) as u16,
-                        .. Timestamp::default()
+                        .. Timestamp4Humans::default()
                     }
                 }
             };
@@ -123,7 +123,7 @@ fn parse_string() {
 }
 
 #[derive(Default)]
-pub struct Timestamp {
+pub struct Timestamp4Humans {
     pub nano_total: u64,
     pub nano: u16,
     pub us: u16,
@@ -133,14 +133,14 @@ pub struct Timestamp {
     pub h: u8,
 }
 
-impl Timestamp {
+impl Timestamp4Humans {
     pub fn from_nano(nano_total: u64) -> Self {
         let us_total = nano_total / 1_000;
         let ms_total = us_total / 1_000;
         let s_total = ms_total / 1_000;
         let m_total = s_total / 60;
 
-        Timestamp {
+        Timestamp4Humans {
             nano_total,
             nano: (nano_total % 1_000) as u16,
             us: (us_total % 1_000) as u16,
@@ -155,6 +155,11 @@ impl Timestamp {
         format!("{:02}:{:02}:{:02}.{:03}", self.h, self.m, self.s, self.ms).to_owned()
     }
 
+    pub fn as_string(&self, with_micro: bool) -> String {
+        Timestamp4Humans::format(self.nano_total, with_micro)
+    }
+
+    // FIXME: use an enum for with_micro
     pub fn format(nano_total: u64, with_micro: bool) -> String {
         let us_total = nano_total / 1_000;
         let ms_total = us_total / 1_000;
@@ -190,7 +195,7 @@ impl Timestamp {
     }
 }
 
-impl fmt::Display for Timestamp {
+impl fmt::Display for Timestamp4Humans {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let prefix = if self.h > 0 {
             format!("{:02}:", self.h).to_owned()
@@ -202,8 +207,10 @@ impl fmt::Display for Timestamp {
     }
 }
 
-impl fmt::Debug for Timestamp {
+impl fmt::Debug for Timestamp4Humans {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Timestamp").field(&self.to_string()).finish()
+        f.debug_tuple("Timestamp4Humans")
+            .field(&self.to_string())
+            .finish()
     }
 }

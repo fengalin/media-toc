@@ -53,7 +53,7 @@ impl UIDispatcher for InfoDispatcher {
             .timeline_scale
             .connect_change_value(with_main_ctrl!(
                 main_ctrl_rc => move |&mut main_ctrl, _, _, value| {
-                    main_ctrl.seek(value as u64, gst::SeekFlags::KEY_UNIT);
+                    main_ctrl.seek((value as u64).into(), gst::SeekFlags::KEY_UNIT);
                     Inhibit(true)
                 }
             ));
@@ -65,10 +65,10 @@ impl UIDispatcher for InfoDispatcher {
                 main_ctrl_rc => move |&mut main_ctrl, _, tree_path, _| {
                     let info_ctrl = &mut main_ctrl.info_ctrl;
                     if let Some(iter) = info_ctrl.chapter_manager.get_iter(tree_path) {
-                        let position = info_ctrl.chapter_manager.get_chapter_at_iter(&iter).start();
-                        // update position
-                        info_ctrl.tick(position, false);
-                        main_ctrl.seek(position, gst::SeekFlags::ACCURATE);
+                        let ts = info_ctrl.chapter_manager.get_chapter_at_iter(&iter).start();
+                        // update current timestamp
+                        info_ctrl.tick(ts, false);
+                        main_ctrl.seek(ts, gst::SeekFlags::ACCURATE);
                     }
                 }
             ));
@@ -92,8 +92,8 @@ impl UIDispatcher for InfoDispatcher {
         gtk_app.add_action(&add_chapter);
         add_chapter.connect_activate(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _, _| {
-                let position = main_ctrl.get_position();
-                main_ctrl.info_ctrl.add_chapter(position);
+                let ts = main_ctrl.get_current_ts();
+                main_ctrl.info_ctrl.add_chapter(ts);
             }
         ));
         gtk_app.set_accels_for_action("app.add_chapter", &["plus", "KP_Add"]);
@@ -149,9 +149,9 @@ impl UIDispatcher for InfoDispatcher {
         gtk_app.add_action(&previous_chapter);
         previous_chapter.connect_activate(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _, _| {
-                let position = main_ctrl.get_position();
-                let seek_pos = main_ctrl.info_ctrl.previous_pos(position);
-                main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
+                let ts = main_ctrl.get_current_ts();
+                let seek_ts = main_ctrl.info_ctrl.previous_ts(ts);
+                main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
             }
         ));
 
