@@ -10,7 +10,7 @@ pub struct SampleExtractionState {
     pub duration_per_1000_samples: Duration,
     pub state: gst::State,
     audio_ref: Option<gst::Element>,
-    pub basetime: Option<(u64, u64)>, // (base_time, base_frame_time)
+    pub base_ts: Option<(Timestamp, Timestamp)>, // (base_ts, base_frame_ts)
     pub last_ts: Timestamp,
     pub is_stable: bool, // post-"new segment" position stabilization flag
 }
@@ -22,7 +22,7 @@ impl SampleExtractionState {
             duration_per_1000_samples: Duration::default(),
             state: gst::State::Null,
             audio_ref: None,
-            basetime: None,
+            base_ts: None,
             last_ts: Timestamp::default(),
             is_stable: false,
         }
@@ -34,14 +34,14 @@ impl SampleExtractionState {
         self.duration_per_1000_samples = Duration::default();
         self.state = gst::State::Null;
         self.audio_ref = None;
-        self.basetime = None;
+        self.base_ts = None;
         self.last_ts = Timestamp::default();
         self.is_stable = false;
     }
 
-    pub fn reset_basetime(&mut self) {
+    pub fn reset_base_ts(&mut self) {
         self.is_stable = false;
-        self.basetime = None;
+        self.base_ts = None;
     }
 }
 
@@ -56,7 +56,7 @@ pub trait SampleExtractor: Send {
     fn set_state(&mut self, new_state: gst::State) {
         let state = self.get_extraction_state_mut();
         state.state = new_state;
-        state.reset_basetime();
+        state.reset_base_ts();
     }
 
     fn set_time_ref(&mut self, audio_ref: &gst::Element) {
@@ -64,12 +64,12 @@ pub trait SampleExtractor: Send {
     }
 
     #[inline]
-    fn reset_basetime(&mut self) {
-        self.get_extraction_state_mut().reset_basetime();
+    fn reset_base_ts(&mut self) {
+        self.get_extraction_state_mut().reset_base_ts();
     }
 
     fn new_segment(&mut self) {
-        self.reset_basetime();
+        self.reset_base_ts();
         self.seek_complete();
     }
 
@@ -93,39 +93,41 @@ pub trait SampleExtractor: Send {
 
     fn get_current_sample(
         &mut self,
-        last_frame_time: u64,
-        next_frame_time: u64,
+        last_frame_ts: Timestamp,
+        next_frame_ts: Timestamp,
     ) -> (Timestamp, SampleIndex) {
         let state = &mut self.get_extraction_state_mut();
 
         let ts = match state.state {
             gst::State::Playing => {
-                let computed_ts = state.basetime.as_ref().map(|(base_time, base_frame_time)| {
-                    Timestamp::new((next_frame_time - base_frame_time) * 1_000 + base_time)
-                });
+                let computed_ts = state
+                    .base_ts
+                    .clone()
+                    .map(|(base_ts, base_frame_ts)| base_ts + (next_frame_ts - base_frame_ts));
 
                 if state.is_stable {
-                    computed_ts.expect("get_current_sample is_stable but no basetime")
+                    computed_ts.expect("get_current_sample is_stable but no base_ts")
                 } else {
                     let mut query = gst::Query::new_position(gst::Format::Time);
                     if state.audio_ref.as_ref().unwrap().query(&mut query) {
                         // approximate current timestamp as being exactly between last frame
                         // and next frame
-                        let base_time = query.get_result().get_value() as u64;
-                        let half_interval = (next_frame_time - last_frame_time) * 1_000 / 2;
-                        let position = base_time + half_interval;
+                        let base_ts = Timestamp::new(query.get_result().get_value() as u64);
+                        let half_interval = (next_frame_ts - last_frame_ts) / 2;
+                        let ts = base_ts + half_interval;
 
                         if let Some(computed_ts) = computed_ts {
-                            let delta = position as i64 - computed_ts.as_i64();
-                            if (delta.abs() as u64) < half_interval {
+                            let delta = ts.as_i64() - computed_ts.as_i64();
+                            if Duration::from_nanos(delta.abs() as u64) < half_interval {
                                 // computed timestamp is now close enough to the actual timestamp
                                 state.is_stable = true;
                             }
                         }
 
-                        state.basetime = Some((base_time, (next_frame_time + last_frame_time) / 2));
+                        state.base_ts =
+                            Some((base_ts, last_frame_ts.get_halfway_to(next_frame_ts)));
 
-                        Timestamp::new(position)
+                        ts
                     } else {
                         state.last_ts
                     }

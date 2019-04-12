@@ -20,6 +20,10 @@ impl Timestamp {
         Timestamp4Humans::from_nano(self.0)
     }
 
+    pub fn get_halfway_to(&self, other: Timestamp) -> Timestamp {
+        Timestamp((self.0 + other.0) / 2)
+    }
+
     pub fn get_sample_index(&self, sample_duration: Duration) -> SampleIndex {
         SampleIndex::new((self.0 / sample_duration.as_u64()) as usize)
     }

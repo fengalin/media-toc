@@ -225,11 +225,11 @@ impl WaveformBuffer {
         }
     }
 
-    fn refresh_ts(&mut self, last_frame_time: u64, next_frame_time: u64) {
+    fn refresh_ts(&mut self, last_frame_ts: Timestamp, next_frame_ts: Timestamp) {
         match self.first_visible_sample_lock {
             Some((_first_visible_sample_lock, LockState::Seeking)) => (),
             _ => {
-                let (ts, mut sample) = self.get_current_sample(last_frame_time, next_frame_time);
+                let (ts, mut sample) = self.get_current_sample(last_frame_ts, next_frame_ts);
 
                 if self.get_extraction_state().is_stable {
                     // after seek stabilization complete
@@ -247,9 +247,9 @@ impl WaveformBuffer {
     }
 
     // Update to current timestamp and compute the first sample to display.
-    fn update_first_visible_sample(&mut self, last_frame_time: u64, next_frame_time: u64) {
+    fn update_first_visible_sample(&mut self, last_frame_ts: Timestamp, next_frame_ts: Timestamp) {
         self.first_visible_sample = if self.image.is_ready {
-            self.refresh_ts(last_frame_time, next_frame_time);
+            self.refresh_ts(last_frame_ts, next_frame_ts);
 
             if self.cursor_sample >= self.image.lower {
                 // current sample appears after first buffer sample
@@ -551,10 +551,10 @@ impl WaveformBuffer {
     // Get the waveform as an image in current conditions.
     pub fn get_image(
         &mut self,
-        last_frame_time: u64,
-        next_frame_time: u64,
+        last_frame_ts: Timestamp,
+        next_frame_ts: Timestamp,
     ) -> (Timestamp, Option<(&mut Image, ImagePositions)>) {
-        self.update_first_visible_sample(last_frame_time, next_frame_time);
+        self.update_first_visible_sample(last_frame_ts, next_frame_ts);
         match self.first_visible_sample {
             Some(first_visible_sample) => {
                 let current_x = if self.cursor_sample >= first_visible_sample
@@ -907,7 +907,7 @@ impl SampleExtractor for WaveformBuffer {
             other.conditions_changed = false;
         } // else: other has nothing new
 
-        self.state.basetime = other.state.basetime;
+        self.state.base_ts = other.state.base_ts;
         self.state.last_ts = other.state.last_ts;
         self.state.is_stable = other.state.is_stable;
 

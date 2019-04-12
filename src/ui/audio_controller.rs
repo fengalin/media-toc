@@ -450,15 +450,19 @@ impl AudioController {
         }
 
         // Get frame timings
-        // FIXME: convert frame_times to Timestamps
-        let (last_frame_time, next_frame_time) =
+        let (last_frame_ts, next_frame_ts) =
             da.get_frame_clock()?
                 .get_current_timings()
                 .map(|frame_timings| {
-                    let frame_time = frame_timings.get_frame_time() as u64;
+                    let frame_time = Timestamp::new(1_000 * frame_timings.get_frame_time() as u64);
                     frame_timings.get_predicted_presentation_time().map_or_else(
-                        || (frame_time, frame_time + EXPECTED_FRAME_DURATION.as_u64()),
-                        |predicted_pres_time| (frame_time, predicted_pres_time.get()),
+                        || (frame_time, frame_time + EXPECTED_FRAME_DURATION),
+                        |predicted_pres_time| {
+                            (
+                                frame_time,
+                                Timestamp::new(1_000 * predicted_pres_time.get() as u64),
+                            )
+                        },
                     )
                 })?;
 
@@ -472,8 +476,7 @@ impl AudioController {
 
             self.playback_needs_refresh = waveform_buffer.playback_needs_refresh;
 
-            let (current_ts, image_opt) =
-                waveform_buffer.get_image(last_frame_time, next_frame_time);
+            let (current_ts, image_opt) = waveform_buffer.get_image(last_frame_ts, next_frame_ts);
 
             if image_opt.is_none() {
                 debug!("draw no image");

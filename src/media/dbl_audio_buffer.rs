@@ -111,9 +111,9 @@ impl DoubleAudioBuffer {
         // Also reset basetime
         {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
-            exposed_buffer_box.reset_basetime();
+            exposed_buffer_box.reset_base_ts();
         }
-        self.working_buffer.as_mut().unwrap().reset_basetime();
+        self.working_buffer.as_mut().unwrap().reset_base_ts();
     }
 
     pub fn set_caps(&mut self, caps: &gst::CapsRef) {
