@@ -18,7 +18,9 @@ use std::{
 };
 
 use crate::{
-    media::{DoubleAudioBuffer, PlaybackPipeline, SampleExtractor, Timestamp, QUEUE_SIZE_NS},
+    media::{
+        DoubleAudioBuffer, Duration, PlaybackPipeline, SampleExtractor, Timestamp, QUEUE_SIZE,
+    },
     metadata::MediaInfo,
 };
 
@@ -27,23 +29,23 @@ use super::{
     BACKGROUND_COLOR,
 };
 
-const BUFFER_DURATION: u64 = 60_000_000_000; // 60 s
-const MIN_REQ_DURATION: f64 = 1_953_125f64; // 2 ms / 1000 px
-const MAX_REQ_DURATION: f64 = 32_000_000_000f64; // 32 s / 1000 px
-const INIT_REQ_DURATION: f64 = 4_000_000_000f64; // 4 s / 1000 px
-const STEP_REQ_DURATION: f64 = 2f64;
+const BUFFER_DURATION: Duration = Duration::from_secs(60);
+const INIT_REQ_DURATION_FOR_1000PX: Duration = Duration::from_secs(4);
+const MIN_REQ_DURATION_FOR_1000PX: Duration = Duration::from_nanos(1_953_125); // 4s / 2^11
+const MAX_REQ_DURATION_FOR_1000PX: Duration = Duration::from_secs(32);
+const REQ_DURATION_SCALE_FACTOR: u64 = 2;
 
 const SEEK_STEP_DURATION_DIVISOR: u64 = 2;
 
 // Other UI components refresh period
-const OTHER_UI_REFRESH_PERIOD: u64 = 50_000_000; // 50 ms
+const OTHER_UI_REFRESH_PERIOD: Duration = Duration::from_millis(50);
 
 // Range playback
-const MIN_RANGE_DURATION: u64 = 100_000_000; // 100 ms
+const MIN_RANGE_DURATION: Duration = Duration::from_millis(100);
 
-const HOUR_IN_NANO: u64 = 3_600_000_000_000;
+const ONE_HOUR: Duration = Duration::from_secs(60 * 60);
 
-const EXPECTED_FRAME_DURATION: u64 = 16_667;
+const EXPECTED_FRAME_DURATION: Duration = Duration::from_frequency(60);
 
 // Use this text to compute the largest text box for the waveform boundaries
 // This is required to position the labels in such a way that they don't
@@ -85,14 +87,13 @@ pub struct AudioController {
     pub(super) state: ControllerState,
     playback_needs_refresh: bool,
 
-    requested_duration: f64,
-    // FIXME: use a Duration
-    pub(super) seek_step: u64,
+    requested_duration: Duration,
+    pub(super) seek_step: Duration,
     pub(super) current_ts: Timestamp,
     last_other_ui_refresh: Timestamp,
     first_visible_ts: Timestamp,
     last_visible_ts: Timestamp,
-    sample_duration: u64,
+    sample_duration: Duration,
     sample_step: f64,
     boundaries: Rc<RefCell<ChaptersBoundaries>>,
 
@@ -127,13 +128,13 @@ impl UIController for AudioController {
         self.zoom_out_btn.set_sensitive(false);
         self.playback_needs_refresh = false;
         self.dbl_buffer_mtx.lock().unwrap().cleanup();
-        self.requested_duration = INIT_REQ_DURATION;
-        self.seek_step = INIT_REQ_DURATION as u64 / SEEK_STEP_DURATION_DIVISOR;
+        self.requested_duration = INIT_REQ_DURATION_FOR_1000PX;
+        self.seek_step = INIT_REQ_DURATION_FOR_1000PX / SEEK_STEP_DURATION_DIVISOR;
         self.current_ts = Timestamp::default();
         self.last_other_ui_refresh = Timestamp::default();
         self.first_visible_ts = Timestamp::default();
         self.last_visible_ts = Timestamp::default();
-        self.sample_duration = 0;
+        self.sample_duration = Duration::default();
         self.sample_step = 0f64;
         // AudioController accesses self.boundaries as readonly
         // clearing it is under the responsiblity of ChapterTreeManager
@@ -186,14 +187,14 @@ impl AudioController {
             state: ControllerState::Disabled,
             playback_needs_refresh: false,
 
-            requested_duration: INIT_REQ_DURATION,
-            seek_step: INIT_REQ_DURATION as u64 / SEEK_STEP_DURATION_DIVISOR,
+            requested_duration: INIT_REQ_DURATION_FOR_1000PX,
+            seek_step: INIT_REQ_DURATION_FOR_1000PX / SEEK_STEP_DURATION_DIVISOR,
 
             current_ts: Timestamp::default(),
             last_other_ui_refresh: Timestamp::default(),
             first_visible_ts: Timestamp::default(),
             last_visible_ts: Timestamp::default(),
-            sample_duration: 0,
+            sample_duration: Duration::default(),
             sample_step: 0f64,
             boundaries,
 
@@ -223,10 +224,10 @@ impl AudioController {
         };
 
         // don't step back more than the pipeline queues can handle
-        let target_step_back = (half_window_duration.min(QUEUE_SIZE_NS)).into();
-        if target > target_step_back {
-            if target < lower_ts + target_step_back || target > upper_ts {
-                Some(target - target_step_back)
+        let step_back_duration = half_window_duration.min(QUEUE_SIZE);
+        if target > step_back_duration {
+            if target < lower_ts + step_back_duration || target > upper_ts {
+                Some(target - step_back_duration)
             } else {
                 // 1st timestamp already available => don't need 2 steps seek back
                 None
@@ -316,9 +317,8 @@ impl AudioController {
 
     fn get_ts_at(&self, x: f64) -> Option<Timestamp> {
         if x >= 0f64 && x <= self.area_width {
-            let ts = (self.first_visible_ts.as_u64()
-                + (x * self.sample_step).round() as u64 * self.sample_duration)
-                .into();
+            let ts = self.first_visible_ts
+                + self.sample_duration * ((x * self.sample_step).round() as u64);
             if ts <= self.last_visible_ts {
                 Some(ts)
             } else {
@@ -335,23 +335,19 @@ impl AudioController {
             None => return None,
         };
 
-        let delta = if self.sample_step > 0f64 {
-            self.sample_step as u64 * self.sample_duration * 2
+        let tolerance = if self.sample_step > 1f64 {
+            self.sample_duration * 2 * (self.sample_step as u64)
         } else {
-            1
+            Duration::from_nanos(1)
         };
 
         let boundaries = self.boundaries.borrow();
-        let lower_bound = if ts.as_u64() >= delta {
-            ts.as_u64() - delta
+        let lower_bound = if ts >= tolerance {
+            ts - tolerance
         } else {
-            0
-        }
-        .into();
-        let mut range = boundaries.range((
-            Included(&lower_bound),
-            Included(&((ts.as_u64() + delta).into())),
-        ));
+            Timestamp::default()
+        };
+        let mut range = boundaries.range((Included(&lower_bound), Included(&(ts + tolerance))));
         range.next().map(|(boundary, _chapters)| *boundary)
     }
 
@@ -411,23 +407,23 @@ impl AudioController {
     }
 
     pub fn zoom_in(&mut self) {
-        self.requested_duration /= STEP_REQ_DURATION;
-        if self.requested_duration >= MIN_REQ_DURATION {
+        self.requested_duration /= REQ_DURATION_SCALE_FACTOR;
+        if self.requested_duration >= MIN_REQ_DURATION_FOR_1000PX {
             self.update_conditions();
         } else {
-            self.requested_duration = MIN_REQ_DURATION;
+            self.requested_duration = MIN_REQ_DURATION_FOR_1000PX;
         }
-        self.seek_step = self.requested_duration as u64 / SEEK_STEP_DURATION_DIVISOR;
+        self.seek_step = self.requested_duration / SEEK_STEP_DURATION_DIVISOR;
     }
 
     pub fn zoom_out(&mut self) {
-        self.requested_duration *= STEP_REQ_DURATION;
-        if self.requested_duration <= MAX_REQ_DURATION {
+        self.requested_duration *= REQ_DURATION_SCALE_FACTOR;
+        if self.requested_duration <= MAX_REQ_DURATION_FOR_1000PX {
             self.update_conditions();
         } else {
-            self.requested_duration = MAX_REQ_DURATION;
+            self.requested_duration = MAX_REQ_DURATION_FOR_1000PX;
         }
-        self.seek_step = self.requested_duration as u64 / SEEK_STEP_DURATION_DIVISOR;
+        self.seek_step = self.requested_duration / SEEK_STEP_DURATION_DIVISOR;
     }
 
     pub fn refresh_buffer(&self) {
@@ -454,13 +450,14 @@ impl AudioController {
         }
 
         // Get frame timings
+        // FIXME: convert frame_times to Timestamps
         let (last_frame_time, next_frame_time) =
             da.get_frame_clock()?
                 .get_current_timings()
                 .map(|frame_timings| {
                     let frame_time = frame_timings.get_frame_time() as u64;
                     frame_timings.get_predicted_presentation_time().map_or_else(
-                        || (frame_time, frame_time + EXPECTED_FRAME_DURATION),
+                        || (frame_time, frame_time + EXPECTED_FRAME_DURATION.as_u64()),
                         |predicted_pres_time| (frame_time, predicted_pres_time.get()),
                     )
                 })?;
@@ -502,8 +499,7 @@ impl AudioController {
 
         // first position
         let first_text = self.first_visible_ts.get_4_humans().as_string(false);
-        // FIXME: HOUR_IN_NANO as Duration
-        let first_text_end = if self.first_visible_ts.as_u64() < HOUR_IN_NANO {
+        let first_text_end = if self.first_visible_ts < ONE_HOUR {
             2f64 + self.boundary_text_mn_width
         } else {
             2f64 + self.boundary_text_h_width
@@ -514,7 +510,7 @@ impl AudioController {
         // last position
         if let Some(last_pos) = image_positions.last {
             let last_text = last_pos.ts.get_4_humans().as_string(false);
-            let last_text_start = if last_pos.ts.as_u64() < HOUR_IN_NANO {
+            let last_text_start = if last_pos.ts < ONE_HOUR {
                 2f64 + self.boundary_text_mn_width
             } else {
                 2f64 + self.boundary_text_h_width
@@ -542,8 +538,9 @@ impl AudioController {
 
             for (boundary, chapters) in chapter_range {
                 if *boundary >= self.first_visible_ts {
-                    let x = ((*boundary - self.first_visible_ts).as_u64()
-                        / image_positions.sample_duration) as f64
+                    let x = ((*boundary - self.first_visible_ts)
+                        .get_index_range(image_positions.sample_duration))
+                    .as_f64()
                         / image_positions.sample_step;
                     cr.move_to(x, boundary_y0);
                     cr.line_to(x, self.area_height);
@@ -570,7 +567,7 @@ impl AudioController {
             cr.set_source_rgb(1f64, 1f64, 0f64);
 
             let cursor_text = self.current_ts.get_4_humans().as_string(true);
-            let cursor_text_end = if self.current_ts.as_u64() < HOUR_IN_NANO {
+            let cursor_text_end = if self.current_ts < ONE_HOUR {
                 5f64 + self.cursor_text_mn_width
             } else {
                 5f64 + self.cursor_text_h_width
@@ -595,8 +592,7 @@ impl AudioController {
         match self.state {
             ControllerState::Playing => {
                 if self.current_ts >= self.last_other_ui_refresh
-                    && self.current_ts.as_u64()
-                        <= self.last_other_ui_refresh.as_u64() + OTHER_UI_REFRESH_PERIOD
+                    && self.current_ts <= self.last_other_ui_refresh + OTHER_UI_REFRESH_PERIOD
                 {
                     return None;
                 }
@@ -674,9 +670,8 @@ impl AudioController {
                 // right button => segment playback in Paused state
                 if self.state == ControllerState::Paused {
                     if let Some(start) = self.get_ts_at(event_button.get_position().0) {
-                        let end = (start.as_u64()
-                            + MIN_RANGE_DURATION.max((self.last_visible_ts - start).as_u64()))
-                        .into();
+                        let end =
+                            start + MIN_RANGE_DURATION.max(self.last_visible_ts - start).into();
                         self.ui_event.play_range(start, end, self.current_ts);
                     }
                 }

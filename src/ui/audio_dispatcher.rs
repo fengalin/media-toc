@@ -6,7 +6,7 @@ use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::with_main_ctrl;
+use crate::{media::Timestamp, with_main_ctrl};
 
 use super::{audio_controller::ControllerState, MainController, PositionStatus, UIDispatcher};
 
@@ -109,7 +109,7 @@ impl UIDispatcher for AudioDispatcher {
         step_forward.connect_activate(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _, _| {
                 let seek_ts = (
-                    main_ctrl.get_current_ts().as_u64() + main_ctrl.audio_ctrl.seek_step
+                    main_ctrl.get_current_ts() + main_ctrl.audio_ctrl.seek_step
                 ).into();
                 main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
             }
@@ -124,12 +124,12 @@ impl UIDispatcher for AudioDispatcher {
                 let seek_pos = {
                     let ts = main_ctrl.get_current_ts();
                     let audio_ctrl = &mut main_ctrl.audio_ctrl;
-                    if audio_ctrl.current_ts.as_u64() > audio_ctrl.seek_step {
-                        ts.as_u64() - audio_ctrl.seek_step
+                    if audio_ctrl.current_ts > audio_ctrl.seek_step {
+                        ts - audio_ctrl.seek_step
                     } else {
-                        0
+                        Timestamp::default()
                     }
-                }.into();
+                };
                 main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
             }
         ));

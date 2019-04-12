@@ -3,11 +3,11 @@ use gstreamer::ElementExtManual;
 
 use std::any::Any;
 
-use super::{AudioBuffer, AudioChannel, SampleIndex, SampleIndexRange, Timestamp};
+use super::{AudioBuffer, AudioChannel, Duration, SampleIndex, SampleIndexRange, Timestamp};
 
 pub struct SampleExtractionState {
-    pub sample_duration: u64,
-    pub duration_per_1000_samples: f64,
+    pub sample_duration: Duration,
+    pub duration_per_1000_samples: Duration,
     pub state: gst::State,
     audio_ref: Option<gst::Element>,
     pub basetime: Option<(u64, u64)>, // (base_time, base_frame_time)
@@ -18,8 +18,8 @@ pub struct SampleExtractionState {
 impl SampleExtractionState {
     pub fn new() -> Self {
         SampleExtractionState {
-            sample_duration: 0,
-            duration_per_1000_samples: 0f64,
+            sample_duration: Duration::default(),
+            duration_per_1000_samples: Duration::default(),
             state: gst::State::Null,
             audio_ref: None,
             basetime: None,
@@ -30,8 +30,8 @@ impl SampleExtractionState {
 
     pub fn cleanup(&mut self) {
         // clear for reuse
-        self.sample_duration = 0;
-        self.duration_per_1000_samples = 0f64;
+        self.sample_duration = Duration::default();
+        self.duration_per_1000_samples = Duration::default();
         self.state = gst::State::Null;
         self.audio_ref = None;
         self.basetime = None;
@@ -77,7 +77,7 @@ pub trait SampleExtractor: Send {
 
     fn set_channels(&mut self, channels: &[AudioChannel]);
 
-    fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64);
+    fn set_sample_duration(&mut self, per_sample: Duration, per_1000_samples: Duration);
 
     fn get_lower(&self) -> SampleIndex;
 
@@ -100,26 +100,25 @@ pub trait SampleExtractor: Send {
 
         let ts = match state.state {
             gst::State::Playing => {
-                let computed_position =
-                    state.basetime.as_ref().map(|(base_time, base_frame_time)| {
-                        Timestamp::new((next_frame_time - base_frame_time) * 1_000 + base_time)
-                    });
+                let computed_ts = state.basetime.as_ref().map(|(base_time, base_frame_time)| {
+                    Timestamp::new((next_frame_time - base_frame_time) * 1_000 + base_time)
+                });
 
                 if state.is_stable {
-                    computed_position.expect("get_current_sample is_stable but no basetime")
+                    computed_ts.expect("get_current_sample is_stable but no basetime")
                 } else {
                     let mut query = gst::Query::new_position(gst::Format::Time);
                     if state.audio_ref.as_ref().unwrap().query(&mut query) {
-                        // approximate current position as being exactly between last frame
+                        // approximate current timestamp as being exactly between last frame
                         // and next frame
                         let base_time = query.get_result().get_value() as u64;
                         let half_interval = (next_frame_time - last_frame_time) * 1_000 / 2;
                         let position = base_time + half_interval;
 
-                        if let Some(computed_position) = computed_position {
-                            let delta = position as i64 - computed_position.as_i64();
+                        if let Some(computed_ts) = computed_ts {
+                            let delta = position as i64 - computed_ts.as_i64();
                             if (delta.abs() as u64) < half_interval {
-                                // computed position is now close enough to the actual position
+                                // computed timestamp is now close enough to the actual timestamp
                                 state.is_stable = true;
                             }
                         }
@@ -150,10 +149,10 @@ pub trait SampleExtractor: Send {
 
     // Update the extractions taking account new
     // samples added to the buffer and possibly a
-    // different position
+    // different timestamps
     fn extract_samples(&mut self, audio_buffer: &AudioBuffer);
 
     // Refresh the extractionm in its current sample range
-    // and position.
+    // and timestamps
     fn refresh(&mut self, audio_buffer: &AudioBuffer);
 }

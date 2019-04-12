@@ -17,11 +17,10 @@ use std::{
 
 use crate::{application::CONFIG, metadata::MediaInfo};
 
-use super::{DoubleAudioBuffer, MediaEvent, PlaybackState, Timestamp};
+use super::{DoubleAudioBuffer, Duration, MediaEvent, PlaybackState, Timestamp};
 
-// Buffer size in ns for queues
 // This is the max duration that queues can hold
-pub const QUEUE_SIZE_NS: u64 = 5_000_000_000u64; // 5s
+pub const QUEUE_SIZE: Duration = Duration::from_secs(5);
 
 #[derive(PartialEq)]
 pub enum PipelineState {
@@ -190,7 +189,9 @@ impl PlaybackPipeline {
     fn setup_queue(queue: &gst::Element) {
         queue.set_property("max-size-bytes", &0u32).unwrap();
         queue.set_property("max-size-buffers", &0u32).unwrap();
-        queue.set_property("max-size-time", &QUEUE_SIZE_NS).unwrap();
+        queue
+            .set_property("max-size-time", &QUEUE_SIZE.as_u64())
+            .unwrap();
 
         #[cfg(feature = "trace-playback-queues")]
         queue

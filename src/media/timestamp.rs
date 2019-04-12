@@ -1,24 +1,27 @@
-use std::fmt;
-use std::ops::{Add, AddAssign, Sub};
+use std::{
+    cmp::Ordering,
+    fmt,
+    ops::{Add, Sub},
+};
 
 use crate::metadata::Timestamp4Humans;
 
-use super::SampleIndex;
+use super::{Duration, SampleIndex};
 
 #[derive(Clone, Copy, Default, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Timestamp(u64);
 
 impl Timestamp {
-    pub fn new(inner: u64) -> Self {
-        Timestamp(inner)
+    pub fn new(value: u64) -> Self {
+        Timestamp(value)
     }
 
     pub fn get_4_humans(&self) -> Timestamp4Humans {
         Timestamp4Humans::from_nano(self.0)
     }
 
-    pub fn get_sample_index(&self, sample_duration: u64) -> SampleIndex {
-        SampleIndex::new((self.0 / sample_duration) as usize)
+    pub fn get_sample_index(&self, sample_duration: Duration) -> SampleIndex {
+        SampleIndex::new((self.0 / sample_duration.as_u64()) as usize)
     }
 
     pub fn as_f64(&self) -> f64 {
@@ -35,36 +38,56 @@ impl Timestamp {
 }
 
 impl From<u64> for Timestamp {
-    fn from(inner: u64) -> Self {
-        Self(inner)
+    fn from(value: u64) -> Self {
+        Self(value)
     }
 }
 
 impl From<i64> for Timestamp {
-    fn from(inner: i64) -> Self {
-        Self(inner as u64)
+    fn from(value: i64) -> Self {
+        Self(value as u64)
     }
 }
 
-impl Add for Timestamp {
-    type Output = Timestamp;
-
-    fn add(self, rhs: Timestamp) -> Timestamp {
-        Timestamp(self.0 + rhs.0)
-    }
-}
-
-impl AddAssign for Timestamp {
-    fn add_assign(&mut self, rhs: Timestamp) {
-        *self = Timestamp(self.0 + rhs.0);
+impl From<Duration> for Timestamp {
+    fn from(duration: Duration) -> Self {
+        Self(duration.as_u64())
     }
 }
 
 impl Sub for Timestamp {
+    type Output = Duration;
+
+    fn sub(self, rhs: Timestamp) -> Duration {
+        Duration::from_nanos(self.0 - rhs.0)
+    }
+}
+
+impl Add<Duration> for Timestamp {
     type Output = Timestamp;
 
-    fn sub(self, rhs: Timestamp) -> Timestamp {
-        Timestamp(self.0 - rhs.0)
+    fn add(self, rhs: Duration) -> Timestamp {
+        Timestamp(self.0 + rhs.as_u64())
+    }
+}
+
+impl Sub<Duration> for Timestamp {
+    type Output = Timestamp;
+
+    fn sub(self, rhs: Duration) -> Timestamp {
+        Timestamp(self.0 - rhs.as_u64())
+    }
+}
+
+impl PartialOrd<Duration> for Timestamp {
+    fn partial_cmp(&self, rhs: &Duration) -> Option<Ordering> {
+        Some(self.0.cmp(&rhs.as_u64()))
+    }
+}
+
+impl PartialEq<Duration> for Timestamp {
+    fn eq(&self, rhs: &Duration) -> bool {
+        self.0 == rhs.as_u64()
     }
 }
 

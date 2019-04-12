@@ -341,10 +341,10 @@ impl WaveformImage {
         let (exposed_image, secondary_image) = {
             let target_width = if self.image_width > 0 {
                 self.image_width
-                    .max(((upper - lower).get_step_index(self.sample_step) * self.x_step) as i32)
+                    .max(((upper - lower).get_step_range(self.sample_step) * self.x_step) as i32)
             } else {
                 INIT_WIDTH
-                    .max(((upper - lower).get_step_index(self.sample_step) * self.x_step) as i32)
+                    .max(((upper - lower).get_step_range(self.sample_step) * self.x_step) as i32)
             };
             if (target_width == self.image_width && self.req_height == self.image_height)
                 || (self.force_redraw
@@ -513,7 +513,7 @@ impl WaveformImage {
         lower: SampleIndex,
     ) {
         let sample_offset = self.lower - lower;
-        let x_offset = (sample_offset.get_step_index(self.sample_step) * self.x_step) as f64;
+        let x_offset = (sample_offset.get_step_range(self.sample_step) * self.x_step) as f64;
 
         #[cfg(test)]
         debug!(
@@ -608,7 +608,7 @@ impl WaveformImage {
         lower: SampleIndex,
         upper: SampleIndex,
     ) -> bool {
-        let x_offset = ((lower - self.lower).get_step_index(self.sample_step) * self.x_step) as f64;
+        let x_offset = ((lower - self.lower).get_step_range(self.sample_step) * self.x_step) as f64;
 
         #[cfg(test)]
         debug!(
@@ -622,7 +622,7 @@ impl WaveformImage {
         let must_translate = match self.last.as_ref() {
             Some(last) => {
                 let range_to_draw = ((upper - self.upper.max(lower))
-                    .get_step_index(self.sample_step)
+                    .get_step_range(self.sample_step)
                     * self.x_step) as f64;
                 last.x + range_to_draw >= self.image_width_f
             }
@@ -691,7 +691,7 @@ impl WaveformImage {
         upper: SampleIndex,
     ) {
         let first_sample_to_draw = self.upper.max(lower);
-        let first_x_to_draw = ((first_sample_to_draw - self.lower).get_step_index(self.sample_step)
+        let first_x_to_draw = ((first_sample_to_draw - self.lower).get_step_range(self.sample_step)
             * self.x_step) as f64;
 
         if let Some((_first_added, last_added)) = self.draw_samples(
@@ -965,12 +965,13 @@ mod tests {
     use std::io::ErrorKind;
 
     use crate::media::{
-        AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex, SampleIndexRange,
+        AudioBuffer, AudioChannel, AudioChannelSide, Duration, SampleIndex, SampleIndexRange,
     };
     use crate::ui::WaveformImage;
 
     const OUT_DIR: &str = "target/test";
     const SAMPLE_RATE: u32 = 300;
+    const SAMPLE_WINDOW: SampleIndexRange = SampleIndexRange::new(300);
     const SAMPLE_DYN: i32 = 300;
 
     fn prepare_tests() {
@@ -987,7 +988,7 @@ mod tests {
         prepare_tests();
 
         // AudioBuffer
-        let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
+        let mut audio_buffer = AudioBuffer::new(Duration::from_secs(1));
         audio_buffer.init(
             gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, 2)
                 .build()
@@ -1025,18 +1026,17 @@ mod tests {
         buffer
     }
 
-    fn render_with_samples<Index: Into<SampleIndex>>(
+    fn render_with_samples(
         prefix: &str,
         waveform: &mut WaveformImage,
         audio_buffer: &mut AudioBuffer,
         incoming_samples: Vec<[i16; 2]>,
-        lower: Index,
+        lower: SampleIndex,
         is_new_segement: bool,
-        sample_window: Index,
+        sample_window: SampleIndexRange,
         can_scroll: bool,
     ) {
         let lower = lower.into();
-        let sample_window = sample_window.into();
 
         info!("*** {}", prefix);
 
@@ -1111,16 +1111,15 @@ mod tests {
     #[test]
     fn additive_draws() {
         let (mut audio_buffer, mut waveform) = init(3f64, 250);
-        let samples_window = SAMPLE_RATE as usize;
 
         render_with_samples(
             "additive_0 init",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(100, 200),
-            100,
+            SampleIndex::new(100),
             true,
-            samples_window,
+            SAMPLE_WINDOW,
             true,
         );
         render_with_samples(
@@ -1128,9 +1127,9 @@ mod tests {
             &mut waveform,
             &mut audio_buffer,
             build_buffer(50, 250),
-            50,
+            SampleIndex::new(50),
             true,
-            samples_window,
+            SAMPLE_WINDOW,
             true,
         );
         render_with_samples(
@@ -1138,9 +1137,9 @@ mod tests {
             &mut waveform,
             &mut audio_buffer,
             build_buffer(0, 100),
-            0,
+            SampleIndex::new(0),
             true,
-            samples_window,
+            SAMPLE_WINDOW,
             true,
         );
         render_with_samples(
@@ -1148,9 +1147,9 @@ mod tests {
             &mut waveform,
             &mut audio_buffer,
             build_buffer(150, 340),
-            150,
+            SampleIndex::new(150),
             true,
-            samples_window,
+            SAMPLE_WINDOW,
             true,
         );
         render_with_samples(
@@ -1158,9 +1157,9 @@ mod tests {
             &mut waveform,
             &mut audio_buffer,
             build_buffer(0, 200),
-            250,
+            SampleIndex::new(250),
             true,
-            samples_window,
+            SAMPLE_WINDOW,
             true,
         );
     }
@@ -1168,16 +1167,15 @@ mod tests {
     #[test]
     fn link_between_draws() {
         let (mut audio_buffer, mut waveform) = init(1f64 / 5f64, 1480);
-        let samples_window = SAMPLE_RATE as usize;
 
         render_with_samples(
             "link_0",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(100, 200),
-            100,
+            SampleIndex::new(100),
             true,
-            samples_window,
+            SAMPLE_WINDOW,
             true,
         );
         // append to the left
@@ -1186,9 +1184,9 @@ mod tests {
             &mut waveform,
             &mut audio_buffer,
             build_buffer(25, 125),
-            0,
+            SampleIndex::new(0),
             true,
-            samples_window,
+            SAMPLE_WINDOW,
             true,
         );
         // appended to the right
@@ -1197,9 +1195,9 @@ mod tests {
             &mut waveform,
             &mut audio_buffer,
             build_buffer(175, 275),
-            200,
+            SampleIndex::new(200),
             true,
-            samples_window,
+            SAMPLE_WINDOW,
             true,
         );
     }
@@ -1207,16 +1205,15 @@ mod tests {
     #[test]
     fn seek() {
         let (mut audio_buffer, mut waveform) = init(1f64, 300);
-        let samples_window = SAMPLE_RATE as usize;
 
         render_with_samples(
             "seek_0",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(0, 100),
-            100,
+            SampleIndex::new(100),
             true,
-            samples_window,
+            SAMPLE_WINDOW,
             true,
         );
         // seeking forward
@@ -1225,9 +1222,9 @@ mod tests {
             &mut waveform,
             &mut audio_buffer,
             build_buffer(0, 100),
-            500,
+            SampleIndex::new(500),
             true,
-            samples_window,
+            SAMPLE_WINDOW,
             true,
         );
         // additional samples
@@ -1236,9 +1233,9 @@ mod tests {
             &mut waveform,
             &mut audio_buffer,
             build_buffer(100, 200),
-            600,
+            SampleIndex::new(600),
             true,
-            samples_window,
+            SAMPLE_WINDOW,
             true,
         );
         // additional samples
@@ -1247,9 +1244,9 @@ mod tests {
             &mut waveform,
             &mut audio_buffer,
             build_buffer(200, 300),
-            700,
+            SampleIndex::new(700),
             true,
-            samples_window,
+            SAMPLE_WINDOW,
             true,
         );
     }
@@ -1257,16 +1254,15 @@ mod tests {
     #[test]
     fn oveflow() {
         let (mut audio_buffer, mut waveform) = init(1f64 / 5f64, 1500);
-        let samples_window = SAMPLE_RATE as usize;
 
         render_with_samples(
             "oveflow_0",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(0, 200),
-            250,
+            SampleIndex::new(250),
             true,
-            samples_window,
+            SAMPLE_WINDOW,
             true,
         );
         // overflow on the left
@@ -1275,9 +1271,9 @@ mod tests {
             &mut waveform,
             &mut audio_buffer,
             build_buffer(0, 300),
-            0,
+            SampleIndex::new(0),
             true,
-            samples_window,
+            SAMPLE_WINDOW,
             true,
         );
         // overflow on the right
@@ -1286,9 +1282,9 @@ mod tests {
             &mut waveform,
             &mut audio_buffer,
             build_buffer(0, 100),
-            400,
+            SampleIndex::new(400),
             true,
-            samples_window,
+            SAMPLE_WINDOW,
             true,
         );
     }

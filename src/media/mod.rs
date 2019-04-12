@@ -7,8 +7,11 @@ pub use self::audio_buffer::AudioBuffer;
 pub mod dbl_audio_buffer;
 pub use self::dbl_audio_buffer::DoubleAudioBuffer;
 
+pub mod duration;
+pub use self::duration::Duration;
+
 pub mod playback_pipeline;
-pub use self::playback_pipeline::{PlaybackPipeline, QUEUE_SIZE_NS};
+pub use self::playback_pipeline::{PlaybackPipeline, QUEUE_SIZE};
 
 pub mod sample_extractor;
 pub use self::sample_extractor::SampleExtractor;

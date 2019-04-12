@@ -4,42 +4,30 @@ use std::{
     ops::{Add, AddAssign, Sub},
 };
 
-use super::{SampleIndexRange, Timestamp};
+use super::{Duration, SampleIndexRange, Timestamp};
 
 #[derive(Clone, Copy, Default, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct SampleIndex(usize);
 
 impl SampleIndex {
-    pub fn new(inner: usize) -> Self {
-        SampleIndex(inner)
+    pub fn new(value: usize) -> Self {
+        SampleIndex(value)
     }
 
-    pub fn from_ts(ts: Timestamp, sample_duration: u64) -> Self {
-        SampleIndex((ts.as_u64() / sample_duration) as usize)
+    pub fn from_ts(ts: Timestamp, sample_duration: Duration) -> Self {
+        SampleIndex((ts.as_u64() / sample_duration.as_u64()) as usize)
     }
 
     pub fn get_aligned(&self, sample_step: SampleIndexRange) -> SampleIndex {
         SampleIndex(self.0 / sample_step.as_usize() * sample_step.as_usize())
     }
 
-    pub fn get_step_index(&self, sample_step: SampleIndexRange) -> usize {
-        self.0 / sample_step.as_usize()
-    }
-
-    pub fn get_ts(&self, sample_duration: u64) -> Timestamp {
-        Timestamp::new(self.0 as u64 * sample_duration)
-    }
-
-    pub fn as_f64(&self) -> f64 {
-        self.0 as f64
+    pub fn get_ts(&self, sample_duration: Duration) -> Timestamp {
+        Timestamp::new(self.0 as u64 * sample_duration.as_u64())
     }
 
     pub fn as_i64(&self) -> i64 {
         self.0 as i64
-    }
-
-    pub fn as_u64(&self) -> u64 {
-        self.0 as u64
     }
 
     pub fn as_usize(&self) -> usize {
@@ -56,44 +44,36 @@ impl SampleIndex {
 }
 
 impl From<usize> for SampleIndex {
-    fn from(inner: usize) -> Self {
-        Self(inner)
+    fn from(value: usize) -> Self {
+        Self(value)
     }
 }
 
 impl From<u64> for SampleIndex {
-    fn from(inner: u64) -> Self {
-        Self(inner as usize)
+    fn from(value: u64) -> Self {
+        Self(value as usize)
     }
 }
 
-impl Add for SampleIndex {
-    type Output = SampleIndex;
-
-    fn add(self, rhs: SampleIndex) -> SampleIndex {
-        SampleIndex(self.0 + rhs.0)
-    }
-}
-
-impl AddAssign for SampleIndex {
-    fn add_assign(&mut self, rhs: SampleIndex) {
-        *self = SampleIndex(self.0 + rhs.0);
+impl From<SampleIndexRange> for SampleIndex {
+    fn from(range: SampleIndexRange) -> Self {
+        Self(range.as_usize())
     }
 }
 
 impl Sub for SampleIndex {
-    type Output = SampleIndex;
+    type Output = SampleIndexRange;
 
-    fn sub(self, rhs: SampleIndex) -> SampleIndex {
-        SampleIndex(self.0 - rhs.0)
+    fn sub(self, rhs: SampleIndex) -> SampleIndexRange {
+        SampleIndexRange::new(self.0 - rhs.0)
     }
 }
 
 impl Add<SampleIndexRange> for SampleIndex {
     type Output = SampleIndex;
 
-    fn add(self, rhs: SampleIndexRange) -> Self::Output {
-        SampleIndex::new(self.0 + rhs.as_usize())
+    fn add(self, rhs: SampleIndexRange) -> SampleIndex {
+        SampleIndex(self.0 + rhs.as_usize())
     }
 }
 
@@ -106,8 +86,8 @@ impl AddAssign<SampleIndexRange> for SampleIndex {
 impl Sub<SampleIndexRange> for SampleIndex {
     type Output = SampleIndex;
 
-    fn sub(self, rhs: SampleIndexRange) -> Self::Output {
-        SampleIndex::new(self.0 - rhs.as_usize())
+    fn sub(self, rhs: SampleIndexRange) -> SampleIndex {
+        SampleIndex(self.0 - rhs.as_usize())
     }
 }
 

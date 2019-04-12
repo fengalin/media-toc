@@ -10,7 +10,7 @@ use std::{cell::RefCell, fs::File, rc::Rc};
 
 use crate::{
     application::{CommandLineArguments, CONFIG},
-    media::{PlaybackPipeline, Timestamp},
+    media::{Duration, PlaybackPipeline, Timestamp},
     metadata,
     metadata::{MediaInfo, Timestamp4Humans},
 };
@@ -20,7 +20,7 @@ use super::{
     UIEventSender,
 };
 
-const GO_TO_PREV_CHAPTER_THRESHOLD: u64 = 1_000_000_000; // 1 s
+const GO_TO_PREV_CHAPTER_THRESHOLD: Duration = Duration::from_secs(1);
 
 lazy_static! {
     static ref EMPTY_REPLACEMENT: &'static str = "-";
@@ -380,8 +380,7 @@ impl InfoController {
 
             match (cur_start, prev_start) {
                 (Some(cur_start), prev_start_opt) => {
-                    // FIXME: use Duration for GO_TO_PREV_CHAPTER_THRESHOLD
-                    if cur_start.as_u64() + GO_TO_PREV_CHAPTER_THRESHOLD < current.as_u64() {
+                    if current > cur_start + GO_TO_PREV_CHAPTER_THRESHOLD {
                         Some(cur_start)
                     } else {
                         prev_start_opt

@@ -10,7 +10,7 @@ use std::{
 
 use crate::media::{
     sample_extractor::SampleExtractionState, AudioBuffer, AudioChannel, DoubleAudioBuffer,
-    SampleExtractor, SampleIndex, SampleIndexRange, Timestamp,
+    Duration, SampleExtractor, SampleIndex, SampleIndexRange, Timestamp,
 };
 
 use super::{Image, WaveformImage};
@@ -18,7 +18,7 @@ use super::{Image, WaveformImage};
 pub struct DoubleWaveformBuffer {}
 
 impl DoubleWaveformBuffer {
-    pub fn new_mutex(buffer_duration: u64) -> Arc<Mutex<DoubleAudioBuffer>> {
+    pub fn new_mutex(buffer_duration: Duration) -> Arc<Mutex<DoubleAudioBuffer>> {
         Arc::new(Mutex::new(DoubleAudioBuffer::new(
             buffer_duration,
             Box::new(WaveformBuffer::new(1)),
@@ -36,7 +36,7 @@ pub struct ImagePositions {
     pub first: SamplePosition,
     pub last: Option<SamplePosition>,
     pub current_x: Option<f64>,
-    pub sample_duration: u64,
+    pub sample_duration: Duration,
     pub sample_step: f64,
 }
 
@@ -68,7 +68,7 @@ pub struct WaveformBuffer {
     // current sample idx during seeks)
     cursor_ts: Timestamp,
     first_visible_sample: Option<SampleIndex>,
-    first_visible_sample_lock: Option<(i64, LockState)>, // FIXME: switch to SampleIdex instead of i64
+    first_visible_sample_lock: Option<(i64, LockState)>, // FIXME: switch to SampleIndex instead of i64
 
     // During playback, we take advantage of the running time and thus
     // the stream of incoming samples to refresh the waveform.
@@ -76,7 +76,7 @@ pub struct WaveformBuffer {
     // must be forced in order to compute the samples window to render
     pub playback_needs_refresh: bool,
 
-    req_duration_per_1000px: f64,
+    req_duration_per_1000px: Duration,
     width: i32,
     width_f: f64,
     sample_step_f: f64,
@@ -100,7 +100,7 @@ impl WaveformBuffer {
             first_visible_sample_lock: None,
             playback_needs_refresh: false,
 
-            req_duration_per_1000px: 0f64,
+            req_duration_per_1000px: Duration::default(),
             width: 0,
             width_f: 0f64,
             sample_step_f: 0f64,
@@ -118,7 +118,7 @@ impl WaveformBuffer {
         self.reset_sample_conditions();
         self.image.cleanup();
 
-        self.req_duration_per_1000px = 0f64;
+        self.req_duration_per_1000px = Duration::default();
         self.width = 0;
         self.width_f = 0f64;
     }
@@ -147,7 +147,7 @@ impl WaveformBuffer {
         )
     }
 
-    pub fn get_half_window_duration(&self) -> u64 {
+    pub fn get_half_window_duration(&self) -> Duration {
         self.half_req_sample_window
             .get_duration(self.state.sample_duration)
     }
@@ -417,9 +417,9 @@ impl WaveformBuffer {
     }
 
     // Update rendering conditions
-    pub fn update_conditions(&mut self, duration_per_1000px: f64, width: i32, height: i32) {
+    pub fn update_conditions(&mut self, duration_per_1000px: Duration, width: i32, height: i32) {
         let (duration_changed, mut scale_factor) =
-            if (duration_per_1000px - self.req_duration_per_1000px).abs() < 1f64 {
+            if duration_per_1000px == self.req_duration_per_1000px {
                 (false, 0f64)
             } else {
                 let prev_duration = self.req_duration_per_1000px;
@@ -429,7 +429,7 @@ impl WaveformBuffer {
                     self.image.id, prev_duration, self.req_duration_per_1000px,
                 );
                 self.update_sample_step();
-                (true, duration_per_1000px / prev_duration)
+                (true, duration_per_1000px.as_f64() / prev_duration.as_f64())
             };
 
         let width_changed = if width == self.width {
@@ -517,9 +517,12 @@ impl WaveformBuffer {
 
         self.sample_step_f = if self.req_duration_per_1000px >= self.state.duration_per_1000_samples
         {
-            (self.req_duration_per_1000px / self.state.duration_per_1000_samples).floor()
+            (self.req_duration_per_1000px.as_f64() / self.state.duration_per_1000_samples.as_f64())
+                .floor()
         } else {
-            1f64 / (self.state.duration_per_1000_samples / self.req_duration_per_1000px).ceil()
+            1f64 / (self.state.duration_per_1000_samples.as_f64()
+                / self.req_duration_per_1000px.as_f64())
+            .ceil()
         };
         self.conditions_changed = true;
 
@@ -558,7 +561,7 @@ impl WaveformBuffer {
                     && self.cursor_sample <= first_visible_sample + self.req_sample_window
                 {
                     Some(
-                        (self.cursor_sample.as_f64() - first_visible_sample.as_f64())
+                        (self.cursor_sample - first_visible_sample).as_f64()
                             / self.image.sample_step_f,
                     )
                 } else {
@@ -566,7 +569,7 @@ impl WaveformBuffer {
                 };
 
                 let x_offset = ((first_visible_sample - self.image.lower)
-                    .get_step_index(self.image.sample_step)
+                    .get_step_range(self.image.sample_step)
                     * self.image.x_step) as f64;
 
                 let last_opt = match self.image.last {
@@ -577,11 +580,11 @@ impl WaveformBuffer {
                         if last_x.is_sign_positive() {
                             Some(SamplePosition {
                                 x: last_x,
-                                ts: Timestamp::new(
-                                    (first_visible_sample.as_u64()
-                                        + (last_x * self.image.sample_step_f) as u64)
-                                        * self.state.sample_duration,
-                                ),
+                                ts: (first_visible_sample
+                                    + SampleIndexRange::new(
+                                        (last_x * self.image.sample_step_f) as usize,
+                                    ))
+                                .get_ts(self.state.sample_duration),
                             })
                         } else {
                             None
@@ -847,7 +850,7 @@ impl SampleExtractor for WaveformBuffer {
         }
     }
 
-    fn set_sample_duration(&mut self, per_sample: u64, per_1000_samples: f64) {
+    fn set_sample_duration(&mut self, per_sample: Duration, per_1000_samples: Duration) {
         self.reset_sample_conditions();
 
         debug!(

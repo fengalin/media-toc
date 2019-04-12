@@ -14,7 +14,7 @@ use std::{
     io::{Cursor, Read},
 };
 
-use super::{SampleIndex, SampleIndexRange, SampleValue, Timestamp};
+use super::{Duration, SampleIndex, SampleIndexRange, SampleValue, Timestamp};
 
 #[cfg(test)]
 use byteorder::ByteOrder;
@@ -22,14 +22,15 @@ use byteorder::ByteOrder;
 use gstreamer::ClockTime;
 
 pub struct AudioBuffer {
-    buffer_duration: u64,
+    buffer_duration: Duration,
     capacity: usize,
     audio_info: Option<gst_audio::AudioInfo>,
+    // FIXME: rate can be a SampleIndexRange
     rate: u64,
-    pub sample_duration: u64,
+    pub sample_duration: Duration,
     pub channels: usize,
     bytes_per_sample: usize,
-    // FIXME: drain_size can be a SampleIndexRange once all channles are gathered together
+    // FIXME: drain_size can be a SampleIndexRange once all channels are gathered together
     drain_size: usize,
 
     pub eos: bool,
@@ -44,13 +45,13 @@ pub struct AudioBuffer {
 }
 
 impl AudioBuffer {
-    pub fn new(buffer_duration: u64) -> Self {
+    pub fn new(buffer_duration: Duration) -> Self {
         AudioBuffer {
             buffer_duration,
             capacity: 0,
             audio_info: None,
             rate: 0,
-            sample_duration: 0,
+            sample_duration: Duration::default(),
             channels: 0,
             bytes_per_sample: 0,
             drain_size: 0,
@@ -75,10 +76,14 @@ impl AudioBuffer {
         self.cleanup();
 
         self.rate = u64::from(audio_info.rate());
-        self.sample_duration = 1_000_000_000 / self.rate;
+        self.sample_duration = Duration::from_frequency(self.rate);
         self.channels = audio_info.channels() as usize;
         self.bytes_per_sample = audio_info.width() as usize / 8;
-        self.capacity = (self.buffer_duration / self.sample_duration) as usize * self.channels;
+        self.capacity = self
+            .buffer_duration
+            .get_index_range(self.sample_duration)
+            .as_usize()
+            * self.channels;
         self.samples = VecDeque::with_capacity(self.capacity);
         self.drain_size = self.rate as usize * self.channels; // 1s worth of samples
 
@@ -123,7 +128,7 @@ impl AudioBuffer {
 
         self.capacity = 0;
         self.rate = 0;
-        self.sample_duration = 0;
+        self.sample_duration = Duration::default();
         self.channels = 0;
         self.drain_size = 0;
         self.clean_samples();
@@ -155,14 +160,14 @@ impl AudioBuffer {
         &mut self,
         buffer: &gst::Buffer,
         lower_to_keep: SampleIndex,
-    ) -> SampleIndex {
-        if self.sample_duration == 0 {
+    ) -> SampleIndexRange {
+        if self.sample_duration == Duration::default() {
             debug!("push_gst_buffer sample_duration is null");
-            return SampleIndex::default();
+            return SampleIndexRange::default();
         }
 
-        let buffer_sample_len: SampleIndex =
-            (buffer.get_size() / self.bytes_per_sample / self.channels).into();
+        let buffer_sample_len =
+            SampleIndexRange::new(buffer.get_size() / self.bytes_per_sample / self.channels);
 
         // Unfortunately, we can't rely on buffer_pts to figure out
         // the exact position in the segment. Some streams use a pts
@@ -185,6 +190,13 @@ impl AudioBuffer {
         let incoming_lower = self.last_buffer_upper;
         let incoming_upper = incoming_lower + buffer_sample_len;
 
+        struct ProcessingInstructions {
+            lower_changed: bool,
+            incoming_lower: SampleIndex,
+            lower_to_add_rel: SampleIndex,
+            upper_to_add_rel: SampleIndex,
+        };
+
         // Identify conditions for this incoming buffer:
         // 1. Incoming buffer fits at the end of current container.
         // 2. Incoming buffer is already contained within stored samples.
@@ -198,106 +210,106 @@ impl AudioBuffer {
         //    cleared lower.
         // 6. The internal container is empty, import incoming buffer
         //    completely.
-        let (lower_changed, incoming_lower, lower_to_add_rel, upper_to_add_rel) =
-            if !self.samples.is_empty() {
-                // not initializing
-                if incoming_lower == self.upper {
-                    // 1. append incoming buffer to the end of internal storage
-                    #[cfg(test)]
-                    trace!("case 1. appending to the end (full)");
-                    // self.lower unchanged
-                    self.upper = incoming_upper;
-                    self.eos = false;
-                    self.last_buffer_upper = incoming_upper;
+        let ins = if !self.samples.is_empty() {
+            // not initializing
+            if incoming_lower == self.upper {
+                // 1. append incoming buffer to the end of internal storage
+                #[cfg(test)]
+                trace!("case 1. appending to the end (full)");
+                // self.lower unchanged
+                self.upper = incoming_upper;
+                self.eos = false;
+                self.last_buffer_upper = incoming_upper;
 
-                    (
-                        false,                  // lower_changed
-                        incoming_lower,         // incoming_lower
-                        SampleIndex::default(), // lower_to_add_rel
-                        buffer_sample_len,      // upper_to_add_rel
-                    )
-                } else if incoming_lower >= self.lower && incoming_upper <= self.upper {
-                    // 2. incoming buffer included in current container
-                    debug!(
-                        concat!(
-                            "case 2. contained in current container ",
-                            "self [{}, {}], incoming [{}, {}]",
-                        ),
-                        self.lower, self.upper, incoming_lower, incoming_upper
-                    );
-                    self.last_buffer_upper = incoming_upper;
-                    (
-                        false,                  // lower_changed
-                        incoming_lower,         // incoming_lower
-                        SampleIndex::default(), // lower_to_add_rel
-                        SampleIndex::default(), // upper_to_add_rel
-                    )
-                } else if incoming_lower > self.lower && incoming_lower < self.upper {
-                    // 3. can append [self.upper, upper] to the end
-                    debug!(
-                        "case 3. append to the end (partial) [{}, {}], incoming [{}, {}]",
-                        self.upper, incoming_upper, incoming_lower, incoming_upper
-                    );
-                    // self.lower unchanged
-                    let previous_upper = self.upper;
-                    self.upper = incoming_upper;
-                    self.eos = false;
-                    // self.first_pts unchanged
-                    self.last_buffer_upper = incoming_upper;
-                    (
-                        false,                           // lower_changed
-                        incoming_lower,                  // incoming_lower
-                        previous_upper - incoming_lower, // lower_to_add_rel
-                        buffer_sample_len,               // upper_to_add_rel
-                    )
-                } else if incoming_upper < self.upper && incoming_upper >= self.lower {
-                    // 4. can insert [lower, self.lower] at the begining
-                    debug!(
-                        "case 4. insert at the begining [{}, {}], incoming [{}, {}]",
-                        incoming_lower, self.lower, incoming_lower, incoming_upper
-                    );
-                    let upper_to_add = self.lower;
-                    self.lower = incoming_lower;
-                    // self.upper unchanged
-                    self.last_buffer_upper = incoming_upper;
-                    (
-                        true,                          // lower_changed
-                        incoming_lower,                // incoming_lower
-                        SampleIndex::default(),        // lower_to_add_rel
-                        upper_to_add - incoming_lower, // upper_to_add_rel
-                    )
-                } else {
-                    // 5. can't merge with previous buffer
-                    debug!(
-                        "case 5. can't merge self [{}, {}], incoming [{}, {}]",
-                        self.lower, self.upper, incoming_lower, incoming_upper
-                    );
-                    self.samples.clear();
-                    self.lower = incoming_lower;
-                    self.upper = incoming_upper;
-                    self.eos = false;
-                    self.last_buffer_upper = incoming_upper;
-                    (
-                        true,                   // lower_changed
-                        incoming_lower,         // incoming_lower
-                        SampleIndex::default(), // lower_to_add_rel
-                        buffer_sample_len,      // upper_to_add_rel
-                    )
+                ProcessingInstructions {
+                    lower_changed: false,
+                    incoming_lower,
+                    lower_to_add_rel: SampleIndex::default(),
+                    upper_to_add_rel: buffer_sample_len.into(),
+                }
+            } else if incoming_lower >= self.lower && incoming_upper <= self.upper {
+                // 2. incoming buffer included in current container
+                debug!(
+                    concat!(
+                        "case 2. contained in current container ",
+                        "self [{}, {}], incoming [{}, {}]",
+                    ),
+                    self.lower, self.upper, incoming_lower, incoming_upper
+                );
+                self.last_buffer_upper = incoming_upper;
+
+                ProcessingInstructions {
+                    lower_changed: false,
+                    incoming_lower,
+                    lower_to_add_rel: SampleIndex::default(),
+                    upper_to_add_rel: SampleIndex::default(),
+                }
+            } else if incoming_lower > self.lower && incoming_lower < self.upper {
+                // 3. can append [self.upper, upper] to the end
+                debug!(
+                    "case 3. append to the end (partial) [{}, {}], incoming [{}, {}]",
+                    self.upper, incoming_upper, incoming_lower, incoming_upper
+                );
+                // self.lower unchanged
+                let previous_upper = self.upper;
+                self.upper = incoming_upper;
+                self.eos = false;
+                // self.first_pts unchanged
+                self.last_buffer_upper = incoming_upper;
+                ProcessingInstructions {
+                    lower_changed: false,
+                    incoming_lower,
+                    lower_to_add_rel: (previous_upper - incoming_lower).into(),
+                    upper_to_add_rel: buffer_sample_len.into(),
+                }
+            } else if incoming_upper < self.upper && incoming_upper >= self.lower {
+                // 4. can insert [lower, self.lower] at the begining
+                debug!(
+                    "case 4. insert at the begining [{}, {}], incoming [{}, {}]",
+                    incoming_lower, self.lower, incoming_lower, incoming_upper
+                );
+                let upper_to_add = self.lower;
+                self.lower = incoming_lower;
+                // self.upper unchanged
+                self.last_buffer_upper = incoming_upper;
+                ProcessingInstructions {
+                    lower_changed: true,
+                    incoming_lower,
+                    lower_to_add_rel: SampleIndex::default(),
+                    upper_to_add_rel: (upper_to_add - incoming_lower).into(),
                 }
             } else {
-                // 6. initializing
-                debug!("init [{}, {}]", incoming_lower, incoming_upper);
+                // 5. can't merge with previous buffer
+                debug!(
+                    "case 5. can't merge self [{}, {}], incoming [{}, {}]",
+                    self.lower, self.upper, incoming_lower, incoming_upper
+                );
+                self.samples.clear();
                 self.lower = incoming_lower;
                 self.upper = incoming_upper;
                 self.eos = false;
-                self.last_buffer_upper = self.upper;
-                (
-                    true,                   // lower_changed
-                    incoming_lower,         // incoming_lower
-                    SampleIndex::default(), // lower_to_add_rel
-                    buffer_sample_len,      // upper_to_add_rel
-                )
-            };
+                self.last_buffer_upper = incoming_upper;
+                ProcessingInstructions {
+                    lower_changed: true,
+                    incoming_lower,
+                    lower_to_add_rel: SampleIndex::default(),
+                    upper_to_add_rel: buffer_sample_len.into(),
+                }
+            }
+        } else {
+            // 6. initializing
+            debug!("init [{}, {}]", incoming_lower, incoming_upper);
+            self.lower = incoming_lower;
+            self.upper = incoming_upper;
+            self.eos = false;
+            self.last_buffer_upper = self.upper;
+            ProcessingInstructions {
+                lower_changed: true,
+                incoming_lower,
+                lower_to_add_rel: SampleIndex::default(),
+                upper_to_add_rel: buffer_sample_len.into(),
+            }
+        };
 
         // Don't drain if samples are to be added at the begining...
         // drain only if we have enough samples in history
@@ -306,10 +318,11 @@ impl AudioBuffer {
         // and iteration).
         // Don't drain samples if they might be used by the extractor
         // (limit known as argument lower_to_keep).
-        if !lower_changed
-            && self.samples.len() + (upper_to_add_rel - lower_to_add_rel).as_usize() * self.channels
+        if !ins.lower_changed
+            && self.samples.len()
+                + (ins.upper_to_add_rel - ins.lower_to_add_rel).as_usize() * self.channels
                 > self.capacity
-            && lower_to_keep.min(incoming_lower)
+            && lower_to_keep.min(ins.incoming_lower)
                 > self.lower + SampleIndexRange::new(self.drain_size / self.channels)
         {
             debug!("draining... len before: {}", self.samples.len());
@@ -317,17 +330,17 @@ impl AudioBuffer {
             self.lower += SampleIndexRange::new(self.drain_size / self.channels);
         }
 
-        if upper_to_add_rel > SampleIndex::default() {
+        if ins.upper_to_add_rel > SampleIndex::default() {
             let map = buffer.map_readable().take().unwrap();
             let converter_iter = SampleConverterIter::from_slice(
                 map.as_slice(),
                 self.audio_info.as_ref().unwrap(),
-                lower_to_add_rel,
-                upper_to_add_rel,
+                ins.lower_to_add_rel,
+                ins.upper_to_add_rel,
             )
             .unwrap();
 
-            if !lower_changed || self.samples.is_empty() {
+            if !ins.lower_changed || self.samples.is_empty() {
                 for sample in converter_iter {
                     self.samples.push_back(sample.into());
                 }
@@ -591,7 +604,7 @@ mod tests {
     use log::{debug, info};
 
     use crate::i16_to_sample_value;
-    use crate::media::{AudioBuffer, SampleIndex, SampleIndexRange, SampleValue};
+    use crate::media::{AudioBuffer, Duration, SampleIndex, SampleIndexRange, SampleValue};
 
     const SAMPLE_RATE: u32 = 300;
 
@@ -630,7 +643,7 @@ mod tests {
         //env_logger::try_init();
         gst::init().unwrap();
 
-        let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
+        let mut audio_buffer = AudioBuffer::new(Duration::from_secs(1));
         audio_buffer.init(
             gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, 2)
                 .build()
@@ -721,7 +734,7 @@ mod tests {
         //env_logger::try_init();
         gst::init().unwrap();
 
-        let mut audio_buffer = AudioBuffer::new(1_000_000_000); // 1s
+        let mut audio_buffer = AudioBuffer::new(Duration::from_secs(1));
         audio_buffer.init(
             gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, 2)
                 .build()

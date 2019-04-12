@@ -11,8 +11,8 @@ use std::{
 };
 
 use super::{
-    AudioBuffer, AudioChannel, SampleExtractor, SampleIndex, SampleIndexRange, INLINE_CHANNELS,
-    QUEUE_SIZE_NS,
+    AudioBuffer, AudioChannel, Duration, SampleExtractor, SampleIndex, SampleIndexRange,
+    INLINE_CHANNELS, QUEUE_SIZE,
 };
 
 const EXTRACTION_THRESHOLD: SampleIndexRange = SampleIndexRange::new(1024);
@@ -46,7 +46,7 @@ impl DoubleAudioBuffer {
     // need 2 arguments for new as we can't clone buffers as they are known
     // as trait SampleExtractor
     pub fn new(
-        buffer_duration: u64,
+        buffer_duration: Duration,
         exposed_buffer: Box<dyn SampleExtractor>,
         working_buffer: Box<dyn SampleExtractor>,
     ) -> DoubleAudioBuffer {
@@ -125,9 +125,9 @@ impl DoubleAudioBuffer {
         let rate = u64::from(audio_info.rate());
         let channels = audio_info.channels() as usize;
 
-        let sample_duration = 1_000_000_000 / rate;
-        self.max_sample_window = SampleIndexRange::from_duration(QUEUE_SIZE_NS, sample_duration);
-        let duration_for_1000_samples = 1_000_000_000_000f64 / (rate as f64);
+        let sample_duration = Duration::from_frequency(rate);
+        self.max_sample_window = SampleIndexRange::from_duration(QUEUE_SIZE, sample_duration);
+        let duration_per_1000_samples = Duration::from_nanos(1_000_000_000_000u64 / rate);
 
         let mut channels: SmallVec<[AudioChannel; INLINE_CHANNELS]> =
             SmallVec::with_capacity(channels);
@@ -141,13 +141,13 @@ impl DoubleAudioBuffer {
 
         {
             let exposed_buffer = &mut self.exposed_buffer_mtx.lock().unwrap();
-            exposed_buffer.set_sample_duration(sample_duration, duration_for_1000_samples);
+            exposed_buffer.set_sample_duration(sample_duration, duration_per_1000_samples);
             exposed_buffer.set_channels(&channels);
             exposed_buffer.new_segment();
         }
 
         let working_buffer = self.working_buffer.as_mut().unwrap();
-        working_buffer.set_sample_duration(sample_duration, duration_for_1000_samples);
+        working_buffer.set_sample_duration(sample_duration, duration_per_1000_samples);
         working_buffer.set_channels(&channels);
         working_buffer.new_segment();
     }
