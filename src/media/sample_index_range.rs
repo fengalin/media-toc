@@ -30,10 +30,6 @@ impl SampleIndexRange {
         self.0 as f64
     }
 
-    pub fn as_i64(&self) -> i64 {
-        self.0 as i64
-    }
-
     pub fn as_usize(&self) -> usize {
         self.0
     }

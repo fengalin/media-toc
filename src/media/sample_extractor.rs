@@ -70,10 +70,7 @@ pub trait SampleExtractor: Send {
 
     fn new_segment(&mut self) {
         self.reset_base_ts();
-        self.seek_complete();
     }
-
-    fn seek_complete(&mut self);
 
     fn set_channels(&mut self, channels: &[AudioChannel]);
 

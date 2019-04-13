@@ -453,6 +453,7 @@ impl MainController {
                         PlaybackState::Paused => ControllerState::Paused,
                     };
                 }
+                self.audio_ctrl.seek_complete();
             }
             MediaEvent::InitDone => {
                 debug!("received `InitDone`");

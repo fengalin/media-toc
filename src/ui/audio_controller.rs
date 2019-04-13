@@ -294,6 +294,17 @@ impl AudioController {
         }
     }
 
+    pub fn seek_complete(&mut self) {
+        self.waveform_mtx
+            .lock()
+            .unwrap()
+            .as_mut_any()
+            .downcast_mut::<WaveformBuffer>()
+            .unwrap()
+            .seek_complete();
+        self.last_other_ui_refresh = Timestamp::default();
+    }
+
     fn remove_tick_callback(&mut self) {
         if let Some(tick_cb_id) = self.tick_cb_id.take() {
             tick_cb_id.remove();
