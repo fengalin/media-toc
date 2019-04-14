@@ -394,7 +394,7 @@ impl AudioBuffer {
 type ConvertFn = fn(&mut dyn Read) -> SampleValue;
 macro_rules! to_sample_value(
     ($read:expr) => {
-        SampleValue::from(1f64 - $read.unwrap().to_sample::<f64>())
+        SampleValue::from($read.unwrap().to_sample::<i16>())
     }
 );
 pub struct SampleConverterIter<'iter> {
@@ -561,9 +561,7 @@ mod tests {
     use gstreamer_audio::AUDIO_FORMAT_S16;
     use log::{debug, info};
 
-    use crate::{
-        i16_to_sample_value, Duration, SampleIndex, SampleIndexRange, SampleValue, Timestamp,
-    };
+    use crate::{Duration, SampleIndex, SampleIndexRange, SampleValue, Timestamp};
 
     use super::AudioBuffer;
 
@@ -627,7 +625,7 @@ mod tests {
         ($audio_buffer:expr, $idx:expr, $expected:expr) => (
             assert_eq!(
                 $audio_buffer.get($idx),
-                Some(&[i16_to_sample_value!($expected), i16_to_sample_value!(-$expected)][..])
+                Some(&[SampleValue::from($expected), SampleValue::from(-$expected)][..])
             );
         );
     );
@@ -750,9 +748,9 @@ mod tests {
             for (channel, sample_value) in samples.iter().enumerate() {
                 let expected_value = *expected_value;
                 if channel == 0 {
-                    assert_eq!(sample_value, &i16_to_sample_value!(expected_value));
+                    assert_eq!(sample_value, &SampleValue::from(expected_value));
                 } else {
-                    assert_eq!(sample_value, &i16_to_sample_value!(-1 * expected_value));
+                    assert_eq!(sample_value, &SampleValue::from(-1 * expected_value));
                 }
             }
         }

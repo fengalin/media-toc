@@ -31,7 +31,7 @@ const WAVEFORM_DUMP_DIR: &str = "../target/waveforms";
 
 pub struct WaveformSample {
     pub x: f64,
-    pub values: SmallVec<[SampleValue; INLINE_CHANNELS]>,
+    pub y_values: SmallVec<[f64; INLINE_CHANNELS]>,
 }
 
 pub struct WaveformImage {
@@ -47,8 +47,9 @@ pub struct WaveformImage {
     image_width: i32,
     image_width_f: f64,
     image_height: i32,
-    half_range: SampleValue,
-    full_range: SampleValue,
+    half_range_y: f64,
+    full_range_y: f64,
+    sample_value_factor: f64,
 
     req_width: i32,
     req_height: i32,
@@ -96,8 +97,9 @@ impl WaveformImage {
             image_width: 0,
             image_width_f: 0f64,
             image_height: 0,
-            half_range: SampleValue::default(),
-            full_range: SampleValue::default(),
+            half_range_y: 0f64,
+            full_range_y: 0f64,
+            sample_value_factor: 0f64,
 
             req_width: 0,
             req_height: 0,
@@ -128,8 +130,9 @@ impl WaveformImage {
         self.image_width = 0;
         self.image_width_f = 0f64;
         self.image_height = 0;
-        self.half_range = SampleValue::default();
-        self.full_range = SampleValue::default();
+        self.half_range_y = 0f64;
+        self.full_range_y = 0f64;
+        self.sample_value_factor = 0f64;
 
         self.req_width = 0;
         self.req_height = 0;
@@ -362,8 +365,9 @@ impl WaveformImage {
                 self.image_width = target_width;
                 self.image_width_f = f64::from(target_width);
                 self.image_height = self.req_height;
-                self.half_range = SampleValue::from(self.req_height / 2);
-                self.full_range = SampleValue::from(self.req_height);
+                self.full_range_y = self.req_height as f64;
+                self.half_range_y = self.full_range_y / 2f64;
+                self.sample_value_factor = self.half_range_y / std::i16::MIN as f64;
 
                 debug!(
                     "{}_render new images w {}, h {}",
@@ -542,6 +546,7 @@ impl WaveformImage {
                     None
                 }
             };
+
             self.last = match self.last.take() {
                 Some(last) => {
                     let next_last_pixel = last.x + x_offset;
@@ -549,26 +554,27 @@ impl WaveformImage {
                         // last still in image
                         Some(WaveformSample {
                             x: next_last_pixel,
-                            values: last.values,
+                            y_values: last.y_values,
                         })
                     } else {
                         // last out of image
                         // get sample from previous image
                         // which is now bound to last pixel in current image
-                        self.get_sample_and_values_at(
-                            self.image_width_f - 1f64 - x_offset,
-                            audio_buffer,
-                        )
-                        .map(|(last_sample, values)| {
-                            self.upper = audio_buffer.upper.min(last_sample + self.sample_step);
-                            // align on the first pixel for the sample
-                            let new_last_pixel = ((self.image_width - 1) as usize / self.x_step
-                                * self.x_step)
-                                as f64;
-                            self.clear_area(&cr, new_last_pixel, self.image_width_f);
+                        let last_x = self.image_width_f - 1f64 - x_offset;
+                        let last_sample_idx =
+                            self.lower + self.sample_step.get_scaled(last_x as usize, self.x_step);
+
+                        let new_last_x =
+                            ((self.image_width - 1) as usize / self.x_step * self.x_step) as f64;
+
+                        self.upper = audio_buffer.upper.min(last_sample_idx + self.sample_step);
+
+                        audio_buffer.get(last_sample_idx).map(|sample_values| {
+                            self.clear_area(&cr, new_last_x, self.image_width_f);
+
                             WaveformSample {
-                                x: new_last_pixel,
-                                values,
+                                x: new_last_x,
+                                y_values: self.sample_values_to_ys(sample_values),
                             }
                         })
                     }
@@ -644,7 +650,7 @@ impl WaveformImage {
                 self.lower = lower;
                 self.first = audio_buffer.get(self.lower).map(|values| WaveformSample {
                     x: 0f64,
-                    values: self.convert_sample_values(values),
+                    y_values: self.sample_values_to_ys(values),
                 });
 
                 self.last = self.last.take().map(|last| {
@@ -652,7 +658,7 @@ impl WaveformImage {
                     self.clear_area(&cr, new_last_x + 1f64, self.image_width_f);
                     WaveformSample {
                         x: new_last_x,
-                        values: last.values,
+                        y_values: last.y_values,
                     }
                 });
 
@@ -711,40 +717,6 @@ impl WaveformImage {
         }
     }
 
-    fn get_sample_and_values_at(
-        &self,
-        x: f64,
-        audio_buffer: &AudioBuffer,
-    ) -> Option<(SampleIndex, SmallVec<[SampleValue; INLINE_CHANNELS]>)> {
-        let sample_idx = self.lower + self.sample_step.get_scaled(x as usize, self.x_step);
-
-        #[cfg(test)]
-        {
-            let values = match audio_buffer.get(sample_idx) {
-                Some(values) => format!("{:?}", values.to_vec()),
-                None => "-".to_owned(),
-            };
-            debug!(
-                concat!(
-                    "WaveformImage{}_smpl_val_at {}, smpl {}, val {}, ",
-                    "x step: {}, smpl step: {}, audiobuf. [{}, {}]",
-                ),
-                self.id,
-                x,
-                sample_idx,
-                values,
-                self.x_step,
-                self.sample_step,
-                audio_buffer.lower,
-                audio_buffer.upper
-            );
-        }
-
-        audio_buffer
-            .get(sample_idx)
-            .map(|values| (sample_idx, self.convert_sample_values(values)))
-    }
-
     fn translate_previous(
         &self,
         cr: &cairo::Context,
@@ -775,29 +747,26 @@ impl WaveformImage {
         #[cfg(test)]
         cr.set_source_rgb(0f64, 0.8f64, 0f64);
 
-        for channel in 0..from.values.len() {
+        for channel_idx in 0..from.y_values.len() {
             #[cfg(not(test))]
-            self.set_channel_color(cr, channel);
+            self.set_channel_color(cr, channel_idx);
 
-            cr.move_to(from.x, from.values[channel].as_f64());
-            cr.line_to(to.x, to.values[channel].as_f64());
+            cr.move_to(from.x, from.y_values[channel_idx]);
+            cr.line_to(to.x, to.y_values[channel_idx]);
             cr.stroke();
         }
     }
 
-    fn convert_sample(&self, value: SampleValue) -> SampleValue {
-        value * self.half_range
+    fn sample_value_to_y(&self, value: SampleValue) -> f64 {
+        (value.as_i16() as i32 - std::i16::MAX as i32) as f64 * self.sample_value_factor
     }
 
-    fn convert_sample_values(
-        &self,
-        values: &[SampleValue],
-    ) -> SmallVec<[SampleValue; INLINE_CHANNELS]> {
-        let mut result: SmallVec<[SampleValue; INLINE_CHANNELS]> =
-            SmallVec::with_capacity(values.len());
+    fn sample_values_to_ys(&self, values: &[SampleValue]) -> SmallVec<[f64; INLINE_CHANNELS]> {
+        let mut result: SmallVec<[f64; INLINE_CHANNELS]> = SmallVec::with_capacity(values.len());
         for value in values {
-            result.push(self.convert_sample(*value));
+            result.push(self.sample_value_to_y(*value));
         }
+
         result
     }
 
@@ -851,25 +820,25 @@ impl WaveformImage {
             // the start and end of each chunk
             cr.set_source_rgb(0f64, 0f64, 1f64);
             cr.move_to(first_x, 0f64);
-            cr.line_to(first_x, 0.5f64 * self.half_range.as_f64());
+            cr.line_to(first_x, 0.5f64 * self.half_range_y);
             cr.stroke();
         }
 
-        let mut first_values: SmallVec<[SampleValue; INLINE_CHANNELS]> =
+        let mut first_y_values: SmallVec<[f64; INLINE_CHANNELS]> =
             SmallVec::with_capacity(audio_buffer.channels);
-        let mut last_values: SmallVec<[SampleValue; INLINE_CHANNELS]> =
+        let mut last_y_values: SmallVec<[f64; INLINE_CHANNELS]> =
             SmallVec::with_capacity(audio_buffer.channels);
 
         let sample = sample_iter.next();
         for channel_value in sample.unwrap() {
-            let y = self.convert_sample(*channel_value);
-            first_values.push(y);
-            last_values.push(y);
+            let y = self.sample_value_to_y(*channel_value);
+            first_y_values.push(y);
+            last_y_values.push(y);
         }
 
         let first_added = WaveformSample {
             x: first_x,
-            values: first_values,
+            y_values: first_y_values,
         };
         let first_for_amp0 = match self.last.as_ref() {
             Some(prev_last) => {
@@ -891,17 +860,18 @@ impl WaveformImage {
 
             for (channel, value) in sample.iter().enumerate() {
                 self.set_channel_color(cr, channel);
-                cr.move_to(prev_x, last_values[channel].as_f64());
-
-                last_values[channel] = self.convert_sample(*value);
-                cr.line_to(x, last_values[channel].as_f64());
+                let y = self.sample_value_to_y(*value);
+                cr.move_to(prev_x, last_y_values[channel]);
+                cr.line_to(x, y);
                 cr.stroke();
+
+                last_y_values[channel] = y;
             }
         }
 
         let last_added = WaveformSample {
             x,
-            values: last_values,
+            y_values: last_y_values,
         };
         let last_for_amp0 = match self.first.as_ref() {
             Some(prev_first) => {
@@ -923,8 +893,8 @@ impl WaveformImage {
             // in test mode, draw marks at
             // the start and end of each chunk
             cr.set_source_rgb(1f64, 0f64, 1f64);
-            cr.move_to(x, 1.5f64 * self.half_range.as_f64());
-            cr.line_to(x, self.full_range.as_f64());
+            cr.move_to(x, 1.5f64 * self.half_range_y);
+            cr.line_to(x, self.full_range_y);
             cr.stroke();
         }
 
@@ -940,15 +910,15 @@ impl WaveformImage {
             AMPLITUDE_0_COLOR.2,
         );
 
-        cr.move_to(first_x, self.half_range.as_f64());
-        cr.line_to(last_x, self.half_range.as_f64());
+        cr.move_to(first_x, self.half_range_y);
+        cr.line_to(last_x, self.half_range_y);
         cr.stroke();
     }
 
     // clear samples previously rendered
     fn clear_area(&self, cr: &cairo::Context, first_x: f64, limit_x: f64) {
         cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
-        cr.rectangle(first_x, 0f64, limit_x - first_x, self.full_range.as_f64());
+        cr.rectangle(first_x, 0f64, limit_x - first_x, self.full_range_y);
         cr.fill();
     }
 }
