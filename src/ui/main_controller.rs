@@ -495,7 +495,8 @@ impl MainController {
                     self.refresh();
                 }
                 ControllerState::TwoStepsSeek(target) => {
-                    self.seek(*target, gst::SeekFlags::ACCURATE);
+                    let target = target.clone(); // let go the reference on `self.state`
+                    self.seek(target, gst::SeekFlags::ACCURATE);
                 }
                 ControllerState::PendingSelectMedia => {
                     self.select_media();
