@@ -2,7 +2,7 @@ use gstreamer_audio as gst_audio;
 use gstreamer_audio::AudioChannelPosition as Position;
 
 // Inline length for `SmallVec`s with channels.
-pub const INLINE_CHANNELS: usize = 8;
+pub const INLINE_CHANNELS: usize = 5 + 1;
 
 pub enum AudioChannelSide {
     Center,
