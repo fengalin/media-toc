@@ -956,6 +956,7 @@ impl WaveformImage {
 #[cfg(test)]
 mod tests {
     //use env_logger;
+    use byteorder::{ByteOrder, LittleEndian};
     use gstreamer as gst;
     use gstreamer_audio as gst_audio;
     use gstreamer_audio::AUDIO_FORMAT_S16;
@@ -971,6 +972,7 @@ mod tests {
 
     const OUT_DIR: &str = "target/test";
     const SAMPLE_RATE: u32 = 300;
+    const SAMPLE_DURATION: Duration = Duration::from_frequency(SAMPLE_RATE as u64);
     const SAMPLE_WINDOW: SampleIndexRange = SampleIndexRange::new(300);
     const SAMPLE_DYN: i32 = 300;
 
@@ -1017,20 +1019,60 @@ mod tests {
     // which would be rendered as a diagonal on a Waveform image
     // from left top corner to right bottom of the target image
     // if all samples are rendered in the range [0:SAMPLE_RATE]
-    fn build_buffer(lower_value: usize, upper_value: usize) -> Vec<[i16; 2]> {
-        let mut buffer: Vec<[i16; 2]> = Vec::with_capacity(upper_value - lower_value);
-        for index in lower_value..upper_value {
-            let value = (index as f64 / SAMPLE_RATE as f64 * f64::from(std::i16::MAX)) as i16;
-            buffer.push([value, -value]);
+    fn build_buffer(lower_value: usize, upper_value: usize) -> gst::Buffer {
+        let samples_u8_len = (upper_value - lower_value) * 2 * 2;
+
+        let mut buffer = gst::Buffer::with_size(samples_u8_len).unwrap();
+        {
+            let buffer_mut = buffer.get_mut().unwrap();
+
+            let mut buffer_map = buffer_mut.map_writable().unwrap();
+            let buffer_slice = buffer_map.as_mut();
+
+            let mut buf_u8 = [0; 2];
+            for index in lower_value..upper_value {
+                for channel in 0..2 {
+                    let mut value =
+                        (index as f64 / SAMPLE_RATE as f64 * f64::from(std::i16::MAX)) as i16;
+                    if channel != 0 {
+                        value = -value;
+                    }
+
+                    LittleEndian::write_i16(&mut buf_u8, value);
+                    let offset = (((index - lower_value) * 2) + channel) * 2;
+                    buffer_slice[offset] = buf_u8[0];
+                    buffer_slice[offset + 1] = buf_u8[1];
+                }
+            }
         }
+
         buffer
+    }
+
+    fn push_test_buffer(
+        audio_buffer: &mut AudioBuffer,
+        mut buffer: gst::Buffer,
+        segment_lower: SampleIndex,
+        is_new_segment: bool,
+    ) {
+        let pts = segment_lower.get_ts(SAMPLE_DURATION);
+        {
+            let buffer_mut = buffer.get_mut().unwrap();
+            buffer_mut.set_pts(gst::ClockTime::from_nseconds(pts.as_u64()));
+        }
+
+        if is_new_segment {
+            audio_buffer.have_gst_segment(pts);
+        }
+
+        audio_buffer.push_gst_buffer(&buffer, SampleIndex::default()); // never drain buffer in this test
     }
 
     fn render_with_samples(
         prefix: &str,
         waveform: &mut WaveformImage,
         audio_buffer: &mut AudioBuffer,
-        incoming_samples: Vec<[i16; 2]>,
+        buffer: gst::Buffer,
         lower: SampleIndex,
         is_new_segement: bool,
         sample_window: SampleIndexRange,
@@ -1041,9 +1083,8 @@ mod tests {
         info!("*** {}", prefix);
 
         let incoming_lower = lower;
-        let incoming_upper = lower + SampleIndexRange::new(incoming_samples.len());
-
-        audio_buffer.push_samples(incoming_samples, lower, is_new_segement);
+        let incoming_upper = lower + SampleIndexRange::new(buffer.get_size() / 2 / 2);
+        push_test_buffer(audio_buffer, buffer, lower, is_new_segement);
 
         let (lower_to_extract, upper_to_extract) = if can_scroll {
             // scrolling is allowed
