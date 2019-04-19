@@ -5,6 +5,7 @@ mod application;
 use crate::application::{init_locale, run};
 mod media;
 mod metadata;
+mod renderers;
 mod ui;
 
 fn main() {

@@ -13,10 +13,11 @@ use crate::{
     media::{Duration, PlaybackPipeline, Timestamp},
     metadata,
     metadata::{MediaInfo, Timestamp4Humans},
+    renderers::Image,
 };
 
 use super::{
-    ChapterTreeManager, ChaptersBoundaries, ControllerState, Image, PositionStatus, UIController,
+    ChapterTreeManager, ChaptersBoundaries, ControllerState, PositionStatus, UIController,
     UIEventSender,
 };
 
