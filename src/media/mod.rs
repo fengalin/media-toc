@@ -46,6 +46,7 @@ pub enum MediaEvent {
     Eos,
     FailedToOpenMedia(String),
     FailedToExport(String),
+    GLSinkError,
     InitDone,
     MissingPlugin(String),
     ReadyForRefresh,

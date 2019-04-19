@@ -540,6 +540,21 @@ impl MainController {
                 }
                 self.show_error(error);
             }
+            MediaEvent::GLSinkError => {
+                self.pipeline = None;
+                self.state = ControllerState::Stopped;
+                self.reset_cursor();
+
+                let mut config = CONFIG.write().expect("Failed to get CONFIG as mut");
+                config.media.is_gl_disabled = true;
+                config.save();
+
+                keep_going = false;
+
+                self.show_error(gettext(
+"Video rendering hardware acceleration seems broken and has been disabled.\nPlease restart the application.",
+                ));
+            }
             _ => (),
         }
 
