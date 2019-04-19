@@ -22,12 +22,10 @@ use crate::{
         DoubleAudioBuffer, Duration, PlaybackPipeline, SampleExtractor, Timestamp, QUEUE_SIZE,
     },
     metadata::MediaInfo,
+    renderers::{DoubleWaveformBuffer, WaveformBuffer, BACKGROUND_COLOR},
 };
 
-use super::{
-    ChaptersBoundaries, DoubleWaveformBuffer, UIController, UIEventSender, WaveformBuffer,
-    BACKGROUND_COLOR,
-};
+use super::{ChaptersBoundaries, UIController, UIEventSender};
 
 const BUFFER_DURATION: Duration = Duration::from_secs(60);
 const INIT_REQ_DURATION_FOR_1000PX: Duration = Duration::from_secs(4);

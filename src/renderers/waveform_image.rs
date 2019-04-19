@@ -968,7 +968,7 @@ mod tests {
     use crate::media::{
         AudioBuffer, AudioChannel, AudioChannelSide, Duration, SampleIndex, SampleIndexRange,
     };
-    use crate::ui::WaveformImage;
+    use super::WaveformImage;
 
     const OUT_DIR: &str = "target/test";
     const SAMPLE_RATE: u32 = 300;

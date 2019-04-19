@@ -21,9 +21,6 @@ use self::info_controller::InfoController;
 mod info_dispatcher;
 use self::info_dispatcher::InfoDispatcher;
 
-mod image;
-use self::image::Image;
-
 pub mod main_controller;
 pub use self::main_controller::{ControllerState, MainController};
 pub mod main_dispatcher;
@@ -59,12 +56,6 @@ mod video_controller;
 use self::video_controller::VideoController;
 mod video_dispatcher;
 use self::video_dispatcher::VideoDispatcher;
-
-pub mod waveform_buffer;
-pub use self::waveform_buffer::{DoubleWaveformBuffer, ImagePositions, WaveformBuffer};
-
-pub mod waveform_image;
-pub use self::waveform_image::{WaveformImage, BACKGROUND_COLOR};
 
 #[derive(PartialEq)]
 pub enum PositionStatus {
