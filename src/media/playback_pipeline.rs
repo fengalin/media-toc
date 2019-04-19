@@ -15,7 +15,7 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use crate::{application::CONFIG, metadata::MediaInfo};
+use crate::metadata::MediaInfo;
 
 use super::{DoubleAudioBuffer, Duration, MediaEvent, PlaybackState, Timestamp};
 
@@ -488,28 +488,21 @@ impl PlaybackPipeline {
                         .lock()
                         .unwrap()
                         .set_state(gst::State::Paused);
-                    sender
-                        .send(MediaEvent::Eos)
-                        .expect("Failed to notify UI");
+                    sender.send(MediaEvent::Eos).expect("Failed to notify UI");
                 }
                 gst::MessageView::Error(err) => {
-                    let msg = if "sink" == err.get_src().unwrap().get_name() {
+                    if "sink" == err.get_src().unwrap().get_name() {
+                        // Failure detected on a sink, this occurs when the GL sink
+                        // can't operate properly
                         // TODO: make sure this only occurs in this particular case
-                        {
-                            let mut config = CONFIG.write().expect("Failed to get CONFIG as mut");
-                            config.media.is_gl_disabled = true;
-                            // Save the config as soon as possible in case something bad occurs
-                            // due to the gl sink
-                            config.save();
-                        }
-
-                        gettext(
-"Video rendering hardware acceleration seems broken and has been disabled.\nPlease restart the application.",
-                        )
+                        sender.send(MediaEvent::GLSinkError).unwrap();
                     } else {
-                        err.get_error().description().to_owned()
-                    };
-                    sender.send(MediaEvent::FailedToOpenMedia(msg)).unwrap();
+                        sender
+                            .send(MediaEvent::FailedToOpenMedia(
+                                err.get_error().description().to_owned(),
+                            ))
+                            .unwrap();
+                    }
                     return glib::Continue(false);
                 }
                 gst::MessageView::Element(element_msg) => {
@@ -526,37 +519,35 @@ impl PlaybackPipeline {
                             .unwrap();
                     }
                 }
-                gst::MessageView::AsyncDone(_) => {
-                    match pipeline_state {
-                        PipelineState::Playable(playback_state) => {
-                            sender
-                                .send(MediaEvent::AsyncDone(playback_state))
-                                .expect("Failed to notify UI");
-                        }
-                        PipelineState::StreamsSelected => {
-                            pipeline_state = PipelineState::Playable(PlaybackState::Paused);
-                            let duration = pipeline
-                                .query_duration::<gst::ClockTime>()
-                                .unwrap_or_else(|| 0.into())
-                                .nanoseconds()
-                                .unwrap();
-                            info_arc_mtx
-                                .write()
-                                .expect("Failed to lock media info while setting duration")
-                                .duration = duration;
-
-                            dbl_audio_buffer_mtx
-                                .lock()
-                                .unwrap()
-                                .set_state(gst::State::Paused);
-
-                            sender
-                                .send(MediaEvent::InitDone)
-                                .expect("Failed to notify UI");
-                        }
-                        _ => (),
+                gst::MessageView::AsyncDone(_) => match pipeline_state {
+                    PipelineState::Playable(playback_state) => {
+                        sender
+                            .send(MediaEvent::AsyncDone(playback_state))
+                            .expect("Failed to notify UI");
                     }
-                }
+                    PipelineState::StreamsSelected => {
+                        pipeline_state = PipelineState::Playable(PlaybackState::Paused);
+                        let duration = pipeline
+                            .query_duration::<gst::ClockTime>()
+                            .unwrap_or_else(|| 0.into())
+                            .nanoseconds()
+                            .unwrap();
+                        info_arc_mtx
+                            .write()
+                            .expect("Failed to lock media info while setting duration")
+                            .duration = duration;
+
+                        dbl_audio_buffer_mtx
+                            .lock()
+                            .unwrap()
+                            .set_state(gst::State::Paused);
+
+                        sender
+                            .send(MediaEvent::InitDone)
+                            .expect("Failed to notify UI");
+                    }
+                    _ => (),
+                },
                 gst::MessageView::StateChanged(msg_state_changed) => {
                     if let PipelineState::Playable(_) = pipeline_state {
                         if let Some(source) = msg_state_changed.get_src() {
@@ -570,7 +561,8 @@ impl PlaybackPipeline {
                                         .lock()
                                         .unwrap()
                                         .set_state(gst::State::Playing);
-                                    pipeline_state = PipelineState::Playable(PlaybackState::Playing);
+                                    pipeline_state =
+                                        PipelineState::Playable(PlaybackState::Playing);
                                 }
                                 gst::State::Paused => {
                                     if msg_state_changed.get_old() != gst::State::Paused {
@@ -580,32 +572,31 @@ impl PlaybackPipeline {
                                             dbl_audio_buffer.set_state(gst::State::Paused);
                                             dbl_audio_buffer.refresh();
                                         }
-                                        pipeline_state = PipelineState::Playable(PlaybackState::Paused);
+                                        pipeline_state =
+                                            PipelineState::Playable(PlaybackState::Paused);
                                         sender.send(MediaEvent::ReadyForRefresh).unwrap();
                                     }
                                 }
                                 _ => unreachable!(format!(
                                     "PlaybackPipeline bus inspector, `StateChanged` to {:?}",
                                     msg_state_changed.get_current(),
-                                ))
+                                )),
                             }
                         }
                     }
                 }
-                gst::MessageView::Tag(msg_tag) => {
-                    match pipeline_state {
-                        PipelineState::Playable(_) => (),
-                        _ => {
-                            let tags = msg_tag.get_tags();
-                            if tags.get_scope() == gst::TagScope::Global {
-                                info_arc_mtx
-                                    .write()
-                                    .expect("Failed to lock media info while receiving tags")
-                                    .add_tags(&tags);
-                            }
+                gst::MessageView::Tag(msg_tag) => match pipeline_state {
+                    PipelineState::Playable(_) => (),
+                    _ => {
+                        let tags = msg_tag.get_tags();
+                        if tags.get_scope() == gst::TagScope::Global {
+                            info_arc_mtx
+                                .write()
+                                .expect("Failed to lock media info while receiving tags")
+                                .add_tags(&tags);
                         }
                     }
-                }
+                },
                 gst::MessageView::Toc(msg_toc) => {
                     match pipeline_state {
                         PipelineState::Playable(_) => (),
@@ -622,44 +613,40 @@ impl PlaybackPipeline {
                         }
                     }
                 }
-                gst::MessageView::StreamsSelected(msg_streams_selected) => {
-                    match pipeline_state {
-                        PipelineState::Playable(_) => {
-                            sender.send(MediaEvent::StreamsSelected).unwrap();
-                        }
-                        PipelineState::None => {
-                            let stream_collection = msg_streams_selected.get_stream_collection();
-                            let has_usable_streams = {
-                                let info = &mut info_arc_mtx
-                                    .write()
-                                    .expect("Failed to lock media `info` in `StreamsSelected`");
-
-                                stream_collection
-                                    .iter()
-                                    .for_each(|stream| {
-                                        info.add_stream(&stream)
-                                    });
-
-                                info.streams.is_audio_selected() || info.streams.is_video_selected()
-                            };
-
-                            if has_usable_streams {
-                                pipeline_state = PipelineState::StreamsSelected;
-                            } else {
-                                sender
-                                    .send(MediaEvent::FailedToOpenMedia(gettext(
-                                        "No usable streams could be found.",
-                                    )))
-                                    .unwrap();
-                                return glib::Continue(false);
-                            }
-                        }
-                        PipelineState::StreamsSelected => unreachable!(concat!(
-                            "PlaybackPipeline received msg `StreamsSelected` while already ",
-                            "being in state `StreamsSelected`",
-                        ))
+                gst::MessageView::StreamsSelected(msg_streams_selected) => match pipeline_state {
+                    PipelineState::Playable(_) => {
+                        sender.send(MediaEvent::StreamsSelected).unwrap();
                     }
-                }
+                    PipelineState::None => {
+                        let stream_collection = msg_streams_selected.get_stream_collection();
+                        let has_usable_streams = {
+                            let info = &mut info_arc_mtx
+                                .write()
+                                .expect("Failed to lock media `info` in `StreamsSelected`");
+
+                            stream_collection
+                                .iter()
+                                .for_each(|stream| info.add_stream(&stream));
+
+                            info.streams.is_audio_selected() || info.streams.is_video_selected()
+                        };
+
+                        if has_usable_streams {
+                            pipeline_state = PipelineState::StreamsSelected;
+                        } else {
+                            sender
+                                .send(MediaEvent::FailedToOpenMedia(gettext(
+                                    "No usable streams could be found.",
+                                )))
+                                .unwrap();
+                            return glib::Continue(false);
+                        }
+                    }
+                    PipelineState::StreamsSelected => unreachable!(concat!(
+                        "PlaybackPipeline received msg `StreamsSelected` while already ",
+                        "being in state `StreamsSelected`",
+                    )),
+                },
                 _ => (),
             }
 
