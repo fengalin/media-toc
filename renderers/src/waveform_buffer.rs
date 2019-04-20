@@ -65,10 +65,10 @@ pub struct WaveformBuffer {
     image: WaveformImage,
 
     previous_sample: Option<SampleIndex>,
-    cursor_sample: SampleIndex, // The sample idx currently under the cursor (might be different from
+    pub cursor_sample: SampleIndex, // The sample idx currently under the cursor (might be different from
     // current sample idx during seeks)
     cursor_ts: Timestamp,
-    first_visible_sample: Option<SampleIndex>,
+    pub first_visible_sample: Option<SampleIndex>,
     first_visible_sample_lock: Option<(SampleIndex, LockState)>,
 
     // During playback, we take advantage of the running time and thus
@@ -111,7 +111,7 @@ impl WaveformBuffer {
         }
     }
 
-    fn reset(&mut self) {
+    pub fn reset(&mut self) {
         debug!("{}_reset", self.image.id);
 
         self.conditions_changed = false;
