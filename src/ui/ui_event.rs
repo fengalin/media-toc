@@ -3,7 +3,7 @@ use gstreamer as gst;
 use gtk;
 use std::{borrow::Cow, path::PathBuf, rc::Rc};
 
-use crate::media::Timestamp;
+use media::Timestamp;
 
 #[derive(Clone)]
 pub enum UIEvent {

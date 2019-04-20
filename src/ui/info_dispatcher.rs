@@ -6,11 +6,8 @@ use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::application::CONFIG;
-
-use crate::with_main_ctrl;
-
 use super::{MainController, UIDispatcher};
+use crate::{application::CONFIG, with_main_ctrl};
 
 pub struct InfoDispatcher;
 impl UIDispatcher for InfoDispatcher {

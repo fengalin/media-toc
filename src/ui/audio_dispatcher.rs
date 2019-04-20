@@ -6,9 +6,10 @@ use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{media::Timestamp, with_main_ctrl};
+use media::Timestamp;
 
 use super::{audio_controller::ControllerState, MainController, PositionStatus, UIDispatcher};
+use crate::with_main_ctrl;
 
 pub struct AudioDispatcher;
 impl UIDispatcher for AudioDispatcher {

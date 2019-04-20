@@ -4,7 +4,7 @@ use std::{
     ops::{Add, Sub},
 };
 
-use crate::metadata::Timestamp4Humans;
+use metadata::Timestamp4Humans;
 
 use super::{Duration, SampleIndex};
 

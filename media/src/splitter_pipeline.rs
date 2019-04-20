@@ -13,7 +13,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::metadata::Format;
+use metadata::Format;
 
 use super::{MediaEvent, Timestamp};
 
@@ -105,7 +105,7 @@ impl SplitterPipeline {
         debug!("stream id {}", &stream_id);
 
         let mut this = SplitterPipeline {
-            pipeline: gst::Pipeline::new("splitter_pipeline"),
+            pipeline: gst::Pipeline::new(Some("splitter_pipeline")),
             format,
             chapter,
         };
@@ -267,7 +267,7 @@ impl SplitterPipeline {
         }
 
         // Output sink
-        let outsink = gst::ElementFactory::make("filesink", "filesink").unwrap();
+        let outsink = gst::ElementFactory::make("filesink", Some("filesink")).unwrap();
         outsink
             .set_property("location", &gst::Value::from(output_path.to_str().unwrap()))
             .unwrap();
@@ -297,7 +297,8 @@ impl SplitterPipeline {
                         .get_stream_id()
                         .expect("SplitterPipeline::build_pipeline no stream_id for audio src pad")
             {
-                let audio_conv = gst::ElementFactory::make("audioconvert", "audioconvert").unwrap();
+                let audio_conv =
+                    gst::ElementFactory::make("audioconvert", Some("audioconvert")).unwrap();
                 pipeline_cb.add(&audio_conv).unwrap();
                 gst::Element::link_many(&[&queue, &audio_conv, &audio_enc]).unwrap();
                 audio_conv.sync_state_with_parent().unwrap();

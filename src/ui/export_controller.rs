@@ -11,17 +11,15 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::{
-    application::CommandLineArguments,
-    media::{MediaEvent, PlaybackPipeline, TocSetterPipeline},
-    metadata,
-    metadata::{Exporter, Format, MatroskaTocFormat, MediaInfo},
-};
+use media::{MediaEvent, PlaybackPipeline, TocSetterPipeline};
+use metadata;
+use metadata::{Exporter, Format, MatroskaTocFormat, MediaInfo};
 
 use super::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
     ProcessingState, ProcessingType, UIController, UIEventSender,
 };
+use crate::application::CommandLineArguments;
 
 pub type ExportController = OutputBaseController<ExportControllerImpl>;
 

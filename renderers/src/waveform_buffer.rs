@@ -8,7 +8,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::media::{
+use media::{
     sample_extractor::SampleExtractionState, AudioBuffer, AudioChannel, DoubleAudioBuffer,
     Duration, SampleExtractor, SampleIndex, SampleIndexRange, Timestamp,
 };

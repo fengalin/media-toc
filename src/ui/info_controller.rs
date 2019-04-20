@@ -8,18 +8,16 @@ use log::{info, warn};
 
 use std::{cell::RefCell, fs::File, rc::Rc};
 
-use crate::{
-    application::{CommandLineArguments, CONFIG},
-    media::{Duration, PlaybackPipeline, Timestamp},
-    metadata,
-    metadata::{MediaInfo, Timestamp4Humans},
-    renderers::Image,
-};
+use media::{Duration, PlaybackPipeline, Timestamp};
+use metadata;
+use metadata::{MediaInfo, Timestamp4Humans};
+use renderers::Image;
 
 use super::{
     ChapterTreeManager, ChaptersBoundaries, ControllerState, PositionStatus, UIController,
     UIEventSender,
 };
+use crate::application::{CommandLineArguments, CONFIG};
 
 const GO_TO_PREV_CHAPTER_THRESHOLD: Duration = Duration::from_secs(1);
 

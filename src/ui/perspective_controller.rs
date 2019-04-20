@@ -1,9 +1,11 @@
 use gtk;
 use gtk::prelude::*;
 
-use crate::{application::CommandLineArguments, media::PlaybackPipeline, metadata::MediaInfo};
+use media::PlaybackPipeline;
+use metadata::MediaInfo;
 
 use super::UIController;
+use crate::application::CommandLineArguments;
 
 pub struct PerspectiveController {
     pub(super) menu_btn: gtk::MenuButton,

@@ -11,7 +11,7 @@ use std::{
     io::ErrorKind,
 };
 
-use crate::media::{
+use media::{
     AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex, SampleIndexRange, SampleValue,
     INLINE_CHANNELS,
 };
@@ -27,7 +27,7 @@ const INIT_WIDTH: i32 = 2000;
 const INIT_HEIGHT: i32 = 500;
 
 #[cfg(feature = "dump-waveform")]
-const WAVEFORM_DUMP_DIR: &str = "target/waveforms";
+const WAVEFORM_DUMP_DIR: &str = "../target/waveforms";
 
 pub struct WaveformSample {
     pub x: f64,
@@ -965,12 +965,13 @@ mod tests {
     use std::fs::{create_dir, File};
     use std::io::ErrorKind;
 
-    use crate::media::{
+    use media::{
         AudioBuffer, AudioChannel, AudioChannelSide, Duration, SampleIndex, SampleIndexRange,
     };
+
     use super::WaveformImage;
 
-    const OUT_DIR: &str = "target/test";
+    const OUT_DIR: &str = "../target/test";
     const SAMPLE_RATE: u32 = 300;
     const SAMPLE_DURATION: Duration = Duration::from_frequency(SAMPLE_RATE as u64);
     const SAMPLE_WINDOW: SampleIndexRange = SampleIndexRange::new(300);
