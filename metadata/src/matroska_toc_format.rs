@@ -41,7 +41,7 @@ impl Exporter for MatroskaTocFormat {
                 .dynamic_cast::<gst::TocSetter>()
                 .expect("MatroskaTocFormat::export muxer is not a TocSetter");
 
-            toc_setter.set_toc(toc);
+            toc_setter.set_toc(Some(toc));
         }
     }
 }

@@ -3,7 +3,7 @@ use log::debug;
 
 use std::{collections::BTreeMap, ops::Deref};
 
-use crate::media::Timestamp;
+use media::Timestamp;
 
 #[derive(Clone, Debug)]
 pub struct Chapter {

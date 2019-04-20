@@ -561,10 +561,11 @@ mod tests {
     use gstreamer_audio::AUDIO_FORMAT_S16;
     use log::{debug, info};
 
-    use crate::i16_to_sample_value;
-    use crate::media::{
-        AudioBuffer, Duration, SampleIndex, SampleIndexRange, SampleValue, Timestamp,
+    use crate::{
+        i16_to_sample_value, Duration, SampleIndex, SampleIndexRange, SampleValue, Timestamp,
     };
+
+    use super::AudioBuffer;
 
     const SAMPLE_RATE: u32 = 300;
     const SAMPLE_DURATION: Duration = Duration::from_frequency(SAMPLE_RATE as u64);

@@ -8,10 +8,8 @@ use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{
-    media::Timestamp,
-    metadata::{get_default_chapter_title, Timestamp4Humans, TocVisitor},
-};
+use media::Timestamp;
+use metadata::{get_default_chapter_title, Timestamp4Humans, TocVisitor};
 
 use super::{ChaptersBoundaries, PositionStatus};
 

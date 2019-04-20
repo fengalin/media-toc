@@ -1,0 +1,46 @@
+APP_ID=org.fengalin.media-toc
+
+mkdir -p res/icons/hicolor/scalable/apps/
+cp res/icons/src/media-toc-square.svg \
+	res/icons/hicolor/scalable/apps/$APP_ID.svg
+cp res/icons/src/media-toc-symbolic-small.svg \
+	res/icons/hicolor/scalable/apps/$APP_ID-symbolic.svg
+
+for XY in 16 24 32 48; do
+    mkdir -p res/icons/hicolor/"$XY"x"$XY"/apps/
+    inkscape --without-gui \
+    	-w$XY -h$XY \
+    	--export-png=res/icons/hicolor/"$XY"x"$XY"/apps/$APP_ID.png \
+    	res/icons/src/media-toc-square-small.svg
+    inkscape --without-gui \
+    	-w$XY -h$XY \
+    	--export-png=res/icons/hicolor/"$XY"x"$XY"/apps/$APP_ID-symbolic.symbolic.png \
+    	res/icons/src/media-toc-symbolic-small.svg
+done
+
+XY=64
+mkdir -p res/icons/hicolor/"$XY"x"$XY"/apps/
+inkscape --without-gui \
+    -w$XY -h$XY \
+    --export-png=res/icons/hicolor/"$XY"x"$XY"/apps/$APP_ID.png \
+    res/icons/src/media-toc-square.svg
+inkscape --without-gui \
+    -w$XY -h$XY \
+    --export-png=res/icons/hicolor/"$XY"x"$XY"/apps/$APP_ID-symbolic.symbolic.png \
+    res/icons/src/media-toc-symbolic-small.svg
+
+for XY in 128 256 512; do
+    mkdir -p res/icons/hicolor/"$XY"x"$XY"/apps/
+
+    XY=$XY APP_ID=$APP_ID blender --background \
+    	-b res/icons/src/media-toc.blend \
+    	--python res/icons/render_image.py
+
+    inkscape --without-gui \
+    	-w$XY -h$XY \
+    	--export-png=res/icons/hicolor/"$XY"x"$XY"/apps/$APP_ID-symbolic.symbolic.png \
+    	res/icons/src/media-toc-symbolic.svg
+done
+
+mkdir -p res/icons/banner
+convert -trim res/icons/hicolor/512x512/apps/$APP_ID.png res/icons/banner/$APP_ID.png

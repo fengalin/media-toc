@@ -1,15 +1,15 @@
 # List of source files containing translatable strings.
 # Please keep this file sorted alphabetically.
 assets/ui/media-toc.ui
+media/src/playback_pipeline.rs
+media/src/splitter_pipeline.rs
+media/src/toc_setter_pipeline.rs
+metadata/src/cue_sheet_format.rs
+metadata/src/media_info.rs
+metadata/src/mkvmerge_text_format.rs
 src/application/command_line.rs
 src/application/configuration.rs
 src/main.rs
-src/media/playback_pipeline.rs
-src/media/splitter_pipeline.rs
-src/media/toc_setter_pipeline.rs
-src/metadata/cue_sheet_format.rs
-src/metadata/media_info.rs
-src/metadata/mkvmerge_text_format.rs
 src/ui/chapter_tree_manager.rs
 src/ui/audio_controller.rs
 src/ui/audio_dispatcher.rs

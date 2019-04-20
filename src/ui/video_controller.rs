@@ -5,12 +5,10 @@ use gtk;
 use gtk::prelude::*;
 use log::debug;
 
-use crate::{
-    application::{CommandLineArguments, CONFIG},
-    metadata::MediaInfo,
-};
+use metadata::MediaInfo;
 
 use super::UIController;
+use crate::application::{CommandLineArguments, CONFIG};
 
 pub struct VideoOutput {
     sink: gst::Element,
@@ -26,8 +24,8 @@ pub struct VideoController {
 impl UIController for VideoController {
     fn setup(&mut self, args: &CommandLineArguments) {
         self.video_output = if !args.disable_gl && !CONFIG.read().unwrap().media.is_gl_disabled {
-            gst::ElementFactory::make("gtkglsink", "gtkglsink").map(|gtkglsink| {
-                let glsinkbin = gst::ElementFactory::make("glsinkbin", "video_sink")
+            gst::ElementFactory::make("gtkglsink", Some("gtkglsink")).map(|gtkglsink| {
+                let glsinkbin = gst::ElementFactory::make("glsinkbin", Some("video_sink"))
                     .expect("PlaybackPipeline: couldn't get `glsinkbin` from `gtkglsink`");
                 glsinkbin
                     .set_property("sink", &gtkglsink.to_value())
@@ -47,7 +45,7 @@ impl UIController for VideoController {
             None
         }
         .or_else(|| {
-            gst::ElementFactory::make("gtksink", "video_sink").map(|sink| {
+            gst::ElementFactory::make("gtksink", Some("video_sink")).map(|sink| {
                 debug!("Using gtksink");
                 VideoOutput {
                     sink: sink.clone(),

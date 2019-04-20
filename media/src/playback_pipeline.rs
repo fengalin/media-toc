@@ -15,7 +15,7 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use crate::metadata::MediaInfo;
+use metadata::MediaInfo;
 
 use super::{DoubleAudioBuffer, Duration, MediaEvent, PlaybackState, Timestamp};
 
@@ -59,8 +59,8 @@ impl PlaybackPipeline {
         );
 
         let mut this = PlaybackPipeline {
-            pipeline: gst::Pipeline::new("playback_pipeline"),
-            decodebin: gst::ElementFactory::make("decodebin3", "decodebin").unwrap(),
+            pipeline: gst::Pipeline::new(Some("playback_pipeline")),
+            decodebin: gst::ElementFactory::make("decodebin3", Some("decodebin")).unwrap(),
             dbl_audio_buffer_mtx: Arc::clone(dbl_audio_buffer_mtx),
 
             info: Arc::new(RwLock::new(MediaInfo::new(path))),
@@ -264,14 +264,15 @@ impl PlaybackPipeline {
             .set_property("use-interleave", &false)
             .unwrap();
 
-        let file_src = gst::ElementFactory::make("filesrc", "filesrc").unwrap();
+        let file_src = gst::ElementFactory::make("filesrc", Some("filesrc")).unwrap();
         file_src
             .set_property("location", &gst::Value::from(path.to_str().unwrap()))
             .unwrap();
         self.pipeline.add(&file_src).unwrap();
         file_src.link(&self.decodebin).unwrap();
 
-        let audio_sink = gst::ElementFactory::make("autoaudiosink", "audio_playback_sink").unwrap();
+        let audio_sink =
+            gst::ElementFactory::make("autoaudiosink", Some("audio_playback_sink")).unwrap();
 
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
@@ -316,13 +317,14 @@ impl PlaybackPipeline {
         info_rwlck: &Arc<RwLock<MediaInfo>>,
         sender_mtx: &Arc<Mutex<glib::Sender<MediaEvent>>>,
     ) {
-        let playback_queue = gst::ElementFactory::make("queue", "audio_playback_queue").unwrap();
+        let playback_queue =
+            gst::ElementFactory::make("queue", Some("audio_playback_queue")).unwrap();
         PlaybackPipeline::setup_queue(&playback_queue);
 
         let playback_convert =
-            gst::ElementFactory::make("audioconvert", "playback_audioconvert").unwrap();
+            gst::ElementFactory::make("audioconvert", Some("playback_audioconvert")).unwrap();
         let playback_resample =
-            gst::ElementFactory::make("audioresample", "playback_audioresample").unwrap();
+            gst::ElementFactory::make("audioresample", Some("playback_audioresample")).unwrap();
         let playback_sink_pad = playback_queue.get_static_pad("sink").unwrap();
         let playback_elements = &[
             &playback_queue,
@@ -331,15 +333,15 @@ impl PlaybackPipeline {
             audio_sink,
         ];
 
-        let waveform_queue = gst::ElementFactory::make("queue2", "waveform_queue").unwrap();
+        let waveform_queue = gst::ElementFactory::make("queue2", Some("waveform_queue")).unwrap();
         PlaybackPipeline::setup_queue(&waveform_queue);
 
-        let waveform_sink = gst::ElementFactory::make("fakesink", "waveform_sink").unwrap();
+        let waveform_sink = gst::ElementFactory::make("fakesink", Some("waveform_sink")).unwrap();
         let waveform_sink_pad = waveform_queue.get_static_pad("sink").unwrap();
 
         {
             let waveform_elements = &[&waveform_queue, &waveform_sink];
-            let tee = gst::ElementFactory::make("tee", "audio_tee").unwrap();
+            let tee = gst::ElementFactory::make("tee", Some("audio_tee")).unwrap();
             let mut elements = vec![&tee];
             elements.extend_from_slice(playback_elements);
             elements.extend_from_slice(waveform_elements);
@@ -454,7 +456,7 @@ impl PlaybackPipeline {
         src_pad: &gst::Pad,
         video_sink: &gst::Element,
     ) {
-        let queue = gst::ElementFactory::make("queue", "video_queue").unwrap();
+        let queue = gst::ElementFactory::make("queue", Some("video_queue")).unwrap();
         PlaybackPipeline::setup_queue(&queue);
         let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
         let scale = gst::ElementFactory::make("videoscale", None).unwrap();

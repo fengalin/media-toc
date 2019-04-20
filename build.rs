@@ -18,7 +18,7 @@ fn generate_resources() {
     create_dir_all(&target_path).unwrap();
 
     // Icons
-    let input_path = PathBuf::from("assets").join("icons").join("hicolor");
+    let input_path = PathBuf::from("res").join("icons").join("hicolor");
 
     let mut compile_res = Command::new("glib-compile-resources");
     compile_res
@@ -48,7 +48,7 @@ fn generate_resources() {
     }
 
     // UI
-    let input_path = PathBuf::from("assets").join("ui");
+    let input_path = PathBuf::from("res").join("ui");
 
     let mut compile_res = Command::new("glib-compile-resources");
     compile_res
@@ -86,7 +86,8 @@ fn generate_translations() {
             .expect("Couldn't read po/LINGUAS as string");
 
         for lingua in linguas.lines() {
-            let mo_path = PathBuf::from("target")
+            let mo_path = PathBuf::from("..")
+                .join("target")
                 .join("locale")
                 .join(lingua)
                 .join("LC_MESSAGES");
@@ -142,7 +143,8 @@ fn generate_install_script() {
                     .unwrap();
 
                 install_file.write_all(b"\n# Install executable\n").unwrap();
-                let exe_source_path = PathBuf::from("target")
+                let exe_source_path = PathBuf::from("..")
+                    .join("target")
                     .join("release")
                     .join(env!("CARGO_PKG_NAME"));
                 install_file
@@ -162,7 +164,7 @@ fn generate_install_script() {
                 install_file.write_all(b"\n# Install icons\n").unwrap();
                 let icon_target_dir = data_dir.join("icons").join("hicolor");
                 let entry_iter =
-                    read_dir(PathBuf::from("assets").join("icons").join("hicolor")).unwrap();
+                    read_dir(PathBuf::from("res").join("icons").join("hicolor")).unwrap();
                 for entry in entry_iter {
                     let entry = entry.unwrap();
                     let entry_path = entry.path();
@@ -197,7 +199,11 @@ fn generate_install_script() {
                     .write_all(
                         format!(
                             "cp -r {} {}\n",
-                            PathBuf::from("target").join("locale").to_str().unwrap(),
+                            PathBuf::from("..")
+                                .join("target")
+                                .join("locale")
+                                .to_str()
+                                .unwrap(),
                             data_dir.to_str().unwrap(),
                         )
                         .as_bytes(),
@@ -217,7 +223,7 @@ fn generate_install_script() {
                     .write_all(
                         format!(
                             "cp {} {}\n",
-                            PathBuf::from("assets")
+                            PathBuf::from("res")
                                 .join(&format!("org.fengalin.{}.desktop", env!("CARGO_PKG_NAME")))
                                 .to_str()
                                 .unwrap(),
@@ -270,7 +276,7 @@ fn generate_uninstall_script() {
                 install_file.write_all(b"\n# Uninstall icons\n").unwrap();
                 let icon_target_dir = data_dir.join("icons").join("hicolor");
                 let entry_iter =
-                    read_dir(PathBuf::from("assets").join("icons").join("hicolor")).unwrap();
+                    read_dir(PathBuf::from("res").join("icons").join("hicolor")).unwrap();
                 for entry in entry_iter {
                     let entry = entry.unwrap();
                     let entry_path = entry.path();

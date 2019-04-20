@@ -10,16 +10,14 @@ use log::{debug, error, info};
 
 use std::{cell::RefCell, collections::HashSet, path::PathBuf, rc::Rc, sync::Arc};
 
-use crate::{
-    application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG},
-    media::{MediaEvent, PlaybackPipeline, PlaybackState, Timestamp},
-};
+use media::{MediaEvent, PlaybackPipeline, PlaybackState, Timestamp};
 
 use super::{
     AudioController, ChaptersBoundaries, ExportController, InfoController, PerspectiveController,
     PositionStatus, SplitController, StreamsController, UIController, UIEvent, UIEventSender,
     VideoController,
 };
+use crate::application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG};
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
 const PLAYBACK_ICON: &str = "media-playback-start-symbolic";

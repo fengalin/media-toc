@@ -17,13 +17,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::{
-    media::{
-        DoubleAudioBuffer, Duration, PlaybackPipeline, SampleExtractor, Timestamp, QUEUE_SIZE,
-    },
-    metadata::MediaInfo,
-    renderers::{DoubleWaveformBuffer, WaveformBuffer, BACKGROUND_COLOR},
+use media::{
+    DoubleAudioBuffer, Duration, PlaybackPipeline, SampleExtractor, Timestamp, QUEUE_SIZE,
 };
+use metadata::MediaInfo;
+use renderers::{DoubleWaveformBuffer, WaveformBuffer, BACKGROUND_COLOR};
 
 use super::{ChaptersBoundaries, UIController, UIEventSender};
 

@@ -53,7 +53,7 @@ impl TocSetterPipeline {
         );
 
         let mut this = TocSetterPipeline {
-            pipeline: gst::Pipeline::new("toc_setter_pipeline"),
+            pipeline: gst::Pipeline::new(Some("toc_setter_pipeline")),
             muxer: None,
         };
 
@@ -114,7 +114,7 @@ impl TocSetterPipeline {
             .set_property("writing-app", &gst::Value::from("media-toc"))
             .unwrap();
 
-        let filesink = gst::ElementFactory::make("filesink", "filesink").unwrap();
+        let filesink = gst::ElementFactory::make("filesink", Some("filesink")).unwrap();
         filesink
             .set_property("location", &gst::Value::from(output_path.to_str().unwrap()))
             .unwrap();
