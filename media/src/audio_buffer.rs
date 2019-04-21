@@ -5,7 +5,7 @@ use gstreamer as gst;
 use gstreamer_audio as gst_audio;
 use gstreamer_audio::AudioFormat;
 
-use log::{debug, trace};
+use log::debug;
 
 use sample::Sample;
 
@@ -14,124 +14,91 @@ use std::{
     io::{Cursor, Read},
 };
 
-use super::{Duration, SampleIndex, SampleIndexRange, SampleValue, Timestamp};
+use super::{Duration, SampleIndex, SampleIndexRange, SampleValue, Timestamp, INLINE_CHANNELS};
 
-pub struct AudioBuffer {
-    buffer_duration: Duration,
-    capacity: usize,
-    audio_info: Option<gst_audio::AudioInfo>,
-    // FIXME: rate can be a SampleIndexRange
+#[cfg(test)]
+use log::trace;
+
+pub struct StreamState {
+    format: gst_audio::AudioFormat,
     rate: u64,
-    pub sample_duration: Duration,
-    pub channels: usize,
-    bytes_per_sample: usize,
-    // FIXME: drain_size can be a SampleIndexRange once all channels are gathered together
-    drain_size: usize,
+    bytes_per_channel: usize,
+    sample_duration: Duration,
+    channels: usize,
 
-    pub eos: bool,
+    eos: bool,
 
     is_new_segment: bool,
-    pub segment_start: Option<Timestamp>,
-    pub segment_lower: SampleIndex,
+    segment_start: Option<Timestamp>,
+    segment_lower: SampleIndex,
+
+    last_buffer_lower: SampleIndex,
     last_buffer_upper: SampleIndex,
-    pub lower: SampleIndex,
-    pub upper: SampleIndex,
-    pub samples: VecDeque<SampleValue>,
 }
 
-impl AudioBuffer {
-    pub fn new(buffer_duration: Duration) -> Self {
-        AudioBuffer {
-            buffer_duration,
-            capacity: 0,
-            audio_info: None,
+impl StreamState {
+    fn new() -> Self {
+        StreamState {
+            format: gst_audio::AudioFormat::Unknown,
             rate: 0,
-            sample_duration: Duration::default(),
             channels: 0,
-            bytes_per_sample: 0,
-            drain_size: 0,
+            bytes_per_channel: 0,
+            sample_duration: Duration::default(),
 
             eos: false,
 
             is_new_segment: true,
             segment_start: None,
             segment_lower: SampleIndex::default(),
+            last_buffer_lower: SampleIndex::default(),
             last_buffer_upper: SampleIndex::default(),
-            lower: SampleIndex::default(),
-            upper: SampleIndex::default(),
-            samples: VecDeque::new(),
         }
     }
 
-    pub fn init(&mut self, audio_info: gst_audio::AudioInfo) {
-        // assert_eq!(format, S16);
+    fn init(&mut self, audio_info: &gst_audio::AudioInfo) {
         // assert_eq!(layout, Interleaved);
-
-        // changing caps
-        self.cleanup();
-
+        self.format = audio_info.format();
         self.rate = u64::from(audio_info.rate());
-        self.sample_duration = Duration::from_frequency(self.rate);
         self.channels = audio_info.channels() as usize;
-        self.bytes_per_sample = audio_info.width() as usize / 8;
-        self.capacity = self
-            .buffer_duration
-            .get_index_range(self.sample_duration)
-            .as_usize()
-            * self.channels;
-        self.samples = VecDeque::with_capacity(self.capacity);
-        self.drain_size = self.rate as usize * self.channels; // 1s worth of samples
+        self.bytes_per_channel = audio_info.width() as usize / 8;
+        self.sample_duration = Duration::from_frequency(self.rate);
 
-        self.audio_info = Some(audio_info);
-
-        debug!("init rate {}, channels {}", self.rate, self.channels);
+        self.segment_lower = SampleIndex::default();
+        self.last_buffer_lower = SampleIndex::default();
+        self.last_buffer_upper = SampleIndex::default();
     }
 
-    // Clean everything so that the AudioBuffer
-    // can be reused for a different media
-    pub fn cleanup(&mut self) {
-        debug!("cleaning up");
-
+    fn cleanup(&mut self) {
         self.reset();
         self.segment_start = None;
     }
 
-    // Clean the sample buffer
-    // Other characteristics (rate, sample_duration, channels) remain unchanged.
-    pub fn clean_samples(&mut self) {
-        debug!("clean_samples");
-
+    fn forget_past(&mut self) {
         self.eos = false;
         self.is_new_segment = true;
         // don't cleanup self.segment_start in order to maintain continuity
-        self.last_buffer_upper = SampleIndex::default();
         self.segment_lower = SampleIndex::default();
-        self.lower = SampleIndex::default();
-        self.upper = SampleIndex::default();
-        self.samples.clear();
+        self.last_buffer_lower = SampleIndex::default();
+        self.last_buffer_upper = SampleIndex::default();
     }
 
-    // Reset the AudioBuffer keeping continuity
-    // This is required in case of a caps change or stream change
-    // as samples may come in the same segment despite the change.
-    // If the media is paused and then set back to playback, preroll
-    // will be performed in the same segment as before the change.
-    // So we need to keep track of the segment start in order not
-    // to reset current sequence (self.last_buffer_upper).
-    pub fn reset(&mut self) {
-        debug!("resetting");
-
-        self.capacity = 0;
+    fn reset(&mut self) {
+        self.format = gst_audio::AudioFormat::Unknown;
         self.rate = 0;
-        self.sample_duration = Duration::default();
         self.channels = 0;
-        self.drain_size = 0;
-        self.clean_samples();
+        self.bytes_per_channel = 0;
+        self.sample_duration = Duration::default();
     }
 
-    pub fn have_gst_segment(&mut self, segment_start: Timestamp) {
-        debug!("have_gst_segment {}", segment_start);
+    fn set_eos(&mut self) {
+        self.eos = true;
+    }
 
+    fn clear_eos(&mut self) {
+        self.eos = false;
+    }
+
+    fn have_segment(&mut self, segment_start: Timestamp) {
         match self.segment_start {
             Some(current_segment_start) => {
                 if current_segment_start != segment_start {
@@ -146,6 +113,134 @@ impl AudioBuffer {
         self.segment_start = Some(segment_start);
     }
 
+    fn have_buffer(&mut self, buffer: &gst::Buffer) -> SampleIndexRange {
+        let incoming_range =
+            SampleIndexRange::new(buffer.get_size() / self.channels / self.bytes_per_channel);
+
+        // Unfortunately, we can't rely on the gst_buffer pts to figure out
+        // the exact position in the segment. Some streams use a pts
+        // value which is a rounded value to e.g ms and correct
+        // the shift every n samples.
+        // After an accurate seek, the gst_buffer pts seems reliable,
+        // however after a inaccurate seek, we get a rounded value.
+        // The strategy here is to consider that each incoming gst_buffer
+        // in the same segment comes after last gst_buffer (we might need
+        // to check gst_buffer drops for this) and in case of a new segment
+        // we'll rely on the inaccurate pts value...
+
+        self.last_buffer_lower = if self.is_new_segment {
+            self.segment_lower =
+                SampleIndex::from_ts(buffer.get_pts().unwrap().into(), self.sample_duration);
+            self.last_buffer_upper = self.segment_lower;
+            self.is_new_segment = false;
+
+            self.segment_lower
+        } else {
+            self.last_buffer_upper
+        };
+
+        self.last_buffer_upper = self.last_buffer_lower + incoming_range;
+
+        incoming_range
+    }
+}
+
+pub struct AudioBuffer {
+    buffer_duration: Duration,
+    capacity: usize,
+    stream_state: StreamState,
+    // AudioBuffer stores up to INLINE_CHANNELS
+    pub channels: usize,
+    drain_size: usize,
+
+    pub lower: SampleIndex,
+    pub upper: SampleIndex,
+    pub samples: VecDeque<SampleValue>,
+}
+
+impl AudioBuffer {
+    pub fn new(buffer_duration: Duration) -> Self {
+        AudioBuffer {
+            buffer_duration,
+            capacity: 0,
+            stream_state: StreamState::new(),
+            channels: 0,
+            drain_size: 0,
+
+            lower: SampleIndex::default(),
+            upper: SampleIndex::default(),
+            samples: VecDeque::new(),
+        }
+    }
+
+    // FIXME: find more explcite names and rationalize `init`, `cleanup`, `reset`, ...
+    pub fn init(&mut self, audio_info: gst_audio::AudioInfo) {
+        // assert_eq!(layout, Interleaved);
+
+        // changing caps
+        self.cleanup();
+
+        self.stream_state.init(&audio_info);
+        self.channels = INLINE_CHANNELS.min(self.stream_state.channels);
+        self.capacity = self
+            .buffer_duration
+            .get_index_range(self.stream_state.sample_duration)
+            .as_usize()
+            * self.channels;
+        self.samples = VecDeque::with_capacity(self.capacity);
+        self.drain_size = self.stream_state.rate as usize * self.channels; // 1s worth of samples
+
+        debug!(
+            "init rate {}, channels {}",
+            self.stream_state.rate, self.channels
+        );
+    }
+
+    // Clean everything so that the AudioBuffer
+    // can be reused for a different media
+    pub fn cleanup(&mut self) {
+        debug!("cleaning up");
+
+        self.reset();
+        self.stream_state.cleanup();
+    }
+
+    // Clean the sample buffer
+    // Other characteristics (rate, sample_duration, channels) remain unchanged.
+    pub fn clean_samples(&mut self) {
+        debug!("clean_samples");
+        self.stream_state.forget_past();
+        self.lower = SampleIndex::default();
+        self.upper = SampleIndex::default();
+        self.samples.clear();
+    }
+
+    // Reset the AudioBuffer keeping continuity
+    // This is required in case of a caps change or stream change
+    // as samples may come in the same segment despite the change.
+    // If the media is paused and then set back to playback, preroll
+    // will be performed in the same segment as before the change.
+    // So we need to keep track of the segment start in order not
+    // to reset current sequence (self.stream_state.last_buffer_upper).
+    pub fn reset(&mut self) {
+        debug!("resetting");
+
+        self.stream_state.reset();
+        self.capacity = 0;
+        self.channels = 0;
+        self.drain_size = 0;
+        self.clean_samples();
+    }
+
+    pub fn reset_segment_start(&mut self) {
+        self.stream_state.segment_start = None;
+    }
+
+    pub fn have_gst_segment(&mut self, segment_start: Timestamp) {
+        debug!("have_gst_segment {}", segment_start);
+        self.stream_state.have_segment(segment_start);
+    }
+
     // Add samples from the GStreamer pipeline to the AudioBuffer
     // This buffer stores the complete set of samples in a time frame
     // in order to be able to represent the audio at any given precision.
@@ -153,77 +248,54 @@ impl AudioBuffer {
     // Returns: number of samples received
     pub fn push_gst_buffer(
         &mut self,
-        buffer: &gst::Buffer,
+        gst_buffer: &gst::Buffer,
         lower_to_keep: SampleIndex,
     ) -> SampleIndexRange {
-        if self.sample_duration == Duration::default() {
-            debug!("push_gst_buffer sample_duration is null");
+        if self.stream_state.channels == 0 {
+            debug!("push_gst_buffer: audio characterists not defined yet");
             return SampleIndexRange::default();
         }
 
-        let buffer_sample_len =
-            SampleIndexRange::new(buffer.get_size() / self.bytes_per_sample / self.channels);
-
-        // Unfortunately, we can't rely on buffer_pts to figure out
-        // the exact position in the segment. Some streams use a pts
-        // value which is a rounded value to e.g ms and correct
-        // the shift every n samples.
-        // After an accurate seek, the buffer pts seems reliable,
-        // however after a inaccurate seek, we get a rounded value.
-        // The strategy here is to consider that each incoming buffer
-        // in the same segment comes after last buffer (we might need
-        // to check buffer drops for this) and in case of a new segment
-        // we'll rely on the inaccurate pts value...
-
-        if self.is_new_segment {
-            self.segment_lower =
-                SampleIndex::from_ts(buffer.get_pts().unwrap().into(), self.sample_duration);
-            self.last_buffer_upper = self.segment_lower;
-            self.is_new_segment = false;
-        }
-
-        let incoming_lower = self.last_buffer_upper;
-        let incoming_upper = incoming_lower + buffer_sample_len;
+        let incoming_range = self.stream_state.have_buffer(gst_buffer);
+        let incoming_lower = self.stream_state.last_buffer_lower;
+        let incoming_upper = self.stream_state.last_buffer_upper;
 
         struct ProcessingInstructions {
-            lower_changed: bool,
-            incoming_lower: SampleIndex,
+            append_after: bool,
             lower_to_add_rel: SampleIndex,
             upper_to_add_rel: SampleIndex,
         };
 
-        // Identify conditions for this incoming buffer:
-        // 1. Incoming buffer fits at the end of current container.
-        // 2. Incoming buffer is already contained within stored samples.
+        // Identify conditions for this incoming gst_buffer:
+        // 1. Incoming gst_buffer fits at the end of current container.
+        // 2. Incoming gst_buffer is already contained within stored samples.
         //    Nothing to do.
-        // 3. Incoming buffer overlaps with stored samples at the end.
-        // 4. Incoming buffer overlaps with stored samples at the begining.
+        // 3. Incoming gst_buffer overlaps with stored samples at the end.
+        // 4. Incoming gst_buffer overlaps with stored samples at the begining.
         //    Note: this changes the lower sample and requires to extend
         //    the internal container from the begining.
-        // 5. Incoming buffer doesn't overlap with current buffer. In order
+        // 5. Incoming gst_buffer doesn't overlap with current buffer. In order
         //    not to let gaps between samples, the internal container is
         //    cleared lower.
-        // 6. The internal container is empty, import incoming buffer
+        // 6. The internal container is empty, import incoming gst_buffer
         //    completely.
         let ins = if !self.samples.is_empty() {
             // not initializing
             if incoming_lower == self.upper {
-                // 1. append incoming buffer to the end of internal storage
+                // 1. append incoming gst_buffer to the end of internal storage
                 #[cfg(test)]
                 trace!("case 1. appending to the end (full)");
                 // self.lower unchanged
                 self.upper = incoming_upper;
-                self.eos = false;
-                self.last_buffer_upper = incoming_upper;
+                self.stream_state.clear_eos();
 
                 ProcessingInstructions {
-                    lower_changed: false,
-                    incoming_lower,
+                    append_after: true,
                     lower_to_add_rel: SampleIndex::default(),
-                    upper_to_add_rel: buffer_sample_len.into(),
+                    upper_to_add_rel: incoming_range.into(),
                 }
             } else if incoming_lower >= self.lower && incoming_upper <= self.upper {
-                // 2. incoming buffer included in current container
+                // 2. incoming gst_buffer included in current container
                 debug!(
                     concat!(
                         "case 2. contained in current container ",
@@ -231,11 +303,9 @@ impl AudioBuffer {
                     ),
                     self.lower, self.upper, incoming_lower, incoming_upper
                 );
-                self.last_buffer_upper = incoming_upper;
 
                 ProcessingInstructions {
-                    lower_changed: false,
-                    incoming_lower,
+                    append_after: false,
                     lower_to_add_rel: SampleIndex::default(),
                     upper_to_add_rel: SampleIndex::default(),
                 }
@@ -248,14 +318,13 @@ impl AudioBuffer {
                 // self.lower unchanged
                 let previous_upper = self.upper;
                 self.upper = incoming_upper;
-                self.eos = false;
+                self.stream_state.clear_eos();
+
                 // self.first_pts unchanged
-                self.last_buffer_upper = incoming_upper;
                 ProcessingInstructions {
-                    lower_changed: false,
-                    incoming_lower,
+                    append_after: true,
                     lower_to_add_rel: (previous_upper - incoming_lower).into(),
-                    upper_to_add_rel: buffer_sample_len.into(),
+                    upper_to_add_rel: incoming_range.into(),
                 }
             } else if incoming_upper < self.upper && incoming_upper >= self.lower {
                 // 4. can insert [lower, self.lower] at the begining
@@ -266,15 +335,14 @@ impl AudioBuffer {
                 let upper_to_add = self.lower;
                 self.lower = incoming_lower;
                 // self.upper unchanged
-                self.last_buffer_upper = incoming_upper;
+
                 ProcessingInstructions {
-                    lower_changed: true,
-                    incoming_lower,
+                    append_after: false,
                     lower_to_add_rel: SampleIndex::default(),
                     upper_to_add_rel: (upper_to_add - incoming_lower).into(),
                 }
             } else {
-                // 5. can't merge with previous buffer
+                // 5. can't merge with previous gst_buffer
                 debug!(
                     "case 5. can't merge self [{}, {}], incoming [{}, {}]",
                     self.lower, self.upper, incoming_lower, incoming_upper
@@ -282,13 +350,12 @@ impl AudioBuffer {
                 self.samples.clear();
                 self.lower = incoming_lower;
                 self.upper = incoming_upper;
-                self.eos = false;
-                self.last_buffer_upper = incoming_upper;
+                self.stream_state.clear_eos();
+
                 ProcessingInstructions {
-                    lower_changed: true,
-                    incoming_lower,
+                    append_after: true,
                     lower_to_add_rel: SampleIndex::default(),
-                    upper_to_add_rel: buffer_sample_len.into(),
+                    upper_to_add_rel: incoming_range.into(),
                 }
             }
         } else {
@@ -296,13 +363,12 @@ impl AudioBuffer {
             debug!("init [{}, {}]", incoming_lower, incoming_upper);
             self.lower = incoming_lower;
             self.upper = incoming_upper;
-            self.eos = false;
-            self.last_buffer_upper = self.upper;
+            self.stream_state.clear_eos();
+
             ProcessingInstructions {
-                lower_changed: true,
-                incoming_lower,
+                append_after: true,
                 lower_to_add_rel: SampleIndex::default(),
-                upper_to_add_rel: buffer_sample_len.into(),
+                upper_to_add_rel: incoming_range.into(),
             }
         };
 
@@ -313,11 +379,11 @@ impl AudioBuffer {
         // and iteration).
         // Don't drain samples if they might be used by the extractor
         // (limit known as argument lower_to_keep).
-        if !ins.lower_changed
+        if !ins.append_after
             && self.samples.len()
                 + (ins.upper_to_add_rel - ins.lower_to_add_rel).as_usize() * self.channels
                 > self.capacity
-            && lower_to_keep.min(ins.incoming_lower)
+            && lower_to_keep.min(incoming_lower)
                 > self.lower + SampleIndexRange::new(self.drain_size / self.channels)
         {
             debug!("draining... len before: {}", self.samples.len());
@@ -326,16 +392,16 @@ impl AudioBuffer {
         }
 
         if ins.upper_to_add_rel > SampleIndex::default() {
-            let map = buffer.map_readable().take().unwrap();
+            let buffer = gst_buffer.map_readable().take().unwrap();
             let converter_iter = SampleConverterIter::from_slice(
-                map.as_slice(),
-                self.audio_info.as_ref().unwrap(),
+                buffer.as_slice(),
+                self,
                 ins.lower_to_add_rel,
                 ins.upper_to_add_rel,
             )
             .unwrap();
 
-            if !ins.lower_changed || self.samples.is_empty() {
+            if ins.append_after {
                 for sample in converter_iter {
                     self.samples.push_back(sample.into());
                 }
@@ -346,7 +412,15 @@ impl AudioBuffer {
             }
         }
 
-        buffer_sample_len // nb of samples received
+        incoming_range
+    }
+
+    pub fn segment_lower(&self) -> SampleIndex {
+        self.stream_state.segment_lower
+    }
+
+    pub fn contains_eos(&self) -> bool {
+        self.stream_state.eos
     }
 
     pub fn handle_eos(&mut self) {
@@ -355,17 +429,17 @@ impl AudioBuffer {
         // In this situation, the last samples received should already be contained
         // in the AudioBuffer.
         if !self.samples.is_empty() {
-            self.eos = true;
+            self.stream_state.set_eos();
         }
-        self.segment_start = None;
+        self.stream_state.segment_start = None;
     }
 
-    pub fn iter(
+    pub fn try_iter(
         &self,
         lower: SampleIndex,
         upper: SampleIndex,
         sample_step: SampleIndexRange,
-    ) -> Option<Iter<'_>> {
+    ) -> Result<Iter<'_>, String> {
         Iter::try_new(self, lower, upper, sample_step)
     }
 
@@ -399,36 +473,56 @@ macro_rules! to_sample_value(
 );
 pub struct SampleConverterIter<'iter> {
     cursor: Cursor<&'iter [u8]>,
-    bytes_per_sample: usize,
+    sample_step: u64,
+    bytes_per_channel: u64,
+    two_x_bytes_per_channel: u64,
+    output_channels: usize,
+    extra_positions: u64,
     convert: ConvertFn,
     first: SampleIndex,
+    idx: Option<(SampleIndex, usize)>,
     last: SampleIndex,
 }
 
 impl<'iter> SampleConverterIter<'iter> {
     fn from_slice(
         slice: &'iter [u8],
-        audio_info: &gst_audio::AudioInfo,
+        audio_buffer: &AudioBuffer,
         lower: SampleIndex,
         upper: SampleIndex,
     ) -> Option<SampleConverterIter<'iter>> {
         let mut cursor = Cursor::new(slice);
 
-        let bytes_per_sample = audio_info.width() as usize / 8;
-        let channels = audio_info.channels() as usize;
-        cursor.set_position((lower.as_usize() * bytes_per_sample * channels) as u64);
+        let bytes_per_channel = audio_buffer.stream_state.bytes_per_channel;
+        let stream_channels = audio_buffer.stream_state.channels;
+        let sample_step = (stream_channels * bytes_per_channel) as u64;
+        cursor.set_position(lower.as_u64() * sample_step);
+
+        let output_channels = audio_buffer.channels;
+        let extra_positions = if output_channels < stream_channels {
+            sample_step - (output_channels * bytes_per_channel) as u64
+        } else {
+            0u64
+        };
+
+        let bytes_per_channel = audio_buffer.stream_state.bytes_per_channel as u64;
 
         Some(SampleConverterIter {
             cursor,
-            bytes_per_sample,
-            convert: SampleConverterIter::get_convert(audio_info),
-            first: (lower.as_usize() * channels).into(),
-            last: (upper.as_usize() * channels).into(),
+            sample_step,
+            bytes_per_channel: bytes_per_channel,
+            two_x_bytes_per_channel: 2 * bytes_per_channel,
+            output_channels,
+            extra_positions,
+            convert: SampleConverterIter::get_convert(audio_buffer.stream_state.format),
+            first: lower,
+            idx: None,
+            last: upper,
         })
     }
 
-    fn get_convert(audio_info: &gst_audio::AudioInfo) -> ConvertFn {
-        let convert: ConvertFn = match audio_info.format() {
+    fn get_convert(format: gst_audio::AudioFormat) -> ConvertFn {
+        let convert: ConvertFn = match format {
             AudioFormat::S8 => |rdr| to_sample_value!(rdr.read_i8()),
             AudioFormat::U8 => |rdr| to_sample_value!(rdr.read_u8()),
             AudioFormat::S16le => |rdr| to_sample_value!(rdr.read_i16::<LittleEndian>()),
@@ -443,7 +537,7 @@ impl<'iter> SampleConverterIter<'iter> {
             AudioFormat::F32be => |rdr| to_sample_value!(rdr.read_f32::<BigEndian>()),
             AudioFormat::F64le => |rdr| to_sample_value!(rdr.read_f64::<LittleEndian>()),
             AudioFormat::F64be => |rdr| to_sample_value!(rdr.read_f64::<BigEndian>()),
-            _ => unimplemented!("Converting to {:?}", audio_info.format()),
+            _ => unimplemented!("Converting to {:?}", format),
         };
 
         convert
@@ -454,25 +548,72 @@ impl<'iter> Iterator for SampleConverterIter<'iter> {
     type Item = SampleValue;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.first >= self.last {
-            return None;
+        match &self.idx {
+            Some((idx, _)) => {
+                if idx >= &self.last {
+                    return None;
+                }
+            }
+            None => self.idx = Some((self.first, 0)),
         }
 
-        let item = (self.convert)(&mut self.cursor);
-        self.first.inc();
-        Some(item)
+        //assert!(self.idx.is_some());
+
+        let channel_value = (self.convert)(&mut self.cursor);
+
+        let (idx, channel) = self.idx.as_mut().unwrap();
+        *channel += 1;
+        if *channel == self.output_channels {
+            *channel = 0;
+            idx.inc();
+            self.cursor
+                .set_position(self.cursor.position() + self.extra_positions);
+        }
+
+        Some(channel_value)
     }
 }
 
 impl<'iter> DoubleEndedIterator for SampleConverterIter<'iter> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        if self.first >= self.last || self.last == SampleIndex::default() {
-            return None;
+        match &mut self.idx {
+            Some((idx, channel)) => {
+                if (idx == &self.first) && (*channel == 0) {
+                    return None;
+                } else {
+                    if *channel > 0 {
+                        *channel -= 1;
+                        // get back 2x bytes_per_channel positions:
+                        // 1x for the bytes previously read
+                        // 1x for the bytes to read
+                        self.cursor
+                            .set_position(self.cursor.position() - self.two_x_bytes_per_channel);
+                    } else {
+                        *channel = self.output_channels - 1;
+                        idx.try_dec().ok()?;
+                        // get back:
+                        // 1x for the bytes previously read
+                        // 1x for the bytes to read
+                        // skip the extra positions
+                        self.cursor.set_position(
+                            self.cursor.position()
+                                - self.two_x_bytes_per_channel
+                                - self.extra_positions,
+                        );
+                    }
+                }
+            }
+            None => {
+                let channel = self.output_channels - 1;
+                let mut idx = self.last;
+                idx.try_dec().ok()?;
+                self.idx = Some((idx, channel));
+                self.cursor.set_position(
+                    idx.as_u64() * self.sample_step + (channel as u64 * self.bytes_per_channel),
+                );
+            }
         }
 
-        self.last.dec();
-        self.cursor
-            .set_position((self.last.as_usize() * self.bytes_per_sample) as u64);
         Some((self.convert)(&mut self.cursor))
     }
 }
@@ -482,40 +623,35 @@ pub struct Iter<'iter> {
     slice0_len: usize,
     slice1: &'iter [SampleValue],
     channels: usize,
-    idx: SampleIndex,
-    upper: SampleIndex,
-    step: SampleIndexRange,
+    idx: usize,
+    upper: usize,
+    step: usize,
 }
 
 impl<'iter> Iter<'iter> {
     fn try_new(
-        buffer: &'iter AudioBuffer,
+        audio_buffer: &'iter AudioBuffer,
         lower: SampleIndex,
         upper: SampleIndex,
         sample_step: SampleIndexRange,
-    ) -> Option<Iter<'iter>> {
-        if upper > lower && lower >= buffer.lower && upper <= buffer.upper {
-            let slices = buffer.samples.as_slices();
+    ) -> Result<Iter<'iter>, String> {
+        if upper > lower && lower >= audio_buffer.lower && upper <= audio_buffer.upper {
+            let slices = audio_buffer.samples.as_slices();
             let len0 = slices.0.len();
-            Some(Iter {
+            Ok(Iter {
                 slice0: slices.0,
                 slice0_len: len0,
                 slice1: slices.1,
-                channels: buffer.channels,
-                idx: ((lower - buffer.lower).as_usize() * buffer.channels).into(),
-                upper: ((upper - buffer.lower).as_usize() * buffer.channels).into(),
-                step: (sample_step.as_usize() * buffer.channels).into(),
+                channels: audio_buffer.channels,
+                idx: (lower - audio_buffer.lower).as_usize() * audio_buffer.channels,
+                upper: (upper - audio_buffer.lower).as_usize() * audio_buffer.channels,
+                step: sample_step.as_usize() * audio_buffer.channels,
             })
         } else {
-            // out of bound TODO: return an error
-            trace!(
+            Err(format!(
                 "Iter::try_new [{}, {}] out of bounds [{}, {}]",
-                lower,
-                upper,
-                buffer.lower,
-                buffer.upper
-            );
-            None
+                lower, upper, audio_buffer.lower, audio_buffer.upper,
+            ))
         }
     }
 }
@@ -528,7 +664,7 @@ impl<'iter> Iterator for Iter<'iter> {
             return None;
         }
 
-        let idx = self.idx.as_usize();
+        let idx = self.idx;
         let item = if idx < self.slice0_len {
             &self.slice0[idx..idx + self.channels]
         } else {
@@ -545,7 +681,7 @@ impl<'iter> Iterator for Iter<'iter> {
             return (0, Some(0));
         }
 
-        let remaining = (self.upper - self.idx).as_usize() / self.step.as_usize();
+        let remaining = (self.upper - self.idx) / self.step;
 
         (remaining, Some(remaining))
     }
@@ -633,14 +769,14 @@ mod tests {
     macro_rules! check_last_values(
         ($audio_buffer:expr, $expected:expr) => (
             let mut last = $audio_buffer.upper;
-            last.dec();
+            last.try_dec().expect("checking last values");
             check_values!($audio_buffer, last, $expected);
         );
     );
 
     #[test]
     fn multiple_gst_buffers() {
-        //env_logger::try_init();
+        //env_logger::init();
         gst::init().unwrap();
 
         let mut audio_buffer = AudioBuffer::new(Duration::from_secs(1));
@@ -740,17 +876,19 @@ mod tests {
         let step = SampleIndexRange::new(step);
 
         debug!("checking iter for [{}, {}], step {}...", lower, upper, step);
-        let mut iter = audio_buffer.iter(lower, upper, step).unwrap();
+        let mut buffer_iter = audio_buffer
+            .try_iter(lower, upper, step)
+            .expect("checking iter (test)");
 
         for expected_value in expected_values {
-            let iter_next = iter.next();
+            let iter_next = buffer_iter.next();
             let samples = iter_next.unwrap();
-            for (channel, sample_value) in samples.iter().enumerate() {
+            for (channel, channel_value) in samples.iter().enumerate() {
                 let expected_value = *expected_value;
                 if channel == 0 {
-                    assert_eq!(sample_value, &SampleValue::from(expected_value));
+                    assert_eq!(channel_value, &SampleValue::from(expected_value));
                 } else {
-                    assert_eq!(sample_value, &SampleValue::from(-1 * expected_value));
+                    assert_eq!(channel_value, &SampleValue::from(-1 * expected_value));
                 }
             }
         }
@@ -759,7 +897,7 @@ mod tests {
 
     #[test]
     fn test_iter() {
-        //env_logger::try_init();
+        //env_logger::init();
         gst::init().unwrap();
 
         let mut audio_buffer = AudioBuffer::new(Duration::from_secs(1));

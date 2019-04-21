@@ -263,7 +263,7 @@ impl WaveformImage {
         // between redraws.
         let mut lower = lower.get_aligned(self.sample_step);
         let upper = upper.get_aligned(self.sample_step);
-        if audio_buffer.eos && upper + self.sample_step > audio_buffer.upper
+        if audio_buffer.contains_eos() && upper + self.sample_step > audio_buffer.upper
             || self.contains_eos
                 && (upper == self.upper || (!self.force_redraw && lower >= self.lower))
         {
@@ -288,7 +288,13 @@ impl WaveformImage {
                     "Requested [{}, {}], current [{}, {}], force_redraw {} ",
                     "audio_buffer.eos {}",
                 ),
-                self.id, lower, upper, self.lower, self.upper, self.force_redraw, audio_buffer.eos,
+                self.id,
+                lower,
+                upper,
+                self.lower,
+                self.upper,
+                self.force_redraw,
+                audio_buffer.contains_eos(),
             );
         }
 
@@ -788,20 +794,10 @@ impl WaveformImage {
             cr.set_line_width(2f64);
         }
 
-        let sample_iter = audio_buffer.iter(lower, upper, self.sample_step);
-        if sample_iter.is_none() {
-            warn!(
-                concat!(
-                    "{}_draw_samples invalid iter for ",
-                    "[{}, {}] sample_step {}, buffer: [{}, {}]",
-                ),
-                self.id, lower, upper, self.sample_step, audio_buffer.lower, audio_buffer.upper
-            );
+        let mut sample_iter = audio_buffer
+            .try_iter(lower, upper, self.sample_step)
+            .expect(&format!("{}_draw_samples", self.id));
 
-            return None;
-        }
-
-        let mut sample_iter = sample_iter.unwrap();
         if sample_iter.size_hint().0 < 2 {
             debug!(
                 concat!(
@@ -955,7 +951,7 @@ mod tests {
     }
 
     fn init(sample_step_f: f64, width: i32) -> (AudioBuffer, WaveformImage) {
-        //env_logger::try_init();
+        //env_logger::init();
         gst::init().unwrap();
 
         prepare_tests();
@@ -1024,7 +1020,6 @@ mod tests {
         audio_buffer: &mut AudioBuffer,
         mut buffer: gst::Buffer,
         segment_lower: SampleIndex,
-        is_new_segment: bool,
     ) {
         let pts = segment_lower.get_ts(SAMPLE_DURATION);
         {
@@ -1032,72 +1027,53 @@ mod tests {
             buffer_mut.set_pts(gst::ClockTime::from_nseconds(pts.as_u64()));
         }
 
-        if is_new_segment {
-            audio_buffer.have_gst_segment(pts);
-        }
-
+        audio_buffer.have_gst_segment(pts);
         audio_buffer.push_gst_buffer(&buffer, SampleIndex::default()); // never drain buffer in this test
     }
 
-    fn render_with_samples(
+    fn render(
         prefix: &str,
         waveform: &mut WaveformImage,
         audio_buffer: &mut AudioBuffer,
         buffer: gst::Buffer,
         lower: SampleIndex,
-        is_new_segement: bool,
-        sample_window: SampleIndexRange,
-        can_scroll: bool,
     ) {
-        let lower = lower.into();
-
         info!("*** {}", prefix);
 
         let incoming_lower = lower;
         let incoming_upper = lower + SampleIndexRange::new(buffer.get_size() / 2 / 2);
-        push_test_buffer(audio_buffer, buffer, lower, is_new_segement);
 
-        let (lower_to_extract, upper_to_extract) = if can_scroll {
-            // scrolling is allowed
-            // buffer fits in image completely
-            if incoming_upper > waveform.upper {
-                // incoming samples extend waveform on the right
-                if incoming_lower > waveform.lower {
-                    // incoming samples extend waveform on the right only
-                    if audio_buffer.upper > audio_buffer.lower + sample_window {
-                        (audio_buffer.upper - sample_window, audio_buffer.upper)
-                    } else {
-                        (audio_buffer.lower, audio_buffer.upper)
-                    }
+        push_test_buffer(audio_buffer, buffer, lower);
+
+        let (lower_to_extract, upper_to_extract) = if incoming_upper > waveform.upper {
+            // incoming samples extend waveform on the right
+            if incoming_lower > waveform.lower {
+                // incoming samples extend waveform on the right only
+                if audio_buffer.upper > audio_buffer.lower + SAMPLE_WINDOW {
+                    (audio_buffer.upper - SAMPLE_WINDOW, audio_buffer.upper)
                 } else {
-                    // incoming samples extend waveform on both sides
-                    if audio_buffer.upper > sample_window {
-                        (audio_buffer.upper - sample_window, audio_buffer.upper)
-                    } else {
-                        (audio_buffer.lower, audio_buffer.upper)
-                    }
+                    (audio_buffer.lower, audio_buffer.upper)
                 }
             } else {
-                // incoming samples ends before current waveform's end
-                if incoming_lower >= waveform.lower {
-                    // incoming samples are contained in current waveform
-                    (waveform.lower, waveform.upper)
+                // incoming samples extend waveform on both sides
+                if audio_buffer.upper > SAMPLE_WINDOW {
+                    (audio_buffer.upper - SAMPLE_WINDOW, audio_buffer.upper)
                 } else {
-                    // incoming samples extend current waveform on the left only
-                    (
-                        incoming_lower,
-                        waveform.upper.min(incoming_lower + sample_window),
-                    )
+                    (audio_buffer.lower, audio_buffer.upper)
                 }
             }
         } else {
-            // scrolling not allowed
-            // => render a waveform that contains previous waveform
-            //    + incoming sample
-            (
-                incoming_lower.min(waveform.lower),
-                incoming_upper.max(waveform.upper),
-            )
+            // incoming samples ends before current waveform's end
+            if incoming_lower >= waveform.lower {
+                // incoming samples are contained in current waveform
+                (waveform.lower, waveform.upper)
+            } else {
+                // incoming samples extend current waveform on the left only
+                (
+                    incoming_lower,
+                    waveform.upper.min(incoming_lower + SAMPLE_WINDOW),
+                )
+            }
         };
 
         info!(
@@ -1111,7 +1087,7 @@ mod tests {
         let image = waveform.get_image();
 
         let mut output_file = File::create(format!(
-            "{}/waveform_image_{}_{:03}_{:03}.png",
+            "{}/waveform_image_{}_{}_{}.png",
             OUT_DIR, prefix, lower, upper
         ))
         .unwrap();
@@ -1124,55 +1100,40 @@ mod tests {
     fn additive_draws() {
         let (mut audio_buffer, mut waveform) = init(3f64, 250);
 
-        render_with_samples(
+        render(
             "additive_0 init",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(100, 200),
             SampleIndex::new(100),
-            true,
-            SAMPLE_WINDOW,
-            true,
         );
-        render_with_samples(
+        render(
             "additive_1 overlap on the left and on the right",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(50, 250),
             SampleIndex::new(50),
-            true,
-            SAMPLE_WINDOW,
-            true,
         );
-        render_with_samples(
+        render(
             "additive_2 overlap on the left",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(0, 100),
             SampleIndex::new(0),
-            true,
-            SAMPLE_WINDOW,
-            true,
         );
-        render_with_samples(
+        render(
             "additive_3 scrolling and overlap on the right",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(150, 340),
             SampleIndex::new(150),
-            true,
-            SAMPLE_WINDOW,
-            true,
         );
-        render_with_samples(
+        render(
             "additive_4 scrolling and overlaping on the right",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(0, 200),
             SampleIndex::new(250),
-            true,
-            SAMPLE_WINDOW,
-            true,
         );
     }
 
@@ -1180,37 +1141,28 @@ mod tests {
     fn link_between_draws() {
         let (mut audio_buffer, mut waveform) = init(1f64 / 5f64, 1480);
 
-        render_with_samples(
+        render(
             "link_0",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(100, 200),
             SampleIndex::new(100),
-            true,
-            SAMPLE_WINDOW,
-            true,
         );
         // append to the left
-        render_with_samples(
+        render(
             "link_1",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(25, 125),
             SampleIndex::new(0),
-            true,
-            SAMPLE_WINDOW,
-            true,
         );
         // appended to the right
-        render_with_samples(
+        render(
             "link_2",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(175, 275),
             SampleIndex::new(200),
-            true,
-            SAMPLE_WINDOW,
-            true,
         );
     }
 
@@ -1218,48 +1170,36 @@ mod tests {
     fn seek() {
         let (mut audio_buffer, mut waveform) = init(1f64, 300);
 
-        render_with_samples(
+        render(
             "seek_0",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(0, 100),
             SampleIndex::new(100),
-            true,
-            SAMPLE_WINDOW,
-            true,
         );
         // seeking forward
-        render_with_samples(
+        render(
             "seek_1",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(0, 100),
             SampleIndex::new(500),
-            true,
-            SAMPLE_WINDOW,
-            true,
         );
         // additional samples
-        render_with_samples(
+        render(
             "seek_2",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(100, 200),
             SampleIndex::new(600),
-            true,
-            SAMPLE_WINDOW,
-            true,
         );
         // additional samples
-        render_with_samples(
+        render(
             "seek_3",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(200, 300),
             SampleIndex::new(700),
-            true,
-            SAMPLE_WINDOW,
-            true,
         );
     }
 
@@ -1267,37 +1207,28 @@ mod tests {
     fn oveflow() {
         let (mut audio_buffer, mut waveform) = init(1f64 / 5f64, 1500);
 
-        render_with_samples(
+        render(
             "oveflow_0",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(0, 200),
             SampleIndex::new(250),
-            true,
-            SAMPLE_WINDOW,
-            true,
         );
         // overflow on the left
-        render_with_samples(
+        render(
             "oveflow_1",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(0, 300),
             SampleIndex::new(0),
-            true,
-            SAMPLE_WINDOW,
-            true,
         );
         // overflow on the right
-        render_with_samples(
+        render(
             "oveflow_2",
             &mut waveform,
             &mut audio_buffer,
             build_buffer(0, 100),
             SampleIndex::new(400),
-            true,
-            SAMPLE_WINDOW,
-            true,
         );
     }
 }

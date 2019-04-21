@@ -254,7 +254,9 @@ impl WaveformBuffer {
 
                 if self.image.contains_eos && sample >= self.image.upper {
                     sample = self.image.upper;
-                    sample.dec();
+                    sample
+                        .try_dec()
+                        .expect("adjusting cursor_sample to last sample in stream");
                 }
                 self.cursor_sample = sample;
                 self.cursor_ts = ts;
@@ -675,6 +677,7 @@ impl WaveformBuffer {
         } else {
             // not able to merge buffer with current waveform
             // synchronize on latest segment received
+            let segment_lower = audio_buffer.segment_lower();
             debug!(
                 concat!(
                     "{}_get_sample_range not able to merge: ",
@@ -686,13 +689,13 @@ impl WaveformBuffer {
                 self.image.upper,
                 audio_buffer.lower,
                 audio_buffer.upper,
-                audio_buffer.segment_lower,
+                segment_lower,
             );
 
             self.first_visible_sample = None;
             self.first_visible_sample_lock = None;
 
-            (audio_buffer.segment_lower, audio_buffer.upper)
+            (segment_lower, audio_buffer.upper)
         };
 
         // Second step: find the range to display
@@ -961,7 +964,7 @@ impl SampleExtractor for WaveformBuffer {
         let (lower, upper) = self.get_sample_range(audio_buffer);
         self.image.render(audio_buffer, lower, upper);
 
-        self.playback_needs_refresh = if audio_buffer.eos && !self.image.contains_eos {
+        self.playback_needs_refresh = if audio_buffer.contains_eos() && !self.image.contains_eos {
             // there won't be any refresh on behalf of audio_buffer
             // and image will still need more sample if playback continues
             debug!(

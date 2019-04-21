@@ -80,7 +80,7 @@ fn bench_append_samples(b: &mut Bencher) {
 
     b.iter(|| {
         audio_buffer.reset();
-        audio_buffer.segment_start = None;
+        audio_buffer.reset_segment_start();
 
         buffers.iter().for_each(|(lower, buffer)| {
             push_test_buffer(&mut audio_buffer, buffer, lower.as_usize() == 0);

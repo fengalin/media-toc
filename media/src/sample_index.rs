@@ -30,8 +30,17 @@ impl SampleIndex {
         self.0
     }
 
-    pub fn dec(&mut self) {
-        *self = SampleIndex(self.0 - 1);
+    pub fn as_u64(&self) -> u64 {
+        self.0 as u64
+    }
+
+    pub fn try_dec(&mut self) -> Result<(), String> {
+        if self.0 > 0 {
+            *self = SampleIndex(self.0 - 1);
+            Ok(())
+        } else {
+            Err("attempting to decrement a sample index past 0".to_string())
+        }
     }
 
     pub fn inc(&mut self) {

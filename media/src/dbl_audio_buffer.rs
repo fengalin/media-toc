@@ -132,7 +132,7 @@ impl DoubleAudioBuffer {
         let mut channels: SmallVec<[AudioChannel; INLINE_CHANNELS]> =
             SmallVec::with_capacity(channels);
         if let Some(positions) = audio_info.positions() {
-            for position in positions {
+            for position in positions.iter().take(INLINE_CHANNELS) {
                 channels.push(AudioChannel::new(*position));
             }
         };
