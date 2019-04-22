@@ -794,22 +794,6 @@ impl WaveformImage {
             cr.set_line_width(2f64);
         }
 
-        let mut sample_iter = audio_buffer
-            .try_iter(lower, upper, self.sample_step)
-            .expect(&format!("{}_draw_samples", self.id));
-
-        if sample_iter.size_hint().0 < 2 {
-            debug!(
-                concat!(
-                    "{}_draw_samples too small to render for ",
-                    "[{}, {}] sample_step {}, buffer: [{}, {}]",
-                ),
-                self.id, lower, upper, self.sample_step, audio_buffer.lower, audio_buffer.upper
-            );
-
-            return None;
-        }
-
         #[cfg(test)]
         {
             // in test mode, draw marks at
@@ -825,17 +809,56 @@ impl WaveformImage {
         let mut last_y_values: SmallVec<[f64; INLINE_CHANNELS]> =
             SmallVec::with_capacity(audio_buffer.channels);
 
-        let sample = sample_iter.next();
-        for channel_value in sample.unwrap() {
-            let y = self.sample_value_to_y(*channel_value);
-            first_y_values.push(y);
-            last_y_values.push(y);
+        let mut x = first_x;
+        for channel in 0..audio_buffer.channels {
+            let mut y_iter = audio_buffer
+                .try_iter(lower, upper, channel, self.sample_step)
+                .expect(&format!("{}_draw_samples", self.id))
+                .map(|channel_value| self.sample_value_to_y(channel_value));
+
+            if y_iter.size_hint().0 < 2 {
+                debug!(
+                    concat!(
+                        "{}_draw_samples too small to render for ",
+                        "[{}, {}], channel {} sample_step {}, buffer: [{}, {}]",
+                    ),
+                    self.id,
+                    lower,
+                    upper,
+                    channel,
+                    self.sample_step,
+                    audio_buffer.lower,
+                    audio_buffer.upper
+                );
+
+                return None;
+            }
+
+            let first_y = y_iter
+                .next()
+                .expect(&format!("getting first value for channel {}", channel));
+            first_y_values.push(first_y);
+
+            self.set_channel_color(cr, channel);
+            cr.move_to(first_x, first_y);
+
+            x = first_x;
+            let mut last_y = first_y;
+            for y in y_iter {
+                x += self.x_step_f;
+                cr.line_to(x, y);
+                last_y = y;
+            }
+
+            cr.stroke();
+            last_y_values.push(last_y);
         }
 
         let first_added = WaveformSample {
             x: first_x,
             y_values: first_y_values,
         };
+
         let first_for_amp0 = match self.last.as_ref() {
             Some(prev_last) => {
                 if (first_x - prev_last.x).abs() <= self.x_step_f {
@@ -849,26 +872,11 @@ impl WaveformImage {
             None => first_x,
         };
 
-        let mut x = first_x;
-        for sample in sample_iter {
-            let prev_x = x;
-            x += self.x_step_f;
-
-            for (channel, value) in sample.iter().enumerate() {
-                self.set_channel_color(cr, channel);
-                let y = self.sample_value_to_y(*value);
-                cr.move_to(prev_x, last_y_values[channel]);
-                cr.line_to(x, y);
-                cr.stroke();
-
-                last_y_values[channel] = y;
-            }
-        }
-
         let last_added = WaveformSample {
             x,
             y_values: last_y_values,
         };
+
         let last_for_amp0 = match self.first.as_ref() {
             Some(prev_first) => {
                 if (prev_first.x - x).abs() <= self.x_step_f {
@@ -943,6 +951,8 @@ mod tests {
     const SAMPLE_WINDOW: SampleIndexRange = SampleIndexRange::new(300);
     const SAMPLE_DYN: i32 = 300;
 
+    const CHANNELS: usize = 2;
+
     fn prepare_tests() {
         let _ = create_dir(&OUT_DIR).map_err(|err| match err.kind() {
             ErrorKind::AlreadyExists => (),
@@ -959,7 +969,7 @@ mod tests {
         // AudioBuffer
         let mut audio_buffer = AudioBuffer::new(Duration::from_secs(1));
         audio_buffer.init(
-            gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, 2)
+            gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, CHANNELS as u32)
                 .build()
                 .unwrap(),
         );
@@ -987,7 +997,7 @@ mod tests {
     // from left top corner to right bottom of the target image
     // if all samples are rendered in the range [0:SAMPLE_RATE]
     fn build_buffer(lower_value: usize, upper_value: usize) -> gst::Buffer {
-        let samples_u8_len = (upper_value - lower_value) * 2 * 2;
+        let samples_u8_len = (upper_value - lower_value) * CHANNELS * 2;
 
         let mut buffer = gst::Buffer::with_size(samples_u8_len).unwrap();
         {
@@ -996,9 +1006,9 @@ mod tests {
             let mut buffer_map = buffer_mut.map_writable().unwrap();
             let buffer_slice = buffer_map.as_mut();
 
-            let mut buf_u8 = [0; 2];
+            let mut buf_u8 = [0; CHANNELS];
             for index in lower_value..upper_value {
-                for channel in 0..2 {
+                for channel in 0..CHANNELS {
                     let mut value =
                         (index as f64 / SAMPLE_RATE as f64 * f64::from(std::i16::MAX)) as i16;
                     if channel != 0 {
@@ -1006,7 +1016,7 @@ mod tests {
                     }
 
                     LittleEndian::write_i16(&mut buf_u8, value);
-                    let offset = (((index - lower_value) * 2) + channel) * 2;
+                    let offset = (((index - lower_value) * CHANNELS) + channel) * 2;
                     buffer_slice[offset] = buf_u8[0];
                     buffer_slice[offset + 1] = buf_u8[1];
                 }
@@ -1041,7 +1051,7 @@ mod tests {
         info!("*** {}", prefix);
 
         let incoming_lower = lower;
-        let incoming_upper = lower + SampleIndexRange::new(buffer.get_size() / 2 / 2);
+        let incoming_upper = lower + SampleIndexRange::new(buffer.get_size() / CHANNELS / 2);
 
         push_test_buffer(audio_buffer, buffer, lower);
 

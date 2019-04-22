@@ -16,10 +16,15 @@ use media::{
 };
 use renderers::WaveformBuffer;
 
-fn build_buffer(lower_value: usize, upper_value: usize, sample_duration: Duration) -> gst::Buffer {
+const SAMPLE_RATE: u64 = 48000;
+const SAMPLE_DURATION: Duration = Duration::from_frequency(SAMPLE_RATE);
+
+const CHANNELS: usize = 2;
+
+fn build_buffer(lower_value: usize, upper_value: usize) -> gst::Buffer {
     let lower: SampleIndex = lower_value.into();
-    let pts = Timestamp::new(lower.get_ts(sample_duration).as_u64() + 1);
-    let samples_u8_len = (upper_value - lower_value) * 2 * 2;
+    let pts = Timestamp::new(lower.get_ts(SAMPLE_DURATION).as_u64() + 1);
+    let samples_u8_len = (upper_value - lower_value) * CHANNELS * 2;
 
     let mut buffer = gst::Buffer::with_size(samples_u8_len).unwrap();
     {
@@ -29,9 +34,9 @@ fn build_buffer(lower_value: usize, upper_value: usize, sample_duration: Duratio
         let mut buffer_map = buffer_mut.map_writable().unwrap();
         let buffer_slice = buffer_map.as_mut();
 
-        let mut buf_u8 = [0; 2];
+        let mut buf_u8 = [0; CHANNELS];
         for index in lower_value..upper_value {
-            for channel in 0..2 {
+            for channel in 0..CHANNELS {
                 let value = if channel == 0 {
                     index as i16
                 } else {
@@ -39,7 +44,7 @@ fn build_buffer(lower_value: usize, upper_value: usize, sample_duration: Duratio
                 };
 
                 LittleEndian::write_i16(&mut buf_u8, value);
-                let offset = (((index - lower_value) * 2) + channel) * 2;
+                let offset = (((index - lower_value) * CHANNELS) + channel) * 2;
                 buffer_slice[offset] = buf_u8[0];
                 buffer_slice[offset + 1] = buf_u8[1];
             }
@@ -59,10 +64,7 @@ fn push_test_buffer(audio_buffer: &mut AudioBuffer, buffer: &gst::Buffer, is_new
 
 #[bench]
 fn bench_render_buffers(b: &mut Bencher) {
-    const SAMPLE_RATE: u64 = 48000;
-    const SAMPLE_DURATION: Duration = Duration::from_frequency(SAMPLE_RATE);
     const DURATION_FOR_1000: Duration = Duration::from_nanos(1_000_000_000_000u64 / SAMPLE_RATE);
-
     const DURATION_FOR_1000PX: Duration = Duration::from_secs(4);
 
     const BUFFER_COUNT: usize = 512;
@@ -74,22 +76,22 @@ fn bench_render_buffers(b: &mut Bencher) {
 
     let mut audio_buffer = AudioBuffer::new(Duration::from_secs(10));
     audio_buffer.init(
-        gst_audio::AudioInfo::new(gst_audio::AUDIO_FORMAT_S16, SAMPLE_RATE as u32, 2)
-            .build()
-            .unwrap(),
+        gst_audio::AudioInfo::new(
+            gst_audio::AUDIO_FORMAT_S16,
+            SAMPLE_RATE as u32,
+            CHANNELS as u32,
+        )
+        .build()
+        .unwrap(),
     );
 
     push_test_buffer(
         &mut audio_buffer,
-        &build_buffer(
-            0,
-            BUFFER_COUNT * SAMPLES_PER_FRAME + BUFFER_OVERHEAD,
-            SAMPLE_DURATION,
-        ),
+        &build_buffer(0, BUFFER_COUNT * SAMPLES_PER_FRAME + BUFFER_OVERHEAD),
         true,
     );
 
-    let mut channels: SmallVec<[AudioChannel; INLINE_CHANNELS]> = SmallVec::with_capacity(2);
+    let mut channels: SmallVec<[AudioChannel; INLINE_CHANNELS]> = SmallVec::with_capacity(CHANNELS);
     channels.push(AudioChannel::new(
         gst_audio::AudioChannelPosition::FrontLeft,
     ));
