@@ -1,6 +1,6 @@
 # media-toc [![Build Status](https://travis-ci.org/fengalin/media-toc.svg?branch=master)](https://travis-ci.org/fengalin/media-toc) [![Build status](https://ci.appveyor.com/api/projects/status/eu9p6ggcflj89h3v?svg=true)](https://ci.appveyor.com/project/fengalin/media-toc)
 
-![media-toc logo](assets/icons/banner/org.fengalin.media-toc.png "media-toc logo")
+![media-toc logo](res/icons/banner/org.fengalin.media-toc.png "media-toc logo")
 
 **media-toc** is an application to build a table of contents from a media file or to split a media
 file into chapters. It runs on Linux and Windows and should also work on macOS.
@@ -33,10 +33,6 @@ a media player with a table of contents.
 ### media-toc playing an audio file, French localization
 
 ![media-toc UI Audio](assets/screenshots/media-toc_audio.png "media-toc UI Audio")
-
-### Waveform showing 5.1 audio channels
-
-![media-toc Waveform 5.1 audio channels](assets/screenshots/waveform_5.1_audio_channels.png "media-toc Waveform 5.1 audio channels")
 
 ## <a name='features'></a>Features
 
