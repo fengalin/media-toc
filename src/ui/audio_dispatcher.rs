@@ -109,10 +109,8 @@ impl UIDispatcher for AudioDispatcher {
         gtk_app.add_action(&step_forward);
         step_forward.connect_activate(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _, _| {
-                let seek_ts = (
-                    main_ctrl.get_current_ts() + main_ctrl.audio_ctrl.seek_step
-                ).into();
-                main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
+                let seek_target = main_ctrl.get_current_ts() + main_ctrl.audio_ctrl.seek_step;
+                main_ctrl.seek(seek_target, gst::SeekFlags::ACCURATE);
             }
         ));
         gtk_app.set_accels_for_action("app.step_forward", &["Right"]);

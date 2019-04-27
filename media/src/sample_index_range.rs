@@ -14,23 +14,23 @@ impl SampleIndexRange {
         SampleIndexRange((duration / sample_duration).as_usize())
     }
 
-    pub fn get_duration(&self, sample_duration: Duration) -> Duration {
+    pub fn get_duration(self, sample_duration: Duration) -> Duration {
         sample_duration * (self.0 as u64)
     }
 
-    pub fn get_scaled<T: Into<usize>>(&self, num: T, denom: T) -> Self {
+    pub fn get_scaled<T: Into<usize>>(self, num: T, denom: T) -> Self {
         SampleIndexRange(num.into() / denom.into() * self.0)
     }
 
-    pub fn get_step_range(&self, sample_step: SampleIndexRange) -> usize {
+    pub fn get_step_range(self, sample_step: SampleIndexRange) -> usize {
         self.0 / sample_step.0
     }
 
-    pub fn as_f64(&self) -> f64 {
+    pub fn as_f64(self) -> f64 {
         self.0 as f64
     }
 
-    pub fn as_usize(&self) -> usize {
+    pub fn as_usize(self) -> usize {
         self.0
     }
 }

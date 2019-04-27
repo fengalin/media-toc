@@ -8,7 +8,8 @@ use super::{Exporter, MediaInfo};
 static EXTENSION: &str = "toc.mkv";
 static AUDIO_EXTENSION: &str = "toc.mka";
 
-pub struct MatroskaTocFormat {}
+#[derive(Default)]
+pub struct MatroskaTocFormat;
 
 impl MatroskaTocFormat {
     pub fn get_extension() -> &'static str {
@@ -20,7 +21,7 @@ impl MatroskaTocFormat {
     }
 
     pub fn new() -> Self {
-        MatroskaTocFormat {}
+        MatroskaTocFormat
     }
 }
 

@@ -5,8 +5,10 @@ use lazy_static::lazy_static;
 use log::warn;
 
 use std::{
+    borrow::ToOwned,
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
+    string::ToString,
     sync::Arc,
 };
 
@@ -124,6 +126,7 @@ macro_rules! add_str_tags_for_chapter (
 
 macro_rules! get_tag_for_display (
     ($info:expr, $primary_tag:ty, $secondary_tag:ty) => {
+        #[allow(clippy::redundant_closure)]
         $info
             .get_tag_list::<$primary_tag>()
             .or_else(|| $info.get_tag_list::<$secondary_tag>())
@@ -136,7 +139,7 @@ macro_rules! get_tag_for_display (
                 tag_list
                     .get_index::<$primary_tag>(0)
                     .or_else(|| tag_list.get_index::<$secondary_tag>(0))
-                    .and_then(|tag| tag.get().map(|value| value.to_owned()))
+                    .and_then(|value| value.get().map(|ref_value| ref_value.to_owned()))
             })
     };
 );
@@ -156,18 +159,17 @@ impl Stream {
         let caps = stream.get_caps().unwrap();
         let tags = stream
             .get_tags()
-            .map(|tags| tags.clone())
-            .unwrap_or_else(|| gst::TagList::new());
+            .unwrap_or_else(gst::TagList::new);
         let type_ = stream.get_stream_type();
 
         let codec_printable = match type_ {
-            gst::StreamType::AUDIO => tags.get_index::<AudioCodec>(0).clone(),
-            gst::StreamType::VIDEO => tags.get_index::<VideoCodec>(0).clone(),
-            gst::StreamType::TEXT => tags.get_index::<SubtitleCodec>(0).clone(),
+            gst::StreamType::AUDIO => tags.get_index::<AudioCodec>(0),
+            gst::StreamType::VIDEO => tags.get_index::<VideoCodec>(0),
+            gst::StreamType::TEXT => tags.get_index::<SubtitleCodec>(0),
             _ => panic!("Stream::new can't handle {:?}", type_),
         }
-        .or_else(|| tags.get_index::<Codec>(0).clone())
-        .and_then(|codec_tag| codec_tag.get())
+        .or_else(|| tags.get_index::<Codec>(0))
+        .and_then(glib::value::TypedValue::get)
         .map_or_else(
             || {
                 // codec in caps in the form "streamtype/x-codec"
@@ -183,7 +185,7 @@ impl Stream {
                     codec.to_string()
                 }
             },
-            |codec_str| codec_str.to_string(),
+            ToString::to_string,
         );
 
         Stream {
@@ -422,6 +424,7 @@ impl MediaInfo {
     }
 
     /// Fill missing tags for global scope
+    #[allow(clippy::cyclomatic_complexity)]
     pub fn get_fixed_tags(&self) -> gst::TagList {
         let mut tags = gst::TagList::new();
         {
@@ -450,6 +453,7 @@ impl MediaInfo {
         tags
     }
 
+    #[allow(clippy::cyclomatic_complexity)]
     pub fn get_chapter_with_track_tags(
         &self,
         chapter: &gst::TocEntry,
@@ -580,6 +584,6 @@ impl MediaInfo {
 
         self.tags
             .get_index::<ContainerFormat>(0)
-            .and_then(|tag| tag.get())
+            .and_then(glib::value::TypedValue::get)
     }
 }

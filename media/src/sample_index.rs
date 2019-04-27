@@ -18,19 +18,19 @@ impl SampleIndex {
         SampleIndex((ts.as_u64() / sample_duration.as_u64()) as usize)
     }
 
-    pub fn get_aligned(&self, sample_step: SampleIndexRange) -> SampleIndex {
+    pub fn get_aligned(self, sample_step: SampleIndexRange) -> SampleIndex {
         SampleIndex(self.0 / sample_step.as_usize() * sample_step.as_usize())
     }
 
-    pub fn get_ts(&self, sample_duration: Duration) -> Timestamp {
+    pub fn get_ts(self, sample_duration: Duration) -> Timestamp {
         Timestamp::new(self.0 as u64 * sample_duration.as_u64())
     }
 
-    pub fn as_usize(&self) -> usize {
+    pub fn as_usize(self) -> usize {
         self.0
     }
 
-    pub fn as_u64(&self) -> u64 {
+    pub fn as_u64(self) -> u64 {
         self.0 as u64
     }
 

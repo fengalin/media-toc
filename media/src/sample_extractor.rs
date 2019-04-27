@@ -15,8 +15,8 @@ pub struct SampleExtractionState {
     pub is_stable: bool, // post-"new segment" position stabilization flag
 }
 
-impl SampleExtractionState {
-    pub fn new() -> Self {
+impl Default for SampleExtractionState {
+    fn default() -> Self {
         SampleExtractionState {
             sample_duration: Duration::default(),
             duration_per_1000_samples: Duration::default(),
@@ -27,16 +27,16 @@ impl SampleExtractionState {
             is_stable: false,
         }
     }
+}
+
+impl SampleExtractionState {
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn cleanup(&mut self) {
         // clear for reuse
-        self.sample_duration = Duration::default();
-        self.duration_per_1000_samples = Duration::default();
-        self.state = gst::State::Null;
-        self.audio_ref = None;
-        self.base_ts = None;
-        self.last_ts = Timestamp::default();
-        self.is_stable = false;
+        *self = Self::default();
     }
 
     pub fn reset_base_ts(&mut self) {
@@ -99,7 +99,6 @@ pub trait SampleExtractor: Send {
             gst::State::Playing => {
                 let computed_ts = state
                     .base_ts
-                    .clone()
                     .map(|(base_ts, base_frame_ts)| base_ts + (next_frame_ts - base_frame_ts));
 
                 if state.is_stable {

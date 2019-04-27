@@ -27,19 +27,19 @@ impl Duration {
         Duration(1_000_000_000u64 / freq)
     }
 
-    pub fn get_index_range(&self, sample_duration: Duration) -> SampleIndexRange {
+    pub fn get_index_range(self, sample_duration: Duration) -> SampleIndexRange {
         SampleIndexRange::new((self.0 / sample_duration.0) as usize)
     }
 
-    pub fn as_f64(&self) -> f64 {
+    pub fn as_f64(self) -> f64 {
         self.0 as f64
     }
 
-    pub fn as_u64(&self) -> u64 {
+    pub fn as_u64(self) -> u64 {
         self.0
     }
 
-    pub fn as_usize(&self) -> usize {
+    pub fn as_usize(self) -> usize {
         self.0 as usize
     }
 }

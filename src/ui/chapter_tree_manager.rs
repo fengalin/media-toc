@@ -6,7 +6,7 @@ use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, string::ToString};
 
 use media::Timestamp;
 use metadata::{get_default_chapter_title, Timestamp4Humans, TocVisitor};
@@ -34,7 +34,7 @@ impl<'entry> ChapterEntry<'entry> {
     }
 
     pub fn start(&self) -> Timestamp {
-        ChapterEntry::get_start(self.store, self.iter).into()
+        ChapterEntry::get_start(self.store, self.iter)
     }
 
     pub fn start_str(&self) -> GString {
@@ -46,7 +46,7 @@ impl<'entry> ChapterEntry<'entry> {
     }
 
     pub fn end(&self) -> Timestamp {
-        ChapterEntry::get_end(self.store, self.iter).into()
+        ChapterEntry::get_end(self.store, self.iter)
     }
 
     pub fn end_str(&self) -> GString {
@@ -240,7 +240,7 @@ impl ChapterTreeManager {
                         .get_tags()
                         .and_then(|tags| {
                             tags.get::<gst::tags::Title>()
-                                .and_then(|tag| tag.get().map(|value| value.to_string()))
+                                .and_then(|tag| tag.get().map(ToString::to_string))
                         })
                         .unwrap_or_else(get_default_chapter_title);
                     let iter = self.store.insert_with_values(

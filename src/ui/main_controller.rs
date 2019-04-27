@@ -8,7 +8,7 @@ use gtk::prelude::*;
 
 use log::{debug, error, info};
 
-use std::{cell::RefCell, collections::HashSet, path::PathBuf, rc::Rc, sync::Arc};
+use std::{borrow::ToOwned, cell::RefCell, collections::HashSet, path::PathBuf, rc::Rc, sync::Arc};
 
 use media::{MediaEvent, PlaybackPipeline, PlaybackState, Timestamp};
 
@@ -493,7 +493,7 @@ impl MainController {
                     self.refresh();
                 }
                 ControllerState::TwoStepsSeek(target) => {
-                    let target = target.clone(); // let go the reference on `self.state`
+                    let target = *target; // let go the reference on `self.state`
                     self.seek(target, gst::SeekFlags::ACCURATE);
                 }
                 ControllerState::PendingSelectMedia => {
@@ -624,8 +624,7 @@ impl MainController {
             sender,
         ) {
             Ok(pipeline) => {
-                CONFIG.write().unwrap().media.last_path =
-                    path.parent().map(|parent_path| parent_path.to_owned());
+                CONFIG.write().unwrap().media.last_path = path.parent().map(ToOwned::to_owned);
                 self.pipeline = Some(pipeline);
             }
             Err(error) => {

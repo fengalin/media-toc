@@ -273,7 +273,7 @@ impl MediaProcessor for ExportControllerImpl {
         if duration > 0 {
             self.toc_setter_pipeline
                 .as_ref()
-                .map(|toc_setter_pipeline| toc_setter_pipeline.get_current_ts())?
+                .map(TocSetterPipeline::get_current_ts)?
                 .map(|ts| ts.as_f64() / duration as f64)
         } else {
             Some(0f64)

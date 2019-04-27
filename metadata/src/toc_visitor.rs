@@ -83,7 +83,7 @@ impl TocVisitor {
         }
     }
 
-    pub fn next(&mut self) -> Option<TocVisit> {
+    fn next(&mut self) -> Option<TocVisit> {
         match self.next_to_push.take() {
             None => {
                 if self.stack.is_empty() {

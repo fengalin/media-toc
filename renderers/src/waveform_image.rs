@@ -371,9 +371,9 @@ impl WaveformImage {
                 self.image_width = target_width;
                 self.image_width_f = f64::from(target_width);
                 self.image_height = self.req_height;
-                self.full_range_y = self.req_height as f64;
+                self.full_range_y = f64::from(self.req_height);
                 self.half_range_y = self.full_range_y / 2f64;
-                self.sample_value_factor = self.half_range_y / std::i16::MIN as f64;
+                self.sample_value_factor = self.half_range_y / f64::from(std::i16::MIN);
 
                 debug!(
                     "{}_render new images w {}, h {}",
@@ -764,7 +764,7 @@ impl WaveformImage {
     }
 
     fn sample_value_to_y(&self, value: SampleValue) -> f64 {
-        (value.as_i16() as i32 - std::i16::MAX as i32) as f64 * self.sample_value_factor
+        f64::from(i32::from(value.as_i16()) - i32::from(std::i16::MAX)) * self.sample_value_factor
     }
 
     fn sample_values_to_ys(&self, values: &[SampleValue]) -> SmallVec<[f64; INLINE_CHANNELS]> {
@@ -813,7 +813,7 @@ impl WaveformImage {
         for channel in 0..audio_buffer.channels {
             let mut y_iter = audio_buffer
                 .try_iter(lower, upper, channel, self.sample_step)
-                .expect(&format!("{}_draw_samples", self.id))
+                .unwrap_or_else(|err| panic!("{}_draw_samples: {}", self.id, err))
                 .map(|channel_value| self.sample_value_to_y(channel_value));
 
             if y_iter.size_hint().0 < 2 {
@@ -836,7 +836,7 @@ impl WaveformImage {
 
             let first_y = y_iter
                 .next()
-                .expect(&format!("getting first value for channel {}", channel));
+                .unwrap_or_else(|| panic!("no first value for channel {}", channel));
             first_y_values.push(first_y);
 
             self.set_channel_color(cr, channel);

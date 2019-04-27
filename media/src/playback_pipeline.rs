@@ -10,6 +10,7 @@ use glib::{Cast, ObjectExt};
 use log::{debug, info, warn};
 
 use std::{
+    convert::AsRef,
     error::Error,
     path::Path,
     sync::{Arc, Mutex, RwLock},
@@ -176,7 +177,7 @@ impl PlaybackPipeline {
     }
 
     pub fn select_streams(&self, stream_ids: &[Arc<str>]) {
-        let stream_id_vec: Vec<&str> = stream_ids.iter().map(|id| id.as_ref()).collect();
+        let stream_id_vec: Vec<&str> = stream_ids.iter().map(AsRef::as_ref).collect();
         let select_streams_evt = gst::Event::new_select_streams(&stream_id_vec).build();
         self.decodebin.send_event(select_streams_evt);
 

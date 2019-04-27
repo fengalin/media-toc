@@ -204,14 +204,14 @@ impl StreamsController {
             .tags
             .get_index::<gst::tags::LanguageName>(0)
             .or_else(|| stream.tags.get_index::<gst::tags::LanguageCode>(0))
-            .and_then(|lang_tag| lang_tag.get())
+            .and_then(glib::TypedValue::get)
             .unwrap_or("-");
         store.set_value(&iter, LANGUAGE_COL, &gtk::Value::from(lang));
 
         if let Some(comment) = stream
             .tags
             .get_index::<gst::tags::Comment>(0)
-            .and_then(|tag| tag.get())
+            .and_then(glib::TypedValue::get)
         {
             store.set_value(&iter, COMMENT_COL, &gtk::Value::from(comment));
         }

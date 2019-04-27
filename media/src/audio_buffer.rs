@@ -403,11 +403,11 @@ impl AudioBuffer {
 
             if ins.append_after {
                 for sample in converter_iter {
-                    self.samples.push_back(sample.into());
+                    self.samples.push_back(sample);
                 }
             } else {
                 for sample in converter_iter.rev() {
-                    self.samples.push_front(sample.into());
+                    self.samples.push_front(sample);
                 }
             }
         }
@@ -448,7 +448,7 @@ impl AudioBuffer {
         if sample_idx >= self.lower && sample_idx < self.upper {
             let slices = self.samples.as_slices();
             let slice0_len = slices.0.len();
-            let mut idx = ((sample_idx - self.lower).as_usize() * self.channels).into();
+            let mut idx = (sample_idx - self.lower).as_usize() * self.channels;
             let last_idx = idx + self.channels;
 
             if last_idx <= slice0_len {
@@ -511,7 +511,7 @@ impl<'slice> SampleConverterIter<'slice> {
         Some(SampleConverterIter {
             cursor,
             sample_step,
-            bytes_per_channel: bytes_per_channel,
+            bytes_per_channel,
             two_x_bytes_per_channel: 2 * bytes_per_channel,
             output_channels,
             extra_positions,
@@ -549,9 +549,9 @@ impl<'slice> Iterator for SampleConverterIter<'slice> {
     type Item = SampleValue;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match &self.idx {
+        match self.idx {
             Some((idx, _)) => {
-                if idx >= &self.last {
+                if idx >= self.last {
                     return None;
                 }
             }
@@ -581,27 +581,25 @@ impl<'slice> DoubleEndedIterator for SampleConverterIter<'slice> {
             Some((idx, channel)) => {
                 if (idx == &self.first) && (*channel == 0) {
                     return None;
+                } else if *channel > 0 {
+                    *channel -= 1;
+                    // get back 2x bytes_per_channel positions:
+                    // 1x for the bytes previously read
+                    // 1x for the bytes to read
+                    self.cursor
+                        .set_position(self.cursor.position() - self.two_x_bytes_per_channel);
                 } else {
-                    if *channel > 0 {
-                        *channel -= 1;
-                        // get back 2x bytes_per_channel positions:
-                        // 1x for the bytes previously read
-                        // 1x for the bytes to read
-                        self.cursor
-                            .set_position(self.cursor.position() - self.two_x_bytes_per_channel);
-                    } else {
-                        *channel = self.output_channels - 1;
-                        idx.try_dec().ok()?;
-                        // get back:
-                        // 1x for the bytes previously read
-                        // 1x for the bytes to read
-                        // skip the extra positions
-                        self.cursor.set_position(
-                            self.cursor.position()
-                                - self.two_x_bytes_per_channel
-                                - self.extra_positions,
-                        );
-                    }
+                    *channel = self.output_channels - 1;
+                    idx.try_dec().ok()?;
+                    // get back:
+                    // 1x for the bytes previously read
+                    // 1x for the bytes to read
+                    // skip the extra positions
+                    self.cursor.set_position(
+                        self.cursor.position()
+                            - self.two_x_bytes_per_channel
+                            - self.extra_positions,
+                    );
                 }
             }
             None => {

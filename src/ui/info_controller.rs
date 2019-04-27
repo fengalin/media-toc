@@ -388,7 +388,7 @@ impl InfoController {
                 (None, prev_start_opt) => prev_start_opt,
             }
         }
-        .unwrap_or(Timestamp::default())
+        .unwrap_or_else(Timestamp::default)
     }
 
     pub fn start_play_range(&mut self) {

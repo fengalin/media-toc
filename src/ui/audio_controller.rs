@@ -680,8 +680,7 @@ impl AudioController {
                 // right button => segment playback in Paused state
                 if self.state == ControllerState::Paused {
                     if let Some(start) = self.get_ts_at(event_button.get_position().0) {
-                        let end =
-                            start + MIN_RANGE_DURATION.max(self.last_visible_ts - start).into();
+                        let end = start + MIN_RANGE_DURATION.max(self.last_visible_ts - start);
                         self.ui_event.play_range(start, end, self.current_ts);
                     }
                 }

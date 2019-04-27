@@ -54,10 +54,10 @@ named!(pub parse_timestamp<CompleteStr<'_>, Timestamp4Humans>,
                 (
                     (
                         (
-                            (ts.h as u64 * 60 + ts.m as u64) * 60 + ts.s as u64
-                        ) * 1_000 + ts.ms as u64
-                    ) * 1_000 + ts.us as u64
-                ) * 1_000 + ts.nano as u64;
+                            (u64::from(ts.h) * 60 + u64::from(ts.m)) * 60 + u64::from(ts.s)
+                        ) * 1_000 + u64::from(ts.ms)
+                    ) * 1_000 + u64::from(ts.us)
+                ) * 1_000 + u64::from(ts.nano);
             ts
         })
     )

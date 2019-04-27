@@ -3,7 +3,7 @@ use gstreamer as gst;
 
 use log::error;
 
-use std::io::Write;
+use std::{io::Write, string::ToString};
 
 use super::{get_default_chapter_title, MediaInfo, Timestamp4Humans, TocVisitor, Writer};
 
@@ -79,7 +79,7 @@ impl Writer for CueSheetFormat {
                 .get_tags()
                 .and_then(|tags| {
                     tags.get::<gst::tags::Title>()
-                        .and_then(|tag| tag.get().map(|value| value.to_string()))
+                        .and_then(|value| value.get().map(ToString::to_string))
                 })
                 .or_else(|| media_title.clone())
                 .unwrap_or_else(get_default_chapter_title);
@@ -89,7 +89,7 @@ impl Writer for CueSheetFormat {
                 .get_tags()
                 .and_then(|tags| {
                     tags.get::<gst::tags::Artist>()
-                        .and_then(|tag| tag.get().map(|value| value.to_string()))
+                        .and_then(|value| value.get().map(ToString::to_string))
                 })
                 .or_else(|| media_artist.clone())
                 .unwrap_or_else(get_default_chapter_title);
@@ -102,7 +102,7 @@ impl Writer for CueSheetFormat {
                     "    INDEX 01 {:02}:{:02}:{:02}\n",
                     start_ts.h * 60 + start_ts.m,
                     start_ts.s,
-                    (((start_ts.ms * 1_000 + start_ts.us) * 1_000 + start_ts.nano) as f64
+                    (f64::from((start_ts.ms * 1_000 + start_ts.us) * 1_000 + start_ts.nano)
                         / 1_000_000_000f64
                         * 75f64)
                         .round() // frame nb (75 frames/s for Cue Sheets)

@@ -16,27 +16,27 @@ impl Timestamp {
         Timestamp(value)
     }
 
-    pub fn get_4_humans(&self) -> Timestamp4Humans {
+    pub fn get_4_humans(self) -> Timestamp4Humans {
         Timestamp4Humans::from_nano(self.0)
     }
 
-    pub fn get_halfway_to(&self, other: Timestamp) -> Timestamp {
+    pub fn get_halfway_to(self, other: Timestamp) -> Timestamp {
         Timestamp((self.0 + other.0) / 2)
     }
 
-    pub fn get_sample_index(&self, sample_duration: Duration) -> SampleIndex {
+    pub fn get_sample_index(self, sample_duration: Duration) -> SampleIndex {
         SampleIndex::new((self.0 / sample_duration.as_u64()) as usize)
     }
 
-    pub fn as_f64(&self) -> f64 {
+    pub fn as_f64(self) -> f64 {
         self.0 as f64
     }
 
-    pub fn as_i64(&self) -> i64 {
+    pub fn as_i64(self) -> i64 {
         self.0 as i64
     }
 
-    pub fn as_u64(&self) -> u64 {
+    pub fn as_u64(self) -> u64 {
         self.0
     }
 }
