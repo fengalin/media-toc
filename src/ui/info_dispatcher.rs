@@ -64,7 +64,6 @@ impl UIDispatcher for InfoDispatcher {
                     if let Some(iter) = info_ctrl.chapter_manager.get_iter(tree_path) {
                         let ts = info_ctrl.chapter_manager.get_chapter_at_iter(&iter).start();
                         // update current timestamp
-                        info_ctrl.tick(ts, false);
                         main_ctrl.seek(ts, gst::SeekFlags::ACCURATE);
                     }
                 }

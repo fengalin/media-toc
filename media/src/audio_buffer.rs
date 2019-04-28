@@ -99,6 +99,11 @@ impl StreamState {
     }
 
     fn have_segment(&mut self, segment_start: Timestamp) {
+        debug!("have_gst_segment {} ({})",
+            segment_start,
+            segment_start.get_sample_index(self.sample_duration),
+        );
+
         match self.segment_start {
             Some(current_segment_start) => {
                 if current_segment_start != segment_start {
@@ -237,7 +242,6 @@ impl AudioBuffer {
     }
 
     pub fn have_gst_segment(&mut self, segment_start: Timestamp) {
-        debug!("have_gst_segment {}", segment_start);
         self.stream_state.have_segment(segment_start);
     }
 

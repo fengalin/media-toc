@@ -13,10 +13,7 @@ use metadata;
 use metadata::{MediaInfo, Timestamp4Humans};
 use renderers::Image;
 
-use super::{
-    ChapterTreeManager, ChaptersBoundaries, ControllerState, PositionStatus, UIController,
-    UIEventSender,
-};
+use super::{ChapterTreeManager, ChaptersBoundaries, PositionStatus, UIController, UIEventSender};
 use crate::application::{CommandLineArguments, CONFIG};
 
 const GO_TO_PREV_CHAPTER_THRESHOLD: Duration = Duration::from_secs(1);
@@ -357,13 +354,9 @@ impl InfoController {
         self.chapter_manager.move_chapter_boundary(boundary, target)
     }
 
-    pub fn seek(&mut self, target: Timestamp, state: &ControllerState) {
+    pub fn seek(&mut self, target: Timestamp) {
         self.chapter_manager.prepare_for_seek();
-
-        if *state != ControllerState::Playing {
-            // force sync
-            self.tick(target, false);
-        }
+        self.tick(target, false);
     }
 
     pub fn previous_ts(&self, current: Timestamp) -> Timestamp {

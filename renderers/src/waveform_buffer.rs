@@ -712,13 +712,34 @@ impl WaveformBuffer {
             self.first_visible_sample_lock = None;
 
             Some((lower, upper))
+        } else if self.cursor_sample <= lower || self.cursor_sample >= upper {
+            trace!(
+                concat!(
+                    "{}_get_sample_range cursor not in the window: first_visible_sample ",
+                    "{:?}, cursor {}, merged range [{}, {}]",
+                ),
+                self.image.id, self.first_visible_sample, self.cursor_sample, lower, upper,
+            );
+
+            self.first_visible_sample = None;
+            self.first_visible_sample_lock = None;
+
+            Some((lower, upper))
         } else {
             match self.first_visible_sample {
                 Some(first_visible_sample) => {
                     if self.cursor_sample >= first_visible_sample
                         && self.cursor_sample < first_visible_sample + self.req_sample_window
                     {
-                        // cursor is still in the window => keep it
+                        // cursor is in the window => keep it
+                        trace!(
+                            concat!(
+                                "{}_get_sample_range cursor in the window: first_visible_sample ",
+                                "{}, cursor {}, merged range [{}, {}]",
+                            ),
+                            self.image.id, first_visible_sample, self.cursor_sample, lower, upper,
+                        );
+
                         Some((
                             first_visible_sample,
                             upper.min(

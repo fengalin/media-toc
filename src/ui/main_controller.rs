@@ -298,6 +298,7 @@ impl MainController {
     pub fn seek(&mut self, target: Timestamp, flags: gst::SeekFlags) {
         let mut seek_ts = target;
         let mut flags = flags;
+        let mut must_update_info = false;
         self.state = match self.state {
             ControllerState::Playing => ControllerState::Seeking,
             ControllerState::Paused => {
@@ -308,7 +309,10 @@ impl MainController {
                         seek_ts = seek_1st_step;
                         ControllerState::TwoStepsSeek(target)
                     }
-                    None => ControllerState::Seeking,
+                    None => {
+                        must_update_info = true;
+                        ControllerState::Seeking
+                    }
                 }
             }
             ControllerState::TwoStepsSeek(target) => {
@@ -319,6 +323,7 @@ impl MainController {
                 // `TwoStepsSeek` (which purpose is to center the cursor on the waveform)
                 // than reaching for the latest seeked position
                 seek_ts = target;
+                must_update_info = true;
                 ControllerState::Seeking
             }
             ControllerState::EOS => {
@@ -328,8 +333,14 @@ impl MainController {
             _ => return,
         };
 
-        self.info_ctrl.seek(seek_ts, &self.state);
+        debug!("seek {} {:?}", seek_ts, self.state);
+
+        if must_update_info {
+            self.info_ctrl.seek(seek_ts);
+        }
+
         self.audio_ctrl.seek(seek_ts);
+
         self.pipeline.as_ref().unwrap().seek(seek_ts, flags);
     }
 
