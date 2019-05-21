@@ -15,7 +15,7 @@ use super::{
     INLINE_CHANNELS, QUEUE_SIZE,
 };
 
-const EXTRACTION_THRESHOLD: SampleIndexRange = SampleIndexRange::new(1024);
+const EXTRACTION_THRESHOLD: SampleIndexRange = SampleIndexRange::new(4096);
 
 // The DoubleBuffer is reponsible for ensuring a thread safe double buffering
 // mechanism that receives samples from GStreamer, prepares an extraction of
@@ -202,33 +202,25 @@ impl DoubleAudioBuffer {
             .push_gst_buffer(buffer, self.lower_to_keep);
         self.samples_since_last_extract += sample_nb;
 
-        let must_notify = if self.state != gst::State::Playing {
-            if let Some(mut gauge) = self.sample_gauge.take() {
-                gauge += sample_nb;
-                let must_notify = self
+        let mut must_notify = false;
+        if self.state != gst::State::Playing {
+            if let Some(gauge) = self.sample_gauge.as_mut() {
+                *gauge += sample_nb;
+                let gauge = *gauge; // let go the ref on self.sample_gauge
+                must_notify = self
                     .sample_window
                     .map_or(false, |sample_window| gauge >= sample_window);
 
-                if !must_notify {
-                    self.sample_gauge = Some(gauge);
+                if must_notify {
+                    self.sample_gauge = None;
                 }
-                // after the threshold is reached, the gauge is removed
-                must_notify
-            } else {
-                false
             }
-        } else {
-            false
-        };
+        }
 
         if must_notify || self.samples_since_last_extract >= EXTRACTION_THRESHOLD {
             // extract new samples and swap
             self.extract_samples();
             self.samples_since_last_extract = SampleIndex::default();
-
-            if must_notify {
-                self.sample_gauge = None;
-            }
         }
 
         must_notify
