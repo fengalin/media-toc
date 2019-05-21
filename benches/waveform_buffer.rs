@@ -16,7 +16,7 @@ use media::{
 };
 use renderers::WaveformBuffer;
 
-const SAMPLE_RATE: u64 = 48000;
+const SAMPLE_RATE: u64 = 48_000;
 const SAMPLE_DURATION: Duration = Duration::from_frequency(SAMPLE_RATE);
 
 const CHANNELS: usize = 2;
