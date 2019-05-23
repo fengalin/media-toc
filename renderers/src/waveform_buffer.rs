@@ -613,9 +613,9 @@ impl WaveformBuffer {
                     .get_step_range(self.image.sample_step)
                     * self.image.x_step) as f64;
 
-                let last_opt = match self.image.last {
-                    Some(ref last) => {
-                        let delta_x = last.x - x_offset;
+                let last_opt = match self.image.last_x.as_ref() {
+                    Some(image_last_x) => {
+                        let delta_x = image_last_x - x_offset;
 
                         let last_x = delta_x.min(self.width_f);
                         if last_x.is_sign_positive() {
@@ -659,72 +659,41 @@ impl WaveformBuffer {
     }
 
     fn get_sample_range(&mut self, audio_buffer: &AudioBuffer) -> (SampleIndex, SampleIndex) {
-        // First step: see how current waveform and the audio_buffer can merge
-        let (lower, upper) = if audio_buffer.lower <= self.image.lower
-            && audio_buffer.upper >= self.image.upper
+        let extraction_range = if audio_buffer.upper - audio_buffer.lower <= self.req_sample_window
         {
-            // waveform contained in buffer => regular case
-            (audio_buffer.lower, audio_buffer.upper)
-        } else if audio_buffer.lower >= self.image.lower && audio_buffer.lower < self.image.upper {
-            // last segment further than current image origin
-            // but buffer can be merged with current waveform
-            // or is contained in current waveform
-            (self.image.lower, audio_buffer.upper.max(self.image.upper))
-        } else if audio_buffer.lower < self.image.lower && audio_buffer.upper >= self.image.lower {
-            // current waveform overlaps with buffer on its left
-            // or is contained in buffer
-            (audio_buffer.lower, audio_buffer.upper.max(self.image.upper))
-        } else {
-            // not able to merge buffer with current waveform
-            // synchronize on latest segment received
-            let segment_lower = audio_buffer.segment_lower();
-            debug!(
-                concat!(
-                    "{}_get_sample_range not able to merge: ",
-                    "cursor {}, image [{}, {}], buffer [{}, {}], segment: {}",
-                ),
-                self.image.id,
-                self.cursor_sample,
-                self.image.lower,
-                self.image.upper,
-                audio_buffer.lower,
-                audio_buffer.upper,
-                segment_lower,
-            );
-
-            self.first_visible_sample = None;
-            self.first_visible_sample_lock = None;
-
-            (segment_lower, audio_buffer.upper)
-        };
-
-        // Second step: find the range to display
-        let extraction_range = if upper - lower <= self.req_sample_window {
             // image can use the full window
             trace!(
                 "{}_get_sample_range using full window, range [{}, {}]",
                 self.image.id,
-                lower,
-                upper,
+                audio_buffer.lower,
+                audio_buffer.upper,
             );
 
             self.first_visible_sample = None;
             self.first_visible_sample_lock = None;
 
-            Some((lower, upper))
-        } else if self.cursor_sample <= lower || self.cursor_sample >= upper {
+            Some((audio_buffer.lower, audio_buffer.upper))
+        } else if self.cursor_sample <= audio_buffer.lower
+            || self.cursor_sample >= audio_buffer.upper
+        {
+            // cursor sample out of the buffer's range
             trace!(
                 concat!(
                     "{}_get_sample_range cursor not in the window: first_visible_sample ",
                     "{:?}, cursor {}, merged range [{}, {}]",
                 ),
-                self.image.id, self.first_visible_sample, self.cursor_sample, lower, upper,
+                self.image.id,
+                self.first_visible_sample,
+                self.cursor_sample,
+                audio_buffer.lower,
+                audio_buffer.upper,
             );
 
             self.first_visible_sample = None;
             self.first_visible_sample_lock = None;
 
-            Some((lower, upper))
+            // Use defaults
+            None
         } else {
             match self.first_visible_sample {
                 Some(first_visible_sample) => {
@@ -735,17 +704,21 @@ impl WaveformBuffer {
                         trace!(
                             concat!(
                                 "{}_get_sample_range cursor in the window: first_visible_sample ",
-                                "{}, cursor {}, merged range [{}, {}]",
+                                "{}, cursor {}, range [{}, {}]",
                             ),
-                            self.image.id, first_visible_sample, self.cursor_sample, lower, upper,
+                            self.image.id,
+                            first_visible_sample,
+                            self.cursor_sample,
+                            audio_buffer.lower,
+                            audio_buffer.upper,
                         );
 
                         Some((
                             first_visible_sample,
-                            upper.min(
+                            audio_buffer.upper.min(
                                 first_visible_sample
                                     + self.req_sample_window
-                                    + self.half_req_sample_window,
+                                    + self.quarter_req_sample_window,
                             ),
                         ))
                     } else {
@@ -754,16 +727,28 @@ impl WaveformBuffer {
                                 "{}_get_sample_range first_visible_sample ",
                                 "{} and cursor {} not in the same range [{}, {}]",
                             ),
-                            self.image.id, first_visible_sample, self.cursor_sample, lower, upper,
+                            self.image.id,
+                            first_visible_sample,
+                            self.cursor_sample,
+                            audio_buffer.lower,
+                            audio_buffer.upper,
                         );
 
                         match self.first_visible_sample_lock.take() {
                             None => {
                                 if self.playback_needs_refresh {
                                     // refresh to the full available range
-                                    Some((first_visible_sample, upper))
+
+                                    Some((
+                                        first_visible_sample,
+                                        audio_buffer
+                                            .upper
+                                            .min(first_visible_sample + self.req_sample_window),
+                                    ))
                                 } else {
                                     self.first_visible_sample = None;
+
+                                    // use defaults
                                     None
                                 }
                             }
@@ -772,6 +757,7 @@ impl WaveformBuffer {
                                 | LockState::PlayingSecondHalf
                                 | LockState::Seeking => {
                                     self.first_visible_sample = None;
+                                    // use defaults
                                     None
                                 }
                                 LockState::PlayingRange | LockState::RestoringInitialPos => {
@@ -781,11 +767,9 @@ impl WaveformBuffer {
 
                                     Some((
                                         first_visible_sample,
-                                        upper.min(
-                                            first_visible_sample
-                                                + self.req_sample_window
-                                                + self.half_req_sample_window,
-                                        ),
+                                        audio_buffer
+                                            .upper
+                                            .min(first_visible_sample + self.req_sample_window),
                                     ))
                                 }
                             },
@@ -793,52 +777,50 @@ impl WaveformBuffer {
                     }
                 }
                 None => {
-                    if self.cursor_sample > lower + self.half_req_sample_window
-                        && self.cursor_sample < upper
+                    if self.cursor_sample > audio_buffer.lower + self.half_req_sample_window
+                        && self.cursor_sample < audio_buffer.upper
                     {
                         // cursor can be centered or is in second half of the window
-                        if self.cursor_sample + self.half_req_sample_window < upper {
+                        if self.cursor_sample + self.half_req_sample_window < audio_buffer.upper {
                             // cursor can be centered
-                            trace!(
+                            debug!(
                                 "{}_get_sample_range centering cursor: {}",
-                                self.image.id,
-                                self.cursor_sample,
+                                self.image.id, self.cursor_sample,
                             );
 
                             Some((
                                 self.cursor_sample - self.half_req_sample_window,
-                                upper.min(self.cursor_sample + self.req_sample_window),
+                                audio_buffer.upper.min(
+                                    self.cursor_sample
+                                        + self.half_req_sample_window
+                                        + self.quarter_req_sample_window,
+                                ),
                             ))
                         } else {
                             // cursor in second half
-                            trace!(
+                            debug!(
                                 "{}_get_sample_range cursor: {} in second half",
-                                self.image.id,
-                                self.cursor_sample,
+                                self.image.id, self.cursor_sample,
                             );
 
                             // attempt to get an optimal range
-                            if upper
-                                > lower + self.req_sample_window + self.quarter_req_sample_window
-                            {
+                            if audio_buffer.upper >= audio_buffer.lower + self.req_sample_window {
                                 Some((
-                                    upper - self.req_sample_window - self.quarter_req_sample_window,
-                                    upper,
+                                    audio_buffer.upper - self.req_sample_window,
+                                    audio_buffer.upper,
                                 ))
-                            } else if upper > lower + self.req_sample_window {
-                                Some((upper - self.req_sample_window, upper))
                             } else {
                                 // use defaults
                                 None
                             }
                         }
                     } else {
-                        trace!(
+                        debug!(
                             "{}_get_sample_range cursor {} in first half or before range [{}, {}]",
                             self.image.id,
                             self.cursor_sample,
-                            lower,
-                            upper,
+                            audio_buffer.lower,
+                            audio_buffer.upper,
                         );
 
                         // use defaults
@@ -851,9 +833,9 @@ impl WaveformBuffer {
         extraction_range.unwrap_or_else(|| {
             (
                 audio_buffer.lower,
-                audio_buffer
-                    .upper
-                    .min(audio_buffer.lower + self.req_sample_window + self.half_req_sample_window),
+                audio_buffer.upper.min(
+                    audio_buffer.lower + self.req_sample_window + self.quarter_req_sample_window,
+                ),
             )
         })
     }

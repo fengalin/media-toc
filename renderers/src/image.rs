@@ -125,13 +125,13 @@ impl Image {
 
     // Calls the given closure with a temporary Cairo image surface. After the closure has returned
     // there must be no further references to the surface.
-    pub fn with_surface<F: FnOnce(&cairo::ImageSurface)>(&mut self, func: F) {
+    pub fn with_surface<T, F: FnOnce(&cairo::ImageSurface) -> T>(&mut self, func: F) -> T {
         // Temporary move out the pixels
         let pixels = self.pixels.take().expect("Empty image");
 
         // A new return location that is then passed to our helper struct below
         let return_location = Rc::new(RefCell::new(None));
-        {
+        let result = {
             let holder = ImageHolder {
                 pixels: Some(pixels),
                 return_location: return_location.clone(),
@@ -147,17 +147,20 @@ impl Image {
                     self.stride,
                 )
                 .expect("Can't create surface");
-                func(&surface);
+
+                func(&surface)
             }
 
             // Now the surface will be destroyed and the pixels are stored in the return_location
-        }
+        };
 
         // And here move the pixels back again
         self.pixels = Some(return_location.borrow_mut().take().expect(concat!(
             "Image not returned. If the closure uses an external `cairo::Context`, ",
             "use the method `with_surface_external_context` instead."
         )));
+
+        result
     }
 
     // Calls the given closure with a temporary Cairo image surface. After the closure has returned
