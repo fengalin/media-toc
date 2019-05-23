@@ -341,9 +341,12 @@ impl WaveformImage {
             ))
             .unwrap();
 
-            self.image.with_surface(|surface| {
-                surface.write_to_png(&mut output_file).unwrap();
-            });
+            self.image
+                .as_mut()
+                .expect("WaveformImage::render no image when dumping waveform")
+                .with_surface(|surface| {
+                    surface.write_to_png(&mut output_file).unwrap();
+                });
         }
 
         self.is_ready = true;
