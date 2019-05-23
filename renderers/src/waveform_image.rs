@@ -499,7 +499,10 @@ impl WaveformImage {
                 }
                 None => {
                     self.force_redraw = true;
-                    warn!("{}_redraw: not enough samples to draw {}, {}", self.id, lower, upper);
+                    warn!(
+                        "{}_redraw: not enough samples to draw {}, {}",
+                        self.id, lower, upper
+                    );
                 }
             }
         });
@@ -625,8 +628,8 @@ impl WaveformImage {
         );
 
         let must_translate = self.last.as_ref().map_or(false, |last| {
-            let x_range_to_draw = (upper - self.upper).get_step_range(self.sample_step)
-                * self.x_step;
+            let x_range_to_draw =
+                (upper - self.upper).get_step_range(self.sample_step) * self.x_step;
             last.x as usize + x_range_to_draw >= self.image_width as usize
         });
 
@@ -675,12 +678,7 @@ impl WaveformImage {
         );
     }
 
-    fn draw_right(
-        &mut self,
-        cr: &cairo::Context,
-        audio_buffer: &AudioBuffer,
-        upper: SampleIndex,
-    ) {
+    fn draw_right(&mut self, cr: &cairo::Context, audio_buffer: &AudioBuffer, upper: SampleIndex) {
         let first_sample_to_draw = self.upper;
         let first_x_to_draw = ((first_sample_to_draw - self.lower).get_step_range(self.sample_step)
             * self.x_step) as f64;
@@ -771,8 +769,17 @@ impl WaveformImage {
         let mut last_y_values: SmallVec<[f64; INLINE_CHANNELS]> =
             SmallVec::with_capacity(audio_buffer.channels);
 
-        let mut first_for_amp0 = first_x;
-        let mut last_for_amp0 = first_x;
+        let (first_for_amp0, can_link_first) =
+            self.last.as_ref().map_or((first_x, false), |prev_last| {
+                if first_x > prev_last.x {
+                    // appending samples after previous last sample => link
+                    (prev_last.x, true)
+                } else {
+                    (first_x, false)
+                }
+            });
+
+        let mut last_for_amp0 = first_for_amp0;
         let mut x = first_x;
         for channel in 0..audio_buffer.channels {
             let mut y_iter = audio_buffer
@@ -812,29 +819,22 @@ impl WaveformImage {
 
             self.set_channel_color(cr, channel);
 
-            // link with previous last if applicable
-            let can_link = self.last.as_ref().map_or(false, |prev_last| {
-                if first_x > prev_last.x {
-                    // appending samples after previous last sample => link
-                    cr.move_to(prev_last.x, prev_last.y_values[channel]);
-                    first_for_amp0 = prev_last.x;
-                    true
-                } else {
-                    false
-                }
-            });
-
             x = first_x;
 
             let y = y_iter
                 .next()
                 .unwrap_or_else(|| panic!("no first value for channel {}", channel));
 
-            if can_link {
-                cr.line_to(x, y);
+            if can_link_first {
+                // appending samples after previous last sample => link
+                if let Some(prev_last) = self.last.as_ref() {
+                    cr.move_to(prev_last.x, prev_last.y_values[channel]);
+                    cr.line_to(x, y);
+                }
             } else {
                 cr.move_to(x, y);
             }
+
             first_y_values.push(y);
 
             // draw the rest of the samples
@@ -845,17 +845,18 @@ impl WaveformImage {
                 last_y = y;
             }
 
-            last_for_amp0 = x;
             last_y_values.push(last_y);
 
             // Link with previous first if applicable
-            if let Some(prev_first) = self.first.as_ref() {
+            last_for_amp0 = self.first.as_ref().map_or(x, |prev_first| {
                 if x < prev_first.x {
                     cr.line_to(prev_first.x, prev_first.y_values[channel]);
 
-                    last_for_amp0 = prev_first.x;
+                    prev_first.x
+                } else {
+                    x
                 }
-            }
+            });
 
             cr.stroke();
         }
