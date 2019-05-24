@@ -701,6 +701,7 @@ impl WaveformImage {
         }
     }
 
+    #[inline]
     fn translate_previous(
         &self,
         cr: &cairo::Context,
@@ -711,21 +712,12 @@ impl WaveformImage {
         cr.paint();
     }
 
-    fn set_channel_color(&self, cr: &cairo::Context, channel: usize) {
-        if let Some(&(red, green, blue)) = self.channel_colors.get(channel) {
-            cr.set_source_rgba(red, green, blue, 0.68f64);
-        } else {
-            warn!(
-                "{}_set_channel_color no color for channel {}",
-                self.id, channel
-            );
-        }
-    }
-
+    #[inline]
     fn sample_value_to_y(&self, value: SampleValue) -> f64 {
         f64::from(i32::from(value.as_i16()) - i32::from(std::i16::MAX)) * self.sample_value_factor
     }
 
+    #[inline]
     fn sample_values_to_ys(&self, values: &[SampleValue]) -> SmallVec<[f64; INLINE_CHANNELS]> {
         let mut result: SmallVec<[f64; INLINE_CHANNELS]> = SmallVec::with_capacity(values.len());
         for value in values {
@@ -817,7 +809,14 @@ impl WaveformImage {
                 }
             }
 
-            self.set_channel_color(cr, channel);
+            if let Some(&(red, green, blue)) = self.channel_colors.get(channel) {
+                cr.set_source_rgb(red, green, blue);
+            } else {
+                warn!(
+                    "{}_set_channel_color no color for channel {}",
+                    self.id, channel
+                );
+            }
 
             x = first_x;
 

@@ -718,7 +718,11 @@ impl WaveformBuffer {
                     "{}_get_sample_range cursor not in the window: first_visible_sample ",
                     "{:?}, cursor {}, merged range [{}, {}]",
                 ),
-                self.image.id, self.first_visible_sample, self.cursor_sample, lower, upper,
+                self.image.id,
+                self.first_visible_sample,
+                self.cursor_sample,
+                lower,
+                upper,
             );
 
             self.first_visible_sample = None;
@@ -737,7 +741,11 @@ impl WaveformBuffer {
                                 "{}_get_sample_range cursor in the window: first_visible_sample ",
                                 "{}, cursor {}, merged range [{}, {}]",
                             ),
-                            self.image.id, first_visible_sample, self.cursor_sample, lower, upper,
+                            self.image.id,
+                            first_visible_sample,
+                            self.cursor_sample,
+                            lower,
+                            upper,
                         );
 
                         Some((
