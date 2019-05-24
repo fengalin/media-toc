@@ -403,7 +403,7 @@ impl WaveformImage {
             }
 
             if let Some(&(red, green, blue)) = self.channel_colors.get(channel) {
-                cr.set_source_rgba(red, green, blue, 0.68f64);
+                cr.set_source_rgb(red, green, blue);
             } else {
                 warn!("{}_draw_samples no color for channel {}", self.id, channel);
             }
