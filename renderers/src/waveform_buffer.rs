@@ -83,7 +83,7 @@ pub struct WaveformBuffer {
     sample_step_f: f64,
     req_sample_window: SampleIndexRange,
     half_req_sample_window: SampleIndexRange,
-    quarter_req_sample_window: SampleIndexRange,
+    eighth_req_sample_window: SampleIndexRange,
 }
 
 impl WaveformBuffer {
@@ -107,7 +107,7 @@ impl WaveformBuffer {
             sample_step_f: 0f64,
             req_sample_window: SampleIndexRange::default(),
             half_req_sample_window: SampleIndexRange::default(),
-            quarter_req_sample_window: SampleIndexRange::default(),
+            eighth_req_sample_window: SampleIndexRange::default(),
         }
     }
 
@@ -136,7 +136,7 @@ impl WaveformBuffer {
         self.sample_step_f = 0f64;
         self.req_sample_window = SampleIndexRange::default();
         self.half_req_sample_window = SampleIndexRange::default();
-        self.quarter_req_sample_window = SampleIndexRange::default();
+        self.eighth_req_sample_window = SampleIndexRange::default();
 
         self.image.cleanup_sample_conditions();
     }
@@ -585,7 +585,7 @@ impl WaveformBuffer {
 
         self.req_sample_window = req_sample_window.into();
         self.half_req_sample_window = half_req_sample_window.into();
-        self.quarter_req_sample_window = (half_req_sample_window / 2).into();
+        self.eighth_req_sample_window = (half_req_sample_window / 4).into();
         self.conditions_changed = true;
     }
 
@@ -718,7 +718,7 @@ impl WaveformBuffer {
                             audio_buffer.upper.min(
                                 first_visible_sample
                                     + self.req_sample_window
-                                    + self.quarter_req_sample_window,
+                                    + self.eighth_req_sample_window,
                             ),
                         ))
                     } else {
@@ -793,7 +793,7 @@ impl WaveformBuffer {
                                 audio_buffer.upper.min(
                                     self.cursor_sample
                                         + self.half_req_sample_window
-                                        + self.quarter_req_sample_window,
+                                        + self.eighth_req_sample_window,
                                 ),
                             ))
                         } else {
@@ -834,7 +834,7 @@ impl WaveformBuffer {
             (
                 audio_buffer.lower,
                 audio_buffer.upper.min(
-                    audio_buffer.lower + self.req_sample_window + self.quarter_req_sample_window,
+                    audio_buffer.lower + self.req_sample_window + self.eighth_req_sample_window,
                 ),
             )
         })
@@ -939,7 +939,7 @@ impl SampleExtractor for WaveformBuffer {
             self.sample_step_f = other.sample_step_f;
             self.req_sample_window = other.req_sample_window;
             self.half_req_sample_window = other.half_req_sample_window;
-            self.quarter_req_sample_window = other.quarter_req_sample_window;
+            self.eighth_req_sample_window = other.eighth_req_sample_window;
 
             other.conditions_changed = false;
         } // else: other has nothing new
