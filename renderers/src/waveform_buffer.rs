@@ -62,7 +62,7 @@ pub struct WaveformBuffer {
     state: SampleExtractionState,
     conditions_changed: bool,
 
-    image: WaveformImage,
+    pub image: WaveformImage,
 
     previous_sample: Option<SampleIndex>,
     pub cursor_sample: SampleIndex, // The sample idx currently under the cursor (might be different from
