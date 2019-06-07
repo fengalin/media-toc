@@ -5,6 +5,8 @@ use test::Bencher;
 
 use byteorder::{ByteOrder, LittleEndian};
 
+use cairo;
+
 use gstreamer as gst;
 use gstreamer_audio as gst_audio;
 
@@ -20,6 +22,17 @@ const SAMPLE_RATE: u64 = 48_000;
 const SAMPLE_DURATION: Duration = Duration::from_frequency(SAMPLE_RATE);
 
 const CHANNELS: usize = 2;
+
+const DURATION_FOR_1000: Duration = Duration::from_nanos(1_000_000_000_000u64 / SAMPLE_RATE);
+const DURATION_FOR_1000PX: Duration = Duration::from_secs(4);
+
+const BUFFER_COUNT: usize = 512;
+const SAMPLES_PER_BUFFER: usize = 4096;
+
+const BUFFER_OVERHEAD: usize = 5 * (SAMPLE_RATE as usize);
+
+const DISPLAY_WIDTH: i32 = 1024;
+const DISPLAY_HEIGHT: i32 = 500;
 
 fn build_buffer(lower_value: usize, upper_value: usize) -> gst::Buffer {
     let lower: SampleIndex = lower_value.into();
@@ -62,18 +75,11 @@ fn push_test_buffer(audio_buffer: &mut AudioBuffer, buffer: &gst::Buffer, is_new
     audio_buffer.push_gst_buffer(buffer, SampleIndex::default()); // never drain buffer in this test
 }
 
-#[bench]
-fn bench_render_buffers(b: &mut Bencher) {
-    const DURATION_FOR_1000: Duration = Duration::from_nanos(1_000_000_000_000u64 / SAMPLE_RATE);
-    const DURATION_FOR_1000PX: Duration = Duration::from_secs(4);
-
-    const BUFFER_COUNT: usize = 512;
-    const SAMPLES_PER_FRAME: usize = 1024;
-
-    const BUFFER_OVERHEAD: usize = 2 * (SAMPLE_RATE as usize);
-
-    gst::init().unwrap();
-
+fn prepare_buffers() -> (
+    AudioBuffer,
+    WaveformBuffer,
+    SmallVec<[AudioChannel; INLINE_CHANNELS]>,
+) {
     let mut audio_buffer = AudioBuffer::new(Duration::from_secs(10));
     audio_buffer.init(
         gst_audio::AudioInfo::new(
@@ -87,7 +93,7 @@ fn bench_render_buffers(b: &mut Bencher) {
 
     push_test_buffer(
         &mut audio_buffer,
-        &build_buffer(0, BUFFER_COUNT * SAMPLES_PER_FRAME + BUFFER_OVERHEAD),
+        &build_buffer(0, BUFFER_COUNT * SAMPLES_PER_BUFFER + BUFFER_OVERHEAD),
         true,
     );
 
@@ -99,28 +105,80 @@ fn bench_render_buffers(b: &mut Bencher) {
         gst_audio::AudioChannelPosition::FrontRight,
     ));
 
-    let mut waveform_buffer = WaveformBuffer::new(1);
+    (audio_buffer, WaveformBuffer::new(1), channels)
+}
+
+fn render_buffers(
+    audio_buffer: &mut AudioBuffer,
+    waveform_buffer: &mut WaveformBuffer,
+    channels: &SmallVec<[AudioChannel; INLINE_CHANNELS]>,
+    mut extra_op: Option<&mut FnMut(usize, &mut WaveformBuffer)>,
+) {
+    // start with enough overhead in audio buffer
+    audio_buffer.upper = BUFFER_OVERHEAD.into();
+
+    waveform_buffer.reset();
+    waveform_buffer.set_sample_duration(SAMPLE_DURATION, DURATION_FOR_1000);
+    waveform_buffer.set_channels(&channels);
+    waveform_buffer.set_state(gst::State::Playing);
+    waveform_buffer.update_conditions(DURATION_FOR_1000PX, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+
+    for idx in 0..BUFFER_COUNT {
+        let first_visible = idx * SAMPLES_PER_BUFFER;
+        waveform_buffer.first_visible_sample = Some(first_visible.into());
+        waveform_buffer.cursor_sample = (first_visible + SAMPLES_PER_BUFFER / 2).into();
+
+        waveform_buffer.extract_samples(&audio_buffer);
+
+        if let Some(extra_op) = extra_op.as_mut() {
+            extra_op(idx, waveform_buffer);
+        }
+
+        if audio_buffer.upper.as_usize() < BUFFER_COUNT * SAMPLES_PER_BUFFER {
+            audio_buffer.upper += SampleIndexRange::new(SAMPLES_PER_BUFFER);
+        }
+    }
+}
+
+#[bench]
+fn bench_render_buffers(b: &mut Bencher) {
+    gst::init().unwrap();
+
+    let (mut audio_buffer, mut waveform_buffer, channels) = prepare_buffers();
 
     b.iter(|| {
-        // start with enough overhead in audio buffer
-        audio_buffer.upper = BUFFER_OVERHEAD.into();
+        render_buffers(&mut audio_buffer, &mut waveform_buffer, &channels, None);
+    });
+}
 
-        waveform_buffer.reset();
-        waveform_buffer.set_sample_duration(SAMPLE_DURATION, DURATION_FOR_1000);
-        waveform_buffer.set_channels(&channels);
-        waveform_buffer.set_state(gst::State::Playing);
-        waveform_buffer.update_conditions(DURATION_FOR_1000PX, 1024, 768);
+#[bench]
+fn bench_render_buffers_and_display(b: &mut Bencher) {
+    gst::init().unwrap();
 
-        for idx in 0..BUFFER_COUNT {
-            let first_visible = idx * SAMPLES_PER_FRAME;
-            waveform_buffer.first_visible_sample = Some(first_visible.into());
-            waveform_buffer.cursor_sample = (first_visible + SAMPLES_PER_FRAME / 2).into();
+    let (mut audio_buffer, mut waveform_buffer, channels) = prepare_buffers();
 
-            waveform_buffer.extract_samples(&audio_buffer);
+    let display_surface =
+        cairo::ImageSurface::create(cairo::Format::Rgb24, DISPLAY_WIDTH, DISPLAY_HEIGHT)
+            .expect("image surface");
 
-            if audio_buffer.upper.as_usize() < BUFFER_COUNT * SAMPLES_PER_FRAME {
-                audio_buffer.upper += SampleIndexRange::new(SAMPLES_PER_FRAME);
-            }
-        }
+    let mut render_to_display = |idx: usize, waveform_buffer: &mut WaveformBuffer| {
+        let cr = cairo::Context::new(&display_surface);
+
+        waveform_buffer
+            .image
+            .get_image()
+            .with_surface_external_context(&cr, |cr, surface| {
+                cr.set_source_surface(surface, -((idx % 20) as f64), 0f64);
+                cr.paint();
+            });
+    };
+
+    b.iter(|| {
+        render_buffers(
+            &mut audio_buffer,
+            &mut waveform_buffer,
+            &channels,
+            Some(&mut render_to_display),
+        );
     });
 }
