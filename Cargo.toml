@@ -35,7 +35,6 @@ serde = "1.0"
 serde_derive = "1.0"
 
 [features]
-dump-waveform = ["renderers/dump-waveform"]
 trace-playback-queues = ["media/trace-playback-queues"]
 default = []
 

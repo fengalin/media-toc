@@ -642,7 +642,6 @@ name = "media-toc-renderers"
 version = "0.5.99"
 dependencies = [
  "cairo-rs 0.6.0 (git+https://github.com/gtk-rs/cairo)",
- "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "gstreamer 0.14.0 (git+https://gitlab.freedesktop.org/gstreamer/gstreamer-rs)",
  "image 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",

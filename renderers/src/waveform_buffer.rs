@@ -1,5 +1,5 @@
 use gstreamer as gst;
-use log::{debug, trace, warn};
+use log::{debug, trace};
 use smallvec::SmallVec;
 
 use std::{
@@ -9,12 +9,11 @@ use std::{
 };
 
 use media::{
-    sample_extractor::SampleExtractionState, AudioBuffer, AudioChannel, AudioChannelSide,
-    DoubleAudioBuffer, Duration, SampleExtractor, SampleIndex, SampleIndexRange, Timestamp,
-    INLINE_CHANNELS,
+    sample_extractor::SampleExtractionState, AudioBuffer, AudioChannel, DoubleAudioBuffer,
+    Duration, SampleExtractor, SampleIndex, SampleIndexRange, Timestamp, INLINE_CHANNELS,
 };
 
-pub const AMPLITUDE_0_COLOR: (f64, f64, f64) = (0.5f64, 0.5f64, 0f64);
+use super::WaveformDrawer;
 
 pub struct DoubleWaveformBuffer {}
 
@@ -52,11 +51,10 @@ pub enum LockState {
     Seeking,
 }
 
-// FIXME: update the comment
 // A WaveformBuffer hosts one of the two buffers of the double buffering
 // mechanism based on the SampleExtractor trait.
-// It is responsible for preparing an up to date Waveform image which will be
-// diplayed upon UI request. Up to date signifies that the Waveform image
+// It is responsible for preparing an up to date buffer suitable to render
+// the Waveform upon UI request. Up to date signifies that the Waveform buffer
 // contains all the samples that can fit in the target window at the specified
 // resolution for current playback timestamp.
 // Whenever possible, the WaveformBuffer attempts to have the Waveform scroll
@@ -71,12 +69,11 @@ pub struct WaveformBuffer {
     state: SampleExtractionState,
     conditions_changed: bool,
 
-    channel_colors: SmallVec<[(f64, f64, f64); INLINE_CHANNELS]>,
-
     buffer: SmallVec<[Vec<f64>; INLINE_CHANNELS]>,
     lower: SampleIndex,
     upper: SampleIndex,
     contains_eos: bool,
+    sample_value_factor: f64,
 
     previous_sample: Option<SampleIndex>,
     pub cursor_sample: SampleIndex, // The sample idx currently under the cursor (might be different from
@@ -92,26 +89,21 @@ pub struct WaveformBuffer {
     pub playback_needs_refresh: bool,
 
     req_duration_per_1000px: Duration,
-    width: i32,
-    width_f: f64,
-    height: i32,
-    height_f: f64,
-    half_range_y: f64,
-    sample_value_factor: f64,
-    sample_step_f: f64,
-    sample_step: SampleIndexRange,
-    x_step_f: f64,
-    x_step: usize,
+    waveform_drawer: WaveformDrawer,
 
     req_sample_window: SampleIndexRange,
     half_req_sample_window: SampleIndexRange,
     eighth_req_sample_window: SampleIndexRange,
+
+    pub sample_step_f: f64,
+    pub sample_step: SampleIndexRange,
 }
 
 impl WaveformBuffer {
     pub fn new(id: usize) -> Self {
         WaveformBuffer {
             id,
+            waveform_drawer: WaveformDrawer::new(id),
             ..WaveformBuffer::default()
         }
     }
@@ -120,19 +112,13 @@ impl WaveformBuffer {
         debug!("{}_reset", self.id);
 
         self.is_initialized = false;
-
         self.conditions_changed = false;
 
-        self.channel_colors.clear();
+        self.waveform_drawer.reset();
 
         self.reset_sample_conditions();
 
         self.req_duration_per_1000px = Duration::default();
-        self.width = 0;
-        self.width_f = 0f64;
-        self.height = 0;
-        self.height_f = 0f64;
-        self.half_range_y = 0f64;
         self.sample_value_factor = 0f64;
     }
 
@@ -153,14 +139,14 @@ impl WaveformBuffer {
         self.first_visible_sample_lock = None;
         self.playback_needs_refresh = false;
 
-        self.sample_step_f = 0f64;
-        self.sample_step = SampleIndexRange::default();
-        self.x_step_f = 0f64;
-        self.x_step = 0;
+        self.waveform_drawer.reset_conditions();
 
         self.req_sample_window = SampleIndexRange::default();
         self.half_req_sample_window = SampleIndexRange::default();
         self.eighth_req_sample_window = SampleIndexRange::default();
+
+        self.sample_step_f = 0f64;
+        self.sample_step = SampleIndexRange::default();
     }
 
     pub fn get_limits_as_ts(&self) -> (Timestamp, Timestamp) {
@@ -463,7 +449,6 @@ impl WaveformBuffer {
         };
     }
 
-    // Update rendering conditions
     pub fn update_conditions(&mut self, duration_per_1000px: Duration, width: i32, height: i32) {
         let (duration_changed, mut scale_num, mut scale_denom) =
             if duration_per_1000px == self.req_duration_per_1000px {
@@ -483,34 +468,19 @@ impl WaveformBuffer {
                 )
             };
 
-        let width_changed = if width == self.width {
-            false
-        } else {
-            if self.width != 0 {
-                scale_num = width as usize;
-                scale_denom = self.width as usize;
+        let width_changed = match self.waveform_drawer.update_width(width) {
+            Some(previous_width) => {
+                if self.waveform_drawer.width != 0 {
+                    scale_num = width as usize;
+                    scale_denom = previous_width as usize;
+                }
+                true
             }
-
-            debug!(
-                "{}_update_conditions width {} -> {}",
-                self.id, self.width, width
-            );
-
-            self.width = width;
-            self.width_f = f64::from(width);
-            true
+            None => false,
         };
 
-        if height != self.height {
-            debug!(
-                "{}_update_conditions height {} -> {}",
-                self.id, self.height, height
-            );
-
-            self.height = height;
-            self.height_f = f64::from(height);
-            self.half_range_y = self.height_f / 2f64;
-            self.sample_value_factor = self.half_range_y / f64::from(std::i16::MIN);
+        if self.waveform_drawer.update_height(height).is_some() {
+            self.sample_value_factor = self.waveform_drawer.half_range_y / f64::from(std::i16::MIN);
 
             self.conditions_changed = true;
             self.force_extraction = true;
@@ -600,20 +570,17 @@ impl WaveformBuffer {
                 / self.req_duration_per_1000px.as_f64())
             .ceil()
         };
+
         self.sample_step = (self.sample_step_f as usize).max(1).into();
 
-        self.x_step_f = if self.sample_step_f < 1f64 {
-            (1f64 / self.sample_step_f).round()
-        } else {
-            1f64
-        };
-        self.x_step = self.x_step_f as usize;
+        self.waveform_drawer.update_x_step(self.sample_step_f);
     }
 
     fn update_sample_window(&mut self) {
         // force sample window to an even number of samples so that the cursor can be centered
         // and make sure to cover at least the requested width
-        let half_req_sample_window = (self.sample_step_f * self.width_f / 2f64) as usize;
+        let half_req_sample_window =
+            (self.sample_step_f * self.waveform_drawer.width_f / 2f64) as usize;
         let req_sample_window = half_req_sample_window * 2;
 
         if req_sample_window != self.req_sample_window.as_usize() {
@@ -631,50 +598,6 @@ impl WaveformBuffer {
         }
     }
 
-    fn draw(&mut self, cr: &cairo::Context, first_index: usize, last_index: usize, last_x: f64) {
-        // Draw axis
-        cr.set_line_width(1f64);
-        cr.set_source_rgb(
-            AMPLITUDE_0_COLOR.0,
-            AMPLITUDE_0_COLOR.1,
-            AMPLITUDE_0_COLOR.2,
-        );
-
-        cr.move_to(0f64, self.half_range_y);
-        cr.line_to(last_x, self.half_range_y);
-        cr.stroke();
-
-        // Draw waveform
-        if self.x_step == 1 {
-            cr.set_line_width(1f64);
-        } else if self.x_step < 4 {
-            cr.set_line_width(1.5f64);
-        } else {
-            cr.set_line_width(2f64);
-        }
-
-        for (channel_idx, channel) in self.buffer.iter().enumerate() {
-            if let Some(&(red, green, blue)) = self.channel_colors.get(channel_idx) {
-                cr.set_source_rgb(red, green, blue);
-            } else {
-                warn!(
-                    "{}_draw_samples no color for channel {}",
-                    self.id, channel_idx
-                );
-            }
-
-            let mut x = 0f64;
-            cr.move_to(0f64, channel[first_index]);
-
-            for y in channel[first_index + 1..last_index].iter() {
-                x += self.x_step_f;
-                cr.line_to(x, *y);
-            }
-
-            cr.stroke();
-        }
-    }
-
     pub fn render(&mut self, cr: &cairo::Context) -> Option<WaveformMetrics> {
         let first_visible_sample = self.first_visible_sample?;
 
@@ -683,7 +606,8 @@ impl WaveformBuffer {
         let first_index = (first_visible_sample - self.lower).get_step_range(self.sample_step);
         let first_ts = first_visible_sample.get_ts(sample_duration);
 
-        let (last_index, last) = if first_visible_sample < self.upper {
+        assert!(first_visible_sample < self.upper);
+        let (last_index, last) = {
             let visible_sample_range = self.upper - first_visible_sample;
             if visible_sample_range > self.req_sample_window {
                 (
@@ -691,31 +615,27 @@ impl WaveformBuffer {
                     SamplePosition {
                         ts: (first_visible_sample + self.req_sample_window)
                             .get_ts(self.state.sample_duration),
-                        x: self.width_f,
+                        x: self.waveform_drawer.width_f,
                     },
                 )
             } else {
-                // FIXME: check these are really the last ones, especially for ts
                 let delta_index = visible_sample_range.get_step_range(self.sample_step);
                 (
                     delta_index + first_index,
                     SamplePosition {
                         ts: self.upper.get_ts(self.state.sample_duration),
-                        x: delta_index as f64 * self.x_step_f,
+                        x: delta_index as f64 * self.waveform_drawer.x_step_f,
                     },
                 )
             }
-        } else {
-            // FIXME: is this really possible?
-            println!("first_visible_sample >= self.upper");
-            return None;
         };
 
         if last_index < first_index + 1 {
             return None;
         }
 
-        self.draw(cr, first_index, last_index, last.x);
+        self.waveform_drawer
+            .draw(cr, &self.buffer, first_index, last_index, last.x);
 
         let cursor = if self.cursor_sample >= first_visible_sample
             && self.cursor_sample <= first_visible_sample + self.req_sample_window
@@ -724,7 +644,7 @@ impl WaveformBuffer {
                 (self.cursor_sample - first_visible_sample).get_step_range(self.sample_step);
             Some(SamplePosition {
                 ts: self.cursor_ts,
-                x: delta_index as f64 * self.x_step_f,
+                x: delta_index as f64 * self.waveform_drawer.x_step_f,
             })
         } else {
             None
@@ -980,6 +900,7 @@ impl WaveformBuffer {
 
         self.buffer.clear();
         for channel in 0..audio_buffer.channels {
+            // TODO: try this with crate `faster`
             self.buffer.push(
                 audio_buffer
                     .try_iter(lower, upper, channel, self.sample_step)
@@ -1051,16 +972,7 @@ impl SampleExtractor for WaveformBuffer {
     }
 
     fn set_channels(&mut self, channels: &[AudioChannel]) {
-        debug!("{}_set_channels {}", self.id, channels.len());
-
-        for channel in channels.iter().take(INLINE_CHANNELS) {
-            self.channel_colors.push(match channel.side {
-                AudioChannelSide::Center => (0f64, channel.factor, 0f64),
-                AudioChannelSide::Left => (channel.factor, channel.factor, channel.factor),
-                AudioChannelSide::NotLocalized => (0f64, 0f64, channel.factor),
-                AudioChannelSide::Right => (channel.factor, 0f64, 0f64),
-            });
-        }
+        self.waveform_drawer.set_channels(channels);
     }
 
     fn switch_to_paused(&mut self) {
@@ -1095,19 +1007,15 @@ impl SampleExtractor for WaveformBuffer {
         if other.conditions_changed {
             debug!("{}_update_concrete_state conditions_changed", self.id);
             self.req_duration_per_1000px = other.req_duration_per_1000px;
-            self.width = other.width;
-            self.width_f = other.width_f;
-            self.height = other.height;
-            self.height_f = other.height_f;
-            self.half_range_y = other.half_range_y;
             self.sample_value_factor = other.sample_value_factor;
             self.sample_step = other.sample_step;
             self.sample_step_f = other.sample_step_f;
-            self.x_step = other.x_step;
-            self.x_step_f = other.x_step_f;
             self.req_sample_window = other.req_sample_window;
             self.half_req_sample_window = other.half_req_sample_window;
             self.eighth_req_sample_window = other.eighth_req_sample_window;
+
+            self.waveform_drawer
+                .update_from_other(&mut other.waveform_drawer);
 
             self.is_initialized = other.is_initialized;
             other.conditions_changed = false;

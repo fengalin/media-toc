@@ -21,10 +21,8 @@ log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"
 smallvec = "0.6"
 
 [features]
-dump-waveform = ["cairo-rs/png", "chrono"]
 default = []
 
 [dev-dependencies]
 byteorder = "1.3"
-cairo-rs = { git = "https://github.com/gtk-rs/cairo", features = ["png"] }
 gstreamer-audio = { git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
