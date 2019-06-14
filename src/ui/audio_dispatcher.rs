@@ -123,7 +123,7 @@ impl UIDispatcher for AudioDispatcher {
                 let seek_pos = {
                     let ts = main_ctrl.get_current_ts();
                     let audio_ctrl = &mut main_ctrl.audio_ctrl;
-                    if audio_ctrl.current_ts > audio_ctrl.seek_step {
+                    if ts > audio_ctrl.seek_step {
                         ts - audio_ctrl.seek_step
                     } else {
                         Timestamp::default()

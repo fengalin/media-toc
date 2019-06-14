@@ -34,12 +34,7 @@ const BUFFER_OVERHEAD: usize = 2 * (SAMPLE_RATE as usize);
 const DISPLAY_WIDTH: i32 = 800;
 const DISPLAY_HEIGHT: i32 = 500;
 
-const FONT_FAMILLY: &str = "Cantarell";
-const FONT_SIZE: f64 = 15f64;
-const TWICE_FONT_SIZE: f64 = 2f64 * FONT_SIZE;
-
-const BOUNDARY_TEXT_MN: &str = "00:00.000";
-const CURSOR_TEXT_MN: &str = "00:00.000.000";
+const BACKGROUND_COLOR: (f64, f64, f64) = (0.2f64, 0.2235f64, 0.2314f64);
 
 fn build_buffer(lower_value: usize, upper_value: usize) -> gst::Buffer {
     let lower: SampleIndex = lower_value.into();
@@ -168,41 +163,12 @@ fn bench_render_buffers_and_display(b: &mut Bencher) {
         cairo::ImageSurface::create(cairo::Format::Rgb24, DISPLAY_WIDTH, DISPLAY_HEIGHT)
             .expect("image surface");
 
-    let mut render_to_display = |idx: usize, waveform_buffer: &mut WaveformBuffer| {
+    let mut render_to_display = |_idx: usize, waveform_buffer: &mut WaveformBuffer| {
         let cr = cairo::Context::new(&display_surface);
+        cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
+        cr.paint();
 
-        waveform_buffer
-            .image
-            .get_image()
-            .with_surface_external_context(&cr, |cr, surface| {
-                cr.set_source_surface(surface, -((idx % 20) as f64), 0f64);
-                cr.paint();
-            });
-
-        // Draw the cursor in the middle
-        let middle_x = (DISPLAY_WIDTH / 2) as f64;
-        cr.set_source_rgb(1f64, 1f64, 0f64);
-        cr.set_line_width(1f64);
-        cr.move_to(middle_x, 0f64);
-        cr.line_to(middle_x, TWICE_FONT_SIZE);
-        cr.stroke();
-
-        // Add text at cursor and boundaries
-        cr.select_font_face(
-            FONT_FAMILLY,
-            cairo::FontSlant::Normal,
-            cairo::FontWeight::Normal,
-        );
-        cr.set_font_size(FONT_SIZE);
-
-        cr.move_to(middle_x, TWICE_FONT_SIZE);
-        cr.show_text(CURSOR_TEXT_MN);
-
-        cr.move_to(2f64, TWICE_FONT_SIZE);
-        cr.show_text(BOUNDARY_TEXT_MN);
-
-        cr.move_to(middle_x + 0.5f64 * middle_x, TWICE_FONT_SIZE);
-        cr.show_text(BOUNDARY_TEXT_MN);
+        waveform_buffer.render(&cr);
     };
 
     b.iter(|| {

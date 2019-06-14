@@ -21,7 +21,7 @@ use media::{
     DoubleAudioBuffer, Duration, PlaybackPipeline, SampleExtractor, Timestamp, QUEUE_SIZE,
 };
 use metadata::MediaInfo;
-use renderers::{DoubleWaveformBuffer, WaveformBuffer, BACKGROUND_COLOR};
+use renderers::{DoubleWaveformBuffer, WaveformBuffer, WaveformMetrics};
 
 use super::{ChaptersBoundaries, UIController, UIEventSender};
 
@@ -39,16 +39,18 @@ const OTHER_UI_REFRESH_PERIOD: Duration = Duration::from_millis(50);
 // Range playback
 const MIN_RANGE_DURATION: Duration = Duration::from_millis(100);
 
-const ONE_HOUR: Duration = Duration::from_secs(60 * 60);
-
 const EXPECTED_FRAME_DURATION: Duration = Duration::from_frequency(60);
 
-// Use this text to compute the largest text box for the waveform boundaries
-// This is required to position the labels in such a way that they don't
+const ONE_HOUR: Duration = Duration::from_secs(60 * 60);
+
+const BACKGROUND_COLOR: (f64, f64, f64) = (0.2f64, 0.2235f64, 0.2314f64);
+
+// Use this text to compute the largest text box for the waveform limits
+// This is required to position the labels in such a way they don't
 // move constantly depending on the digits width
-const BOUNDARY_TEXT_MN: &str = "00:00.000";
+const LIMIT_TEXT_MN: &str = "00:00.000";
+const LIMIT_TEXT_H: &str = "00:00:00.000";
 const CURSOR_TEXT_MN: &str = "00:00.000.000";
-const BOUNDARY_TEXT_H: &str = "00:00:00.000";
 const CURSOR_TEXT_H: &str = "00:00:00.000.000";
 
 #[derive(Debug, PartialEq)]
@@ -60,6 +62,20 @@ pub enum ControllerState {
     Paused,
 }
 
+#[derive(Default)]
+struct TextMetrics {
+    font_family: Option<(String)>,
+    font_size: f64,
+    twice_font_size: f64,
+    half_font_size: f64,
+    limit_mn_width: f64,
+    limit_h_width: f64,
+    limit_y: f64,
+    cursor_mn_width: f64,
+    cursor_h_width: f64,
+    cursor_y: f64,
+}
+
 pub struct AudioController {
     ui_event: UIEventSender,
 
@@ -69,14 +85,6 @@ pub struct AudioController {
     zoom_out_btn: gtk::ToolButton,
     ref_lbl: gtk::Label,
 
-    font_family: Option<(String)>,
-    font_size: f64,
-    twice_font_size: f64,
-    half_font_size: f64,
-    boundary_text_mn_width: f64,
-    cursor_text_mn_width: f64,
-    boundary_text_h_width: f64,
-    cursor_text_h_width: f64,
     pub(super) area_height: f64,
     pub(super) area_width: f64,
 
@@ -85,12 +93,11 @@ pub struct AudioController {
 
     requested_duration: Duration,
     pub(super) seek_step: Duration,
-    pub(super) current_ts: Timestamp,
+
+    text_metrics: TextMetrics,
+    waveform_metrics: WaveformMetrics,
+
     last_other_ui_refresh: Timestamp,
-    first_visible_ts: Timestamp,
-    last_visible_ts: Timestamp,
-    sample_duration: Duration,
-    sample_step: f64,
     boundaries: Rc<RefCell<ChaptersBoundaries>>,
 
     waveform_mtx: Arc<Mutex<Box<dyn SampleExtractor>>>,
@@ -126,14 +133,10 @@ impl UIController for AudioController {
         self.dbl_buffer_mtx.lock().unwrap().cleanup();
         self.requested_duration = INIT_REQ_DURATION_FOR_1000PX;
         self.seek_step = INIT_REQ_DURATION_FOR_1000PX / SEEK_STEP_DURATION_DIVISOR;
-        self.current_ts = Timestamp::default();
         self.last_other_ui_refresh = Timestamp::default();
-        self.first_visible_ts = Timestamp::default();
-        self.last_visible_ts = Timestamp::default();
-        self.sample_duration = Duration::default();
-        self.sample_step = 0f64;
         // AudioController accesses self.boundaries as readonly
         // clearing it is under the responsiblity of ChapterTreeManager
+        self.text_metrics = TextMetrics::default();
         self.update_conditions();
         self.redraw();
     }
@@ -169,14 +172,6 @@ impl AudioController {
             zoom_out_btn: builder.get_object("audio_zoom_out-toolbutton").unwrap(),
             ref_lbl: builder.get_object("title-caption").unwrap(),
 
-            font_family: None,
-            font_size: 0f64,
-            twice_font_size: 0f64,
-            half_font_size: 0f64,
-            boundary_text_mn_width: 0f64,
-            cursor_text_mn_width: 0f64,
-            boundary_text_h_width: 0f64,
-            cursor_text_h_width: 0f64,
             area_height: 0f64,
             area_width: 0f64,
 
@@ -186,12 +181,10 @@ impl AudioController {
             requested_duration: INIT_REQ_DURATION_FOR_1000PX,
             seek_step: INIT_REQ_DURATION_FOR_1000PX / SEEK_STEP_DURATION_DIVISOR,
 
-            current_ts: Timestamp::default(),
+            text_metrics: TextMetrics::default(),
+            waveform_metrics: WaveformMetrics::default(),
+
             last_other_ui_refresh: Timestamp::default(),
-            first_visible_ts: Timestamp::default(),
-            last_visible_ts: Timestamp::default(),
-            sample_duration: Duration::default(),
-            sample_step: 0f64,
             boundaries,
 
             waveform_mtx,
@@ -324,9 +317,10 @@ impl AudioController {
 
     fn get_ts_at(&self, x: f64) -> Option<Timestamp> {
         if x >= 0f64 && x <= self.area_width {
-            let ts = self.first_visible_ts
-                + self.sample_duration * ((x * self.sample_step).round() as u64);
-            if ts <= self.last_visible_ts {
+            let ts = self.waveform_metrics.first_ts
+                + self.waveform_metrics.sample_duration
+                    * ((x * self.waveform_metrics.sample_step).round() as u64);
+            if ts <= self.waveform_metrics.last.ts {
                 Some(ts)
             } else {
                 None
@@ -342,8 +336,8 @@ impl AudioController {
             None => return None,
         };
 
-        let tolerance = if self.sample_step > 1f64 {
-            self.sample_duration * 2 * (self.sample_step as u64)
+        let tolerance = if self.waveform_metrics.sample_step > 1f64 {
+            self.waveform_metrics.sample_duration * 2 * (self.waveform_metrics.sample_step as u64)
         } else {
             Duration::from_nanos(1)
         };
@@ -358,11 +352,12 @@ impl AudioController {
         range.next().map(|(boundary, _chapters)| *boundary)
     }
 
+    #[inline]
     fn adjust_waveform_text_width(&mut self, cr: &cairo::Context) {
-        match self.font_family {
+        match self.text_metrics.font_family {
             Some(ref family) => {
                 cr.select_font_face(family, cairo::FontSlant::Normal, cairo::FontWeight::Normal);
-                cr.set_font_size(self.font_size);
+                cr.set_font_size(self.text_metrics.font_size);
             }
             None => {
                 // Get font specs from the reference label
@@ -372,23 +367,27 @@ impl AudioController {
 
                 let family = font_desc.get_family().unwrap();
                 cr.select_font_face(&family, cairo::FontSlant::Normal, cairo::FontWeight::Normal);
-                let size = f64::from(ref_layout.get_baseline() / pango::SCALE);
-                cr.set_font_size(size);
+                let font_size = f64::from(ref_layout.get_baseline() / pango::SCALE);
+                cr.set_font_size(font_size);
 
-                self.font_family = Some(family.to_string());
-                self.font_size = size;
-                self.twice_font_size = 2f64 * size;
-                self.half_font_size = 0.5f64 * size;
+                self.text_metrics.font_family = Some(family.to_string());
+                self.text_metrics.font_size = font_size;
+                self.text_metrics.twice_font_size = 2f64 * font_size;
+                self.text_metrics.half_font_size = 0.5f64 * font_size;
 
-                self.boundary_text_mn_width = cr.text_extents(BOUNDARY_TEXT_MN).width;
-                self.cursor_text_mn_width = cr.text_extents(CURSOR_TEXT_MN).width;
-                self.boundary_text_h_width = cr.text_extents(BOUNDARY_TEXT_H).width;
-                self.cursor_text_h_width = cr.text_extents(CURSOR_TEXT_H).width;
+                self.text_metrics.limit_mn_width = cr.text_extents(LIMIT_TEXT_MN).width;
+                self.text_metrics.limit_h_width = cr.text_extents(LIMIT_TEXT_H).width;
+                self.text_metrics.limit_y = 2f64 * font_size;
+                self.text_metrics.cursor_mn_width = cr.text_extents(CURSOR_TEXT_MN).width;
+                self.text_metrics.cursor_h_width = cr.text_extents(CURSOR_TEXT_H).width;
+                self.text_metrics.cursor_y = font_size;
             }
         }
     }
 
     pub fn update_conditions(&mut self) {
+        self.waveform_metrics = WaveformMetrics::default();
+
         if self.state != ControllerState::Disabled {
             debug!(
                 "update_conditions {}, {}x{}",
@@ -473,8 +472,8 @@ impl AudioController {
                     )
                 })?;
 
-        // Get waveform and timestamps
-        let (current_ts, image_positions) = {
+        // Draw the waveform
+        self.waveform_metrics = {
             let waveform_grd = &mut *self.waveform_mtx.lock().unwrap();
             let waveform_buffer = waveform_grd
                 .as_mut_any()
@@ -483,126 +482,127 @@ impl AudioController {
 
             self.playback_needs_refresh = waveform_buffer.playback_needs_refresh;
 
-            let (current_ts, image_opt) = waveform_buffer.get_image(last_frame_ts, next_frame_ts);
-
-            if image_opt.is_none() {
-                debug!("draw no image");
-            }
-
-            let (image, image_positions) = image_opt?;
-            image.with_surface_external_context(cr, |cr, surface| {
-                cr.set_source_surface(surface, -image_positions.first.x, 0f64);
-                cr.paint();
-            });
-
-            (current_ts, image_positions)
+            waveform_buffer.update_first_visible_sample(last_frame_ts, next_frame_ts);
+            waveform_buffer.render(cr)?
         };
 
-        self.current_ts = current_ts;
-        self.first_visible_ts = image_positions.first.ts;
-        self.sample_duration = image_positions.sample_duration;
-        self.sample_step = image_positions.sample_step;
-
-        cr.scale(1f64, 1f64);
-        cr.set_source_rgb(1f64, 1f64, 0f64);
         self.adjust_waveform_text_width(cr);
 
-        // first position
-        let first_text = self.first_visible_ts.get_4_humans().as_string(false);
-        let first_text_end = if self.first_visible_ts < ONE_HOUR {
-            2f64 + self.boundary_text_mn_width
-        } else {
-            2f64 + self.boundary_text_h_width
-        };
-        cr.move_to(2f64, self.twice_font_size);
-        cr.show_text(&first_text);
+        // Draw in-range chapters boundaries
+        let boundaries = self.boundaries.borrow();
 
-        // last position
-        if let Some(last_pos) = image_positions.last {
-            let last_text = last_pos.ts.get_4_humans().as_string(false);
-            let last_text_start = if last_pos.ts < ONE_HOUR {
-                2f64 + self.boundary_text_mn_width
-            } else {
-                2f64 + self.boundary_text_h_width
-            };
-            if last_pos.x - last_text_start > first_text_end + 5f64 {
-                // last text won't overlap with first text
-                cr.move_to(last_pos.x - last_text_start, self.twice_font_size);
-                cr.show_text(&last_text);
-            }
+        let chapter_range = boundaries.range((
+            Included(&self.waveform_metrics.first_ts),
+            Included(&self.waveform_metrics.last.ts),
+        ));
 
-            self.last_visible_ts = last_pos.ts;
+        cr.set_source_rgb(0.5f64, 0.6f64, 1f64);
+        cr.set_line_width(1f64);
 
-            // Draw in-range chapters boundaries
-            let boundaries = self.boundaries.borrow();
+        let boundary_y0 = self.text_metrics.twice_font_size + 5f64;
+        let text_base = self.area_height - self.text_metrics.half_font_size;
 
-            let chapter_range = boundaries.range((
-                Included(&self.first_visible_ts),
-                Included(&self.last_visible_ts),
-            ));
+        for (boundary, chapters) in chapter_range {
+            if *boundary >= self.waveform_metrics.first_ts {
+                let x = ((*boundary - self.waveform_metrics.first_ts)
+                    .get_index_range(self.waveform_metrics.sample_duration))
+                .as_f64()
+                    / self.waveform_metrics.sample_step;
+                cr.move_to(x, boundary_y0);
+                cr.line_to(x, self.area_height);
+                cr.stroke();
 
-            cr.set_source_rgb(0.5f64, 0.6f64, 1f64);
-            cr.set_line_width(1f64);
-            let boundary_y0 = self.twice_font_size + 5f64;
-            let text_base = self.area_height - self.half_font_size;
+                if let Some(ref prev_chapter) = chapters.prev {
+                    cr.move_to(
+                        x - 5f64 - cr.text_extents(&prev_chapter.title).width,
+                        text_base,
+                    );
+                    cr.show_text(&prev_chapter.title);
+                }
 
-            for (boundary, chapters) in chapter_range {
-                if *boundary >= self.first_visible_ts {
-                    let x = ((*boundary - self.first_visible_ts)
-                        .get_index_range(image_positions.sample_duration))
-                    .as_f64()
-                        / image_positions.sample_step;
-                    cr.move_to(x, boundary_y0);
-                    cr.line_to(x, self.area_height);
-                    cr.stroke();
-
-                    if let Some(ref prev_chapter) = chapters.prev {
-                        cr.move_to(
-                            x - 5f64 - cr.text_extents(&prev_chapter.title).width,
-                            text_base,
-                        );
-                        cr.show_text(&prev_chapter.title);
-                    }
-
-                    if let Some(ref next_chapter) = chapters.next {
-                        cr.move_to(x + 5f64, text_base);
-                        cr.show_text(&next_chapter.title);
-                    }
+                if let Some(ref next_chapter) = chapters.next {
+                    cr.move_to(x + 5f64, text_base);
+                    cr.show_text(&next_chapter.title);
                 }
             }
         }
 
-        if let Some(current_x) = image_positions.current_x {
+        cr.set_source_rgb(1f64, 1f64, 0f64);
+
+        // first position
+        let first_text = self
+            .waveform_metrics
+            .first_ts
+            .get_4_humans()
+            .as_string(false);
+        let first_text_end = if self.waveform_metrics.first_ts < ONE_HOUR {
+            2f64 + self.text_metrics.limit_mn_width
+        } else {
+            2f64 + self.text_metrics.limit_mn_width
+        };
+        cr.move_to(2f64, self.text_metrics.limit_y);
+        cr.show_text(&first_text);
+
+        // last position
+        let last_text = self
+            .waveform_metrics
+            .last
+            .ts
+            .get_4_humans()
+            .as_string(false);
+        let last_text_start = if self.waveform_metrics.last.ts < ONE_HOUR {
+            2f64 + self.text_metrics.limit_mn_width
+        } else {
+            2f64 + self.text_metrics.limit_h_width
+        };
+        if self.waveform_metrics.last.x - last_text_start > first_text_end + 5f64 {
+            // last text won't overlap with first text
+            cr.move_to(
+                self.waveform_metrics.last.x - last_text_start,
+                self.text_metrics.limit_y,
+            );
+            cr.show_text(&last_text);
+        }
+
+        if let Some(cursor) = &self.waveform_metrics.cursor {
             // draw current pos
             cr.set_source_rgb(1f64, 1f64, 0f64);
 
-            let cursor_text = self.current_ts.get_4_humans().as_string(true);
-            let cursor_text_end = if self.current_ts < ONE_HOUR {
-                5f64 + self.cursor_text_mn_width
+            let cursor_text = cursor.ts.get_4_humans().as_string(true);
+            let cursor_text_end = if cursor.ts < ONE_HOUR {
+                5f64 + self.text_metrics.cursor_mn_width
             } else {
-                5f64 + self.cursor_text_h_width
+                5f64 + self.text_metrics.cursor_h_width
             };
-            let cursor_text_x = if current_x + cursor_text_end < self.area_width {
-                current_x + 5f64
+            let cursor_text_x = if cursor.x + cursor_text_end < self.area_height {
+                cursor.x + 5f64
             } else {
-                current_x - cursor_text_end
+                cursor.x - cursor_text_end
             };
-            cr.move_to(cursor_text_x, self.font_size);
+            cr.move_to(cursor_text_x, self.text_metrics.cursor_y);
             cr.show_text(&cursor_text);
 
             cr.set_line_width(1f64);
-            cr.move_to(current_x, 0f64);
-            cr.line_to(current_x, self.area_height - self.twice_font_size);
+            cr.move_to(cursor.x, 0f64);
+            cr.line_to(
+                cursor.x,
+                self.area_height - 2f64 * self.text_metrics.cursor_y,
+            );
             cr.stroke();
         }
 
         // update other UI position
         // Note: we go through the audio controller here in order
         // to reduce position queries on the ref gst element
+        let cursor_ts = self
+            .waveform_metrics
+            .cursor
+            .as_ref()
+            .map(|cursor| cursor.ts)?;
         match self.state {
             ControllerState::Playing => {
-                if self.current_ts >= self.last_other_ui_refresh
-                    && self.current_ts <= self.last_other_ui_refresh + OTHER_UI_REFRESH_PERIOD
+                if cursor_ts >= self.last_other_ui_refresh
+                    && cursor_ts <= self.last_other_ui_refresh + OTHER_UI_REFRESH_PERIOD
                 {
                     return None;
                 }
@@ -612,9 +612,9 @@ impl AudioController {
             _ => return None,
         }
 
-        self.last_other_ui_refresh = self.current_ts;
+        self.last_other_ui_refresh = cursor_ts;
 
-        Some(current_ts)
+        Some(cursor_ts)
     }
 
     pub fn motion_notify(
@@ -679,9 +679,13 @@ impl AudioController {
             3 => {
                 // right button => segment playback in Paused state
                 if self.state == ControllerState::Paused {
-                    if let Some(start) = self.get_ts_at(event_button.get_position().0) {
-                        let end = start + MIN_RANGE_DURATION.max(self.last_visible_ts - start);
-                        self.ui_event.play_range(start, end, self.current_ts);
+                    if let Some(cursor) = &self.waveform_metrics.cursor {
+                        let cursor_ts = cursor.ts;
+                        if let Some(start) = self.get_ts_at(event_button.get_position().0) {
+                            let end = start
+                                + MIN_RANGE_DURATION.max(self.waveform_metrics.last.ts - start);
+                            self.ui_event.play_range(start, end, cursor_ts);
+                        }
                     }
                 }
             }
