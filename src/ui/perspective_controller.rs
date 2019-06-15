@@ -3,6 +3,7 @@ use gtk::prelude::*;
 
 use media::PlaybackPipeline;
 use metadata::MediaInfo;
+use renderers::WaveformRenderer;
 
 use super::UIController;
 use crate::application::CommandLineArguments;
@@ -30,7 +31,7 @@ impl UIController for PerspectiveController {
         self.cleanup();
     }
 
-    fn new_media(&mut self, _pipeline: &PlaybackPipeline) {
+    fn new_media(&mut self, _pipeline: &PlaybackPipeline<WaveformRenderer>) {
         self.menu_btn.set_sensitive(true);
     }
 

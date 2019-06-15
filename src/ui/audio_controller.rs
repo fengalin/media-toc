@@ -17,9 +17,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use media::{
-    DoubleAudioBuffer, Duration, PlaybackPipeline, SampleExtractor, Timestamp, QUEUE_SIZE,
-};
+use media::{DoubleAudioBuffer, Duration, PlaybackPipeline, Timestamp, QUEUE_SIZE};
 use metadata::MediaInfo;
 use renderers::{DoubleWaveformRenderer, WaveformMetrics, WaveformRenderer};
 
@@ -100,8 +98,8 @@ pub struct AudioController {
     last_other_ui_refresh: Timestamp,
     boundaries: Rc<RefCell<ChaptersBoundaries>>,
 
-    waveform_mtx: Arc<Mutex<Box<dyn SampleExtractor>>>,
-    pub dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
+    waveform_mtx: Arc<Mutex<Box<WaveformRenderer>>>,
+    pub dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer<WaveformRenderer>>>,
 
     pub(super) update_conditions_async: Option<Box<Fn() -> glib::SourceId>>,
 
@@ -110,7 +108,7 @@ pub struct AudioController {
 }
 
 impl UIController for AudioController {
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+    fn new_media(&mut self, pipeline: &PlaybackPipeline<WaveformRenderer>) {
         let is_audio_selected = {
             let info = pipeline.info.read().unwrap();
             info.streams.is_audio_selected()
@@ -203,13 +201,13 @@ impl AudioController {
 
     pub fn get_seek_back_1st_ts(&self, target: Timestamp) -> Option<Timestamp> {
         let (lower_ts, upper_ts, half_window_duration) = {
-            let waveform_grd = self.waveform_mtx.lock().unwrap();
-            let waveform_buf = waveform_grd
-                .as_any()
-                .downcast_ref::<WaveformRenderer>()
-                .unwrap();
-            let limits = waveform_buf.get_limits_as_ts();
-            (limits.0, limits.1, waveform_buf.get_half_window_duration())
+            let waveform_renderer = self.waveform_mtx.lock().unwrap();
+            let limits = waveform_renderer.get_limits_as_ts();
+            (
+                limits.0,
+                limits.1,
+                waveform_renderer.get_half_window_duration(),
+            )
         };
 
         // don't step back more than the pipeline queues can handle
@@ -231,14 +229,7 @@ impl AudioController {
             return;
         }
 
-        self.waveform_mtx
-            .lock()
-            .unwrap()
-            .as_mut_any()
-            .downcast_mut::<WaveformRenderer>()
-            .unwrap()
-            .seek(target);
-
+        self.waveform_mtx.lock().unwrap().seek(target);
         if self.state != ControllerState::Playing {
             // refresh the buffer in order to render the waveform
             // with samples that might not be rendered in current WaveformImage yet
@@ -265,14 +256,7 @@ impl AudioController {
 
     pub fn start_play_range(&mut self) {
         if self.state != ControllerState::Disabled {
-            self.waveform_mtx
-                .lock()
-                .unwrap()
-                .as_mut_any()
-                .downcast_mut::<WaveformRenderer>()
-                .unwrap()
-                .start_play_range();
-
+            self.waveform_mtx.lock().unwrap().start_play_range();
             self.register_tick_callback();
         }
     }
@@ -284,13 +268,7 @@ impl AudioController {
     }
 
     pub fn seek_complete(&mut self) {
-        self.waveform_mtx
-            .lock()
-            .unwrap()
-            .as_mut_any()
-            .downcast_mut::<WaveformRenderer>()
-            .unwrap()
-            .seek_complete();
+        self.waveform_mtx.lock().unwrap().seek_complete();
         self.last_other_ui_refresh = Timestamp::default();
     }
 
@@ -395,12 +373,7 @@ impl AudioController {
             );
 
             {
-                let waveform_grd = &mut *self.waveform_mtx.lock().unwrap();
-                let waveform_renderer = waveform_grd
-                    .as_mut_any()
-                    .downcast_mut::<WaveformRenderer>()
-                    .unwrap();
-                waveform_renderer.update_conditions(
+                self.waveform_mtx.lock().unwrap().update_conditions(
                     self.requested_duration,
                     self.area_width as i32,
                     self.area_height as i32,
@@ -474,12 +447,7 @@ impl AudioController {
 
         // Draw the waveform
         self.waveform_metrics = {
-            let waveform_grd = &mut *self.waveform_mtx.lock().unwrap();
-            let waveform_renderer = waveform_grd
-                .as_mut_any()
-                .downcast_mut::<WaveformRenderer>()
-                .unwrap();
-
+            let waveform_renderer = &mut *self.waveform_mtx.lock().unwrap();
             self.playback_needs_refresh = waveform_renderer.playback_needs_refresh;
 
             waveform_renderer.update_first_visible_sample(last_frame_ts, next_frame_ts);

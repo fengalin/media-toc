@@ -1,8 +1,6 @@
 use gstreamer as gst;
 use gstreamer::ElementExtManual;
 
-use std::any::Any;
-
 use super::{AudioBuffer, AudioChannel, Duration, SampleIndex, SampleIndexRange, Timestamp};
 
 pub struct SampleExtractionState {
@@ -46,8 +44,6 @@ impl SampleExtractionState {
 }
 
 pub trait SampleExtractor: Send {
-    fn as_mut_any(&mut self) -> &mut dyn Any;
-    fn as_any(&self) -> &dyn Any;
     fn get_extraction_state(&self) -> &SampleExtractionState;
     fn get_extraction_state_mut(&mut self) -> &mut SampleExtractionState;
 
@@ -83,10 +79,9 @@ pub trait SampleExtractor: Send {
     fn switch_to_paused(&mut self);
 
     // update self with concrete state of other
-    // which is expected to be the same concrete type
     // this update is intended at smoothening the specific
     // extraction process by keeping conditions between frames
-    fn update_concrete_state(&mut self, other: &mut dyn SampleExtractor);
+    fn update_concrete_state(&mut self, other: &mut Self);
 
     fn get_current_sample(
         &mut self,

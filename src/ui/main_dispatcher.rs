@@ -9,6 +9,7 @@ use gtk::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 
 use media::PlaybackPipeline;
+use renderers::WaveformRenderer;
 
 use super::{
     main_controller::ControllerState, AudioDispatcher, ExportDispatcher, InfoDispatcher,
@@ -88,7 +89,7 @@ impl MainDispatcher {
                 }
             )));
 
-            let _ = PlaybackPipeline::check_requirements().map_err(|err| {
+            let _ = PlaybackPipeline::<WaveformRenderer>::check_requirements().map_err(|err| {
                 with_main_ctrl!(
                     main_ctrl_rc => async move |&mut main_ctrl| {
                         main_ctrl.show_error(&err);

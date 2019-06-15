@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use media::PlaybackPipeline;
 use metadata::Stream;
+use renderers::WaveformRenderer;
 
 use super::UIController;
 use crate::application::CommandLineArguments;
@@ -51,7 +52,7 @@ impl UIController for StreamsController {
         self.init_treeviews();
     }
 
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+    fn new_media(&mut self, pipeline: &PlaybackPipeline<WaveformRenderer>) {
         {
             let mut info = pipeline.info.write().unwrap();
 

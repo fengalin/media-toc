@@ -16,6 +16,8 @@ use std::{
 use media::{MediaEvent, PlaybackPipeline, SplitterPipeline};
 use metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor};
 
+use renderers::WaveformRenderer;
+
 use super::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
     ProcessingState, ProcessingType, UIController, UIEventSender,
@@ -86,7 +88,7 @@ impl OutputControllerImpl for SplitControllerImpl {
 }
 
 impl UIController for SplitControllerImpl {
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+    fn new_media(&mut self, pipeline: &PlaybackPipeline<WaveformRenderer>) {
         let info_arc = Arc::clone(&pipeline.info);
         self.src_info = Some(info_arc);
     }

@@ -13,6 +13,7 @@ use std::{
 use media::{MediaEvent, PlaybackPipeline};
 use metadata;
 use metadata::{Format, MediaInfo};
+use renderers::WaveformRenderer;
 
 use super::{UIController, UIEventSender};
 use crate::application::CommandLineArguments;
@@ -347,7 +348,7 @@ where
         self.impl_.setup(args);
     }
 
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+    fn new_media(&mut self, pipeline: &PlaybackPipeline<WaveformRenderer>) {
         self.btn.set_sensitive(true);
         self.impl_.new_media(pipeline);
     }

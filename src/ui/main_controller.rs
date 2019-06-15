@@ -12,6 +12,8 @@ use std::{borrow::ToOwned, cell::RefCell, collections::HashSet, path::PathBuf, r
 
 use media::{MediaEvent, PlaybackPipeline, PlaybackState, Timestamp};
 
+use renderers::WaveformRenderer;
+
 use super::{
     AudioController, ChaptersBoundaries, ExportController, InfoController, PerspectiveController,
     PositionStatus, SplitController, StreamsController, UIController, UIEvent, UIEventSender,
@@ -61,7 +63,7 @@ pub struct MainController {
     pub(super) split_ctrl: SplitController,
     pub(super) streams_ctrl: StreamsController,
 
-    pub(super) pipeline: Option<PlaybackPipeline>,
+    pub(super) pipeline: Option<PlaybackPipeline<WaveformRenderer>>,
     missing_plugins: HashSet<String>,
     pub(super) state: ControllerState,
 
@@ -628,7 +630,7 @@ impl MainController {
         self.attach_media_event_handler(receiver);
 
         let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.dbl_buffer_mtx);
-        match PlaybackPipeline::try_new(
+        match PlaybackPipeline::<WaveformRenderer>::try_new(
             path.as_ref(),
             &dbl_buffer_mtx,
             &self.video_ctrl.get_video_sink(),

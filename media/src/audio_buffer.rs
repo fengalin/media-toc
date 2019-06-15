@@ -99,7 +99,8 @@ impl StreamState {
     }
 
     fn have_segment(&mut self, segment_start: Timestamp) {
-        debug!("have_gst_segment {} ({})",
+        debug!(
+            "have_gst_segment {} ({})",
             segment_start,
             segment_start.get_sample_index(self.sample_duration),
         );
@@ -691,7 +692,7 @@ impl<'buffer> Iterator for Iter<'buffer> {
     }
 }
 
-impl <'buffer> ExactSizeIterator for Iter<'buffer> {}
+impl<'buffer> ExactSizeIterator for Iter<'buffer> {}
 
 #[cfg(test)]
 mod tests {

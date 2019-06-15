@@ -65,12 +65,13 @@ pub enum PositionStatus {
 
 use media;
 use metadata;
+use renderers::WaveformRenderer;
 
 use crate::application::CommandLineArguments;
 
 pub trait UIController {
     fn setup(&mut self, _args: &CommandLineArguments) {}
-    fn new_media(&mut self, _pipeline: &media::PlaybackPipeline) {}
+    fn new_media(&mut self, _pipeline: &media::PlaybackPipeline<WaveformRenderer>) {}
     fn cleanup(&mut self);
     fn streams_changed(&mut self, _info: &metadata::MediaInfo) {}
 }

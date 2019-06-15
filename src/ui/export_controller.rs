@@ -15,6 +15,8 @@ use media::{MediaEvent, PlaybackPipeline, TocSetterPipeline};
 use metadata;
 use metadata::{Exporter, Format, MatroskaTocFormat, MediaInfo};
 
+use renderers::WaveformRenderer;
+
 use super::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
     ProcessingState, ProcessingType, UIController, UIEventSender,
@@ -70,7 +72,7 @@ impl UIController for ExportControllerImpl {
         }
     }
 
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+    fn new_media(&mut self, pipeline: &PlaybackPipeline<WaveformRenderer>) {
         self.src_info = Some(Arc::clone(&pipeline.info));
     }
 

@@ -2,7 +2,6 @@ use gstreamer as gst;
 use log::{debug, trace};
 
 use std::{
-    any::Any,
     boxed::Box,
     sync::{Arc, Mutex},
 };
@@ -17,7 +16,7 @@ use super::{WaveformBuffer, WaveformTracer};
 pub struct DoubleWaveformRenderer {}
 
 impl DoubleWaveformRenderer {
-    pub fn new_mutex(buffer_duration: Duration) -> Arc<Mutex<DoubleAudioBuffer>> {
+    pub fn new_mutex(buffer_duration: Duration) -> Arc<Mutex<DoubleAudioBuffer<WaveformRenderer>>> {
         Arc::new(Mutex::new(DoubleAudioBuffer::new(
             buffer_duration,
             Box::new(WaveformRenderer::new(1)),
@@ -837,14 +836,6 @@ impl WaveformRenderer {
 }
 
 impl SampleExtractor for WaveformRenderer {
-    fn as_mut_any(&mut self) -> &mut dyn Any {
-        self
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn get_extraction_state(&self) -> &SampleExtractionState {
         &self.state
     }
@@ -910,12 +901,7 @@ impl SampleExtractor for WaveformRenderer {
         }
     }
 
-    fn update_concrete_state(&mut self, other: &mut dyn SampleExtractor) {
-        let other = other
-            .as_mut_any()
-            .downcast_mut::<WaveformRenderer>()
-            .unwrap();
-
+    fn update_concrete_state(&mut self, other: &mut Self) {
         self.previous_sample = other.previous_sample;
         self.cursor_sample = other.cursor_sample;
         self.cursor_ts = other.cursor_ts;

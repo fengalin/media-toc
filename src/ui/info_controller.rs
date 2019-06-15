@@ -11,7 +11,7 @@ use std::{cell::RefCell, fs::File, rc::Rc};
 use media::{Duration, PlaybackPipeline, Timestamp};
 use metadata;
 use metadata::{MediaInfo, Timestamp4Humans};
-use renderers::Image;
+use renderers::{Image, WaveformRenderer};
 
 use super::{ChapterTreeManager, ChaptersBoundaries, PositionStatus, UIController, UIEventSender};
 use crate::application::{CommandLineArguments, CONFIG};
@@ -66,7 +66,7 @@ impl UIController for InfoController {
         self.show_chapters_btn.set_sensitive(true);
     }
 
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+    fn new_media(&mut self, pipeline: &PlaybackPipeline<WaveformRenderer>) {
         let toc_extensions = metadata::Factory::get_extensions();
 
         {
