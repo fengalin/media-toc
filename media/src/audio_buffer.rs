@@ -691,6 +691,8 @@ impl<'buffer> Iterator for Iter<'buffer> {
     }
 }
 
+impl <'buffer> ExactSizeIterator for Iter<'buffer> {}
+
 #[cfg(test)]
 mod tests {
     //use env_logger;

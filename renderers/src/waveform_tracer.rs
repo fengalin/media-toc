@@ -162,7 +162,7 @@ impl WaveformTracer {
             cr.set_line_width(2f64);
         }
 
-        for (channel_idx, channel) in buffer.iter().enumerate() {
+        for (channel_idx, samples) in buffer.iter().enumerate() {
             if let Some(&(red, green, blue)) = self.channel_colors.get(channel_idx) {
                 cr.set_source_rgb(red, green, blue);
             } else {
@@ -173,9 +173,9 @@ impl WaveformTracer {
             }
 
             let mut x = 0f64;
-            cr.move_to(0f64, channel[first_index]);
+            cr.move_to(0f64, samples[first_index]);
 
-            for y in channel[first_index + 1..last_index].iter() {
+            for y in samples[first_index + 1..last_index].iter() {
                 x += self.x_step_f;
                 cr.line_to(x, *y);
             }
