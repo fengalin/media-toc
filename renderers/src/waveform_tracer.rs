@@ -2,16 +2,19 @@ use cairo;
 use log::{debug, warn};
 use smallvec::SmallVec;
 
+use std::iter::Iterator;
+
 use media::{AudioChannel, AudioChannelSide, INLINE_CHANNELS};
+
+use super::WaveformBuffer;
 
 pub const AMPLITUDE_0_COLOR: (f64, f64, f64) = (0.5f64, 0.5f64, 0f64);
 
 #[derive(Default)]
-pub struct WaveformDrawer {
+pub struct WaveformTracer {
     id: usize,
 
     is_initialized: bool,
-    shareable_state_changed: bool,
 
     channel_colors: SmallVec<[(f64, f64, f64); INLINE_CHANNELS]>,
 
@@ -25,11 +28,11 @@ pub struct WaveformDrawer {
     x_step: usize,
 }
 
-impl WaveformDrawer {
+impl WaveformTracer {
     pub fn new(id: usize) -> Self {
-        WaveformDrawer {
+        WaveformTracer {
             id,
-            ..WaveformDrawer::default()
+            ..WaveformTracer::default()
         }
     }
 
@@ -82,8 +85,6 @@ impl WaveformDrawer {
 
             self.is_initialized = (self.x_step != 0) && (self.width != 0);
 
-            self.shareable_state_changed = true;
-
             Some(previous_width)
         } else {
             None
@@ -101,8 +102,6 @@ impl WaveformDrawer {
             self.height_f = f64::from(height);
             self.half_range_y = self.height_f / 2f64;
 
-            self.shareable_state_changed = true;
-
             Some(previous_height)
         } else {
             None
@@ -119,30 +118,25 @@ impl WaveformDrawer {
         self.x_step = self.x_step_f as usize;
 
         self.is_initialized = (self.x_step != 0) && (self.width != 0);
-        self.shareable_state_changed = true;
     }
 
-    pub fn update_from_other(&mut self, other: &mut WaveformDrawer) {
-        if other.shareable_state_changed {
-            debug!("{}_update_from_other shareable_state_changed", self.id);
+    pub fn update_from_other(&mut self, other: &mut WaveformTracer) {
+        debug!("{}_update_from_other", self.id);
 
-            self.width = other.width;
-            self.width_f = other.width_f;
-            self.height = other.height;
-            self.height_f = other.height_f;
-            self.half_range_y = other.half_range_y;
-            self.x_step = other.x_step;
-            self.x_step_f = other.x_step_f;
-            self.is_initialized = other.is_initialized;
-
-            other.shareable_state_changed = false;
-        }
+        self.width = other.width;
+        self.width_f = other.width_f;
+        self.height = other.height;
+        self.height_f = other.height_f;
+        self.half_range_y = other.half_range_y;
+        self.x_step = other.x_step;
+        self.x_step_f = other.x_step_f;
+        self.is_initialized = other.is_initialized;
     }
 
     pub fn draw(
         &self,
         cr: &cairo::Context,
-        buffer: &SmallVec<[Vec<f64>; INLINE_CHANNELS]>,
+        buffer: &WaveformBuffer,
         first_index: usize,
         last_index: usize,
         last_x: f64,

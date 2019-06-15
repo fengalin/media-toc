@@ -16,7 +16,7 @@ use media::{
     AudioBuffer, AudioChannel, Duration, SampleExtractor, SampleIndex, SampleIndexRange, Timestamp,
     INLINE_CHANNELS,
 };
-use renderers::WaveformBuffer;
+use renderers::WaveformRenderer;
 
 const SAMPLE_RATE: u64 = 48_000;
 const SAMPLE_DURATION: Duration = Duration::from_frequency(SAMPLE_RATE);
@@ -79,7 +79,7 @@ fn push_test_buffer(audio_buffer: &mut AudioBuffer, buffer: &gst::Buffer, is_new
 
 fn prepare_buffers() -> (
     AudioBuffer,
-    WaveformBuffer,
+    WaveformRenderer,
     SmallVec<[AudioChannel; INLINE_CHANNELS]>,
 ) {
     let mut audio_buffer = AudioBuffer::new(Duration::from_secs(10));
@@ -107,33 +107,33 @@ fn prepare_buffers() -> (
         gst_audio::AudioChannelPosition::FrontRight,
     ));
 
-    (audio_buffer, WaveformBuffer::new(1), channels)
+    (audio_buffer, WaveformRenderer::new(1), channels)
 }
 
 fn render_buffers(
     audio_buffer: &mut AudioBuffer,
-    waveform_buffer: &mut WaveformBuffer,
+    renderer: &mut WaveformRenderer,
     channels: &SmallVec<[AudioChannel; INLINE_CHANNELS]>,
-    mut extra_op: Option<&mut FnMut(usize, &mut WaveformBuffer)>,
+    mut extra_op: Option<&mut FnMut(usize, &mut WaveformRenderer)>,
 ) {
     // start with enough overhead in audio buffer
     audio_buffer.upper = BUFFER_OVERHEAD.into();
 
-    waveform_buffer.reset();
-    waveform_buffer.set_sample_duration(SAMPLE_DURATION, DURATION_FOR_1000);
-    waveform_buffer.set_channels(&channels);
-    waveform_buffer.set_state(gst::State::Playing);
-    waveform_buffer.update_conditions(DURATION_FOR_1000PX, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+    renderer.reset();
+    renderer.set_sample_duration(SAMPLE_DURATION, DURATION_FOR_1000);
+    renderer.set_channels(&channels);
+    renderer.set_state(gst::State::Playing);
+    renderer.update_conditions(DURATION_FOR_1000PX, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 
     for idx in 0..BUFFER_COUNT {
         let first_visible = idx * SAMPLES_PER_FRAME;
-        waveform_buffer.first_visible_sample = Some(first_visible.into());
-        waveform_buffer.cursor_sample = (first_visible + SAMPLES_PER_FRAME / 2).into();
+        renderer.first_visible_sample = Some(first_visible.into());
+        renderer.cursor_sample = (first_visible + SAMPLES_PER_FRAME / 2).into();
 
-        waveform_buffer.extract_samples(&audio_buffer);
+        renderer.extract_samples(&audio_buffer);
 
         if let Some(extra_op) = extra_op.as_mut() {
-            extra_op(idx, waveform_buffer);
+            extra_op(idx, renderer);
         }
 
         if audio_buffer.upper.as_usize() < BUFFER_COUNT * SAMPLES_PER_FRAME {
@@ -146,10 +146,10 @@ fn render_buffers(
 fn bench_render_buffers(b: &mut Bencher) {
     gst::init().unwrap();
 
-    let (mut audio_buffer, mut waveform_buffer, channels) = prepare_buffers();
+    let (mut audio_buffer, mut renderer, channels) = prepare_buffers();
 
     b.iter(|| {
-        render_buffers(&mut audio_buffer, &mut waveform_buffer, &channels, None);
+        render_buffers(&mut audio_buffer, &mut renderer, &channels, None);
     });
 }
 
@@ -157,24 +157,24 @@ fn bench_render_buffers(b: &mut Bencher) {
 fn bench_render_buffers_and_display(b: &mut Bencher) {
     gst::init().unwrap();
 
-    let (mut audio_buffer, mut waveform_buffer, channels) = prepare_buffers();
+    let (mut audio_buffer, mut renderer, channels) = prepare_buffers();
 
     let display_surface =
         cairo::ImageSurface::create(cairo::Format::Rgb24, DISPLAY_WIDTH, DISPLAY_HEIGHT)
             .expect("image surface");
 
-    let mut render_to_display = |_idx: usize, waveform_buffer: &mut WaveformBuffer| {
+    let mut render_to_display = |_idx: usize, renderer: &mut WaveformRenderer| {
         let cr = cairo::Context::new(&display_surface);
         cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
         cr.paint();
 
-        waveform_buffer.render(&cr);
+        renderer.render(&cr);
     };
 
     b.iter(|| {
         render_buffers(
             &mut audio_buffer,
-            &mut waveform_buffer,
+            &mut renderer,
             &channels,
             Some(&mut render_to_display),
         );

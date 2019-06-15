@@ -21,7 +21,7 @@ use media::{
     DoubleAudioBuffer, Duration, PlaybackPipeline, SampleExtractor, Timestamp, QUEUE_SIZE,
 };
 use metadata::MediaInfo;
-use renderers::{DoubleWaveformBuffer, WaveformBuffer, WaveformMetrics};
+use renderers::{DoubleWaveformRenderer, WaveformMetrics, WaveformRenderer};
 
 use super::{ChaptersBoundaries, UIController, UIEventSender};
 
@@ -160,7 +160,7 @@ impl AudioController {
         ui_event_sender: UIEventSender,
         boundaries: Rc<RefCell<ChaptersBoundaries>>,
     ) -> Self {
-        let dbl_buffer_mtx = DoubleWaveformBuffer::new_mutex(BUFFER_DURATION);
+        let dbl_buffer_mtx = DoubleWaveformRenderer::new_mutex(BUFFER_DURATION);
         let waveform_mtx = dbl_buffer_mtx.lock().unwrap().get_exposed_buffer_mtx();
 
         AudioController {
@@ -206,7 +206,7 @@ impl AudioController {
             let waveform_grd = self.waveform_mtx.lock().unwrap();
             let waveform_buf = waveform_grd
                 .as_any()
-                .downcast_ref::<WaveformBuffer>()
+                .downcast_ref::<WaveformRenderer>()
                 .unwrap();
             let limits = waveform_buf.get_limits_as_ts();
             (limits.0, limits.1, waveform_buf.get_half_window_duration())
@@ -235,7 +235,7 @@ impl AudioController {
             .lock()
             .unwrap()
             .as_mut_any()
-            .downcast_mut::<WaveformBuffer>()
+            .downcast_mut::<WaveformRenderer>()
             .unwrap()
             .seek(target);
 
@@ -269,7 +269,7 @@ impl AudioController {
                 .lock()
                 .unwrap()
                 .as_mut_any()
-                .downcast_mut::<WaveformBuffer>()
+                .downcast_mut::<WaveformRenderer>()
                 .unwrap()
                 .start_play_range();
 
@@ -288,7 +288,7 @@ impl AudioController {
             .lock()
             .unwrap()
             .as_mut_any()
-            .downcast_mut::<WaveformBuffer>()
+            .downcast_mut::<WaveformRenderer>()
             .unwrap()
             .seek_complete();
         self.last_other_ui_refresh = Timestamp::default();
@@ -396,11 +396,11 @@ impl AudioController {
 
             {
                 let waveform_grd = &mut *self.waveform_mtx.lock().unwrap();
-                let waveform_buffer = waveform_grd
+                let waveform_renderer = waveform_grd
                     .as_mut_any()
-                    .downcast_mut::<WaveformBuffer>()
+                    .downcast_mut::<WaveformRenderer>()
                     .unwrap();
-                waveform_buffer.update_conditions(
+                waveform_renderer.update_conditions(
                     self.requested_duration,
                     self.area_width as i32,
                     self.area_height as i32,
@@ -475,15 +475,15 @@ impl AudioController {
         // Draw the waveform
         self.waveform_metrics = {
             let waveform_grd = &mut *self.waveform_mtx.lock().unwrap();
-            let waveform_buffer = waveform_grd
+            let waveform_renderer = waveform_grd
                 .as_mut_any()
-                .downcast_mut::<WaveformBuffer>()
+                .downcast_mut::<WaveformRenderer>()
                 .unwrap();
 
-            self.playback_needs_refresh = waveform_buffer.playback_needs_refresh;
+            self.playback_needs_refresh = waveform_renderer.playback_needs_refresh;
 
-            waveform_buffer.update_first_visible_sample(last_frame_ts, next_frame_ts);
-            waveform_buffer.render(cr)?
+            waveform_renderer.update_first_visible_sample(last_frame_ts, next_frame_ts);
+            waveform_renderer.render(cr)?
         };
 
         self.adjust_waveform_text_width(cr);
