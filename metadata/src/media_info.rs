@@ -424,7 +424,7 @@ impl MediaInfo {
     }
 
     /// Fill missing tags for global scope
-    #[allow(clippy::cyclomatic_complexity)]
+    #[allow(clippy::cognitive_complexity)]
     pub fn get_fixed_tags(&self) -> gst::TagList {
         let mut tags = gst::TagList::new();
         {
@@ -453,7 +453,7 @@ impl MediaInfo {
         tags
     }
 
-    #[allow(clippy::cyclomatic_complexity)]
+    #[allow(clippy::cognitive_complexity)]
     pub fn get_chapter_with_track_tags(
         &self,
         chapter: &gst::TocEntry,

@@ -538,7 +538,7 @@ impl AudioController {
         let first_text_end = if self.waveform_metrics.first_ts < ONE_HOUR {
             2f64 + self.text_metrics.limit_mn_width
         } else {
-            2f64 + self.text_metrics.limit_mn_width
+            2f64 + self.text_metrics.limit_h_width
         };
         cr.move_to(2f64, self.text_metrics.limit_y);
         cr.show_text(&first_text);
