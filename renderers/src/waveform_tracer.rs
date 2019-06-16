@@ -21,8 +21,8 @@ pub struct WaveformTracer {
     pub(super) width: i32,
     pub(super) width_f: f64,
     height: i32,
-    height_f: f64,
-    pub(super) half_range_y: f64,
+    pub(super) height_f: f64,
+    half_range_y: f64,
 
     pub(super) x_step_f: f64,
     x_step: usize,

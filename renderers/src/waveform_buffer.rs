@@ -2,14 +2,19 @@ use log::debug;
 
 use media::{AudioBuffer, SampleIndex, SampleIndexRange, INLINE_CHANNELS};
 
-// The `WaveformBuffer` contains c channels of n samples each
+const SAMPLE_AMPLITUDE: i32 = std::i16::MAX as i32;
+const DISPLAY_SAMPLE_RANGE: f64 = std::u16::MAX as f64;
+
+// The `WaveformBuffer` contains c channels of n samples each, usable by `WaveformTracer`
 const INIT_SAMPLES_PER_CHANNELS: usize = 1500;
+
+type Sample = f64;
 
 #[derive(Default)]
 pub struct WaveformBuffer {
     id: usize,
 
-    buffer: Vec<f64>,
+    buffer: Vec<Sample>,
     channels: usize,
     samples_per_channel: usize,
     pub(super) contains_eos: bool,
@@ -17,7 +22,7 @@ pub struct WaveformBuffer {
     pub(super) upper: SampleIndex,
 
     pub(super) force_extraction: bool,
-    pub(super) sample_value_factor: f64,
+    pub(super) sample_value_factor: Sample,
 }
 
 impl WaveformBuffer {
@@ -40,6 +45,10 @@ impl WaveformBuffer {
         self.upper = SampleIndex::default();
 
         self.force_extraction = false;
+    }
+
+    pub fn update_height(&mut self, height_f: f64) {
+        self.sample_value_factor = height_f / DISPLAY_SAMPLE_RANGE;
     }
 
     pub fn update_from_other(&mut self, other: &WaveformBuffer) {
@@ -103,11 +112,12 @@ impl WaveformBuffer {
             audio_buffer
                 .try_iter(lower, upper, channel, sample_step)
                 .unwrap_or_else(|err| panic!("{}_extract_waveform_samples: {}", self.id, err))
-                .map(|channel_value| {
-                    f64::from(i32::from(channel_value.as_i16()) - i32::from(std::i16::MAX))
-                        * sample_value_factor
-                })
-                .for_each(|y| self.buffer.push(y));
+                .for_each(|sample| {
+                    self.buffer.push(
+                        Sample::from(SAMPLE_AMPLITUDE - i32::from(sample.as_i16()))
+                            * sample_value_factor,
+                    );
+                });
         }
 
         self.samples_per_channel = (upper - lower).get_step_range(sample_step);
@@ -117,7 +127,7 @@ impl WaveformBuffer {
 }
 
 pub struct ChannelsIter<'buffer> {
-    buffer: &'buffer Vec<f64>,
+    buffer: &'buffer Vec<Sample>,
     samples_per_channel: usize,
     lower: usize,
     upper: usize,
@@ -134,7 +144,7 @@ impl<'buffer> ChannelsIter<'buffer> {
 }
 
 impl<'buffer> Iterator for ChannelsIter<'buffer> {
-    type Item = &'buffer [f64];
+    type Item = &'buffer [Sample];
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.lower < self.upper {

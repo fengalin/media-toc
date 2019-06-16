@@ -470,7 +470,7 @@ impl WaveformRenderer {
         };
 
         if self.tracer.update_height(height).is_some() {
-            self.buffer.sample_value_factor = self.tracer.half_range_y / f64::from(std::i16::MIN);
+            self.buffer.update_height(self.tracer.height_f);
 
             self.conditions_changed = true;
             self.buffer.force_extraction = true;
