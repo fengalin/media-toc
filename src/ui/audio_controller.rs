@@ -42,6 +42,7 @@ const EXPECTED_FRAME_DURATION: Duration = Duration::from_frequency(60);
 const ONE_HOUR: Duration = Duration::from_secs(60 * 60);
 
 const BACKGROUND_COLOR: (f64, f64, f64) = (0.2f64, 0.2235f64, 0.2314f64);
+const CURSOR_COLOR: (f64, f64, f64) = (1f64, 1f64, 0f64);
 
 // Use this text to compute the largest text box for the waveform limits
 // This is required to position the labels in such a way they don't
@@ -533,8 +534,8 @@ impl AudioController {
         }
 
         if let Some(cursor) = &self.waveform_metrics.cursor {
-            // draw current pos
-            cr.set_source_rgb(1f64, 1f64, 0f64);
+            // draw cursor
+            cr.set_source_rgb(CURSOR_COLOR.0, CURSOR_COLOR.1, CURSOR_COLOR.2);
 
             let cursor_text = cursor.ts.get_4_humans().as_string(true);
             let cursor_text_end = if cursor.ts < ONE_HOUR {

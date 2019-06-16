@@ -119,16 +119,16 @@ impl WaveformBuffer {
 pub struct ChannelsIter<'buffer> {
     buffer: &'buffer Vec<f64>,
     samples_per_channel: usize,
-    channel: usize,
-    channels: usize,
+    lower: usize,
+    upper: usize,
 }
 impl<'buffer> ChannelsIter<'buffer> {
     fn new(wf_buffer: &'buffer WaveformBuffer) -> Self {
         ChannelsIter {
             buffer: &wf_buffer.buffer,
             samples_per_channel: wf_buffer.samples_per_channel,
-            channel: 0,
-            channels: wf_buffer.channels,
+            lower: 0,
+            upper: wf_buffer.channels * wf_buffer.samples_per_channel,
         }
     }
 }
@@ -137,10 +137,10 @@ impl<'buffer> Iterator for ChannelsIter<'buffer> {
     type Item = &'buffer [f64];
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.channel < self.channels {
-            let first = self.channel * self.samples_per_channel;
-            let item = &self.buffer[first..(first + self.samples_per_channel)];
-            self.channel += 1;
+        if self.lower < self.upper {
+            let current_upper = self.lower + self.samples_per_channel;
+            let item = &self.buffer[self.lower..current_upper];
+            self.lower = current_upper;
 
             Some(item)
         } else {
@@ -149,11 +149,11 @@ impl<'buffer> Iterator for ChannelsIter<'buffer> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        if self.channel >= self.channels {
+        if self.lower >= self.upper {
             return (0, Some(0));
         }
 
-        let remaining = self.channel - self.channels;
+        let remaining = (self.upper - self.lower) / self.samples_per_channel;
 
         (remaining, Some(remaining))
     }

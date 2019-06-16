@@ -1,5 +1,5 @@
 use cairo;
-use log::{debug, warn};
+use log::debug;
 use smallvec::SmallVec;
 
 use std::iter::Iterator;
@@ -8,7 +8,7 @@ use media::{AudioChannel, AudioChannelSide, INLINE_CHANNELS};
 
 use super::WaveformBuffer;
 
-pub const AMPLITUDE_0_COLOR: (f64, f64, f64) = (0.5f64, 0.5f64, 0f64);
+pub const AXIS_COLOR: (f64, f64, f64) = (0.8f64, 0.8f64, 0f64);
 
 #[derive(Default)]
 pub struct WaveformTracer {
@@ -143,11 +143,7 @@ impl WaveformTracer {
     ) {
         // Draw axis
         cr.set_line_width(1f64);
-        cr.set_source_rgb(
-            AMPLITUDE_0_COLOR.0,
-            AMPLITUDE_0_COLOR.1,
-            AMPLITUDE_0_COLOR.2,
-        );
+        cr.set_source_rgb(AXIS_COLOR.0, AXIS_COLOR.1, AXIS_COLOR.2);
 
         cr.move_to(0f64, self.half_range_y);
         cr.line_to(last_x, self.half_range_y);
@@ -163,21 +159,16 @@ impl WaveformTracer {
         }
 
         for (channel_idx, samples) in buffer.iter().enumerate() {
-            if let Some(&(red, green, blue)) = self.channel_colors.get(channel_idx) {
-                cr.set_source_rgb(red, green, blue);
-            } else {
-                warn!(
-                    "{}_draw_samples no color for channel {}",
-                    self.id, channel_idx
-                );
-            }
+            let (red, green, blue) = &self
+                .channel_colors
+                .get(channel_idx)
+                .expect("channel color not found");
+            cr.set_source_rgb(*red, *green, *blue);
 
             let mut x = 0f64;
-            cr.move_to(0f64, samples[first_index]);
-
-            for y in samples[first_index + 1..last_index].iter() {
-                x += self.x_step_f;
+            for y in samples[first_index..last_index].iter() {
                 cr.line_to(x, *y);
+                x += self.x_step_f;
             }
 
             cr.stroke();
