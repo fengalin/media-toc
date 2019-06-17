@@ -13,6 +13,9 @@ use media::{AudioBuffer, Duration, SampleIndex, Timestamp};
 const SAMPLE_RATE: u32 = 48000;
 const SAMPLE_DURATION: Duration = Duration::from_frequency(SAMPLE_RATE as u64);
 
+const BUFFER_COUNT: usize = 512;
+const SAMPLES_PER_BUFFER: usize = 4096;
+
 const CHANNELS: usize = 2;
 
 fn build_buffer(lower_value: usize, upper_value: usize) -> gst::Buffer {
@@ -58,9 +61,6 @@ fn push_test_buffer(audio_buffer: &mut AudioBuffer, buffer: &gst::Buffer, is_new
 
 #[bench]
 fn bench_append_samples(b: &mut Bencher) {
-    const BUFFER_COUNT: usize = 1024;
-    const SAMPLES_PER_BUFFER: usize = 1024;
-
     gst::init().unwrap();
 
     let mut audio_buffer = AudioBuffer::new(Duration::from_secs(10));

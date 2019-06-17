@@ -27,11 +27,11 @@ const DURATION_FOR_1000: Duration = Duration::from_nanos(1_000_000_000_000u64 / 
 const DURATION_FOR_1000PX: Duration = Duration::from_secs(4);
 
 const BUFFER_COUNT: usize = 512;
-const SAMPLES_PER_FRAME: usize = 1024;
+const SAMPLES_PER_BUFFER: usize = 4096;
 
-const BUFFER_OVERHEAD: usize = 2 * (SAMPLE_RATE as usize);
+const BUFFER_OVERHEAD: usize = 5 * (SAMPLE_RATE as usize);
 
-const DISPLAY_WIDTH: i32 = 800;
+const DISPLAY_WIDTH: i32 = 1024;
 const DISPLAY_HEIGHT: i32 = 500;
 
 const BACKGROUND_COLOR: (f64, f64, f64) = (0.2f64, 0.2235f64, 0.2314f64);
@@ -95,7 +95,7 @@ fn prepare_buffers() -> (
 
     push_test_buffer(
         &mut audio_buffer,
-        &build_buffer(0, BUFFER_COUNT * SAMPLES_PER_FRAME + BUFFER_OVERHEAD),
+        &build_buffer(0, BUFFER_COUNT * SAMPLES_PER_BUFFER + BUFFER_OVERHEAD),
         true,
     );
 
@@ -126,9 +126,9 @@ fn render_buffers(
     renderer.update_conditions(DURATION_FOR_1000PX, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 
     for idx in 0..BUFFER_COUNT {
-        let first_visible = idx * SAMPLES_PER_FRAME;
+        let first_visible = idx * SAMPLES_PER_BUFFER;
         renderer.first_visible_sample = Some(first_visible.into());
-        renderer.cursor_sample = (first_visible + SAMPLES_PER_FRAME / 2).into();
+        renderer.cursor_sample = (first_visible + SAMPLES_PER_BUFFER / 2).into();
 
         renderer.extract_samples(&audio_buffer);
 
@@ -136,8 +136,8 @@ fn render_buffers(
             extra_op(idx, renderer);
         }
 
-        if audio_buffer.upper.as_usize() < BUFFER_COUNT * SAMPLES_PER_FRAME {
-            audio_buffer.upper += SampleIndexRange::new(SAMPLES_PER_FRAME);
+        if audio_buffer.upper.as_usize() < BUFFER_COUNT * SAMPLES_PER_BUFFER {
+            audio_buffer.upper += SampleIndexRange::new(SAMPLES_PER_BUFFER);
         }
     }
 }
