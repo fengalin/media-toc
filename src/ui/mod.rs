@@ -1,12 +1,10 @@
-use std::{cell::RefCell, rc::Rc};
-
 mod audio_controller;
 use self::audio_controller::AudioController;
 mod audio_dispatcher;
 use self::audio_dispatcher::AudioDispatcher;
 
-pub mod chapters_boundaries;
-pub use self::chapters_boundaries::ChaptersBoundaries;
+mod chapters_boundaries;
+use self::chapters_boundaries::ChaptersBoundaries;
 
 mod chapter_tree_manager;
 use self::chapter_tree_manager::ChapterTreeManager;
@@ -21,9 +19,9 @@ use self::info_controller::InfoController;
 mod info_dispatcher;
 use self::info_dispatcher::InfoDispatcher;
 
-pub mod main_controller;
+mod main_controller;
 pub use self::main_controller::{ControllerState, MainController};
-pub mod main_dispatcher;
+mod main_dispatcher;
 pub use self::main_dispatcher::MainDispatcher;
 
 mod output_base_controller;
@@ -57,20 +55,67 @@ use self::video_controller::VideoController;
 mod video_dispatcher;
 use self::video_dispatcher::VideoDispatcher;
 
-#[derive(PartialEq)]
-pub enum PositionStatus {
-    ChapterChanged,
-    ChapterNotChanged,
-}
+use gstreamer as gst;
+
+use std::{
+    cell::RefCell,
+    ops::{Deref, DerefMut},
+    path::Path,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
 
 use media;
 use metadata;
 
 use crate::application::CommandLineArguments;
 
+#[derive(PartialEq)]
+pub enum PositionStatus {
+    ChapterChanged,
+    ChapterNotChanged,
+}
+
+pub struct PlaybackPipeline(media::PlaybackPipeline<renderers::WaveformRenderer>);
+
+impl PlaybackPipeline {
+    pub fn try_new(
+        path: &Path,
+        dbl_audio_buffer_mtx: &Arc<Mutex<media::DoubleAudioBuffer<renderers::WaveformRenderer>>>,
+        video_sink: &Option<gst::Element>,
+        sender: glib::Sender<media::MediaEvent>,
+    ) -> Result<Self, String> {
+        media::PlaybackPipeline::<renderers::WaveformRenderer>::try_new(
+            path,
+            dbl_audio_buffer_mtx,
+            video_sink,
+            sender,
+        )
+        .map(|pipeline| PlaybackPipeline(pipeline))
+    }
+
+    pub fn check_requirements() -> Result<(), String> {
+        media::PlaybackPipeline::<renderers::WaveformRenderer>::check_requirements()
+    }
+}
+
+impl Deref for PlaybackPipeline {
+    type Target = media::PlaybackPipeline<renderers::WaveformRenderer>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for PlaybackPipeline {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 pub trait UIController {
     fn setup(&mut self, _args: &CommandLineArguments) {}
-    fn new_media(&mut self, _pipeline: &media::PlaybackPipeline) {}
+    fn new_media(&mut self, _pipeline: &PlaybackPipeline) {}
     fn cleanup(&mut self);
     fn streams_changed(&mut self, _info: &metadata::MediaInfo) {}
 }

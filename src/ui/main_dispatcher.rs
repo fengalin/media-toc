@@ -8,12 +8,10 @@ use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};
 
-use media::PlaybackPipeline;
-
 use super::{
     main_controller::ControllerState, AudioDispatcher, ExportDispatcher, InfoDispatcher,
-    MainController, PerspectiveDispatcher, SplitDispatcher, StreamsDispatcher, UIDispatcher,
-    UIEvent, VideoDispatcher,
+    MainController, PerspectiveDispatcher, PlaybackPipeline, SplitDispatcher, StreamsDispatcher,
+    UIDispatcher, UIEvent, VideoDispatcher,
 };
 use crate::{application::CONFIG, with_main_ctrl};
 

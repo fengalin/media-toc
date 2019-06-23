@@ -11,13 +11,13 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use media::{MediaEvent, PlaybackPipeline, TocSetterPipeline};
+use media::{MediaEvent, TocSetterPipeline};
 use metadata;
 use metadata::{Exporter, Format, MatroskaTocFormat, MediaInfo};
 
 use super::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
-    ProcessingState, ProcessingType, UIController, UIEventSender,
+    PlaybackPipeline, ProcessingState, ProcessingType, UIController, UIEventSender,
 };
 use crate::application::CommandLineArguments;
 

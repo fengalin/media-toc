@@ -10,11 +10,11 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use media::{MediaEvent, PlaybackPipeline};
+use media::MediaEvent;
 use metadata;
 use metadata::{Format, MediaInfo};
 
-use super::{UIController, UIEventSender};
+use super::{PlaybackPipeline, UIController, UIEventSender};
 use crate::application::CommandLineArguments;
 
 const PROGRESS_TIMER_PERIOD: u32 = 250; // 250 ms

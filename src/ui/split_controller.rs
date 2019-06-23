@@ -13,12 +13,12 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use media::{MediaEvent, PlaybackPipeline, SplitterPipeline};
+use media::{MediaEvent, SplitterPipeline};
 use metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor};
 
 use super::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
-    ProcessingState, ProcessingType, UIController, UIEventSender,
+    PlaybackPipeline, ProcessingState, ProcessingType, UIController, UIEventSender,
 };
 use crate::application::CommandLineArguments;
 

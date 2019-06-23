@@ -17,13 +17,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use media::{
-    DoubleAudioBuffer, Duration, PlaybackPipeline, SampleExtractor, Timestamp, QUEUE_SIZE,
-};
+use media::{DoubleAudioBuffer, Duration, Timestamp, QUEUE_SIZE};
 use metadata::MediaInfo;
 use renderers::{DoubleWaveformRenderer, ImagePositions, WaveformRenderer, BACKGROUND_COLOR};
 
-use super::{ChaptersBoundaries, UIController, UIEventSender};
+use super::{ChaptersBoundaries, PlaybackPipeline, UIController, UIEventSender};
 
 const BUFFER_DURATION: Duration = Duration::from_secs(60);
 const INIT_REQ_DURATION_FOR_1000PX: Duration = Duration::from_secs(4);
@@ -97,8 +95,8 @@ pub struct AudioController {
     positions: ImagePositions,
     boundaries: Rc<RefCell<ChaptersBoundaries>>,
 
-    waveform_mtx: Arc<Mutex<Box<dyn SampleExtractor>>>,
-    pub dbl_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
+    waveform_renderer_mtx: Arc<Mutex<Box<WaveformRenderer>>>,
+    pub dbl_renderer_mtx: Arc<Mutex<DoubleAudioBuffer<WaveformRenderer>>>,
 
     pub(super) update_conditions_async: Option<Box<Fn() -> glib::SourceId>>,
 
@@ -127,7 +125,7 @@ impl UIController for AudioController {
         self.zoom_in_btn.set_sensitive(false);
         self.zoom_out_btn.set_sensitive(false);
         self.playback_needs_refresh = false;
-        self.dbl_buffer_mtx.lock().unwrap().cleanup();
+        self.dbl_renderer_mtx.lock().unwrap().cleanup();
         self.requested_duration = INIT_REQ_DURATION_FOR_1000PX;
         self.seek_step = INIT_REQ_DURATION_FOR_1000PX / SEEK_STEP_DURATION_DIVISOR;
         self.last_other_ui_refresh = Timestamp::default();
@@ -158,8 +156,8 @@ impl AudioController {
         ui_event_sender: UIEventSender,
         boundaries: Rc<RefCell<ChaptersBoundaries>>,
     ) -> Self {
-        let dbl_buffer_mtx = DoubleWaveformRenderer::new_mutex(BUFFER_DURATION);
-        let waveform_mtx = dbl_buffer_mtx.lock().unwrap().get_exposed_buffer_mtx();
+        let dbl_waveform = DoubleWaveformRenderer::new_dbl_audio_buffer(BUFFER_DURATION);
+        let waveform_renderer_mtx = dbl_waveform.get_exposed_buffer_mtx();
 
         AudioController {
             ui_event: ui_event_sender,
@@ -185,8 +183,8 @@ impl AudioController {
             positions: ImagePositions::default(),
             boundaries,
 
-            waveform_mtx,
-            dbl_buffer_mtx,
+            waveform_renderer_mtx,
+            dbl_renderer_mtx: Arc::new(Mutex::new(dbl_waveform)),
 
             update_conditions_async: None,
 
@@ -201,11 +199,7 @@ impl AudioController {
 
     pub fn get_seek_back_1st_ts(&self, target: Timestamp) -> Option<Timestamp> {
         let (lower_ts, upper_ts, half_window_duration) = {
-            let waveform_grd = self.waveform_mtx.lock().unwrap();
-            let waveform_renderer = waveform_grd
-                .as_any()
-                .downcast_ref::<WaveformRenderer>()
-                .unwrap();
+            let waveform_renderer = self.waveform_renderer_mtx.lock().unwrap();
             let limits = waveform_renderer.get_limits_as_ts();
             (
                 limits.0,
@@ -233,18 +227,12 @@ impl AudioController {
             return;
         }
 
-        self.waveform_mtx
-            .lock()
-            .unwrap()
-            .as_mut_any()
-            .downcast_mut::<WaveformRenderer>()
-            .unwrap()
-            .seek(target);
+        self.waveform_renderer_mtx.lock().unwrap().seek(target);
 
         if self.state != ControllerState::Playing {
             // refresh the buffer in order to render the waveform
             // with samples that might not be rendered in current WaveformImage yet
-            self.dbl_buffer_mtx.lock().unwrap().refresh();
+            self.dbl_renderer_mtx.lock().unwrap().refresh();
         }
         self.redraw();
     }
@@ -267,11 +255,8 @@ impl AudioController {
 
     pub fn start_play_range(&mut self) {
         if self.state != ControllerState::Disabled {
-            self.waveform_mtx
+            self.waveform_renderer_mtx
                 .lock()
-                .unwrap()
-                .as_mut_any()
-                .downcast_mut::<WaveformRenderer>()
                 .unwrap()
                 .start_play_range();
 
@@ -286,13 +271,7 @@ impl AudioController {
     }
 
     pub fn seek_complete(&mut self) {
-        self.waveform_mtx
-            .lock()
-            .unwrap()
-            .as_mut_any()
-            .downcast_mut::<WaveformRenderer>()
-            .unwrap()
-            .seek_complete();
+        self.waveform_renderer_mtx.lock().unwrap().seek_complete();
         self.last_other_ui_refresh = Timestamp::default();
     }
 
@@ -395,12 +374,8 @@ impl AudioController {
             );
 
             {
-                let waveform_grd = &mut *self.waveform_mtx.lock().unwrap();
-                let waveform_buffer = waveform_grd
-                    .as_mut_any()
-                    .downcast_mut::<WaveformRenderer>()
-                    .unwrap();
-                waveform_buffer.update_conditions(
+                let waveform_renderer = &mut *self.waveform_renderer_mtx.lock().unwrap();
+                waveform_renderer.update_conditions(
                     self.requested_duration,
                     self.area_width as i32,
                     self.area_height as i32,
@@ -433,7 +408,7 @@ impl AudioController {
     }
 
     pub fn refresh_buffer(&self) {
-        self.dbl_buffer_mtx.lock().unwrap().refresh();
+        self.dbl_renderer_mtx.lock().unwrap().refresh();
     }
 
     pub fn tick(&mut self) {
@@ -474,15 +449,11 @@ impl AudioController {
 
         // Get waveform and timestamps
         self.positions = {
-            let waveform_grd = &mut *self.waveform_mtx.lock().unwrap();
-            let waveform_buffer = waveform_grd
-                .as_mut_any()
-                .downcast_mut::<WaveformRenderer>()
-                .unwrap();
+            let waveform_renderer = &mut *self.waveform_renderer_mtx.lock().unwrap();
+            self.playback_needs_refresh = waveform_renderer.playback_needs_refresh;
 
-            self.playback_needs_refresh = waveform_buffer.playback_needs_refresh;
-
-            let (image, positions) = match waveform_buffer.get_image(last_frame_ts, next_frame_ts) {
+            let (image, positions) = match waveform_renderer.get_image(last_frame_ts, next_frame_ts)
+            {
                 Some(image_and_positions) => image_and_positions,
                 None => return None,
             };

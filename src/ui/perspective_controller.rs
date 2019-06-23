@@ -1,10 +1,9 @@
 use gtk;
 use gtk::prelude::*;
 
-use media::PlaybackPipeline;
 use metadata::MediaInfo;
 
-use super::UIController;
+use super::{PlaybackPipeline, UIController};
 use crate::application::CommandLineArguments;
 
 pub struct PerspectiveController {

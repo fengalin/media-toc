@@ -18,7 +18,7 @@ use std::{
 
 use metadata::MediaInfo;
 
-use super::{DoubleAudioBuffer, Duration, MediaEvent, PlaybackState, Timestamp};
+use super::{DoubleAudioBuffer, Duration, MediaEvent, PlaybackState, SampleExtractor, Timestamp};
 
 // This is the max duration that queues can hold
 pub const QUEUE_SIZE: Duration = Duration::from_secs(5);
@@ -30,16 +30,16 @@ pub enum PipelineState {
     StreamsSelected,
 }
 
-pub struct PlaybackPipeline {
+pub struct PlaybackPipeline<SE: SampleExtractor + 'static> {
     pipeline: gst::Pipeline,
     decodebin: gst::Element,
-    dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer>>,
+    dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer<SE>>>,
 
     pub info: Arc<RwLock<MediaInfo>>,
 }
 
 // FIXME: might need to `release_request_pad` on the tee
-impl Drop for PlaybackPipeline {
+impl<SE: SampleExtractor + 'static> Drop for PlaybackPipeline<SE> {
     fn drop(&mut self) {
         if let Some(video_sink) = self.pipeline.get_by_name("video_sink") {
             self.pipeline.remove(&video_sink).unwrap();
@@ -47,13 +47,13 @@ impl Drop for PlaybackPipeline {
     }
 }
 
-impl PlaybackPipeline {
+impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
     pub fn try_new(
         path: &Path,
-        dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer>>,
+        dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer<SE>>>,
         video_sink: &Option<gst::Element>,
         sender: glib::Sender<MediaEvent>,
-    ) -> Result<PlaybackPipeline, String> {
+    ) -> Result<PlaybackPipeline<SE>, String> {
         info!(
             "{}",
             gettext("Opening {}...").replacen("{}", path.to_str().unwrap(), 1)
@@ -259,7 +259,7 @@ impl PlaybackPipeline {
         // From decodebin3's documentation: "Children: multiqueue0"
         let decodebin_as_bin = self.decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
         let decodebin_multiqueue = &decodebin_as_bin.get_children()[0];
-        PlaybackPipeline::setup_queue(decodebin_multiqueue);
+        PlaybackPipeline::<SE>::setup_queue(decodebin_multiqueue);
         // Discard "interleave" as it modifies "max-size-time"
         decodebin_multiqueue
             .set_property("use-interleave", &false)
@@ -287,7 +287,7 @@ impl PlaybackPipeline {
                 let name = src_pad.get_name();
 
                 if name.starts_with("audio_") {
-                    PlaybackPipeline::build_audio_pipeline(
+                    PlaybackPipeline::<SE>::build_audio_pipeline(
                         pipeline,
                         src_pad,
                         &audio_sink,
@@ -297,7 +297,7 @@ impl PlaybackPipeline {
                     );
                 } else if name.starts_with("video_") {
                     if let Some(ref video_sink) = video_sink {
-                        PlaybackPipeline::build_video_pipeline(pipeline, src_pad, video_sink);
+                        PlaybackPipeline::<SE>::build_video_pipeline(pipeline, src_pad, video_sink);
                     }
                 } else {
                     // TODO: handle subtitles
@@ -314,13 +314,13 @@ impl PlaybackPipeline {
         pipeline: &gst::Pipeline,
         src_pad: &gst::Pad,
         audio_sink: &gst::Element,
-        dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer>>,
+        dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer<SE>>>,
         info_rwlck: &Arc<RwLock<MediaInfo>>,
         sender_mtx: &Arc<Mutex<glib::Sender<MediaEvent>>>,
     ) {
         let playback_queue =
             gst::ElementFactory::make("queue", Some("audio_playback_queue")).unwrap();
-        PlaybackPipeline::setup_queue(&playback_queue);
+        PlaybackPipeline::<SE>::setup_queue(&playback_queue);
 
         let playback_convert =
             gst::ElementFactory::make("audioconvert", Some("playback_audioconvert")).unwrap();
@@ -335,7 +335,7 @@ impl PlaybackPipeline {
         ];
 
         let waveform_queue = gst::ElementFactory::make("queue2", Some("waveform_queue")).unwrap();
-        PlaybackPipeline::setup_queue(&waveform_queue);
+        PlaybackPipeline::<SE>::setup_queue(&waveform_queue);
 
         let waveform_sink = gst::ElementFactory::make("fakesink", Some("waveform_sink")).unwrap();
         let waveform_sink_pad = waveform_queue.get_static_pad("sink").unwrap();
@@ -458,7 +458,7 @@ impl PlaybackPipeline {
         video_sink: &gst::Element,
     ) {
         let queue = gst::ElementFactory::make("queue", Some("video_queue")).unwrap();
-        PlaybackPipeline::setup_queue(&queue);
+        PlaybackPipeline::<SE>::setup_queue(&queue);
         let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
         let scale = gst::ElementFactory::make("videoscale", None).unwrap();
 

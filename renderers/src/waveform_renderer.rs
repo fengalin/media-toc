@@ -2,11 +2,7 @@ use gstreamer as gst;
 
 use log::{debug, trace};
 
-use std::{
-    any::Any,
-    boxed::Box,
-    sync::{Arc, Mutex},
-};
+use std::boxed::Box;
 
 use media::{
     sample_extractor::SampleExtractionState, AudioBuffer, AudioChannel, DoubleAudioBuffer,
@@ -15,15 +11,15 @@ use media::{
 
 use super::{Image, WaveformImage};
 
-pub struct DoubleWaveformRenderer {}
+pub struct DoubleWaveformRenderer;
 
 impl DoubleWaveformRenderer {
-    pub fn new_mutex(buffer_duration: Duration) -> Arc<Mutex<DoubleAudioBuffer>> {
-        Arc::new(Mutex::new(DoubleAudioBuffer::new(
+    pub fn new_dbl_audio_buffer(buffer_duration: Duration) -> DoubleAudioBuffer<WaveformRenderer> {
+        DoubleAudioBuffer::new(
             buffer_duration,
             Box::new(WaveformRenderer::new(1)),
             Box::new(WaveformRenderer::new(2)),
-        )))
+        )
     }
 }
 
@@ -847,14 +843,6 @@ impl WaveformRenderer {
 }
 
 impl SampleExtractor for WaveformRenderer {
-    fn as_mut_any(&mut self) -> &mut dyn Any {
-        self
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn get_extraction_state(&self) -> &SampleExtractionState {
         &self.state
     }
@@ -923,12 +911,7 @@ impl SampleExtractor for WaveformRenderer {
         }
     }
 
-    fn update_concrete_state(&mut self, other: &mut dyn SampleExtractor) {
-        let other = other
-            .as_mut_any()
-            .downcast_mut::<WaveformRenderer>()
-            .unwrap();
-
+    fn update_concrete_state(&mut self, other: &mut WaveformRenderer) {
         self.previous_sample = other.previous_sample;
         self.cursor_sample = other.cursor_sample;
         self.cursor_ts = other.cursor_ts;

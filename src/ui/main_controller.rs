@@ -10,12 +10,12 @@ use log::{debug, error, info};
 
 use std::{borrow::ToOwned, cell::RefCell, collections::HashSet, path::PathBuf, rc::Rc, sync::Arc};
 
-use media::{MediaEvent, PlaybackPipeline, PlaybackState, Timestamp};
+use media::{MediaEvent, PlaybackState, Timestamp};
 
 use super::{
     AudioController, ChaptersBoundaries, ExportController, InfoController, PerspectiveController,
-    PositionStatus, SplitController, StreamsController, UIController, UIEvent, UIEventSender,
-    VideoController,
+    PlaybackPipeline, PositionStatus, SplitController, StreamsController, UIController, UIEvent,
+    UIEventSender, VideoController,
 };
 use crate::application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG};
 
@@ -627,7 +627,7 @@ impl MainController {
         self.missing_plugins.clear();
         self.attach_media_event_handler(receiver);
 
-        let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.dbl_buffer_mtx);
+        let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.dbl_renderer_mtx);
         match PlaybackPipeline::try_new(
             path.as_ref(),
             &dbl_buffer_mtx,

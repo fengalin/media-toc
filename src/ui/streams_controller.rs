@@ -6,10 +6,9 @@ use gtk::prelude::*;
 
 use std::sync::Arc;
 
-use media::PlaybackPipeline;
 use metadata::Stream;
 
-use super::UIController;
+use super::{PlaybackPipeline, UIController};
 use crate::application::CommandLineArguments;
 
 const ALIGN_LEFT: f32 = 0f32;
