@@ -157,9 +157,7 @@ pub struct Stream {
 impl Stream {
     fn new(stream: &gst::Stream) -> Self {
         let caps = stream.get_caps().unwrap();
-        let tags = stream
-            .get_tags()
-            .unwrap_or_else(gst::TagList::new);
+        let tags = stream.get_tags().unwrap_or_else(gst::TagList::new);
         let type_ = stream.get_stream_type();
 
         let codec_printable = match type_ {

@@ -947,7 +947,8 @@ mod tests {
                 factor: 1f64,
             },
         ]);
-        waveform.update_dimensions(width, SAMPLE_DYN);
+        waveform.update_width(width);
+        waveform.update_height(SAMPLE_DYN);
         waveform.update_sample_step(sample_step_f); // 1 sample / px
 
         (audio_buffer, waveform)
