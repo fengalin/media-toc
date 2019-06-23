@@ -91,7 +91,7 @@ impl PlaybackPipeline {
             video_sink,
             sender,
         )
-        .map(|pipeline| PlaybackPipeline(pipeline))
+        .map(PlaybackPipeline)
     }
 
     pub fn check_requirements() -> Result<(), String> {
