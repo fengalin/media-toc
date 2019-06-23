@@ -21,7 +21,7 @@ use media::{
     DoubleAudioBuffer, Duration, PlaybackPipeline, SampleExtractor, Timestamp, QUEUE_SIZE,
 };
 use metadata::MediaInfo;
-use renderers::{DoubleWaveformBuffer, WaveformBuffer, BACKGROUND_COLOR};
+use renderers::{DoubleWaveformBuffer, ImagePositions, WaveformBuffer, BACKGROUND_COLOR};
 
 use super::{ChaptersBoundaries, UIController, UIEventSender};
 
@@ -85,12 +85,8 @@ pub struct AudioController {
 
     requested_duration: Duration,
     pub(super) seek_step: Duration,
-    pub(super) current_ts: Timestamp,
     last_other_ui_refresh: Timestamp,
-    first_visible_ts: Timestamp,
-    last_visible_ts: Timestamp,
-    sample_duration: Duration,
-    sample_step: f64,
+    positions: ImagePositions,
     boundaries: Rc<RefCell<ChaptersBoundaries>>,
 
     waveform_mtx: Arc<Mutex<Box<dyn SampleExtractor>>>,
@@ -126,12 +122,8 @@ impl UIController for AudioController {
         self.dbl_buffer_mtx.lock().unwrap().cleanup();
         self.requested_duration = INIT_REQ_DURATION_FOR_1000PX;
         self.seek_step = INIT_REQ_DURATION_FOR_1000PX / SEEK_STEP_DURATION_DIVISOR;
-        self.current_ts = Timestamp::default();
         self.last_other_ui_refresh = Timestamp::default();
-        self.first_visible_ts = Timestamp::default();
-        self.last_visible_ts = Timestamp::default();
-        self.sample_duration = Duration::default();
-        self.sample_step = 0f64;
+        self.positions = ImagePositions::default();
         // AudioController accesses self.boundaries as readonly
         // clearing it is under the responsiblity of ChapterTreeManager
         self.update_conditions();
@@ -186,12 +178,8 @@ impl AudioController {
             requested_duration: INIT_REQ_DURATION_FOR_1000PX,
             seek_step: INIT_REQ_DURATION_FOR_1000PX / SEEK_STEP_DURATION_DIVISOR,
 
-            current_ts: Timestamp::default(),
             last_other_ui_refresh: Timestamp::default(),
-            first_visible_ts: Timestamp::default(),
-            last_visible_ts: Timestamp::default(),
-            sample_duration: Duration::default(),
-            sample_step: 0f64,
+            positions: ImagePositions::default(),
             boundaries,
 
             waveform_mtx,
@@ -324,9 +312,10 @@ impl AudioController {
 
     fn get_ts_at(&self, x: f64) -> Option<Timestamp> {
         if x >= 0f64 && x <= self.area_width {
-            let ts = self.first_visible_ts
-                + self.sample_duration * ((x * self.sample_step).round() as u64);
-            if ts <= self.last_visible_ts {
+            let ts = self.positions.first.ts
+                + self.positions.sample_duration
+                    * ((x * self.positions.sample_step).round() as u64);
+            if ts <= self.positions.last.ts {
                 Some(ts)
             } else {
                 None
@@ -342,8 +331,8 @@ impl AudioController {
             None => return None,
         };
 
-        let tolerance = if self.sample_step > 1f64 {
-            self.sample_duration * 2 * (self.sample_step as u64)
+        let tolerance = if self.positions.sample_step > 1f64 {
+            self.positions.sample_duration * 2 * (self.positions.sample_step as u64)
         } else {
             Duration::from_nanos(1)
         };
@@ -474,7 +463,7 @@ impl AudioController {
                 })?;
 
         // Get waveform and timestamps
-        let (current_ts, image_positions) = {
+        self.positions = {
             let waveform_grd = &mut *self.waveform_mtx.lock().unwrap();
             let waveform_buffer = waveform_grd
                 .as_mut_any()
@@ -483,33 +472,26 @@ impl AudioController {
 
             self.playback_needs_refresh = waveform_buffer.playback_needs_refresh;
 
-            let (current_ts, image_opt) = waveform_buffer.get_image(last_frame_ts, next_frame_ts);
+            let (image, positions) = match waveform_buffer.get_image(last_frame_ts, next_frame_ts) {
+                Some(image_and_positions) => image_and_positions,
+                None => return None,
+            };
 
-            if image_opt.is_none() {
-                debug!("draw no image");
-            }
-
-            let (image, image_positions) = image_opt?;
             image.with_surface_external_context(cr, |cr, surface| {
-                cr.set_source_surface(surface, -image_positions.first.x, 0f64);
+                cr.set_source_surface(surface, -positions.first.x, 0f64);
                 cr.paint();
             });
 
-            (current_ts, image_positions)
+            positions
         };
-
-        self.current_ts = current_ts;
-        self.first_visible_ts = image_positions.first.ts;
-        self.sample_duration = image_positions.sample_duration;
-        self.sample_step = image_positions.sample_step;
 
         cr.scale(1f64, 1f64);
         cr.set_source_rgb(1f64, 1f64, 0f64);
         self.adjust_waveform_text_width(cr);
 
         // first position
-        let first_text = self.first_visible_ts.get_4_humans().as_string(false);
-        let first_text_end = if self.first_visible_ts < ONE_HOUR {
+        let first_text = self.positions.first.ts.get_4_humans().as_string(false);
+        let first_text_end = if self.positions.first.ts < ONE_HOUR {
             2f64 + self.boundary_text_mn_width
         } else {
             2f64 + self.boundary_text_h_width
@@ -518,103 +500,105 @@ impl AudioController {
         cr.show_text(&first_text);
 
         // last position
-        if let Some(last_pos) = image_positions.last {
-            let last_text = last_pos.ts.get_4_humans().as_string(false);
-            let last_text_start = if last_pos.ts < ONE_HOUR {
-                2f64 + self.boundary_text_mn_width
-            } else {
-                2f64 + self.boundary_text_h_width
-            };
-            if last_pos.x - last_text_start > first_text_end + 5f64 {
-                // last text won't overlap with first text
-                cr.move_to(last_pos.x - last_text_start, self.twice_font_size);
-                cr.show_text(&last_text);
-            }
+        let last_text = self.positions.last.ts.get_4_humans().as_string(false);
+        let last_text_start = if self.positions.last.ts < ONE_HOUR {
+            2f64 + self.boundary_text_mn_width
+        } else {
+            2f64 + self.boundary_text_h_width
+        };
+        if self.positions.last.x - last_text_start > first_text_end + 5f64 {
+            // last text won't overlap with first text
+            cr.move_to(
+                self.positions.last.x - last_text_start,
+                self.twice_font_size,
+            );
+            cr.show_text(&last_text);
+        }
 
-            self.last_visible_ts = last_pos.ts;
+        // Draw in-range chapters boundaries
+        let boundaries = self.boundaries.borrow();
 
-            // Draw in-range chapters boundaries
-            let boundaries = self.boundaries.borrow();
+        let chapter_range = boundaries.range((
+            Included(&self.positions.first.ts),
+            Included(&self.positions.last.ts),
+        ));
 
-            let chapter_range = boundaries.range((
-                Included(&self.first_visible_ts),
-                Included(&self.last_visible_ts),
-            ));
+        cr.set_source_rgb(0.5f64, 0.6f64, 1f64);
+        cr.set_line_width(1f64);
+        let boundary_y0 = self.twice_font_size + 5f64;
+        let text_base = self.area_height - self.half_font_size;
 
-            cr.set_source_rgb(0.5f64, 0.6f64, 1f64);
-            cr.set_line_width(1f64);
-            let boundary_y0 = self.twice_font_size + 5f64;
-            let text_base = self.area_height - self.half_font_size;
+        for (boundary, chapters) in chapter_range {
+            if *boundary >= self.positions.first.ts {
+                let x = ((*boundary - self.positions.first.ts)
+                    .get_index_range(self.positions.sample_duration))
+                .as_f64()
+                    / self.positions.sample_step;
+                cr.move_to(x, boundary_y0);
+                cr.line_to(x, self.area_height);
+                cr.stroke();
 
-            for (boundary, chapters) in chapter_range {
-                if *boundary >= self.first_visible_ts {
-                    let x = ((*boundary - self.first_visible_ts)
-                        .get_index_range(image_positions.sample_duration))
-                    .as_f64()
-                        / image_positions.sample_step;
-                    cr.move_to(x, boundary_y0);
-                    cr.line_to(x, self.area_height);
-                    cr.stroke();
+                if let Some(ref prev_chapter) = chapters.prev {
+                    cr.move_to(
+                        x - 5f64 - cr.text_extents(&prev_chapter.title).width,
+                        text_base,
+                    );
+                    cr.show_text(&prev_chapter.title);
+                }
 
-                    if let Some(ref prev_chapter) = chapters.prev {
-                        cr.move_to(
-                            x - 5f64 - cr.text_extents(&prev_chapter.title).width,
-                            text_base,
-                        );
-                        cr.show_text(&prev_chapter.title);
-                    }
-
-                    if let Some(ref next_chapter) = chapters.next {
-                        cr.move_to(x + 5f64, text_base);
-                        cr.show_text(&next_chapter.title);
-                    }
+                if let Some(ref next_chapter) = chapters.next {
+                    cr.move_to(x + 5f64, text_base);
+                    cr.show_text(&next_chapter.title);
                 }
             }
         }
 
-        if let Some(current_x) = image_positions.current_x {
+        if let Some(cursor) = &self.positions.cursor {
             // draw current pos
             cr.set_source_rgb(1f64, 1f64, 0f64);
 
-            let cursor_text = self.current_ts.get_4_humans().as_string(true);
-            let cursor_text_end = if self.current_ts < ONE_HOUR {
+            let cursor_text = cursor.ts.get_4_humans().as_string(true);
+            let cursor_text_end = if cursor.ts < ONE_HOUR {
                 5f64 + self.cursor_text_mn_width
             } else {
                 5f64 + self.cursor_text_h_width
             };
-            let cursor_text_x = if current_x + cursor_text_end < self.area_width {
-                current_x + 5f64
+            let cursor_text_x = if cursor.x + cursor_text_end < self.area_width {
+                cursor.x + 5f64
             } else {
-                current_x - cursor_text_end
+                cursor.x - cursor_text_end
             };
             cr.move_to(cursor_text_x, self.font_size);
             cr.show_text(&cursor_text);
 
             cr.set_line_width(1f64);
-            cr.move_to(current_x, 0f64);
-            cr.line_to(current_x, self.area_height - self.twice_font_size);
+            cr.move_to(cursor.x, 0f64);
+            cr.line_to(cursor.x, self.area_height - self.twice_font_size);
             cr.stroke();
-        }
 
-        // update other UI position
-        // Note: we go through the audio controller here in order
-        // to reduce position queries on the ref gst element
-        match self.state {
-            ControllerState::Playing => {
-                if self.current_ts >= self.last_other_ui_refresh
-                    && self.current_ts <= self.last_other_ui_refresh + OTHER_UI_REFRESH_PERIOD
-                {
-                    return None;
+            // update other UI position
+            // Note: we go through the audio controller here in order
+            // to reduce position queries on the ref gst element
+            match self.state {
+                ControllerState::Playing => {
+                    if cursor.ts >= self.last_other_ui_refresh
+                        && cursor.ts <= self.last_other_ui_refresh + OTHER_UI_REFRESH_PERIOD
+                    {
+                        return None;
+                    }
                 }
+                ControllerState::Paused => (),
+                ControllerState::MovingBoundary(_) => (),
+                _ => return None,
             }
-            ControllerState::Paused => (),
-            ControllerState::MovingBoundary(_) => (),
-            _ => return None,
+
+            let cursor_ts = cursor.ts;
+            self.last_other_ui_refresh = cursor_ts;
+
+            Some(cursor_ts)
+        } else {
+            None
         }
-
-        self.last_other_ui_refresh = self.current_ts;
-
-        Some(current_ts)
     }
 
     pub fn motion_notify(
@@ -679,9 +663,13 @@ impl AudioController {
             3 => {
                 // right button => segment playback in Paused state
                 if self.state == ControllerState::Paused {
-                    if let Some(start) = self.get_ts_at(event_button.get_position().0) {
-                        let end = start + MIN_RANGE_DURATION.max(self.last_visible_ts - start);
-                        self.ui_event.play_range(start, end, self.current_ts);
+                    if let Some(cursor) = &self.positions.cursor {
+                        let cursor_ts = cursor.ts;
+                        if let Some(start) = self.get_ts_at(event_button.get_position().0) {
+                            let end =
+                                start + MIN_RANGE_DURATION.max(self.positions.last.ts - start);
+                            self.ui_event.play_range(start, end, cursor_ts);
+                        }
                     }
                 }
             }

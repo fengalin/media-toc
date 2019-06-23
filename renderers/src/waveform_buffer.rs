@@ -27,15 +27,17 @@ impl DoubleWaveformBuffer {
     }
 }
 
+#[derive(Default)]
 pub struct SamplePosition {
     pub x: f64,
     pub ts: Timestamp,
 }
 
+#[derive(Default)]
 pub struct ImagePositions {
     pub first: SamplePosition,
-    pub last: Option<SamplePosition>,
-    pub current_x: Option<f64>,
+    pub cursor: Option<SamplePosition>,
+    pub last: SamplePosition,
     pub sample_duration: Duration,
     pub sample_step: f64,
 }
@@ -58,7 +60,9 @@ pub enum LockState {
 // Whenever possible, the WaveformBuffer attempts to have the Waveform scroll
 // between frames with current playback position in the middle so that the
 // user can seek forward or backward around current timestamp.
+#[derive(Default)]
 pub struct WaveformBuffer {
+    is_initialized: bool,
     state: SampleExtractionState,
     conditions_changed: bool,
 
@@ -78,7 +82,6 @@ pub struct WaveformBuffer {
     pub playback_needs_refresh: bool,
 
     req_duration_per_1000px: Duration,
-    width: i32,
     width_f: f64,
     sample_step_f: f64,
     req_sample_window: SampleIndexRange,
@@ -89,25 +92,8 @@ pub struct WaveformBuffer {
 impl WaveformBuffer {
     pub fn new(id: usize) -> Self {
         WaveformBuffer {
-            state: SampleExtractionState::new(),
-            conditions_changed: false,
-
             image: WaveformImage::new(id),
-
-            previous_sample: None,
-            cursor_sample: SampleIndex::default(),
-            cursor_ts: Timestamp::default(),
-            first_visible_sample: None,
-            first_visible_sample_lock: None,
-            playback_needs_refresh: false,
-
-            req_duration_per_1000px: Duration::default(),
-            width: 0,
-            width_f: 0f64,
-            sample_step_f: 0f64,
-            req_sample_window: SampleIndexRange::default(),
-            half_req_sample_window: SampleIndexRange::default(),
-            quarter_req_sample_window: SampleIndexRange::default(),
+            ..WaveformBuffer::default()
         }
     }
 
@@ -120,12 +106,13 @@ impl WaveformBuffer {
         self.image.cleanup();
 
         self.req_duration_per_1000px = Duration::default();
-        self.width = 0;
         self.width_f = 0f64;
     }
 
     fn reset_sample_conditions(&mut self) {
         debug!("{}_reset_sample_conditions", self.image.id);
+
+        self.is_initialized = false;
         self.previous_sample = None;
         self.cursor_sample = SampleIndex::default();
         self.cursor_ts = Timestamp::default();
@@ -154,7 +141,7 @@ impl WaveformBuffer {
     }
 
     pub fn seek(&mut self, target: Timestamp) {
-        if self.image.sample_step == SampleIndexRange::default() {
+        if !self.is_initialized {
             return;
         }
 
@@ -232,7 +219,7 @@ impl WaveformBuffer {
     }
 
     pub fn start_play_range(&mut self) {
-        if self.image.sample_step == SampleIndexRange::default() {
+        if !self.is_initialized {
             return;
         }
 
@@ -446,9 +433,9 @@ impl WaveformBuffer {
 
     // Update rendering conditions
     pub fn update_conditions(&mut self, duration_per_1000px: Duration, width: i32, height: i32) {
-        let (duration_changed, mut scale_num, mut scale_denom) =
+        let (mut scale_num, mut scale_denom) =
             if duration_per_1000px == self.req_duration_per_1000px {
-                (false, 0, 0)
+                (0, 0)
             } else {
                 let prev_duration = self.req_duration_per_1000px;
                 self.req_duration_per_1000px = duration_per_1000px;
@@ -457,34 +444,21 @@ impl WaveformBuffer {
                     self.image.id, prev_duration, self.req_duration_per_1000px,
                 );
                 self.update_sample_step();
-                (
-                    true,
-                    duration_per_1000px.as_usize(),
-                    prev_duration.as_usize(),
-                )
+                (duration_per_1000px.as_usize(), prev_duration.as_usize())
             };
 
-        let width_changed = if width == self.width {
-            false
-        } else {
-            if self.width != 0 {
-                scale_num = width as usize;
-                scale_denom = self.width as usize;
+        if let Some(prev_width) = self.image.update_width(width) {
+            if width != 0 {
+                scale_num = prev_width as usize;
+                scale_denom = width as usize;
+
+                self.width_f = f64::from(width);
             }
+        }
 
-            debug!(
-                "{}_update_conditions width {} -> {}",
-                self.image.id, self.width, width
-            );
+        self.conditions_changed |= self.image.update_height(height).is_some();
 
-            self.width = width;
-            self.width_f = f64::from(width);
-            true
-        };
-
-        self.image.update_dimensions(width, height);
-
-        if duration_changed || width_changed {
+        if scale_denom != 0 {
             self.update_sample_window();
 
             // update first sample in order to match new conditions
@@ -568,6 +542,7 @@ impl WaveformBuffer {
         self.conditions_changed = true;
 
         self.image.update_sample_step(self.sample_step_f);
+        self.is_initialized = self.image.sample_step != SampleIndexRange::default();
     }
 
     fn update_sample_window(&mut self) {
@@ -594,68 +569,72 @@ impl WaveformBuffer {
         &mut self,
         last_frame_ts: Timestamp,
         next_frame_ts: Timestamp,
-    ) -> (Timestamp, Option<(&mut Image, ImagePositions)>) {
+    ) -> Option<(&mut Image, ImagePositions)> {
         self.update_first_visible_sample(last_frame_ts, next_frame_ts);
-        match self.first_visible_sample {
-            Some(first_visible_sample) => {
-                let current_x = if self.cursor_sample >= first_visible_sample
-                    && self.cursor_sample <= first_visible_sample + self.req_sample_window
-                {
-                    Some(
-                        (self.cursor_sample - first_visible_sample).as_f64()
-                            / self.image.sample_step_f,
-                    )
-                } else {
-                    None
-                };
 
-                let x_offset = ((first_visible_sample - self.image.lower)
-                    .get_step_range(self.image.sample_step)
-                    * self.image.x_step) as f64;
-
-                let last_opt = match self.image.last {
-                    Some(ref last) => {
-                        let delta_x = last.x - x_offset;
-
-                        let last_x = delta_x.min(self.width_f);
-                        if last_x.is_sign_positive() {
-                            Some(SamplePosition {
-                                x: last_x,
-                                ts: (first_visible_sample
-                                    + SampleIndexRange::new(
-                                        (last_x * self.image.sample_step_f) as usize,
-                                    ))
-                                .get_ts(self.state.sample_duration),
-                            })
-                        } else {
-                            None
-                        }
-                    }
-                    None => None,
-                };
-
-                let sample_duration = self.state.sample_duration;
-                let sample_step = self.image.sample_step_f;
-
-                (
-                    self.cursor_ts,
-                    Some((
-                        self.image.get_image(),
-                        ImagePositions {
-                            first: SamplePosition {
-                                x: x_offset,
-                                ts: first_visible_sample.get_ts(sample_duration),
-                            },
-                            last: last_opt,
-                            current_x,
-                            sample_duration,
-                            sample_step,
-                        },
-                    )),
-                )
+        let first_visible_sample = match self.first_visible_sample {
+            Some(first_visible_sample) => first_visible_sample,
+            None => {
+                debug!(
+                    "{}_get_image first_visible_sample not available",
+                    self.image.id
+                );
+                return None;
             }
-            None => (self.cursor_ts, None),
-        }
+        };
+
+        let sample_duration = self.state.sample_duration;
+
+        let first_index =
+            (first_visible_sample - self.image.lower).get_step_range(self.image.sample_step);
+        let first = SamplePosition {
+            x: first_index as f64 * self.image.x_step_f,
+            ts: first_visible_sample.get_ts(sample_duration),
+        };
+
+        let cursor = if self.cursor_sample >= first_visible_sample
+            && self.cursor_sample <= first_visible_sample + self.req_sample_window
+        {
+            let delta_index =
+                (self.cursor_sample - first_visible_sample).get_step_range(self.image.sample_step);
+            Some(SamplePosition {
+                x: delta_index as f64 * self.image.x_step_f,
+                ts: self.cursor_ts,
+            })
+        } else {
+            None
+        };
+
+        assert!(first_visible_sample < self.image.upper);
+        let last = {
+            let visible_sample_range = self.image.upper - first_visible_sample;
+            if visible_sample_range > self.req_sample_window {
+                SamplePosition {
+                    x: self.width_f,
+                    ts: (first_visible_sample + self.req_sample_window)
+                        .get_ts(self.state.sample_duration),
+                }
+            } else {
+                let delta_index = visible_sample_range.get_step_range(self.image.sample_step);
+                SamplePosition {
+                    x: delta_index as f64 * self.image.x_step_f,
+                    ts: self.image.upper.get_ts(self.state.sample_duration),
+                }
+            }
+        };
+
+        let sample_step = self.image.sample_step_f;
+
+        Some((
+            self.image.get_image(),
+            ImagePositions {
+                first,
+                cursor,
+                last,
+                sample_duration,
+                sample_step,
+            },
+        ))
     }
 
     fn get_sample_range(&mut self, audio_buffer: &AudioBuffer) -> (SampleIndex, SampleIndex) {
@@ -959,8 +938,8 @@ impl SampleExtractor for WaveformBuffer {
 
         if other.conditions_changed {
             debug!("{}_update_concrete_state conditions_changed", self.image.id);
+            self.is_initialized = other.is_initialized;
             self.req_duration_per_1000px = other.req_duration_per_1000px;
-            self.width = other.width;
             self.width_f = other.width_f;
             self.sample_step_f = other.sample_step_f;
             self.req_sample_window = other.req_sample_window;

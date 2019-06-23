@@ -34,6 +34,7 @@ pub struct WaveformSample {
     pub y_values: SmallVec<[f64; INLINE_CHANNELS]>,
 }
 
+#[derive(Default)]
 pub struct WaveformImage {
     pub id: usize,
     pub is_initialized: bool,
@@ -65,7 +66,7 @@ pub struct WaveformImage {
 
     pub sample_step_f: f64,
     pub sample_step: SampleIndexRange,
-    x_step_f: f64,
+    pub x_step_f: f64,
     pub x_step: usize,
 }
 
@@ -82,41 +83,13 @@ impl WaveformImage {
 
         WaveformImage {
             id,
-            is_initialized: false,
-            is_ready: false,
-            shareable_state_changed: false,
-
-            channel_colors: SmallVec::new(),
-
             exposed_image: Some(
                 Image::try_new(INIT_WIDTH, INIT_HEIGHT).expect("Default `WaveformImage`"),
             ),
             secondary_image: Some(
                 Image::try_new(INIT_WIDTH, INIT_HEIGHT).expect("Default `WaveformImage`"),
             ),
-            image_width: 0,
-            image_width_f: 0f64,
-            image_height: 0,
-            half_range_y: 0f64,
-            full_range_y: 0f64,
-            sample_value_factor: 0f64,
-
-            req_width: 0,
-            req_height: 0,
-            force_redraw: false,
-
-            lower: SampleIndex::default(),
-            upper: SampleIndex::default(),
-
-            contains_eos: false,
-
-            first: None,
-            last: None,
-
-            sample_step_f: 0f64,
-            sample_step: SampleIndexRange::default(),
-            x_step_f: 0f64,
-            x_step: 0,
+            ..WaveformImage::default()
         }
     }
 
@@ -174,29 +147,42 @@ impl WaveformImage {
         }
     }
 
-    pub fn update_dimensions(&mut self, width: i32, height: i32) {
-        // if the requested height is different from current height
-        // it might be necessary to force rendering when stream
-        // is paused or eos
-
-        self.force_redraw |= self.req_width != width || self.req_height != height;
-
-        if self.force_redraw {
+    pub fn update_width(&mut self, width: i32) -> Option<i32> {
+        if width != self.req_width {
+            self.force_redraw = true;
             self.shareable_state_changed = true;
             self.is_initialized = self.sample_step != SampleIndexRange::default();
 
             debug!(
-                "{}_upd.dim prev. f.redraw {}, w {}, h {}, sample_step_f. {}",
-                self.id, self.force_redraw, self.req_width, self.req_height, self.sample_step_f
+                "{}_update_width prev. force_redraw {}, width {}, sample_step_f {}",
+                self.id, self.force_redraw, self.req_width, self.sample_step_f
             );
 
+            let prev_width = self.req_width;
             self.req_width = width;
-            self.req_height = height;
+
+            Some(prev_width)
+        } else {
+            None
+        }
+    }
+
+    pub fn update_height(&mut self, height: i32) -> Option<i32> {
+        if height != self.req_height {
+            self.force_redraw = true;
+            self.shareable_state_changed = true;
 
             debug!(
-                "{}_new f.redraw {}, w {}, h {}, sample_step_f. {}",
-                self.id, self.force_redraw, self.req_width, self.req_height, self.sample_step_f
+                "{}_update_height prev. force_redraw {}, height {}",
+                self.id, self.force_redraw, self.req_height
             );
+
+            let prev_height = self.req_height;
+            self.req_height = height;
+
+            Some(prev_height)
+        } else {
+            None
         }
     }
 
