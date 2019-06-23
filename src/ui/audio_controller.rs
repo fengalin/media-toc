@@ -43,12 +43,12 @@ const ONE_HOUR: Duration = Duration::from_secs(60 * 60);
 
 const EXPECTED_FRAME_DURATION: Duration = Duration::from_frequency(60);
 
-// Use this text to compute the largest text box for the waveform boundaries
-// This is required to position the labels in such a way that they don't
+// Use this text to compute the largest text box for the waveform limits
+// This is required to position the labels in such a way they don't
 // move constantly depending on the digits width
-const BOUNDARY_TEXT_MN: &str = "00:00.000";
+const LIMIT_TEXT_MN: &str = "00:00.000";
+const LIMIT_TEXT_H: &str = "00:00:00.000";
 const CURSOR_TEXT_MN: &str = "00:00.000.000";
-const BOUNDARY_TEXT_H: &str = "00:00:00.000";
 const CURSOR_TEXT_H: &str = "00:00:00.000.000";
 
 #[derive(Debug, PartialEq)]
@@ -60,6 +60,20 @@ pub enum ControllerState {
     Paused,
 }
 
+#[derive(Default)]
+struct TextMetrics {
+    font_family: Option<(String)>,
+    font_size: f64,
+    twice_font_size: f64,
+    half_font_size: f64,
+    limit_mn_width: f64,
+    limit_h_width: f64,
+    limit_y: f64,
+    cursor_mn_width: f64,
+    cursor_h_width: f64,
+    cursor_y: f64,
+}
+
 pub struct AudioController {
     ui_event: UIEventSender,
 
@@ -69,14 +83,8 @@ pub struct AudioController {
     zoom_out_btn: gtk::ToolButton,
     ref_lbl: gtk::Label,
 
-    font_family: Option<(String)>,
-    font_size: f64,
-    twice_font_size: f64,
-    half_font_size: f64,
-    boundary_text_mn_width: f64,
-    cursor_text_mn_width: f64,
-    boundary_text_h_width: f64,
-    cursor_text_h_width: f64,
+    text_metrics: TextMetrics,
+
     pub(super) area_height: f64,
     pub(super) area_width: f64,
 
@@ -126,6 +134,7 @@ impl UIController for AudioController {
         self.positions = ImagePositions::default();
         // AudioController accesses self.boundaries as readonly
         // clearing it is under the responsiblity of ChapterTreeManager
+        self.text_metrics = TextMetrics::default();
         self.update_conditions();
         self.redraw();
     }
@@ -161,14 +170,8 @@ impl AudioController {
             zoom_out_btn: builder.get_object("audio_zoom_out-toolbutton").unwrap(),
             ref_lbl: builder.get_object("title-caption").unwrap(),
 
-            font_family: None,
-            font_size: 0f64,
-            twice_font_size: 0f64,
-            half_font_size: 0f64,
-            boundary_text_mn_width: 0f64,
-            cursor_text_mn_width: 0f64,
-            boundary_text_h_width: 0f64,
-            cursor_text_h_width: 0f64,
+            text_metrics: TextMetrics::default(),
+
             area_height: 0f64,
             area_width: 0f64,
 
@@ -347,11 +350,12 @@ impl AudioController {
         range.next().map(|(boundary, _chapters)| *boundary)
     }
 
+    #[inline]
     fn adjust_waveform_text_width(&mut self, cr: &cairo::Context) {
-        match self.font_family {
+        match self.text_metrics.font_family {
             Some(ref family) => {
                 cr.select_font_face(family, cairo::FontSlant::Normal, cairo::FontWeight::Normal);
-                cr.set_font_size(self.font_size);
+                cr.set_font_size(self.text_metrics.font_size);
             }
             None => {
                 // Get font specs from the reference label
@@ -361,18 +365,20 @@ impl AudioController {
 
                 let family = font_desc.get_family().unwrap();
                 cr.select_font_face(&family, cairo::FontSlant::Normal, cairo::FontWeight::Normal);
-                let size = f64::from(ref_layout.get_baseline() / pango::SCALE);
-                cr.set_font_size(size);
+                let font_size = f64::from(ref_layout.get_baseline() / pango::SCALE);
+                cr.set_font_size(font_size);
 
-                self.font_family = Some(family.to_string());
-                self.font_size = size;
-                self.twice_font_size = 2f64 * size;
-                self.half_font_size = 0.5f64 * size;
+                self.text_metrics.font_family = Some(family.to_string());
+                self.text_metrics.font_size = font_size;
+                self.text_metrics.twice_font_size = 2f64 * font_size;
+                self.text_metrics.half_font_size = 0.5f64 * font_size;
 
-                self.boundary_text_mn_width = cr.text_extents(BOUNDARY_TEXT_MN).width;
-                self.cursor_text_mn_width = cr.text_extents(CURSOR_TEXT_MN).width;
-                self.boundary_text_h_width = cr.text_extents(BOUNDARY_TEXT_H).width;
-                self.cursor_text_h_width = cr.text_extents(CURSOR_TEXT_H).width;
+                self.text_metrics.limit_mn_width = cr.text_extents(LIMIT_TEXT_MN).width;
+                self.text_metrics.limit_h_width = cr.text_extents(LIMIT_TEXT_H).width;
+                self.text_metrics.limit_y = 2f64 * font_size;
+                self.text_metrics.cursor_mn_width = cr.text_extents(CURSOR_TEXT_MN).width;
+                self.text_metrics.cursor_h_width = cr.text_extents(CURSOR_TEXT_H).width;
+                self.text_metrics.cursor_y = font_size;
             }
         }
     }
@@ -487,30 +493,31 @@ impl AudioController {
 
         cr.scale(1f64, 1f64);
         cr.set_source_rgb(1f64, 1f64, 0f64);
+
         self.adjust_waveform_text_width(cr);
 
         // first position
         let first_text = self.positions.first.ts.get_4_humans().as_string(false);
         let first_text_end = if self.positions.first.ts < ONE_HOUR {
-            2f64 + self.boundary_text_mn_width
+            2f64 + self.text_metrics.limit_mn_width
         } else {
-            2f64 + self.boundary_text_h_width
+            2f64 + self.text_metrics.limit_h_width
         };
-        cr.move_to(2f64, self.twice_font_size);
+        cr.move_to(2f64, self.text_metrics.twice_font_size);
         cr.show_text(&first_text);
 
         // last position
         let last_text = self.positions.last.ts.get_4_humans().as_string(false);
         let last_text_start = if self.positions.last.ts < ONE_HOUR {
-            2f64 + self.boundary_text_mn_width
+            2f64 + self.text_metrics.limit_mn_width
         } else {
-            2f64 + self.boundary_text_h_width
+            2f64 + self.text_metrics.limit_h_width
         };
         if self.positions.last.x - last_text_start > first_text_end + 5f64 {
             // last text won't overlap with first text
             cr.move_to(
                 self.positions.last.x - last_text_start,
-                self.twice_font_size,
+                self.text_metrics.twice_font_size,
             );
             cr.show_text(&last_text);
         }
@@ -525,8 +532,8 @@ impl AudioController {
 
         cr.set_source_rgb(0.5f64, 0.6f64, 1f64);
         cr.set_line_width(1f64);
-        let boundary_y0 = self.twice_font_size + 5f64;
-        let text_base = self.area_height - self.half_font_size;
+        let boundary_y0 = self.text_metrics.twice_font_size + 5f64;
+        let text_base = self.area_height - self.text_metrics.half_font_size;
 
         for (boundary, chapters) in chapter_range {
             if *boundary >= self.positions.first.ts {
@@ -559,21 +566,24 @@ impl AudioController {
 
             let cursor_text = cursor.ts.get_4_humans().as_string(true);
             let cursor_text_end = if cursor.ts < ONE_HOUR {
-                5f64 + self.cursor_text_mn_width
+                5f64 + self.text_metrics.cursor_mn_width
             } else {
-                5f64 + self.cursor_text_h_width
+                5f64 + self.text_metrics.cursor_h_width
             };
             let cursor_text_x = if cursor.x + cursor_text_end < self.area_width {
                 cursor.x + 5f64
             } else {
                 cursor.x - cursor_text_end
             };
-            cr.move_to(cursor_text_x, self.font_size);
+            cr.move_to(cursor_text_x, self.text_metrics.font_size);
             cr.show_text(&cursor_text);
 
             cr.set_line_width(1f64);
             cr.move_to(cursor.x, 0f64);
-            cr.line_to(cursor.x, self.area_height - self.twice_font_size);
+            cr.line_to(
+                cursor.x,
+                self.area_height - self.text_metrics.twice_font_size,
+            );
             cr.stroke();
 
             // update other UI position
