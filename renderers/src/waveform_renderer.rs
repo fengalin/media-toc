@@ -15,14 +15,14 @@ use media::{
 
 use super::{Image, WaveformImage};
 
-pub struct DoubleWaveformBuffer {}
+pub struct DoubleWaveformRenderer {}
 
-impl DoubleWaveformBuffer {
+impl DoubleWaveformRenderer {
     pub fn new_mutex(buffer_duration: Duration) -> Arc<Mutex<DoubleAudioBuffer>> {
         Arc::new(Mutex::new(DoubleAudioBuffer::new(
             buffer_duration,
-            Box::new(WaveformBuffer::new(1)),
-            Box::new(WaveformBuffer::new(2)),
+            Box::new(WaveformRenderer::new(1)),
+            Box::new(WaveformRenderer::new(2)),
         )))
     }
 }
@@ -51,17 +51,17 @@ pub enum LockState {
     Seeking,
 }
 
-// A WaveformBuffer hosts one of the two buffers of the double buffering
+// A WaveformRenderer hosts one of the Waveform images of the double buffering
 // mechanism based on the SampleExtractor trait.
 // It is responsible for preparing an up to date Waveform image which will be
 // diplayed upon UI request. Up to date signifies that the Waveform image
 // contains all the samples that can fit in the target window at the specified
 // resolution for current playback timestamp.
-// Whenever possible, the WaveformBuffer attempts to have the Waveform scroll
+// Whenever possible, the WaveformRenderer attempts to have the Waveform scroll
 // between frames with current playback position in the middle so that the
 // user can seek forward or backward around current timestamp.
 #[derive(Default)]
-pub struct WaveformBuffer {
+pub struct WaveformRenderer {
     is_initialized: bool,
     state: SampleExtractionState,
     conditions_changed: bool,
@@ -89,11 +89,11 @@ pub struct WaveformBuffer {
     quarter_req_sample_window: SampleIndexRange,
 }
 
-impl WaveformBuffer {
+impl WaveformRenderer {
     pub fn new(id: usize) -> Self {
-        WaveformBuffer {
+        WaveformRenderer {
             image: WaveformImage::new(id),
-            ..WaveformBuffer::default()
+            ..WaveformRenderer::default()
         }
     }
 
@@ -257,7 +257,7 @@ impl WaveformBuffer {
             self.refresh_ts(last_frame_ts, next_frame_ts);
 
             if self.cursor_sample >= self.image.lower {
-                // current sample appears after first buffer sample
+                // current sample appears after first sample on image
                 if let Some((first_visible_sample_lock, lock_state)) =
                     self.first_visible_sample_lock
                 {
@@ -316,8 +316,8 @@ impl WaveformBuffer {
                                     let next_lower = if self.image.lower + self.req_sample_window
                                         < self.image.upper
                                     {
-                                        // buffer window is larger than req_sample_window
-                                        // set last buffer to the right
+                                        // image range is larger than req_sample_window
+                                        // render the end of the available range
                                         let next_lower = self.image.upper - self.req_sample_window;
                                         if !self.image.contains_eos {
                                             // but keep the constraint in case more samples
@@ -331,8 +331,8 @@ impl WaveformBuffer {
 
                                         next_lower
                                     } else {
-                                        // buffer window is smaller than req_sample_window
-                                        // set first sample to the left
+                                        // image range is smaller than req_sample_window
+                                        // render the available range
                                         self.first_visible_sample_lock = None;
                                         self.image.lower
                                     };
@@ -369,8 +369,8 @@ impl WaveformBuffer {
                         Some(self.cursor_sample - self.half_req_sample_window)
                     } else {
                         // cursor_sample before half of displayable window
-                        // set origin to the first sample in the buffer
-                        // current sample will be displayed between the origin
+                        // set origin to the first sample of the image
+                        // cursor sample will be displayed between the origin
                         // and the center
                         Some(self.image.lower)
                     }
@@ -398,12 +398,12 @@ impl WaveformBuffer {
                         None
                     }
                 } else if self.image.lower + self.req_sample_window < self.image.upper {
-                    // buffer window is larger than req_sample_window
-                    // set last buffer to the right
+                    // image range is larger than req_sample_window
+                    // render the end of the available samples
                     Some(self.image.upper - self.req_sample_window)
                 } else {
-                    // buffer window is smaller than req_sample_window
-                    // set first sample to the left
+                    // image range is smaller than req_sample_window
+                    // render the available samples
                     Some(self.image.lower)
                 }
             } else if self.cursor_sample + self.req_sample_window > self.image.lower {
@@ -846,7 +846,7 @@ impl WaveformBuffer {
     }
 }
 
-impl SampleExtractor for WaveformBuffer {
+impl SampleExtractor for WaveformRenderer {
     fn as_mut_any(&mut self) -> &mut dyn Any {
         self
     }
@@ -924,7 +924,10 @@ impl SampleExtractor for WaveformBuffer {
     }
 
     fn update_concrete_state(&mut self, other: &mut dyn SampleExtractor) {
-        let other = other.as_mut_any().downcast_mut::<WaveformBuffer>().unwrap();
+        let other = other
+            .as_mut_any()
+            .downcast_mut::<WaveformRenderer>()
+            .unwrap();
 
         self.previous_sample = other.previous_sample;
         self.cursor_sample = other.cursor_sample;

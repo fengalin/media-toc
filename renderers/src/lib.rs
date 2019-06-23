@@ -1,8 +1,8 @@
 mod image;
 pub use self::image::Image;
 
-pub mod waveform_buffer;
-pub use self::waveform_buffer::{DoubleWaveformBuffer, ImagePositions, WaveformBuffer};
+mod waveform_renderer;
+pub use self::waveform_renderer::{DoubleWaveformRenderer, ImagePositions, WaveformRenderer};
 
-pub mod waveform_image;
+mod waveform_image;
 pub use self::waveform_image::{WaveformImage, BACKGROUND_COLOR};
