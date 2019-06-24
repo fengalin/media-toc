@@ -470,7 +470,7 @@ impl WaveformRenderer {
         };
 
         if self.tracer.update_height(height).is_some() {
-            self.buffer.update_height(self.tracer.height_f);
+            self.buffer.update_height(height);
 
             self.conditions_changed = true;
             self.buffer.force_extraction = true;
