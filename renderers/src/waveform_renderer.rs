@@ -260,12 +260,11 @@ impl WaveformRenderer {
                     // There is a scrolling lock constraint
                     match lock_state {
                         LockState::PlayingFirstHalf => {
-                            if self.cursor_sample - first_visible_sample_lock
-                                < self.half_req_sample_window
+                            if self.cursor_sample
+                                < first_visible_sample_lock + self.half_req_sample_window
+                                && self.cursor_sample >= first_visible_sample_lock
                             {
                                 // still in first half => keep first visible sample lock
-                                self.first_visible_sample_lock =
-                                    Some((first_visible_sample_lock, lock_state));
                                 Some(first_visible_sample_lock)
                             } else {
                                 // No longer in first half => center cursor
@@ -278,8 +277,10 @@ impl WaveformRenderer {
                             }
                         }
                         LockState::PlayingSecondHalf => {
-                            if self.cursor_sample - first_visible_sample_lock
-                                > self.half_req_sample_window
+                            if self.cursor_sample
+                                > first_visible_sample_lock + self.half_req_sample_window
+                                && self.cursor_sample
+                                    < first_visible_sample_lock + self.req_sample_window
                             {
                                 // still in second half
                                 if first_visible_sample_lock + self.req_sample_window
@@ -291,14 +292,27 @@ impl WaveformRenderer {
                                         Some(previous_sample) => {
                                             let previous_offset =
                                                 previous_sample - first_visible_sample_lock;
-                                            let delta_cursor = self.cursor_sample - previous_sample;
-                                            let next_lower = self.image.lower.max(
-                                                self.cursor_sample - previous_offset + delta_cursor,
-                                            );
+                                            if self.cursor_sample > previous_sample {
+                                                let delta_cursor =
+                                                    self.cursor_sample - previous_sample;
+                                                let next_lower = self.image.lower.max(
+                                                    self.cursor_sample - previous_offset
+                                                        + delta_cursor,
+                                                );
 
-                                            self.first_visible_sample_lock =
-                                                Some((next_lower, LockState::PlayingSecondHalf));
-                                            Some(next_lower)
+                                                self.first_visible_sample_lock = Some((
+                                                    next_lower,
+                                                    LockState::PlayingSecondHalf,
+                                                ));
+                                                Some(next_lower)
+                                            } else {
+                                                // cursor jumped before previous sample (seek)
+                                                // render the available range
+                                                self.first_visible_sample_lock = None;
+                                                self.previous_sample = None;
+
+                                                Some(self.image.lower)
+                                            }
                                         }
                                         None => {
                                             // Wait until we can get a reference on the sample
@@ -645,10 +659,6 @@ impl WaveformRenderer {
             // but buffer can be merged with current waveform
             // or is contained in current waveform
             (self.image.lower, audio_buffer.upper.max(self.image.upper))
-        } else if audio_buffer.lower < self.image.lower && audio_buffer.upper >= self.image.lower {
-            // current waveform overlaps with buffer on its left
-            // or is contained in buffer
-            (audio_buffer.lower, audio_buffer.upper.max(self.image.upper))
         } else {
             // not able to merge buffer with current waveform
             // synchronize on latest segment received
@@ -758,7 +768,9 @@ impl WaveformRenderer {
                                     None
                                 }
                                 LockState::PlayingRange | LockState::RestoringInitialPos => {
-                                    // keep position
+                                    // In range playing, the cursor may shortly exit the window
+                                    // at the end of the range
+                                    // but we still want to keep the waveform locked
                                     self.first_visible_sample_lock =
                                         Some((first_visible_sample, lock_state));
 
