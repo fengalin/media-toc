@@ -1,13 +1,11 @@
 use cairo;
 use gdk;
-use gdk::FrameClockExt;
 use glib;
 use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 use log::{debug, trace};
 use pango;
-use pango::{ContextExt, LayoutExt};
 
 use std::{
     boxed::Box,
