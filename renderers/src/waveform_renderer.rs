@@ -277,10 +277,14 @@ impl WaveformRenderer {
                             }
                         }
                         LockState::PlayingSecondHalf => {
+                            // Take a margin on the right to handle
+                            // a seek forward with the right arrow key
                             if self.cursor_sample
                                 > first_visible_sample_lock + self.half_req_sample_window
                                 && self.cursor_sample
-                                    < first_visible_sample_lock + self.req_sample_window
+                                    < first_visible_sample_lock
+                                        + self.req_sample_window
+                                        + self.quarter_req_sample_window
                             {
                                 // still in second half
                                 if first_visible_sample_lock + self.req_sample_window
