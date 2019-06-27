@@ -388,66 +388,68 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
         // Pull samples directly off the queue in order to get them as soon as they are available
         // We can't use intermediate elements such as audioconvert because they get paused
         // and block the buffers
-        let dbl_audio_buffer_mtx = Arc::clone(dbl_audio_buffer_mtx);
-        let info_rwlck = Arc::clone(info_rwlck);
-        let sender_mtx = Arc::clone(sender_mtx);
-        let pad_probe_filter = gst::PadProbeType::BUFFER | gst::PadProbeType::EVENT_BOTH;
-        waveform_sink_pad.add_probe(pad_probe_filter, move |_pad, probe_info| {
-            if let Some(ref mut data) = probe_info.data {
-                match data {
-                    gst::PadProbeData::Buffer(buffer) => {
-                        let must_notify = dbl_audio_buffer_mtx
+        let dbl_audio_buffer_mtx_cb = Arc::clone(dbl_audio_buffer_mtx);
+        let sender_mtx_cb = Arc::clone(sender_mtx);
+        waveform_sink_pad.add_probe(gst::PadProbeType::BUFFER, move |_pad, probe_info| {
+            if let Some(gst::PadProbeData::Buffer(buffer)) = probe_info.data.as_mut() {
+                let must_notify = dbl_audio_buffer_mtx_cb
+                    .lock()
+                    .expect("waveform_sink::probe couldn't lock dbl_audio_buffer")
+                    .push_gst_buffer(buffer);
+
+                if must_notify {
+                    sender_mtx_cb
+                        .lock()
+                        .expect("waveform_sink::probe couldn't lock sender_mtx")
+                        .send(MediaEvent::ReadyForRefresh)
+                        .expect("Failed to notify UI");
+                }
+
+                if !buffer.get_flags().intersects(gst::BufferFlags::DISCONT) {
+                    return gst::PadProbeReturn::Handled;
+                }
+            }
+            gst::PadProbeReturn::Ok
+        });
+
+        let dbl_audio_buffer_mtx_cb = Arc::clone(dbl_audio_buffer_mtx);
+        let info_rwlck_cb = Arc::clone(info_rwlck);
+        let sender_mtx_cb = Arc::clone(sender_mtx);
+        waveform_sink_pad.add_probe(gst::PadProbeType::EVENT_BOTH, move |_pad, probe_info| {
+            if let Some(gst::PadProbeData::Event(event)) = &probe_info.data {
+                match event.view() {
+                    gst::EventView::Caps(caps_evt) => {
+                        dbl_audio_buffer_mtx_cb
                             .lock()
-                            .expect("waveform_sink::probe couldn't lock dbl_audio_buffer")
-                            .push_gst_buffer(buffer);
-
-                        if must_notify {
-                            sender_mtx
-                                .lock()
-                                .expect("waveform_sink::probe couldn't lock sender_mtx")
-                                .send(MediaEvent::ReadyForRefresh)
-                                .expect("Failed to notify UI");
-                        }
-
-                        if !buffer.get_flags().intersects(gst::BufferFlags::DISCONT) {
-                            return gst::PadProbeReturn::Handled;
+                            .unwrap()
+                            .set_caps(caps_evt.get_caps());
+                    }
+                    gst::EventView::Eos(_) => {
+                        dbl_audio_buffer_mtx_cb.lock().unwrap().handle_eos();
+                        sender_mtx_cb
+                            .lock()
+                            .unwrap()
+                            .send(MediaEvent::ReadyForRefresh)
+                            .unwrap();
+                    }
+                    gst::EventView::Segment(segment_evt) => {
+                        dbl_audio_buffer_mtx_cb
+                            .lock()
+                            .unwrap()
+                            .have_gst_segment(segment_evt.get_segment());
+                    }
+                    gst::EventView::StreamStart(_) => {
+                        let audio_has_changed = info_rwlck_cb.read().unwrap().streams.audio_changed;
+                        if audio_has_changed {
+                            debug!("changing audio stream");
+                            let dbl_audio_buffer = &mut dbl_audio_buffer_mtx_cb.lock().unwrap();
+                            dbl_audio_buffer.clean_samples();
                         }
                     }
-                    gst::PadProbeData::Event(event) => match event.view() {
-                        gst::EventView::Caps(caps_evt) => {
-                            dbl_audio_buffer_mtx
-                                .lock()
-                                .unwrap()
-                                .set_caps(caps_evt.get_caps());
-                        }
-                        gst::EventView::Eos(_) => {
-                            dbl_audio_buffer_mtx.lock().unwrap().handle_eos();
-                            sender_mtx
-                                .lock()
-                                .unwrap()
-                                .send(MediaEvent::ReadyForRefresh)
-                                .unwrap();
-                        }
-                        gst::EventView::Segment(segment_evt) => {
-                            dbl_audio_buffer_mtx
-                                .lock()
-                                .unwrap()
-                                .have_gst_segment(segment_evt.get_segment());
-                        }
-                        gst::EventView::StreamStart(_) => {
-                            let audio_has_changed =
-                                info_rwlck.read().unwrap().streams.audio_changed;
-                            if audio_has_changed {
-                                debug!("changing audio stream");
-                                let dbl_audio_buffer = &mut dbl_audio_buffer_mtx.lock().unwrap();
-                                dbl_audio_buffer.clean_samples();
-                            }
-                        }
-                        _ => (),
-                    },
                     _ => (),
                 }
             }
+
             gst::PadProbeReturn::Ok
         });
     }
