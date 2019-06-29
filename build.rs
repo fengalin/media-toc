@@ -86,8 +86,7 @@ fn generate_translations() {
             .expect("Couldn't read po/LINGUAS as string");
 
         for lingua in linguas.lines() {
-            let mo_path = PathBuf::from("..")
-                .join("target")
+            let mo_path = PathBuf::from("target")
                 .join("locale")
                 .join(lingua)
                 .join("LC_MESSAGES");
@@ -199,11 +198,7 @@ fn generate_install_script() {
                     .write_all(
                         format!(
                             "cp -r {} {}\n",
-                            PathBuf::from("..")
-                                .join("target")
-                                .join("locale")
-                                .to_str()
-                                .unwrap(),
+                            PathBuf::from("target").join("locale").to_str().unwrap(),
                             data_dir.to_str().unwrap(),
                         )
                         .as_bytes(),
