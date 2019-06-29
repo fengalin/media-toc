@@ -651,7 +651,7 @@ impl WaveformRenderer {
         ))
     }
 
-    fn get_sample_range(&mut self, audio_buffer: &AudioBuffer) -> (SampleIndex, SampleIndex) {
+    fn render(&mut self, audio_buffer: &AudioBuffer) {
         // First step: see how current waveform and the audio_buffer can merge
         let (lower, upper) = if audio_buffer.lower <= self.image.lower
             && audio_buffer.upper >= self.image.upper
@@ -669,7 +669,7 @@ impl WaveformRenderer {
             let segment_lower = audio_buffer.segment_lower();
             debug!(
                 concat!(
-                    "{}_get_sample_range not able to merge: ",
+                    "{}_render not able to merge: ",
                     "cursor {}, image [{}, {}], buffer [{}, {}], segment: {}",
                 ),
                 self.image.id,
@@ -691,7 +691,7 @@ impl WaveformRenderer {
         let extraction_range = if upper - lower <= self.req_sample_window {
             // image can use the full window
             trace!(
-                "{}_get_sample_range using full window, range [{}, {}]",
+                "{}_render using full window, range [{}, {}]",
                 self.image.id,
                 lower,
                 upper,
@@ -704,7 +704,7 @@ impl WaveformRenderer {
         } else if self.cursor_sample <= lower || self.cursor_sample >= upper {
             trace!(
                 concat!(
-                    "{}_get_sample_range cursor not in the window: first_visible_sample ",
+                    "{}_render cursor not in the window: first_visible_sample ",
                     "{:?}, cursor {}, merged range [{}, {}]",
                 ),
                 self.image.id,
@@ -727,7 +727,7 @@ impl WaveformRenderer {
                         // cursor is in the window => keep it
                         trace!(
                             concat!(
-                                "{}_get_sample_range cursor in the window: first_visible_sample ",
+                                "{}_render cursor in the window: first_visible_sample ",
                                 "{}, cursor {}, merged range [{}, {}]",
                             ),
                             self.image.id,
@@ -748,7 +748,7 @@ impl WaveformRenderer {
                     } else {
                         debug!(
                             concat!(
-                                "{}_get_sample_range first_visible_sample ",
+                                "{}_render first_visible_sample ",
                                 "{} and cursor {} not in the same range [{}, {}]",
                             ),
                             self.image.id, first_visible_sample, self.cursor_sample, lower, upper,
@@ -799,7 +799,7 @@ impl WaveformRenderer {
                         if self.cursor_sample + self.half_req_sample_window < upper {
                             // cursor can be centered
                             trace!(
-                                "{}_get_sample_range centering cursor: {}",
+                                "{}_render centering cursor: {}",
                                 self.image.id,
                                 self.cursor_sample,
                             );
@@ -811,7 +811,7 @@ impl WaveformRenderer {
                         } else {
                             // cursor in second half
                             trace!(
-                                "{}_get_sample_range cursor: {} in second half",
+                                "{}_render cursor: {} in second half",
                                 self.image.id,
                                 self.cursor_sample,
                             );
@@ -833,7 +833,7 @@ impl WaveformRenderer {
                         }
                     } else {
                         trace!(
-                            "{}_get_sample_range cursor {} in first half or before range [{}, {}]",
+                            "{}_render cursor {} in first half or before range [{}, {}]",
                             self.image.id,
                             self.cursor_sample,
                             lower,
@@ -847,14 +847,16 @@ impl WaveformRenderer {
             }
         };
 
-        extraction_range.unwrap_or_else(|| {
+        let (lower, upper) = extraction_range.unwrap_or_else(|| {
             (
                 audio_buffer.lower,
                 audio_buffer
                     .upper
                     .min(audio_buffer.lower + self.req_sample_window + self.half_req_sample_window),
             )
-        })
+        });
+
+        self.image.render(audio_buffer, lower, upper);
     }
 }
 
@@ -969,10 +971,7 @@ impl SampleExtractor for WaveformRenderer {
             return;
         }
 
-        // Get the available sample range considering both
-        // the waveform image and the AudioBuffer
-        let (lower, upper) = self.get_sample_range(audio_buffer);
-        self.image.render(audio_buffer, lower, upper);
+        self.render(audio_buffer);
 
         self.playback_needs_refresh = if audio_buffer.contains_eos() && !self.image.contains_eos {
             // there won't be any refresh on behalf of audio_buffer
@@ -998,8 +997,7 @@ impl SampleExtractor for WaveformRenderer {
         if self.image.is_initialized {
             // Note: current state is up to date (updated from DoubleAudioBuffer)
 
-            let (lower, upper) = self.get_sample_range(audio_buffer);
-            self.image.render(audio_buffer, lower, upper);
+            self.render(audio_buffer);
 
             self.playback_needs_refresh = {
                 if self.playback_needs_refresh && self.image.contains_eos {
