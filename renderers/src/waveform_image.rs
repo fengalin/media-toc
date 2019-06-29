@@ -2,15 +2,6 @@ use cairo;
 use log::debug;
 use smallvec::{smallvec, SmallVec};
 
-#[cfg(feature = "dump-waveform")]
-use chrono::Utc;
-
-#[cfg(feature = "dump-waveform")]
-use std::{
-    fs::{create_dir, File},
-    io::ErrorKind,
-};
-
 use media::{
     AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex, SampleIndexRange, INLINE_CHANNELS,
 };
@@ -29,9 +20,6 @@ const SAMPLE_RANGE: f64 = 2f64 * (std::i16::MIN as f64);
 // will dynamically adapt if needed
 const INIT_WIDTH: i32 = 2000;
 const INIT_HEIGHT: i32 = 500;
-
-#[cfg(feature = "dump-waveform")]
-const WAVEFORM_DUMP_DIR: &str = "target/waveforms";
 
 #[derive(Default)]
 pub struct WaveformSample {
@@ -76,15 +64,6 @@ pub struct WaveformImage {
 
 impl WaveformImage {
     pub fn new(id: usize) -> Self {
-        #[cfg(feature = "dump-waveform")]
-        let _ = create_dir(&WAVEFORM_DUMP_DIR).map_err(|err| match err.kind() {
-            ErrorKind::AlreadyExists => (),
-            _ => panic!(
-                "WaveformImage::new couldn't create directory {}",
-                WAVEFORM_DUMP_DIR
-            ),
-        });
-
         WaveformImage {
             id,
             exposed_image: Some(
@@ -378,23 +357,6 @@ impl WaveformImage {
             self.redraw(exposed_image, secondary_image, audio_buffer, lower, upper);
         }
 
-        #[cfg(feature = "dump-waveform")]
-        {
-            let mut output_file = File::create(format!(
-                "{}/waveform_{}_{}.png",
-                WAVEFORM_DUMP_DIR,
-                Utc::now().format("%H:%M:%S%.6f"),
-                self.id,
-            ))
-            .unwrap();
-            self.exposed_image
-                .as_mut()
-                .unwrap()
-                .with_surface(|surface| {
-                    surface.write_to_png(&mut output_file).unwrap();
-                });
-        }
-
         self.is_ready = true;
     }
 
@@ -440,15 +402,6 @@ impl WaveformImage {
     ) {
         let x_offset = ((lower - self.lower).get_step_range(self.sample_step) * self.x_step) as f64;
 
-        #[cfg(test)]
-        debug!(
-            concat!(
-                "append_right x_offset {}, (lower {} upper {}), ",
-                "self: (lower {} upper {}), buffer: (lower {}, upper {})",
-            ),
-            x_offset, lower, upper, self.lower, self.upper, audio_buffer.lower, audio_buffer.upper
-        );
-
         let x_range_to_draw = (upper - self.upper).get_step_range(self.sample_step) * self.x_step;
         let must_translate = self.last.x as usize + x_range_to_draw >= self.image_width as usize;
 
@@ -483,12 +436,6 @@ impl WaveformImage {
             self.exposed_image = Some(exposed_image);
             self.secondary_image = Some(secondary_image);
         }
-
-        #[cfg(test)]
-        debug!(
-            "exiting append_right self.lower {}, self.upper {}",
-            self.lower, self.upper
-        );
     }
 
     // Draw samples from sample_iter starting at first_x.
@@ -599,7 +546,7 @@ mod tests {
 
     use super::WaveformImage;
 
-    const OUT_DIR: &str = "../target/test";
+    const OUT_DIR: &str = "target/test";
     const SAMPLE_RATE: u32 = 300;
     const SAMPLE_DURATION: Duration = Duration::from_frequency(SAMPLE_RATE as u64);
     const SAMPLE_WINDOW: SampleIndexRange = SampleIndexRange::new(300);

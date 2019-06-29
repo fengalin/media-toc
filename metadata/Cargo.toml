@@ -11,7 +11,6 @@ repository = "https://github.com/fengalin/media-toc"
 version = "0.5.99"
 
 [dependencies]
-chrono = "0.4"
 env_logger = "0.6"
 gettext-rs = { version = "0.4", features = ["gettext-system"] }
 glib = "0.8"
