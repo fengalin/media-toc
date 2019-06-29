@@ -300,7 +300,6 @@ impl WaveformRenderer {
                                     < first_visible_sample_lock
                                         + self.req_sample_window
                                         + self.eighth_req_sample_window
-                                && self.cursor_sample < self.buffer.upper
                             {
                                 // still in second half
                                 if first_visible_sample_lock + self.req_sample_window
