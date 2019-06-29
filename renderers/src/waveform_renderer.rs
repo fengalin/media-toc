@@ -267,7 +267,7 @@ impl WaveformRenderer {
         self.first_visible_sample = if self.is_initialized {
             self.refresh_ts(last_frame_ts, next_frame_ts);
 
-            if self.cursor_sample >= self.buffer.lower {
+            if self.cursor_sample >= self.buffer.lower && self.cursor_sample < self.buffer.upper {
                 // current sample appears after first buffer sample
                 if let Some((first_visible_sample_lock, lock_state)) =
                     self.first_visible_sample_lock
@@ -275,12 +275,11 @@ impl WaveformRenderer {
                     // There is a scrolling lock constraint
                     match lock_state {
                         LockState::PlayingFirstHalf => {
-                            if self.cursor_sample - first_visible_sample_lock
-                                < self.half_req_sample_window
+                            if self.cursor_sample
+                                < first_visible_sample_lock + self.half_req_sample_window
+                                && self.cursor_sample >= first_visible_sample_lock
                             {
                                 // still in first half => keep first visible sample lock
-                                self.first_visible_sample_lock =
-                                    Some((first_visible_sample_lock, lock_state));
                                 Some(first_visible_sample_lock)
                             } else {
                                 // No longer in first half => center cursor
@@ -293,8 +292,15 @@ impl WaveformRenderer {
                             }
                         }
                         LockState::PlayingSecondHalf => {
-                            if self.cursor_sample - first_visible_sample_lock
-                                > self.half_req_sample_window
+                            // Take a margin on the right to handle
+                            // a seek forward with the right arrow key
+                            if self.cursor_sample
+                                > first_visible_sample_lock + self.half_req_sample_window
+                                && self.cursor_sample
+                                    < first_visible_sample_lock
+                                        + self.req_sample_window
+                                        + self.eighth_req_sample_window
+                                && self.cursor_sample < self.buffer.upper
                             {
                                 // still in second half
                                 if first_visible_sample_lock + self.req_sample_window
@@ -306,14 +312,27 @@ impl WaveformRenderer {
                                         Some(previous_sample) => {
                                             let previous_offset =
                                                 previous_sample - first_visible_sample_lock;
-                                            let delta_cursor = self.cursor_sample - previous_sample;
-                                            let next_lower = self.buffer.lower.max(
-                                                self.cursor_sample - previous_offset + delta_cursor,
-                                            );
+                                            if self.cursor_sample > previous_sample {
+                                                let delta_cursor =
+                                                    self.cursor_sample - previous_sample;
+                                                let next_lower = self.buffer.lower.max(
+                                                    self.cursor_sample - previous_offset
+                                                        + delta_cursor,
+                                                );
 
-                                            self.first_visible_sample_lock =
-                                                Some((next_lower, LockState::PlayingSecondHalf));
-                                            Some(next_lower)
+                                                self.first_visible_sample_lock = Some((
+                                                    next_lower,
+                                                    LockState::PlayingSecondHalf,
+                                                ));
+                                                Some(next_lower)
+                                            } else {
+                                                // cursor jumped before previous sample (seek)
+                                                // render the available range
+                                                self.first_visible_sample_lock = None;
+                                                self.previous_sample = None;
+
+                                                Some(self.buffer.lower)
+                                            }
                                         }
                                         None => {
                                             // Wait until we can get a reference on the sample
@@ -417,19 +436,21 @@ impl WaveformRenderer {
                     // set first sample to the left
                     Some(self.buffer.lower)
                 }
-            } else if self.cursor_sample + self.req_sample_window > self.buffer.lower {
+            } else if self.cursor_sample + self.req_sample_window > self.buffer.lower
+                && self.cursor_sample < self.buffer.upper
+            {
                 // cursor is close enough to current buffer
                 // => render what can be rendered
                 Some(self.buffer.lower)
             } else {
-                // cursor_sample appears before buffer's first sample
+                // cursor_sample out of buffer range
                 // => wait until situation clarifies
                 debug!(
                     concat!(
                         "{}_update_first_visible_sample cursor_sample {} ",
-                        "appears before buffer's first sample {}",
+                        "out of buffer range [{}, {}]",
                     ),
-                    self.id, self.cursor_sample, self.buffer.lower
+                    self.id, self.cursor_sample, self.buffer.lower, self.buffer.upper,
                 );
                 None
             }
