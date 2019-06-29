@@ -5,21 +5,13 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 use crate::with_main_ctrl;
 
-use super::{
-    MainController, MediaProcessor, OutputBaseController, OutputControllerImpl, UIController,
-    UIDispatcher,
-};
+use super::{MainController, OutputBaseController, OutputControllerImpl, UIDispatcher};
 
 pub trait OutputDispatcherImpl {
-    type CtrlImpl;
+    type CtrlImpl: OutputControllerImpl;
 
-    fn controller(main_ctrl: &MainController) -> &OutputBaseController<Self::CtrlImpl>
-    where
-        Self::CtrlImpl: MediaProcessor + OutputControllerImpl + UIController + 'static;
-
-    fn controller_mut(main_ctrl: &mut MainController) -> &mut OutputBaseController<Self::CtrlImpl>
-    where
-        Self::CtrlImpl: MediaProcessor + OutputControllerImpl + UIController + 'static;
+    fn controller(main_ctrl: &MainController) -> &OutputBaseController<Self::CtrlImpl>;
+    fn controller_mut(main_ctrl: &mut MainController) -> &mut OutputBaseController<Self::CtrlImpl>;
 }
 
 pub struct OutputBaseDispatcher<Impl> {
@@ -29,7 +21,7 @@ pub struct OutputBaseDispatcher<Impl> {
 impl<Impl> UIDispatcher for OutputBaseDispatcher<Impl>
 where
     Impl: OutputDispatcherImpl,
-    Impl::CtrlImpl: MediaProcessor + OutputControllerImpl + UIController + 'static,
+    Impl::CtrlImpl: OutputControllerImpl,
 {
     fn setup(_gtk_app: &gtk::Application, main_ctrl_rc: &Rc<RefCell<MainController>>) {
         let mut main_ctrl = main_ctrl_rc.borrow_mut();

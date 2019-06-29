@@ -46,7 +46,7 @@ pub trait MediaProcessor {
     fn report_progress(&self) -> Option<f64>;
 }
 
-pub trait OutputControllerImpl {
+pub trait OutputControllerImpl: MediaProcessor + UIController {
     const BTN_NAME: &'static str;
     const LIST_NAME: &'static str;
     const PROGRESS_BAR_NAME: &'static str;
@@ -98,10 +98,7 @@ pub struct OutputBaseController<Impl> {
     overwrite_all: bool,
 }
 
-impl<Impl> OutputBaseController<Impl>
-where
-    Impl: OutputControllerImpl + MediaProcessor + UIController + 'static,
-{
+impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
     pub fn new_base(impl_: Impl, builder: &gtk::Builder, ui_event_sender: UIEventSender) -> Self {
         let btn: gtk::Button = builder.get_object(Impl::BTN_NAME).unwrap();
 
@@ -339,10 +336,7 @@ where
     }
 }
 
-impl<Impl> UIController for OutputBaseController<Impl>
-where
-    Impl: OutputControllerImpl + MediaProcessor + UIController + 'static,
-{
+impl<Impl: OutputControllerImpl> UIController for OutputBaseController<Impl> {
     fn setup(&mut self, args: &CommandLineArguments) {
         self.btn.set_sensitive(false);
         self.impl_.setup(args);
