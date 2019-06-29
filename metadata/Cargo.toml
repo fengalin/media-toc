@@ -11,13 +11,12 @@ repository = "https://github.com/fengalin/media-toc"
 version = "0.5.99"
 
 [dependencies]
-chrono = "0.4"
 env_logger = "0.6"
 gettext-rs = { version = "0.4", features = ["gettext-system"] }
-glib = { git = "https://github.com/gtk-rs/glib" }
-gstreamer = { git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
-gstreamer-audio = { git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
+glib = "0.8"
+gstreamer = { version = "0.14", features = ["v1_10"] }
+gstreamer-audio = { version = "0.14", features = ["v1_10"] }
 image = "0.21"
-lazy_static = "1.2"
+lazy_static = "1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
-nom = "4.2"
+nom = "4"
