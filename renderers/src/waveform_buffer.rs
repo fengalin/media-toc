@@ -7,6 +7,7 @@ type DisplaySample = f64;
 // Translating samples in the negative range when scaling for display
 // improves the rendering bench by 10%
 const SAMPLE_AMPLITUDE: i32 = std::i16::MAX as i32;
+#[allow(clippy::unnecessary_cast)]
 const SAMPLE_RANGE: DisplaySample = (2 as DisplaySample) * (std::i16::MIN as DisplaySample);
 
 // The `WaveformBuffer` contains c channels of n samples each, usable by `WaveformTracer`
