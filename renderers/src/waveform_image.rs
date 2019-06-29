@@ -466,8 +466,7 @@ impl WaveformImage {
                 self.lower = lower;
 
                 self.last.x -= x_offset;
-                let first_x_to_clear = self.last.x + 1f64;
-                self.clear_area(&cr, first_x_to_clear, self.image_width_f);
+                self.clear_area(&cr, self.last.x, self.image_width_f);
 
                 self.draw_samples(&cr, audio_buffer, self.upper, upper)
             });
