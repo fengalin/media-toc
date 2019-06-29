@@ -47,4 +47,8 @@ byteorder = "1"
 smallvec = "0.6"
 
 [profile.bench]
-debug = true
+#debug = true
+#lto = true
+
+[profile.release]
+lto = true
