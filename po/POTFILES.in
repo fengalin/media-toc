@@ -1,6 +1,6 @@
 # List of source files containing translatable strings.
 # Please keep this file sorted alphabetically.
-assets/ui/media-toc.ui
+res/ui/media-toc.ui
 media/src/playback_pipeline.rs
 media/src/splitter_pipeline.rs
 media/src/toc_setter_pipeline.rs
