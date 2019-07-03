@@ -464,37 +464,46 @@ impl WaveformImage {
             cr.stroke();
         }
 
+        // There are two approches to trace the waveform:
+        //
+        // 1. Iterate on each channel and `stroke` all the samples for the given
+        // channel at once. This is fast, but it produces artifacts at the jonction
+        // with previously rendered samples. These artifacts are noticeable because
+        // they appear at different timestamps in the 2 `WaveformRenderers` that
+        // alternate in the double buffering mechanism.
+        // 2. Iterate on each sample and trace the channels for current sample.
+        // This is 25% slower than (1) since it involves more `stroke`s, but it
+        // doesn't show the artifacts.
+        //
+        // Selected approach (2) because artifacts give a cheap impression.
+
         let sample_display_scale = self.sample_display_scale;
-        let mut x = self.last.x;
-        for channel in 0..audio_buffer.channels {
-            let y_iter = audio_buffer
-                .try_iter(lower, upper, channel, self.sample_step)
-                .unwrap_or_else(|err| panic!("{}_draw_samples: {}", self.id, err))
-                .map(|sample_value| {
-                    f64::from(i32::from(sample_value.as_i16()) - SAMPLE_AMPLITUDE)
-                        * sample_display_scale
-                });
+        let samples_iter = audio_buffer
+            .try_iter(lower, upper, self.sample_step)
+            .unwrap_or_else(|err| panic!("{}_draw_samples: {}", self.id, err));
+        let start_x = self.last.x;
 
-            let (red, green, blue) = self
-                .channel_colors
-                .get(channel)
-                .unwrap_or_else(|| panic!("No color for channel {}", channel));
-            cr.set_source_rgb(*red, *green, *blue);
+        for samples in samples_iter {
+            let y_iter = samples.iter().map(|sample| {
+                f64::from(i32::from(sample.as_i16()) - SAMPLE_AMPLITUDE) * sample_display_scale
+            });
 
-            x = self.last.x;
-            cr.move_to(x, self.last.y_values[channel]);
+            let x = self.last.x + self.x_step_f;
+            for (channel, y) in y_iter.enumerate() {
+                let (r, g, b) = self
+                    .channel_colors
+                    .get(channel)
+                    .unwrap_or_else(|| panic!("no color for channel {}", channel));
+                cr.set_source_rgb(*r, *g, *b);
 
-            // draw the samples
-            let mut last_y = 0f64;
-            for y in y_iter {
-                x += self.x_step_f;
+                cr.move_to(self.last.x, self.last.y_values[channel]);
                 cr.line_to(x, y);
-                last_y = y;
+                cr.stroke();
+
+                self.last.y_values[channel] = y;
             }
 
-            self.last.y_values[channel] = last_y;
-
-            cr.stroke();
+            self.last.x = x;
         }
 
         #[cfg(test)]
@@ -502,21 +511,20 @@ impl WaveformImage {
             // in test mode, draw marks at
             // the start and end of each chunk
             cr.set_source_rgb(1f64, 0f64, 1f64);
-            cr.move_to(x, 1.5f64 * self.half_range_y);
-            cr.line_to(x, self.full_range_y);
+            cr.move_to(self.last.x, 1.5f64 * self.half_range_y);
+            cr.line_to(self.last.x, self.full_range_y);
             cr.stroke();
         }
 
-        // FIXME: draw axis first (get x range from the caller)
+        // FIXME: draw axis first (get x range from samples_iter)
         // Draw the axis
         cr.set_line_width(1f64);
         cr.set_source_rgb(AXIS_COLOR.0, AXIS_COLOR.1, AXIS_COLOR.2);
 
-        cr.move_to(self.last.x, self.half_range_y);
-        cr.line_to(x, self.half_range_y);
+        cr.move_to(start_x, self.half_range_y);
+        cr.line_to(self.last.x, self.half_range_y);
         cr.stroke();
 
-        self.last.x = x;
         self.upper = upper;
     }
 

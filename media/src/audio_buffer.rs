@@ -443,10 +443,9 @@ impl AudioBuffer {
         &self,
         lower: SampleIndex,
         upper: SampleIndex,
-        channel: usize,
         sample_step: SampleIndexRange,
     ) -> Result<Iter<'_>, String> {
-        Iter::try_new(self, lower, upper, channel, sample_step)
+        Iter::try_new(self, lower, upper, sample_step)
     }
 
     pub fn get(&self, sample_idx: SampleIndex) -> Option<&[SampleValue]> {
@@ -626,9 +625,9 @@ pub struct Iter<'buffer> {
     slice0: &'buffer [SampleValue],
     slice0_len: usize,
     slice1: &'buffer [SampleValue],
+    channels: usize,
     idx: usize,
     upper: usize,
-    channel: usize,
     step: usize,
 }
 
@@ -637,7 +636,6 @@ impl<'buffer> Iter<'buffer> {
         audio_buffer: &'buffer AudioBuffer,
         lower: SampleIndex,
         upper: SampleIndex,
-        channel: usize,
         sample_step: SampleIndexRange,
     ) -> Result<Iter<'buffer>, String> {
         if upper > lower && lower >= audio_buffer.lower && upper <= audio_buffer.upper {
@@ -647,38 +645,42 @@ impl<'buffer> Iter<'buffer> {
                 slice0: slices.0,
                 slice0_len: len0,
                 slice1: slices.1,
+                channels: audio_buffer.channels,
                 idx: (lower - audio_buffer.lower).as_usize() * audio_buffer.channels,
                 upper: (upper - audio_buffer.lower).as_usize() * audio_buffer.channels,
-                channel,
                 step: sample_step.as_usize() * audio_buffer.channels,
             })
         } else {
             Err(format!(
-                "Iter::try_new [{}, {}] (channel {}) out of bounds [{}, {}]",
-                lower, upper, channel, audio_buffer.lower, audio_buffer.upper,
+                "Iter::try_new [{}, {}] out of bounds [{}, {}]",
+                lower, upper, audio_buffer.lower, audio_buffer.upper,
             ))
         }
+    }
+
+    pub fn channels(&self) -> usize {
+        self.channels
     }
 }
 
 impl<'buffer> Iterator for Iter<'buffer> {
-    type Item = SampleValue;
+    type Item = &'buffer [SampleValue];
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.idx >= self.upper {
             return None;
         }
 
-        let idx = self.idx + self.channel;
-        let channel_value = if idx < self.slice0_len {
-            self.slice0[idx]
+        let idx = self.idx;
+        let item = if idx < self.slice0_len {
+            &self.slice0[idx..idx + self.channels]
         } else {
             let idx = idx - self.slice0_len;
-            self.slice1[idx]
+            &self.slice1[idx..idx + self.channels]
         };
 
         self.idx += self.step;
-        Some(channel_value)
+        Some(item)
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -850,25 +852,17 @@ mod tests {
         let step = SampleIndexRange::new(step);
 
         debug!("checking iter for [{}, {}], step {}...", lower, upper, step);
-        let mut channel_iter_vec: [super::Iter; 2] = [
-            audio_buffer
-                .try_iter(lower, upper, 0, step)
-                .expect("checking iter (test)"),
-            audio_buffer
-                .try_iter(lower, upper, 1, step)
-                .expect("checking iter (test)"),
-        ];
+        let sample_iter = audio_buffer
+            .try_iter(lower, upper, step)
+            .expect("checking iter (test)");
 
-        for channel in 0..CHANNELS {
-            for expected_value in expected_values {
-                let channel_value = channel_iter_vec[channel]
-                    .next()
-                    .expect(&format!("getting next value from channel {}", channel));
-                let expected_value = *expected_value;
+        for (sample, expected_value) in sample_iter.zip(expected_values.iter()) {
+            let expected_value = *expected_value;
+            for (channel, value) in sample.iter().enumerate() {
                 if channel == 0 {
-                    assert_eq!(channel_value, SampleValue::from(expected_value));
+                    assert_eq!(*value, SampleValue::from(expected_value));
                 } else {
-                    assert_eq!(channel_value, SampleValue::from(-1 * expected_value));
+                    assert_eq!(*value, SampleValue::from(-1 * expected_value));
                 }
             }
         }
