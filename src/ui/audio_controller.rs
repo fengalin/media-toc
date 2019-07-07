@@ -58,7 +58,7 @@ pub enum ControllerState {
 
 #[derive(Default)]
 struct TextMetrics {
-    font_family: Option<(String)>,
+    font_family: Option<String>,
     font_size: f64,
     twice_font_size: f64,
     half_font_size: f64,
