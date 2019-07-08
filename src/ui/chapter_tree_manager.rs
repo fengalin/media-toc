@@ -300,7 +300,6 @@ impl ChapterTreeManager {
     }
 
     // Update chapter according to the given ts
-    // FIXME: determine whether PositionStatus must be renamed
     // Returns (position_status, prev_selected_iter)
     pub fn update_ts(&mut self, ts: Timestamp) -> (PositionStatus, Option<gtk::TreeIter>) {
         let position_status = match self.selected_iter {

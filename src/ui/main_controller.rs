@@ -22,7 +22,7 @@ use crate::application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG};
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
 const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ControllerState {
     EOS,
     Paused,
@@ -365,7 +365,7 @@ impl MainController {
     pub fn refresh_info(&mut self, ts: Timestamp) {
         match self.state {
             ControllerState::Seeking => (),
-            _ => self.info_ctrl.tick(ts, false),
+            _ => self.info_ctrl.tick(ts, self.state),
         }
     }
 
@@ -529,9 +529,9 @@ impl MainController {
                         self.seek(pos_to_restore, gst::SeekFlags::ACCURATE);
                     }
                     _ => {
+                        self.state = ControllerState::EOS;
                         self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
                         self.audio_ctrl.switch_to_not_playing();
-                        self.state = ControllerState::EOS;
                     }
                 }
             }

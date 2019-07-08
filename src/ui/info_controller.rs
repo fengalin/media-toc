@@ -14,8 +14,8 @@ use metadata::{MediaInfo, Timestamp4Humans};
 use renderers::Image;
 
 use super::{
-    ChapterTreeManager, ChaptersBoundaries, PlaybackPipeline, PositionStatus, UIController,
-    UIEventSender,
+    ChapterTreeManager, ChaptersBoundaries, ControllerState, PlaybackPipeline, PositionStatus,
+    UIController, UIEventSender,
 };
 use crate::application::{CommandLineArguments, CONFIG};
 
@@ -297,14 +297,14 @@ impl InfoController {
         self.ui_event.seek(ts, gst::SeekFlags::ACCURATE)
     }
 
-    pub fn tick(&mut self, ts: Timestamp, is_eos: bool) {
+    pub fn tick(&mut self, ts: Timestamp, state: ControllerState) {
         self.timeline_scale.set_value(ts.as_f64());
 
         let (mut position_status, prev_selected_iter) = self.chapter_manager.update_ts(ts);
 
         if self.repeat_chapter {
             // repeat is activated
-            if is_eos {
+            if state == ControllerState::EOS {
                 // postpone chapter selection change until media has synchronized
                 position_status = PositionStatus::ChapterNotChanged;
                 self.chapter_manager.rewind();
@@ -359,7 +359,7 @@ impl InfoController {
 
     pub fn seek(&mut self, target: Timestamp) {
         self.chapter_manager.prepare_for_seek();
-        self.tick(target, false);
+        self.tick(target, ControllerState::Seeking);
     }
 
     pub fn previous_ts(&self, current: Timestamp) -> Timestamp {
