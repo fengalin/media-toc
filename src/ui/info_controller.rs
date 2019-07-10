@@ -8,7 +8,7 @@ use log::{info, warn};
 
 use std::{cell::RefCell, fs::File, rc::Rc};
 
-use media::{Duration, Timestamp};
+use media::Timestamp;
 use metadata;
 use metadata::{MediaInfo, Timestamp4Humans};
 use renderers::Image;
@@ -18,8 +18,6 @@ use super::{
     UIController, UIEventSender,
 };
 use crate::application::{CommandLineArguments, CONFIG};
-
-const GO_TO_PREV_CHAPTER_THRESHOLD: Duration = Duration::from_secs(1);
 
 lazy_static! {
     static ref EMPTY_REPLACEMENT: &'static str = "-";
@@ -156,12 +154,12 @@ impl UIController for InfoController {
 
         self.repeat_btn.set_sensitive(true);
         self.add_chapter_btn.set_sensitive(true);
-        match self.chapter_manager.get_selected_iter() {
-            Some(current_iter) => {
+        match self.chapter_manager.get_selected() {
+            Some(cur_chapter) => {
                 // position is in a chapter => select it
                 self.chapter_treeview
                     .get_selection()
-                    .select_iter(&current_iter);
+                    .select_iter(cur_chapter.iter());
                 self.del_chapter_btn.set_sensitive(true);
             }
             None =>
@@ -287,9 +285,8 @@ impl InfoController {
         self.timeline_scale.clear_marks();
 
         let timeline_scale = self.timeline_scale.clone();
-        self.chapter_manager.for_each(None, move |chapter| {
+        self.chapter_manager.iter().for_each(move |chapter| {
             timeline_scale.add_mark(chapter.start().as_f64(), gtk::PositionType::Top, None);
-            true // keep going until the last chapter
         });
     }
 
@@ -300,7 +297,7 @@ impl InfoController {
     pub fn tick(&mut self, ts: Timestamp, state: ControllerState) {
         self.timeline_scale.set_value(ts.as_f64());
 
-        let (mut position_status, prev_selected_iter) = self.chapter_manager.update_ts(ts);
+        let mut position_status = self.chapter_manager.update_ts(ts);
 
         if self.repeat_chapter {
             // repeat is activated
@@ -309,39 +306,37 @@ impl InfoController {
                 position_status = PositionStatus::ChapterNotChanged;
                 self.chapter_manager.rewind();
                 self.repeat_at(Timestamp::default());
-            } else if position_status == PositionStatus::ChapterChanged {
-                if let Some(ref prev_selected_iter) = prev_selected_iter {
+            } else if let PositionStatus::ChapterChanged(prev_chapter) = &position_status {
+                if let Some(prev_chapter) = prev_chapter {
                     // reset position_status because we will be looping on current chapter
+                    let prev_start = prev_chapter.start;
                     position_status = PositionStatus::ChapterNotChanged;
 
                     // unselect chapter in order to avoid tracing change to current timestamp
                     self.chapter_manager.unselect();
-                    self.repeat_at(
-                        self.chapter_manager
-                            .get_chapter_at_iter(prev_selected_iter)
-                            .start(),
-                    );
+                    self.repeat_at(prev_start);
                 }
             }
         }
 
-        if position_status == PositionStatus::ChapterChanged {
-            match self.chapter_manager.get_selected_iter() {
-                Some(current_iter) => {
+        if let PositionStatus::ChapterChanged(prev_chapter) = position_status {
+            // let go the mutable reference on `self.chapter_manager`
+            match self.chapter_manager.get_selected() {
+                Some(cur_chapter) => {
                     // timestamp is in a chapter => select it
                     self.chapter_treeview
                         .get_selection()
-                        .select_iter(&current_iter);
+                        .select_iter(cur_chapter.iter());
                     self.del_chapter_btn.set_sensitive(true);
                 }
                 None =>
                 // timestamp is not in any chapter
                 {
-                    if let Some(ref prev_selected_iter) = prev_selected_iter {
+                    if let Some(prev_chapter) = prev_chapter {
                         // but a previous chapter was selected => unselect it
                         self.chapter_treeview
                             .get_selection()
-                            .unselect_iter(prev_selected_iter);
+                            .unselect_iter(&prev_chapter.iter);
                         self.del_chapter_btn.set_sensitive(false);
                     }
                 }
@@ -360,31 +355,6 @@ impl InfoController {
     pub fn seek(&mut self, target: Timestamp) {
         self.chapter_manager.prepare_for_seek();
         self.tick(target, ControllerState::Seeking);
-    }
-
-    pub fn previous_ts(&self, current: Timestamp) -> Timestamp {
-        {
-            let cur_start = self
-                .chapter_manager
-                .get_selected_iter()
-                .map(|cur_iter| self.chapter_manager.get_chapter_at_iter(&cur_iter).start());
-            let prev_start = self
-                .chapter_manager
-                .prev_iter()
-                .map(|prev_iter| self.chapter_manager.get_chapter_at_iter(&prev_iter).start());
-
-            match (cur_start, prev_start) {
-                (Some(cur_start), prev_start_opt) => {
-                    if current > cur_start + GO_TO_PREV_CHAPTER_THRESHOLD {
-                        Some(cur_start)
-                    } else {
-                        prev_start_opt
-                    }
-                }
-                (None, prev_start_opt) => prev_start_opt,
-            }
-        }
-        .unwrap_or_else(Timestamp::default)
     }
 
     pub fn start_play_range(&mut self) {

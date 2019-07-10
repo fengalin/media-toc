@@ -8,12 +8,14 @@ use media::Timestamp;
 #[derive(Clone, Debug)]
 pub struct Chapter {
     pub title: String,
+    pub start: Timestamp,
+    pub end: Timestamp,
     pub iter: gtk::TreeIter,
 }
 
 impl PartialEq for Chapter {
     fn eq(&self, other: &Chapter) -> bool {
-        self.title == other.title
+        (self.title == other.title && self.start == other.start)
     }
 }
 
@@ -53,6 +55,8 @@ impl ChaptersBoundaries {
                 let next_chapter = chapters_at_start.next.take();
                 chapters_at_start.next = Some(Chapter {
                     title: title.clone(),
+                    start: start.clone(),
+                    end: end.clone(),
                     iter: iter.clone(),
                 });
                 (true, next_chapter)
@@ -66,6 +70,8 @@ impl ChaptersBoundaries {
                 SuccessiveChapters {
                     prev: Some(Chapter {
                         title,
+                        start,
+                        end,
                         iter: iter.clone(),
                     }),
                     next: next_chapter,
@@ -79,6 +85,8 @@ impl ChaptersBoundaries {
                     let prev_chapter = chapters_at_end.prev.take();
                     chapters_at_end.prev = Some(Chapter {
                         title: title.clone(),
+                        start: start.clone(),
+                        end: end.clone(),
                         iter: iter.clone(),
                     });
                     (true, prev_chapter)
@@ -92,6 +100,8 @@ impl ChaptersBoundaries {
                     prev: prev_chapter,
                     next: Some(Chapter {
                         title: title.clone(),
+                        start: start.clone(),
+                        end: end.clone(),
                         iter: iter.clone(),
                     }),
                 },
@@ -103,6 +113,8 @@ impl ChaptersBoundaries {
                     SuccessiveChapters {
                         prev: Some(Chapter {
                             title,
+                            start,
+                            end,
                             iter: iter.clone(),
                         }),
                         next: None,
@@ -169,9 +181,18 @@ mod tests {
     use gtk;
     use gtk::TreeStoreExt;
 
-    fn new_chapter(store: &gtk::TreeStore, title: &str) -> Chapter {
+    use media::Timestamp;
+
+    fn new_chapter(
+        store: &gtk::TreeStore,
+        title: &str,
+        start: Timestamp,
+        end: Timestamp,
+    ) -> Chapter {
         Chapter {
             title: title.to_owned(),
+            start,
+            end,
             iter: store.append(None),
         }
     }
@@ -191,10 +212,10 @@ mod tests {
 
         // Add incrementally
 
-        let chapter_1 = new_chapter(&store, "1");
+        let chapter_1 = new_chapter(&store, "1", Timestamp::new(0), Timestamp::new(1));
         boundaries.add_chapter(
-            Timestamp::new(0),
-            Timestamp::new(1),
+            chapter_1.start,
+            chapter_1.end,
             &chapter_1.title,
             &chapter_1.iter,
         );
@@ -214,10 +235,10 @@ mod tests {
             boundaries.get(&Timestamp::new(1)),
         );
 
-        let chapter_2 = new_chapter(&store, "2");
+        let chapter_2 = new_chapter(&store, "2", Timestamp::new(1), Timestamp::new(2));
         boundaries.add_chapter(
-            Timestamp::new(1),
-            Timestamp::new(2),
+            chapter_2.start,
+            chapter_2.end,
             &chapter_2.title,
             &chapter_2.iter,
         );
@@ -244,10 +265,10 @@ mod tests {
             boundaries.get(&Timestamp::new(2)),
         );
 
-        let chapter_3 = new_chapter(&store, "3");
+        let chapter_3 = new_chapter(&store, "3", Timestamp::new(2), Timestamp::new(4));
         boundaries.add_chapter(
-            Timestamp::new(2),
-            Timestamp::new(4),
+            chapter_3.start,
+            chapter_3.end,
             &chapter_3.title,
             &chapter_3.iter,
         );
@@ -282,8 +303,8 @@ mod tests {
         );
 
         // Rename
-        let chapter_r2 = new_chapter(&store, "r2");
-        boundaries.rename_chapter(Timestamp::new(1), Timestamp::new(2), &chapter_r2.title);
+        let chapter_r2 = new_chapter(&store, "r2", Timestamp::new(1), Timestamp::new(2));
+        boundaries.rename_chapter(chapter_r2.start, chapter_r2.end, &chapter_r2.title);
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
@@ -314,8 +335,8 @@ mod tests {
             boundaries.get(&Timestamp::new(4)),
         );
 
-        let chapter_r1 = new_chapter(&store, "r1");
-        boundaries.rename_chapter(Timestamp::new(0), Timestamp::new(1), &chapter_r1.title);
+        let chapter_r1 = new_chapter(&store, "r1", Timestamp::new(0), Timestamp::new(1));
+        boundaries.rename_chapter(chapter_r1.start, chapter_r1.end, &chapter_r1.title);
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
@@ -346,8 +367,8 @@ mod tests {
             boundaries.get(&Timestamp::new(4)),
         );
 
-        let chapter_r3 = new_chapter(&store, "r3");
-        boundaries.rename_chapter(Timestamp::new(2), Timestamp::new(4), &chapter_r3.title);
+        let chapter_r3 = new_chapter(&store, "r3", Timestamp::new(2), Timestamp::new(4));
+        boundaries.rename_chapter(chapter_r3.start, chapter_r3.end, &chapter_r3.title);
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
@@ -404,10 +425,10 @@ mod tests {
         );
 
         // Add in the middle
-        let chapter_n2 = new_chapter(&store, "n2");
+        let chapter_n2 = new_chapter(&store, "n2", Timestamp::new(1), Timestamp::new(2));
         boundaries.add_chapter(
-            Timestamp::new(1),
-            Timestamp::new(2),
+            chapter_n2.start,
+            chapter_n2.end,
             &chapter_n2.title,
             &chapter_n2.iter,
         );
@@ -467,10 +488,10 @@ mod tests {
         );
 
         // Add first
-        let chapter_n1 = new_chapter(&store, "n1");
+        let chapter_n1 = new_chapter(&store, "n1", Timestamp::new(0), Timestamp::new(1));
         boundaries.add_chapter(
-            Timestamp::new(0),
-            Timestamp::new(1),
+            chapter_n1.start,
+            chapter_n1.end,
             &chapter_n1.title,
             &chapter_n1.iter,
         );

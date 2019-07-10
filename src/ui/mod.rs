@@ -7,7 +7,7 @@ mod chapters_boundaries;
 use self::chapters_boundaries::ChaptersBoundaries;
 
 mod chapter_tree_manager;
-use self::chapter_tree_manager::ChapterTreeManager;
+use self::chapter_tree_manager::{ChapterTreeManager, PositionStatus};
 
 mod export_controller;
 use self::export_controller::ExportController;
@@ -69,12 +69,6 @@ use media;
 use metadata;
 
 use crate::application::CommandLineArguments;
-
-#[derive(PartialEq)]
-pub enum PositionStatus {
-    ChapterChanged,
-    ChapterNotChanged,
-}
 
 pub struct PlaybackPipeline(media::PlaybackPipeline<renderers::WaveformRenderer>);
 

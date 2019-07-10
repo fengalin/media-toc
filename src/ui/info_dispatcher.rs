@@ -8,6 +8,9 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::{MainController, UIDispatcher};
 use crate::{application::CONFIG, with_main_ctrl};
+use media::{Duration, Timestamp};
+
+const GO_TO_PREV_CHAPTER_THRESHOLD: Duration = Duration::from_secs(1);
 
 pub struct InfoDispatcher;
 impl UIDispatcher for InfoDispatcher {
@@ -61,10 +64,9 @@ impl UIDispatcher for InfoDispatcher {
             .connect_row_activated(with_main_ctrl!(
                 main_ctrl_rc => move |&mut main_ctrl, _, tree_path, _| {
                     let info_ctrl = &mut main_ctrl.info_ctrl;
-                    if let Some(iter) = info_ctrl.chapter_manager.get_iter(tree_path) {
-                        let ts = info_ctrl.chapter_manager.get_chapter_at_iter(&iter).start();
-                        // update current timestamp
-                        main_ctrl.seek(ts, gst::SeekFlags::ACCURATE);
+                    if let Some(chapter) = &info_ctrl.chapter_manager.get_chapter_from_path(tree_path) {
+                        let seek_ts = chapter.start();
+                        main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
                     }
                 }
             ));
@@ -125,14 +127,8 @@ impl UIDispatcher for InfoDispatcher {
                 let seek_pos = main_ctrl
                     .info_ctrl
                     .chapter_manager
-                    .next_iter()
-                    .map(|next_iter| {
-                        main_ctrl
-                            .info_ctrl
-                            .chapter_manager
-                            .get_chapter_at_iter(&next_iter)
-                            .start()
-                    });
+                    .pick_next()
+                    .map(|next_chapter| next_chapter.start());
 
                 if let Some(seek_pos) = seek_pos {
                     main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
@@ -145,9 +141,30 @@ impl UIDispatcher for InfoDispatcher {
         gtk_app.add_action(&previous_chapter);
         previous_chapter.connect_activate(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _, _| {
-                let ts = main_ctrl.get_current_ts();
-                let seek_ts = main_ctrl.info_ctrl.previous_ts(ts);
-                main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
+                let cur_ts = main_ctrl.get_current_ts();
+                let cur_start = main_ctrl
+                    .info_ctrl
+                    .chapter_manager
+                    .get_selected()
+                    .map(|cur_chapter| cur_chapter.start());
+                let prev_start = main_ctrl
+                    .info_ctrl
+                    .chapter_manager
+                    .pick_previous()
+                    .map(|prev_chapter| prev_chapter.start());
+
+                let seek_ts = match (cur_start, prev_start) {
+                    (Some(cur_start), prev_start_opt) => {
+                        if cur_ts > cur_start + GO_TO_PREV_CHAPTER_THRESHOLD {
+                            Some(cur_start)
+                        } else {
+                            prev_start_opt
+                        }
+                    }
+                    (None, prev_start_opt) => prev_start_opt,
+                };
+
+                main_ctrl.seek(seek_ts.unwrap_or_else(Timestamp::default), gst::SeekFlags::ACCURATE);
             }
         ));
 
