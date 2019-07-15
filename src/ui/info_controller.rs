@@ -304,7 +304,6 @@ impl InfoController {
             if state == ControllerState::EOS {
                 // postpone chapter selection change until media has synchronized
                 position_status = PositionStatus::ChapterNotChanged;
-                self.chapter_manager.rewind();
                 self.repeat_at(Timestamp::default());
             } else if let PositionStatus::ChapterChanged(prev_chapter) = &position_status {
                 if let Some(prev_chapter) = prev_chapter {
@@ -353,12 +352,7 @@ impl InfoController {
     }
 
     pub fn seek(&mut self, target: Timestamp) {
-        self.chapter_manager.prepare_for_seek();
         self.tick(target, ControllerState::Seeking);
-    }
-
-    pub fn start_play_range(&mut self) {
-        self.chapter_manager.prepare_for_seek();
     }
 
     pub fn add_chapter(&mut self, ts: Timestamp) {

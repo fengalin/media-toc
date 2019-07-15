@@ -3,6 +3,8 @@ use glib::GString;
 use gettextrs::gettext;
 use gstreamer as gst;
 
+use glib;
+
 use gtk;
 use gtk::prelude::*;
 
@@ -146,6 +148,28 @@ impl<'entry> ChapterEntry<'entry> {
             None
         }
     }
+
+    // remove current, update the end of previous chapter if any and return it
+    fn remove(self) -> Option<Self> {
+        let cur_end = self.end();
+        let cur_end_str = self.end_str();
+        let cur_iter = self.iter.clone();
+
+        let store = self.store.clone();
+
+        let prev = self.previous();
+        if let Some(prev) = &prev {
+            prev.set(&[END_COL, END_STR_COL], &[&cur_end.as_u64(), &cur_end_str]);
+        }
+
+        store.remove(&cur_iter);
+
+        prev
+    }
+
+    fn set(&self, cols: &[u32], values: &[&dyn glib::ToValue]) {
+        self.store.set(&self.iter, cols, values);
+    }
 }
 
 impl Into<gtk::TreeIter> for ChapterEntry<'_> {
@@ -249,10 +273,6 @@ impl ChapterTreeManager {
 
     pub fn unselect(&mut self) {
         self.selected_iter = None;
-    }
-
-    pub fn rewind(&mut self) {
-        self.iter = self.store.get_iter_first();
     }
 
     pub fn clear(&mut self) {
@@ -408,14 +428,6 @@ impl ChapterTreeManager {
         }
     }
 
-    pub fn prepare_for_seek(&mut self) {
-        if self.iter.is_none() {
-            // either there is no chapter or previous position had already passed the end
-            // => force scanning of the chapters list in order to set iter back on track
-            self.rewind();
-        }
-    }
-
     // Returns an iter on the new chapter
     pub fn add_chapter(&mut self, target: Timestamp, duration: u64) -> Option<gtk::TreeIter> {
         let (new_iter, end, end_str) = match self.take_selected() {
@@ -430,12 +442,12 @@ impl ChapterTreeManager {
                 if cur_start != target {
                     // update currently selected chapter end
                     // to match the start of the newly added chapter
-                    let cur_iter = cur_chapter.into();
-                    self.store.set(
-                        &cur_iter,
+                    // FIXME: this could be done in a new method `ChapterEntry::insert_after`
+                    cur_chapter.set(
                         &[END_COL, END_STR_COL],
                         &[&target.as_u64(), &target.get_4_humans().as_string(false)],
                     );
+                    let cur_iter = cur_chapter.into();
                     let new_iter = self.store.insert_after(None, Some(&cur_iter));
                     (new_iter, cur_end, cur_end_str)
                 } else {
@@ -466,6 +478,7 @@ impl ChapterTreeManager {
 
                         let start_str = iter_chapter.start_str();
                         let iter = iter_chapter.into();
+                        // FIXME: this could be done in a new method `ChapterEntry::insert_after`
                         let new_iter = self.store.insert_before(None, Some(&iter));
                         (new_iter, new_chapter_end, start_str)
                     }
@@ -524,40 +537,29 @@ impl ChapterTreeManager {
     pub fn remove_selected_chapter(&mut self) -> Option<gtk::TreeIter> {
         match self.take_selected() {
             Some(sel_chapter) => {
-                let start = sel_chapter.start();
-                let selected_end = sel_chapter.end();
-                let selected_end_str = sel_chapter.end_str();
-                let sel_chapter_iter = sel_chapter.iter().clone();
+                let sel_start = sel_chapter.start();
+                let sel_end = sel_chapter.end();
+                let next_sel_iter: Option<gtk::TreeIter> = sel_chapter
+                    .remove()
+                    .map(|next_sel_chapter| next_sel_chapter.into());
 
-                let next_selected_iter = sel_chapter
-                    .previous()
-                    .map(|prev_chapter| prev_chapter.into());
-                if let Some(next_selected_iter) = &next_selected_iter {
-                    // a chapter starting before currently selected chapter is available
-                    // => update its end with the end of currently selected chapter
-                    self.store.set(
-                        next_selected_iter,
-                        &[END_COL, END_STR_COL],
-                        &[&selected_end.as_u64(), &selected_end_str],
-                    );
+                match next_sel_iter {
+                    Some(ref next_sel_iter) => {
+                        self.selected_iter = Some(next_sel_iter.clone());
+                        self.iter = Some(next_sel_iter.clone());
+                    }
+                    None => {
+                        // No chapter before => rewind
+                        self.selected_iter = None;
+                        self.iter = self.store.get_iter_first();
+                    }
                 }
 
                 self.boundaries
                     .borrow_mut()
-                    .remove_chapter(start, selected_end);
+                    .remove_chapter(sel_start, sel_end);
 
-                self.store.remove(&sel_chapter_iter);
-
-                self.selected_iter = next_selected_iter.clone();
-                match next_selected_iter {
-                    None =>
-                    // No chapter before => rewind
-                    {
-                        self.rewind()
-                    }
-                    Some(ref next_selected_iter) => self.iter = Some(next_selected_iter.clone()),
-                }
-                next_selected_iter
+                next_sel_iter
             }
             None => None,
         }

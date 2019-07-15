@@ -346,7 +346,6 @@ impl MainController {
 
     pub fn play_range(&mut self, start: Timestamp, end: Timestamp, to_restore: Timestamp) {
         if self.state == ControllerState::Paused {
-            self.info_ctrl.start_play_range();
             self.audio_ctrl.start_play_range();
 
             self.state = ControllerState::PlayingRange(to_restore);
