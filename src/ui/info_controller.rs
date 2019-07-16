@@ -154,12 +154,12 @@ impl UIController for InfoController {
 
         self.repeat_btn.set_sensitive(true);
         self.add_chapter_btn.set_sensitive(true);
-        match self.chapter_manager.get_selected() {
-            Some(cur_chapter) => {
+        match self.chapter_manager.selected() {
+            Some(sel_chapter) => {
                 // position is in a chapter => select it
                 self.chapter_treeview
                     .get_selection()
-                    .select_iter(cur_chapter.iter());
+                    .select_iter(sel_chapter.iter());
                 self.del_chapter_btn.set_sensitive(true);
             }
             None =>
@@ -320,12 +320,12 @@ impl InfoController {
 
         if let PositionStatus::ChapterChanged(prev_chapter) = position_status {
             // let go the mutable reference on `self.chapter_manager`
-            match self.chapter_manager.get_selected() {
-                Some(cur_chapter) => {
+            match self.chapter_manager.selected() {
+                Some(sel_chapter) => {
                     // timestamp is in a chapter => select it
                     self.chapter_treeview
                         .get_selection()
-                        .select_iter(cur_chapter.iter());
+                        .select_iter(sel_chapter.iter());
                     self.del_chapter_btn.set_sensitive(true);
                 }
                 None =>

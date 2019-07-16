@@ -64,7 +64,7 @@ impl UIDispatcher for InfoDispatcher {
             .connect_row_activated(with_main_ctrl!(
                 main_ctrl_rc => move |&mut main_ctrl, _, tree_path, _| {
                     let info_ctrl = &mut main_ctrl.info_ctrl;
-                    if let Some(chapter) = &info_ctrl.chapter_manager.get_chapter_from_path(tree_path) {
+                    if let Some(chapter) = &info_ctrl.chapter_manager.chapter_from_path(tree_path) {
                         let seek_ts = chapter.start();
                         main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
                     }
@@ -78,7 +78,7 @@ impl UIDispatcher for InfoDispatcher {
                     main_ctrl
                         .info_ctrl
                         .chapter_manager
-                        .rename_selected_chapter(new_title);
+                        .rename_selected(new_title);
                     // reflect title modification in other parts of the UI (audio waveform)
                     main_ctrl.refresh();
                 }
@@ -145,8 +145,8 @@ impl UIDispatcher for InfoDispatcher {
                 let cur_start = main_ctrl
                     .info_ctrl
                     .chapter_manager
-                    .get_selected()
-                    .map(|cur_chapter| cur_chapter.start());
+                    .selected()
+                    .map(|sel_chapter| sel_chapter.start());
                 let prev_start = main_ctrl
                     .info_ctrl
                     .chapter_manager
