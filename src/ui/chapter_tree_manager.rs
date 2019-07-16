@@ -134,12 +134,6 @@ impl<'entry> ChapterEntry<'entry> {
     }
 }
 
-impl Into<gtk::TreeIter> for ChapterEntry<'_> {
-    fn into(self) -> gtk::TreeIter {
-        self.iter.into_owned()
-    }
-}
-
 struct ChapterTree {
     store: gtk::TreeStore,
     iter: Option<gtk::TreeIter>,
