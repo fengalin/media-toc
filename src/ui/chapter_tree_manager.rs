@@ -13,7 +13,7 @@ use std::{borrow::Cow, cell::RefCell, rc::Rc, string::ToString};
 use media::Timestamp;
 use metadata::{get_default_chapter_title, Timestamp4Humans, TocVisitor};
 
-use super::ChaptersBoundaries;
+use super::{ChapterTimestamps, ChaptersBoundaries};
 
 const START_COL: u32 = 0;
 const END_COL: u32 = 1;
@@ -21,24 +21,26 @@ const TITLE_COL: u32 = 2;
 const START_STR_COL: u32 = 3;
 const END_STR_COL: u32 = 4;
 
-pub struct PrevChapter {
+pub struct ChapterIterStart {
     pub iter: gtk::TreeIter,
     pub start: Timestamp,
 }
 
-pub struct NextChapter {
-    pub iter: gtk::TreeIter,
-    pub end: Timestamp,
+struct ChapterIterEnd {
+    iter: gtk::TreeIter,
+    end: Timestamp,
 }
 
 pub enum PositionStatus {
-    ChapterChanged(Option<PrevChapter>),
+    ChapterChanged {
+        prev_chapter: Option<ChapterIterStart>,
+    },
     ChapterNotChanged,
 }
 
-impl From<Option<PrevChapter>> for PositionStatus {
-    fn from(prev_chap: Option<PrevChapter>) -> Self {
-        PositionStatus::ChapterChanged(prev_chap)
+impl From<Option<ChapterIterStart>> for PositionStatus {
+    fn from(prev_chapter: Option<ChapterIterStart>) -> Self {
+        PositionStatus::ChapterChanged { prev_chapter }
     }
 }
 
@@ -74,23 +76,17 @@ impl<'entry> ChapterEntry<'entry> {
             .unwrap()
     }
 
+    fn set_title(&self, title: &str) {
+        self.store
+            .set_value(&self.iter, TITLE_COL, &gtk::Value::from(title));
+    }
+
     pub fn start(&self) -> Timestamp {
         self.store
             .get_value(&self.iter, START_COL as i32)
             .get::<u64>()
             .unwrap()
             .into()
-    }
-
-    pub fn start_str(&self) -> GString {
-        self.store
-            .get_value(&self.iter, START_STR_COL as i32)
-            .get::<GString>()
-            .unwrap()
-    }
-
-    pub fn start_ts(&self) -> Timestamp4Humans {
-        self.start().get_4_humans()
     }
 
     pub fn end(&self) -> Timestamp {
@@ -101,22 +97,17 @@ impl<'entry> ChapterEntry<'entry> {
             .into()
     }
 
-    pub fn end_str(&self) -> GString {
-        self.store
-            .get_value(&self.iter, END_STR_COL as i32)
-            .get::<GString>()
-            .unwrap()
-    }
-
-    #[allow(dead_code)]
-    pub fn end_ts(&self) -> Timestamp4Humans {
-        self.end().get_4_humans()
+    pub fn timestamps(&self) -> ChapterTimestamps {
+        ChapterTimestamps {
+            start: self.start(),
+            end: self.end(),
+        }
     }
 
     pub fn as_toc_entry(&self) -> gst::TocEntry {
         let mut toc_entry = gst::TocEntry::new(
             gst::TocEntryType::Chapter,
-            &format!("{}", self.start_ts().nano_total),
+            &format!("{}", self.start().as_u64()),
         );
         toc_entry
             .get_mut()
@@ -132,6 +123,11 @@ impl<'entry> ChapterEntry<'entry> {
 
         toc_entry
     }
+}
+
+struct ChapterRemovalResult {
+    removed_ts: ChapterTimestamps,
+    selected_iter: Option<gtk::TreeIter>,
 }
 
 struct ChapterTree {
@@ -189,9 +185,8 @@ impl ChapterTree {
             .map(|selected| ChapterEntry::new(&self.store, selected))
     }
 
-    fn selected_start_end(&self) -> Option<(Timestamp, Timestamp, GString)> {
-        self.selected_chapter()
-            .map(|chapter| (chapter.start(), chapter.end(), chapter.end_str()))
+    fn selected_timestamps(&self) -> Option<ChapterTimestamps> {
+        self.selected_chapter().map(|chapter| chapter.timestamps())
     }
 
     fn iter_chapter(&self) -> Option<ChapterEntry<'_>> {
@@ -200,9 +195,12 @@ impl ChapterTree {
             .map(|iter| ChapterEntry::new(&self.store, iter))
     }
 
-    fn iter_start_end(&self) -> Option<(Timestamp, GString, Timestamp)> {
-        self.iter_chapter()
-            .map(|chapter| (chapter.start(), chapter.start_str(), chapter.end()))
+    fn iter_timestamps(&self) -> Option<ChapterTimestamps> {
+        self.iter_chapter().map(|chapter| chapter.timestamps())
+    }
+
+    fn new_iter(&self) -> Iter<'_> {
+        Iter::new(&self.store)
     }
 
     fn next(&mut self) -> Option<ChapterEntry<'_>> {
@@ -280,28 +278,28 @@ impl ChapterTree {
         }
     }
 
-    fn add_unchecked(&self, start: Timestamp, end: Timestamp, title: &str) -> gtk::TreeIter {
+    fn add_unchecked(&self, ts: ChapterTimestamps, title: &str) -> gtk::TreeIter {
         self.store.insert_with_values(
             None,
             None,
             &[START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
             &[
-                &start.as_u64(),
-                &end.as_u64(),
+                &ts.start.as_u64(),
+                &ts.end.as_u64(),
                 &title,
-                &start.get_4_humans().as_string(false),
-                &end.get_4_humans().as_string(false),
+                &ts.start.get_4_humans().as_string(false),
+                &ts.end.get_4_humans().as_string(false),
             ],
         )
     }
 
     // Returns an iter on the new chapter
-    pub fn add(&mut self, target: Timestamp, duration: u64) -> Option<NextChapter> {
-        let (new_iter, end, end_str) = match self.selected_start_end() {
-            Some((sel_start, sel_end, sel_end_str)) => {
+    pub fn add(&mut self, target: Timestamp, duration: u64) -> Option<ChapterIterEnd> {
+        let (new_iter, end, end_str) = match self.selected_timestamps() {
+            Some(sel_ts) => {
                 assert!(self.selected.is_some());
 
-                if sel_start != target {
+                if sel_ts.start != target {
                     // update currently selected chapter end
                     // to match the start of the newly added chapter
                     self.store.set(
@@ -319,25 +317,29 @@ impl ChapterTree {
                                 .expect("inconsistency with selected iter"),
                         ),
                     );
-                    (new_iter, sel_end, sel_end_str)
+                    (
+                        new_iter,
+                        sel_ts.end,
+                        sel_ts.end.get_4_humans().as_string(false),
+                    )
                 } else {
                     // attempting to add the new chapter at current position
                     return None;
                 }
             }
             None => {
-                match self.iter_start_end() {
-                    Some((prev_start, prev_start_str, prev_end)) => {
+                match self.iter_timestamps() {
+                    Some(prev_ts) => {
                         // chapters are available, but none is selected:
                         // either position is before the first chapter
                         // or in a gap between two chapters
-                        if target > prev_start {
+                        if target > prev_ts.start {
                             panic!(
                                 concat!(
                                     "ChapterTree::add_chapter inconsistent target",
                                     " {} with regard to current iter [{}, {}]",
                                 ),
-                                target, prev_start, prev_end,
+                                target, prev_ts.start, prev_ts.end,
                             );
                         }
 
@@ -347,7 +349,11 @@ impl ChapterTree {
                         );
 
                         // prev_start is the new chapter's end
-                        (new_iter, prev_start, prev_start_str)
+                        (
+                            new_iter,
+                            prev_ts.start,
+                            prev_ts.start.get_4_humans().as_string(false),
+                        )
                     }
                     None => {
                         // No chapter in iter:
@@ -393,18 +399,17 @@ impl ChapterTree {
         self.selected = Some(new_iter.clone());
         self.iter = Some(new_iter.clone());
 
-        // FIXME: might need a better name
-        Some(NextChapter {
+        Some(ChapterIterEnd {
             iter: new_iter,
             end,
         })
     }
 
-    // remove selected chapter, update the end of previous chapter if any, select it and return it
-    // FIXME: find something better for the return value
-    fn remove(&mut self) -> Option<(Timestamp, Timestamp, Option<gtk::TreeIter>)> {
-        match self.selected_start_end() {
-            Some((rem_start, rem_end, rem_end_str)) => {
+    // remove selected chapter, update the end of previous chapter if any, select it
+    // and return useful information
+    fn remove(&mut self) -> Option<ChapterRemovalResult> {
+        match self.selected_timestamps() {
+            Some(rem_ts) => {
                 assert!(self.iter.is_some());
                 assert!(self.selected.is_some());
 
@@ -420,7 +425,10 @@ impl ChapterTree {
                     self.store.set(
                         self.iter.as_ref().expect("inconsistency with iter"),
                         &[END_COL, END_STR_COL],
-                        &[&rem_end.as_u64(), &rem_end_str],
+                        &[
+                            &rem_ts.end.as_u64(),
+                            &rem_ts.end.get_4_humans().as_string(false),
+                        ],
                     );
                     self.selected = self.iter.clone();
                 }
@@ -431,29 +439,28 @@ impl ChapterTree {
                     self.iter = self.store.get_iter_first();
                 }
 
-                Some((
-                    rem_start,
-                    rem_end,
-                    self.selected.clone().map(|selected| selected),
-                ))
+                Some(ChapterRemovalResult {
+                    removed_ts: rem_ts,
+                    selected_iter: self.selected.clone().map(|selected| selected),
+                })
             }
             None => None,
         }
     }
 
     fn select_by_ts(&mut self, ts: Timestamp) -> PositionStatus {
-        let prev_sel_chapter = match self.selected_start_end() {
-            Some((start, end, _end_str)) => {
-                if ts >= start && ts < end {
+        let prev_sel_chapter = match self.selected_timestamps() {
+            Some(sel_ts) => {
+                if ts >= sel_ts.start && ts < sel_ts.end {
                     // regular case: current timestamp in current chapter => don't change anything
                     // this check is here to save time in the most frequent case
                     return PositionStatus::ChapterNotChanged;
                 }
 
                 assert!(self.selected.is_some());
-                Some(PrevChapter {
+                Some(ChapterIterStart {
                     iter: self.selected.take().unwrap(),
-                    start,
+                    start: sel_ts.start,
                 })
             }
             None => None,
@@ -464,14 +471,13 @@ impl ChapterTree {
             // => search for a chapter matching current ts
             let mut searching_forward = true;
             loop {
-                let (start, _start_str, end) =
-                    self.iter_start_end().expect("couldn't get start & end");
-                if ts >= start && ts < end {
+                let iter_ts = self.iter_timestamps().expect("couldn't get start & end");
+                if ts >= iter_ts.start && ts < iter_ts.end {
                     // current timestamp is in current chapter
                     self.selected = self.iter.clone();
                     // ChapterChanged
                     return prev_sel_chapter.into();
-                } else if ts >= end && searching_forward {
+                } else if ts >= iter_ts.end && searching_forward {
                     // current timestamp is after iter and we were already searching forward
                     let cur_iter = self.iter.clone();
                     self.next();
@@ -481,7 +487,7 @@ impl ChapterTree {
                         self.iter = cur_iter;
                         break;
                     }
-                } else if ts < start {
+                } else if ts < iter_ts.start {
                     // current timestamp before iter
                     searching_forward = false;
                     self.previous();
@@ -509,8 +515,8 @@ impl ChapterTree {
     fn move_boundary(
         &self,
         target: Timestamp,
-        prev: &Option<PrevChapter>,
-        next: &Option<NextChapter>,
+        prev: &Option<ChapterIterStart>,
+        next: &Option<ChapterIterEnd>,
     ) {
         let target_str = target.get_4_humans().as_string(false);
         if let Some(prev) = prev {
@@ -565,16 +571,7 @@ impl ChapterTreeManager {
         col.set_title(title);
 
         let renderer = gtk::CellRendererText::new();
-        if is_editable {
-            renderer.set_property_editable(true);
-            let store_clone = self.tree.store().clone();
-            renderer.connect_edited(move |_, tree_path, value| {
-                if let Some(iter) = store_clone.get_iter(&tree_path) {
-                    // FIXME: can we dot that in rename_selected?
-                    store_clone.set_value(&iter, TITLE_COL, &gtk::Value::from(value));
-                }
-            });
-        }
+        renderer.set_property_editable(is_editable);
 
         col.pack_start(&renderer, true);
         col.add_attribute(&renderer, "text", col_id as i32);
@@ -609,10 +606,9 @@ impl ChapterTreeManager {
 
     pub fn rename_selected(&mut self, new_title: &str) {
         if let Some(sel_chapter) = self.tree.selected_chapter() {
-            let (start, end) = (sel_chapter.start(), sel_chapter.end());
-            self.boundaries
-                .borrow_mut()
-                .rename_chapter(start, end, new_title);
+            sel_chapter.set_title(new_title);
+            let ts = sel_chapter.timestamps();
+            self.boundaries.borrow_mut().rename_chapter(ts, new_title);
         }
     }
 
@@ -630,8 +626,7 @@ impl ChapterTreeManager {
                 assert_eq!(gst::TocEntryType::Chapter, chapter.get_entry_type());
 
                 if let Some((start, end)) = chapter.get_start_stop_times() {
-                    let start = Timestamp::new(start as u64);
-                    let end = Timestamp::new(end as u64);
+                    let ts = ChapterTimestamps::new_from_u64(start as u64, end as u64);
 
                     let title = chapter
                         .get_tags()
@@ -641,13 +636,8 @@ impl ChapterTreeManager {
                         })
                         .unwrap_or_else(get_default_chapter_title);
 
-                    let iter = self.tree.add_unchecked(start, end, &title);
-                    self.boundaries.borrow_mut().add_chapter(
-                        start.into(),
-                        end.into(),
-                        title,
-                        &iter,
-                    );
+                    let iter = self.tree.add_unchecked(ts, &title);
+                    self.boundaries.borrow_mut().add_chapter(ts, title, &iter);
                 }
             }
         }
@@ -656,7 +646,7 @@ impl ChapterTreeManager {
     }
 
     pub fn iter(&self) -> Iter<'_> {
-        Iter::new(&self.tree.store)
+        self.tree.new_iter()
     }
 
     // Update chapter according to the given ts
@@ -668,8 +658,7 @@ impl ChapterTreeManager {
     pub fn add_chapter(&mut self, target: Timestamp, duration: u64) -> Option<gtk::TreeIter> {
         self.tree.add(target, duration).map(|new_chapter| {
             self.boundaries.borrow_mut().add_chapter(
-                target,
-                new_chapter.end,
+                ChapterTimestamps::new(target, new_chapter.end),
                 &get_default_chapter_title(),
                 &new_chapter.iter,
             );
@@ -680,15 +669,11 @@ impl ChapterTreeManager {
 
     // Returns an iter on the chapter which should be selected, if any
     pub fn remove_selected_chapter(&mut self) -> Option<gtk::TreeIter> {
-        self.tree
-            .remove()
-            .map_or(None, |(prev_sel_start, prev_sel_end, new_sel_iter)| {
-                self.boundaries
-                    .borrow_mut()
-                    .remove_chapter(prev_sel_start, prev_sel_end);
+        self.tree.remove().map_or(None, |res| {
+            self.boundaries.borrow_mut().remove_chapter(res.removed_ts);
 
-                new_sel_iter
-            })
+            res.selected_iter
+        })
     }
 
     pub fn move_chapter_boundary(
@@ -700,29 +685,29 @@ impl ChapterTreeManager {
             return PositionStatus::ChapterNotChanged;
         }
 
-        let (prev, next) = {
+        let (prev_chapter, next_chapter) = {
             let boundaries = self.boundaries.borrow();
             boundaries.get(&boundary).map_or((None, None), |chapters| {
                 (
-                    chapters.prev.as_ref().map(|prev| PrevChapter {
+                    chapters.prev.as_ref().map(|prev| ChapterIterStart {
                         iter: prev.iter.clone(),
-                        start: prev.start,
+                        start: prev.ts.start,
                     }),
-                    chapters.next.as_ref().map(|next| NextChapter {
+                    chapters.next.as_ref().map(|next| ChapterIterEnd {
                         iter: next.iter.clone(),
-                        end: next.end,
+                        end: next.ts.end,
                     }),
                 )
             })
         };
 
-        if prev.is_none() && next.is_none() {
+        if prev_chapter.is_none() && next_chapter.is_none() {
             return PositionStatus::ChapterNotChanged;
         }
 
         // prevent moving past previous chapter's start
-        let target = prev.as_ref().map_or(target, |prev| {
-            if target > prev.start {
+        let target = prev_chapter.as_ref().map_or(target, |prev_chapter| {
+            if target > prev_chapter.start {
                 target
             } else {
                 boundary
@@ -730,24 +715,21 @@ impl ChapterTreeManager {
         });
 
         // prevent moving past next chapter's end
-        let target =
-            next.as_ref().map_or(
-                target,
-                |next| {
-                    if target < next.end {
-                        target
-                    } else {
-                        boundary
-                    }
-                },
-            );
+        let target = next_chapter.as_ref().map_or(target, |next_chapter| {
+            if target < next_chapter.end {
+                target
+            } else {
+                boundary
+            }
+        });
 
         if target != boundary {
             // do the actual move
-            self.tree.move_boundary(target, &prev, &next);
+            self.tree
+                .move_boundary(target, &prev_chapter, &next_chapter);
             self.boundaries.borrow_mut().move_boundary(boundary, target);
 
-            PositionStatus::ChapterChanged(prev)
+            PositionStatus::ChapterChanged { prev_chapter }
         } else {
             PositionStatus::ChapterNotChanged
         }

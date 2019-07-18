@@ -1,21 +1,50 @@
 use gtk;
 use log::debug;
 
-use std::{collections::BTreeMap, ops::Deref};
+use std::{collections::BTreeMap, fmt, ops::Deref};
 
 use media::Timestamp;
+
+#[derive(Clone, Copy, Debug)]
+pub struct ChapterTimestamps {
+    pub start: Timestamp,
+    pub end: Timestamp,
+}
+
+impl ChapterTimestamps {
+    pub fn new(start: Timestamp, end: Timestamp) -> Self {
+        ChapterTimestamps { start, end }
+    }
+
+    pub fn new_from_u64(start: u64, end: u64) -> Self {
+        ChapterTimestamps {
+            start: Timestamp::new(start),
+            end: Timestamp::new(end),
+        }
+    }
+}
+
+impl fmt::Display for ChapterTimestamps {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "start {}, end {}",
+            self.start.get_4_humans(),
+            self.end.get_4_humans()
+        )
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Chapter {
     pub title: String,
-    pub start: Timestamp,
-    pub end: Timestamp,
+    pub ts: ChapterTimestamps,
     pub iter: gtk::TreeIter,
 }
 
 impl PartialEq for Chapter {
     fn eq(&self, other: &Chapter) -> bool {
-        (self.title == other.title && self.start == other.start)
+        (self.title == other.title && self.ts.start == other.ts.start)
     }
 }
 
@@ -36,57 +65,48 @@ impl ChaptersBoundaries {
         self.0.clear();
     }
 
-    pub fn add_chapter<Title>(
-        &mut self,
-        start: Timestamp,
-        end: Timestamp,
-        title: Title,
-        iter: &gtk::TreeIter,
-    ) where
+    pub fn add_chapter<Title>(&mut self, ts: ChapterTimestamps, title: Title, iter: &gtk::TreeIter)
+    where
         Title: ToString,
     {
         let title = title.to_string();
-        debug!("add_chapter {}, {}, {}", start, end, title);
+        debug!("add_chapter {}, {}", ts, title);
 
         // the chapter to add can share at most one boundary with a previous chapter
-        let (start_exists, next_chapter) = match self.0.get_mut(&start) {
-            Some(chapters_at_start) => {
-                // a boundary already exists at start
-                let next_chapter = chapters_at_start.next.take();
-                chapters_at_start.next = Some(Chapter {
-                    title: title.clone(),
-                    start: start.clone(),
-                    end: end.clone(),
-                    iter: iter.clone(),
+        let (found_start, prev_next_chapter) =
+            self.0
+                .get_mut(&ts.start)
+                .map_or((false, None), |boundary_at_start| {
+                    let prev_next_chapter = boundary_at_start.next.take();
+                    boundary_at_start.next = Some(Chapter {
+                        title: title.clone(),
+                        ts,
+                        iter: iter.clone(),
+                    });
+                    (true, prev_next_chapter)
                 });
-                (true, next_chapter)
-            }
-            None => (false, None),
-        };
 
-        if start_exists {
+        if found_start {
             self.0.insert(
-                end,
+                ts.end,
                 SuccessiveChapters {
                     prev: Some(Chapter {
                         title,
-                        start,
-                        end,
+                        ts,
                         iter: iter.clone(),
                     }),
-                    next: next_chapter,
+                    next: prev_next_chapter,
                 },
             );
         } else {
             // no chapter at start
-            let (end_exists, prev_chapter) = match self.0.get_mut(&end) {
+            let (end_exists, prev_chapter) = match self.0.get_mut(&ts.end) {
                 Some(chapters_at_end) => {
                     // a boundary already exists at end
                     let prev_chapter = chapters_at_end.prev.take();
                     chapters_at_end.prev = Some(Chapter {
                         title: title.clone(),
-                        start: start.clone(),
-                        end: end.clone(),
+                        ts,
                         iter: iter.clone(),
                     });
                     (true, prev_chapter)
@@ -95,13 +115,12 @@ impl ChaptersBoundaries {
             };
 
             self.0.insert(
-                start,
+                ts.start,
                 SuccessiveChapters {
                     prev: prev_chapter,
                     next: Some(Chapter {
                         title: title.clone(),
-                        start: start.clone(),
-                        end: end.clone(),
+                        ts,
                         iter: iter.clone(),
                     }),
                 },
@@ -109,12 +128,11 @@ impl ChaptersBoundaries {
 
             if !end_exists {
                 self.0.insert(
-                    end,
+                    ts.end,
                     SuccessiveChapters {
                         prev: Some(Chapter {
                             title,
-                            start,
-                            end,
+                            ts,
                             iter: iter.clone(),
                         }),
                         next: None,
@@ -124,35 +142,41 @@ impl ChaptersBoundaries {
         }
     }
 
-    pub fn remove_chapter(&mut self, start: Timestamp, end: Timestamp) {
-        debug!("remove_chapter {}, {}", start, end);
+    pub fn remove_chapter(&mut self, ts: ChapterTimestamps) {
+        debug!("remove_chapter {}", ts);
 
-        let prev_chapter = self.0.get_mut(&start).unwrap().prev.take();
-        self.0.remove(&start);
+        let prev_chapter = self.0.get_mut(&ts.start).unwrap().prev.take();
+        self.0.remove(&ts.start);
 
-        let can_remove_end = {
-            let chapters_at_end = self.0.get_mut(&end).unwrap();
-            if prev_chapter.is_none() && chapters_at_end.next.is_none() {
-                true
-            } else {
-                chapters_at_end.prev = prev_chapter;
-                false
-            }
-        };
-        if can_remove_end {
-            self.0.remove(&end);
+        let boundary_at_end = self.0.get_mut(&ts.end).unwrap();
+        if prev_chapter.is_none() && boundary_at_end.next.is_none() {
+            self.0.remove(&ts.end);
+        } else {
+            boundary_at_end.prev = prev_chapter;
         }
     }
 
-    pub fn rename_chapter<Title>(&mut self, start: Timestamp, end: Timestamp, new_title: Title)
+    pub fn rename_chapter<Title>(&mut self, ts: ChapterTimestamps, new_title: Title)
     where
         Title: ToString,
     {
         let new_title = new_title.to_string();
-        debug!("rename_chapter {}, {}, {}", start, end, new_title);
+        debug!("rename_chapter {}, {}", ts, new_title);
 
-        self.0.get_mut(&start).unwrap().next.as_mut().unwrap().title = new_title.clone();
-        self.0.get_mut(&end).unwrap().prev.as_mut().unwrap().title = new_title;
+        self.0
+            .get_mut(&ts.start)
+            .unwrap()
+            .next
+            .as_mut()
+            .unwrap()
+            .title = new_title.clone();
+        self.0
+            .get_mut(&ts.end)
+            .unwrap()
+            .prev
+            .as_mut()
+            .unwrap()
+            .title = new_title;
     }
 
     pub fn move_boundary(&mut self, boundary: Timestamp, target: Timestamp) {
@@ -183,16 +207,10 @@ mod tests {
 
     use media::Timestamp;
 
-    fn new_chapter(
-        store: &gtk::TreeStore,
-        title: &str,
-        start: Timestamp,
-        end: Timestamp,
-    ) -> Chapter {
+    fn new_chapter(store: &gtk::TreeStore, title: &str, ts: ChapterTimestamps) -> Chapter {
         Chapter {
             title: title.to_owned(),
-            start,
-            end,
+            ts,
             iter: store.append(None),
         }
     }
@@ -212,13 +230,8 @@ mod tests {
 
         // Add incrementally
 
-        let chapter_1 = new_chapter(&store, "1", Timestamp::new(0), Timestamp::new(1));
-        boundaries.add_chapter(
-            chapter_1.start,
-            chapter_1.end,
-            &chapter_1.title,
-            &chapter_1.iter,
-        );
+        let chapter_1 = new_chapter(&store, "1", ChapterTimestamps::new_from_u64(0, 1));
+        boundaries.add_chapter(chapter_1.ts, &chapter_1.title, &chapter_1.iter);
         assert_eq!(2, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
@@ -235,13 +248,8 @@ mod tests {
             boundaries.get(&Timestamp::new(1)),
         );
 
-        let chapter_2 = new_chapter(&store, "2", Timestamp::new(1), Timestamp::new(2));
-        boundaries.add_chapter(
-            chapter_2.start,
-            chapter_2.end,
-            &chapter_2.title,
-            &chapter_2.iter,
-        );
+        let chapter_2 = new_chapter(&store, "2", ChapterTimestamps::new_from_u64(1, 2));
+        boundaries.add_chapter(chapter_2.ts, &chapter_2.title, &chapter_2.iter);
         assert_eq!(3, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
@@ -265,13 +273,8 @@ mod tests {
             boundaries.get(&Timestamp::new(2)),
         );
 
-        let chapter_3 = new_chapter(&store, "3", Timestamp::new(2), Timestamp::new(4));
-        boundaries.add_chapter(
-            chapter_3.start,
-            chapter_3.end,
-            &chapter_3.title,
-            &chapter_3.iter,
-        );
+        let chapter_3 = new_chapter(&store, "3", ChapterTimestamps::new_from_u64(2, 4));
+        boundaries.add_chapter(chapter_3.ts, &chapter_3.title, &chapter_3.iter);
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
@@ -303,8 +306,8 @@ mod tests {
         );
 
         // Rename
-        let chapter_r2 = new_chapter(&store, "r2", Timestamp::new(1), Timestamp::new(2));
-        boundaries.rename_chapter(chapter_r2.start, chapter_r2.end, &chapter_r2.title);
+        let chapter_r2 = new_chapter(&store, "r2", ChapterTimestamps::new_from_u64(1, 2));
+        boundaries.rename_chapter(chapter_r2.ts, &chapter_r2.title);
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
@@ -335,8 +338,8 @@ mod tests {
             boundaries.get(&Timestamp::new(4)),
         );
 
-        let chapter_r1 = new_chapter(&store, "r1", Timestamp::new(0), Timestamp::new(1));
-        boundaries.rename_chapter(chapter_r1.start, chapter_r1.end, &chapter_r1.title);
+        let chapter_r1 = new_chapter(&store, "r1", ChapterTimestamps::new_from_u64(0, 1));
+        boundaries.rename_chapter(chapter_r1.ts, &chapter_r1.title);
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
@@ -367,8 +370,8 @@ mod tests {
             boundaries.get(&Timestamp::new(4)),
         );
 
-        let chapter_r3 = new_chapter(&store, "r3", Timestamp::new(2), Timestamp::new(4));
-        boundaries.rename_chapter(chapter_r3.start, chapter_r3.end, &chapter_r3.title);
+        let chapter_r3 = new_chapter(&store, "r3", ChapterTimestamps::new_from_u64(2, 4));
+        boundaries.rename_chapter(chapter_r3.ts, &chapter_r3.title);
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
@@ -400,7 +403,7 @@ mod tests {
         );
 
         // Remove in the middle
-        boundaries.remove_chapter(Timestamp::new(1), Timestamp::new(2));
+        boundaries.remove_chapter(ChapterTimestamps::new_from_u64(1, 2));
         assert_eq!(3, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
@@ -425,13 +428,8 @@ mod tests {
         );
 
         // Add in the middle
-        let chapter_n2 = new_chapter(&store, "n2", Timestamp::new(1), Timestamp::new(2));
-        boundaries.add_chapter(
-            chapter_n2.start,
-            chapter_n2.end,
-            &chapter_n2.title,
-            &chapter_n2.iter,
-        );
+        let chapter_n2 = new_chapter(&store, "n2", ChapterTimestamps::new_from_u64(1, 2));
+        boundaries.add_chapter(chapter_n2.ts, &chapter_n2.title, &chapter_n2.iter);
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
@@ -463,7 +461,7 @@ mod tests {
         );
 
         // Remove first
-        boundaries.remove_chapter(Timestamp::new(0), Timestamp::new(1));
+        boundaries.remove_chapter(ChapterTimestamps::new_from_u64(0, 1));
         assert_eq!(3, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
@@ -488,13 +486,8 @@ mod tests {
         );
 
         // Add first
-        let chapter_n1 = new_chapter(&store, "n1", Timestamp::new(0), Timestamp::new(1));
-        boundaries.add_chapter(
-            chapter_n1.start,
-            chapter_n1.end,
-            &chapter_n1.title,
-            &chapter_n1.iter,
-        );
+        let chapter_n1 = new_chapter(&store, "n1", ChapterTimestamps::new_from_u64(0, 1));
+        boundaries.add_chapter(chapter_n1.ts, &chapter_n1.title, &chapter_n1.iter);
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
@@ -526,7 +519,7 @@ mod tests {
         );
 
         // Remove last
-        boundaries.remove_chapter(Timestamp::new(2), Timestamp::new(4));
+        boundaries.remove_chapter(ChapterTimestamps::new_from_u64(2, 4));
         assert_eq!(3, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {

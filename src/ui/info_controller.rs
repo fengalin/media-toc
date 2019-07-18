@@ -305,7 +305,7 @@ impl InfoController {
                 // postpone chapter selection change until media has synchronized
                 position_status = PositionStatus::ChapterNotChanged;
                 self.repeat_at(Timestamp::default());
-            } else if let PositionStatus::ChapterChanged(prev_chapter) = &position_status {
+            } else if let PositionStatus::ChapterChanged { prev_chapter } = &position_status {
                 if let Some(prev_chapter) = prev_chapter {
                     // reset position_status because we will be looping on current chapter
                     let prev_start = prev_chapter.start;
@@ -318,7 +318,7 @@ impl InfoController {
             }
         }
 
-        if let PositionStatus::ChapterChanged(prev_chapter) = position_status {
+        if let PositionStatus::ChapterChanged { prev_chapter } = position_status {
             // let go the mutable reference on `self.chapter_manager`
             match self.chapter_manager.selected() {
                 Some(sel_chapter) => {

@@ -75,6 +75,7 @@ impl UIDispatcher for InfoDispatcher {
         if let Some(ref title_renderer) = info_ctrl.chapter_manager.title_renderer {
             title_renderer.connect_edited(with_main_ctrl!(
                 main_ctrl_rc => move |&mut main_ctrl, _, _tree_path, new_title| {
+                    println!("edited: {}", new_title);
                     main_ctrl
                         .info_ctrl
                         .chapter_manager

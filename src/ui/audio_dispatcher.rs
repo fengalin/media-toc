@@ -47,7 +47,7 @@ impl UIDispatcher for AudioDispatcher {
                     if let Some((boundary, position)) =
                         main_ctrl.audio_ctrl.motion_notify(&event_motion)
                     {
-                        if let PositionStatus::ChapterChanged(_) =
+                        if let PositionStatus::ChapterChanged{ prev_chapter: _ } =
                             main_ctrl.move_chapter_boundary(boundary, position)
                         {
                             main_ctrl.audio_ctrl.state = ControllerState::MovingBoundary(position);

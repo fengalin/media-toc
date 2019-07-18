@@ -4,7 +4,7 @@ mod audio_dispatcher;
 use self::audio_dispatcher::AudioDispatcher;
 
 mod chapters_boundaries;
-use self::chapters_boundaries::ChaptersBoundaries;
+use self::chapters_boundaries::{ChapterTimestamps, ChaptersBoundaries};
 
 mod chapter_tree_manager;
 use self::chapter_tree_manager::{ChapterTreeManager, PositionStatus};
