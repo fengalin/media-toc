@@ -662,7 +662,7 @@ impl ChapterTreeManager {
 
     // Returns an iter on the chapter which should be selected, if any
     pub fn remove_selected_chapter(&mut self) -> Option<gtk::TreeIter> {
-        self.tree.remove().map_or(None, |res| {
+        self.tree.remove().and_then(|res| {
             self.boundaries.borrow_mut().remove_chapter(res.removed_ts);
 
             res.selected_iter
