@@ -124,8 +124,6 @@ fn parse_string() {
 
 #[derive(Default)]
 pub struct Timestamp4Humans {
-    with_micro: bool,
-    with_hours: bool,
     pub nano_total: u64,
     pub nano: u16,
     pub us: u16,
@@ -135,6 +133,9 @@ pub struct Timestamp4Humans {
     pub h: u8,
 }
 
+pub struct Timestamp4HumansWithHours(Timestamp4Humans);
+pub struct Timestamp4HumansWithMicro(Timestamp4Humans);
+
 impl Timestamp4Humans {
     pub fn from_nano(nano_total: u64) -> Self {
         let us_total = nano_total / 1_000;
@@ -143,8 +144,6 @@ impl Timestamp4Humans {
         let m_total = s_total / 60;
 
         Timestamp4Humans {
-            with_micro: false,
-            with_hours: false,
             nano_total,
             nano: (nano_total % 1_000) as u16,
             us: (us_total % 1_000) as u16,
@@ -155,20 +154,18 @@ impl Timestamp4Humans {
         }
     }
 
-    pub fn with_hours(mut self) -> Self {
-        self.with_hours = true;
-        self
+    pub fn with_hours(self) -> Timestamp4HumansWithHours {
+        Timestamp4HumansWithHours(self)
     }
 
-    pub fn with_micro(mut self) -> Self {
-        self.with_micro = true;
-        self
+    pub fn with_micro(self) -> Timestamp4HumansWithMicro {
+        Timestamp4HumansWithMicro(self)
     }
 }
 
 impl ToString for Timestamp4Humans {
     fn to_string(&self) -> String {
-        let mut result = if self.h == 0 && !self.with_hours {
+        if self.h == 0 {
             format!("{:02}:{:02}.{:03}", self.m, self.s, self.ms)
         } else {
             format!(
@@ -178,13 +175,7 @@ impl ToString for Timestamp4Humans {
                 self.s,
                 self.ms,
             )
-        };
-
-        if self.with_micro {
-            result += &format!(".{:03}", self.us);
         }
-
-        result
     }
 }
 
@@ -193,5 +184,22 @@ impl fmt::Debug for Timestamp4Humans {
         f.debug_tuple("Timestamp4Humans")
             .field(&self.to_string())
             .finish()
+    }
+}
+
+impl ToString for Timestamp4HumansWithMicro {
+    fn to_string(&self) -> String {
+        Timestamp4Humans::to_string(&self.0) + &format!(".{:03}", self.0.us)
+    }
+}
+
+impl ToString for Timestamp4HumansWithHours {
+    fn to_string(&self) -> String {
+        let res = Timestamp4Humans::to_string(&self.0);
+        if self.0.h == 0 {
+            format!("{:02}:{}", self.0.h, &res)
+        } else {
+            res
+        }
     }
 }
