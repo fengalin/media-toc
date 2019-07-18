@@ -16,7 +16,7 @@ impl Timestamp {
         Timestamp(value)
     }
 
-    pub fn get_4_humans(self) -> Timestamp4Humans {
+    pub fn for_humans(self) -> Timestamp4Humans {
         Timestamp4Humans::from_nano(self.0)
     }
 

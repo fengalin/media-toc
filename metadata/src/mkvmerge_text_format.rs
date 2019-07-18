@@ -248,7 +248,7 @@ impl Writer for MKVMergeTextFormat {
                     destination,
                     "{}={}\n",
                     prefix,
-                    Timestamp4Humans::from_nano(start as u64).format_with_hours()
+                    Timestamp4Humans::from_nano(start as u64).with_hours().to_string()
                 );
 
                 let title = chapter

@@ -470,7 +470,7 @@ impl AudioController {
         self.adjust_waveform_text_width(cr);
 
         // first position
-        let first_text = self.positions.first.ts.get_4_humans().as_string(false);
+        let first_text = self.positions.first.ts.for_humans().to_string();
         let first_text_end = if self.positions.first.ts < ONE_HOUR {
             2f64 + self.text_metrics.limit_mn_width
         } else {
@@ -480,7 +480,7 @@ impl AudioController {
         cr.show_text(&first_text);
 
         // last position
-        let last_text = self.positions.last.ts.get_4_humans().as_string(false);
+        let last_text = self.positions.last.ts.for_humans().to_string();
         let last_text_start = if self.positions.last.ts < ONE_HOUR {
             2f64 + self.text_metrics.limit_mn_width
         } else {
@@ -537,7 +537,7 @@ impl AudioController {
             // draw current pos
             cr.set_source_rgb(1f64, 1f64, 0f64);
 
-            let cursor_text = cursor.ts.get_4_humans().as_string(true);
+            let cursor_text = cursor.ts.for_humans().with_micro().to_string();
             let cursor_text_end = if cursor.ts < ONE_HOUR {
                 5f64 + self.text_metrics.cursor_mn_width
             } else {

@@ -29,8 +29,8 @@ impl fmt::Display for ChapterTimestamps {
         write!(
             f,
             "start {}, end {}",
-            self.start.get_4_humans(),
-            self.end.get_4_humans()
+            self.start.for_humans().to_string(),
+            self.end.for_humans().to_string(),
         )
     }
 }

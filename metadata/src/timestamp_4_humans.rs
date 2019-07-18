@@ -2,7 +2,7 @@ use nom::{
     alt, do_parse, eof, flat_map, named, opt, parse_to, tag, take_while1, types::CompleteStr,
 };
 
-use std::fmt;
+use std::{fmt, string::ToString};
 
 named!(
     parse_digits<CompleteStr<'_>, u64>,
@@ -124,6 +124,8 @@ fn parse_string() {
 
 #[derive(Default)]
 pub struct Timestamp4Humans {
+    with_micro: bool,
+    with_hours: bool,
     pub nano_total: u64,
     pub nano: u16,
     pub us: u16,
@@ -141,6 +143,8 @@ impl Timestamp4Humans {
         let m_total = s_total / 60;
 
         Timestamp4Humans {
+            with_micro: false,
+            with_hours: false,
             nano_total,
             nano: (nano_total % 1_000) as u16,
             us: (us_total % 1_000) as u16,
@@ -151,59 +155,36 @@ impl Timestamp4Humans {
         }
     }
 
-    pub fn format_with_hours(&self) -> String {
-        format!("{:02}:{:02}:{:02}.{:03}", self.h, self.m, self.s, self.ms).to_owned()
+    pub fn with_hours(mut self) -> Self {
+        self.with_hours = true;
+        self
     }
 
-    pub fn as_string(&self, with_micro: bool) -> String {
-        Timestamp4Humans::format(self.nano_total, with_micro)
-    }
-
-    // FIXME: use an enum for with_micro
-    pub fn format(nano_total: u64, with_micro: bool) -> String {
-        let us_total = nano_total / 1_000;
-        let ms_total = us_total / 1_000;
-        let s_total = ms_total / 1_000;
-        let m_total = s_total / 60;
-        let h = m_total / 60;
-
-        let micro = if with_micro {
-            format!(".{:03}", us_total % 1_000)
-        } else {
-            "".to_owned()
-        };
-        if h == 0 {
-            format!(
-                "{:02}:{:02}.{:03}{}",
-                m_total % 60,
-                s_total % 60,
-                ms_total % 1_000,
-                micro
-            )
-            .to_owned()
-        } else {
-            format!(
-                "{:02}:{:02}:{:02}.{:03}{}",
-                h,
-                m_total % 60,
-                s_total % 60,
-                ms_total % 1_000,
-                micro
-            )
-            .to_owned()
-        }
+    pub fn with_micro(mut self) -> Self {
+        self.with_micro = true;
+        self
     }
 }
 
-impl fmt::Display for Timestamp4Humans {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let prefix = if self.h > 0 {
-            format!("{:02}:", self.h).to_owned()
+impl ToString for Timestamp4Humans {
+    fn to_string(&self) -> String {
+        let mut result = if self.h == 0 && !self.with_hours {
+            format!("{:02}:{:02}.{:03}", self.m, self.s, self.ms)
         } else {
-            String::new()
+            format!(
+                "{:02}:{:02}:{:02}.{:03}",
+                self.h,
+                self.m,
+                self.s,
+                self.ms,
+            )
         };
 
-        write!(f, "{}{:02}:{:02}.{:03}", prefix, self.m, self.s, self.ms)
+        if self.with_micro {
+            result += &format!(".{:03}", self.us);
+        }
+
+        result
     }
 }
 

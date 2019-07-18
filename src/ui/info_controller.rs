@@ -91,7 +91,7 @@ impl UIController for InfoController {
             self.duration = info.duration;
             self.timeline_scale.set_range(0f64, info.duration as f64);
             self.duration_lbl
-                .set_label(&Timestamp4Humans::format(info.duration, false));
+                .set_label(&Timestamp4Humans::from_nano(info.duration).to_string());
 
             self.thumbnail = info.get_media_image().and_then(|image| {
                 image.get_buffer().and_then(|image_buffer| {

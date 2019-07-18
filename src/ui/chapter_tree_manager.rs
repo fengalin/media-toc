@@ -287,8 +287,8 @@ impl ChapterTree {
                 &ts.start.as_u64(),
                 &ts.end.as_u64(),
                 &title,
-                &ts.start.get_4_humans().as_string(false),
-                &ts.end.get_4_humans().as_string(false),
+                &ts.start.for_humans().to_string(),
+                &ts.end.for_humans().to_string(),
             ],
         )
     }
@@ -307,7 +307,7 @@ impl ChapterTree {
                             .as_ref()
                             .expect("inconsistency with selected iter"),
                         &[END_COL, END_STR_COL],
-                        &[&target.as_u64(), &target.get_4_humans().as_string(false)],
+                        &[&target.as_u64(), &target.for_humans().to_string()],
                     );
                     let new_iter = self.store.insert_after(
                         None,
@@ -317,11 +317,7 @@ impl ChapterTree {
                                 .expect("inconsistency with selected iter"),
                         ),
                     );
-                    (
-                        new_iter,
-                        sel_ts.end,
-                        sel_ts.end.get_4_humans().as_string(false),
-                    )
+                    (new_iter, sel_ts.end, sel_ts.end.for_humans().to_string())
                 } else {
                     // attempting to add the new chapter at current position
                     return None;
@@ -352,7 +348,7 @@ impl ChapterTree {
                         (
                             new_iter,
                             prev_ts.start,
-                            prev_ts.start.get_4_humans().as_string(false),
+                            prev_ts.start.for_humans().to_string(),
                         )
                     }
                     None => {
@@ -376,7 +372,7 @@ impl ChapterTree {
                         (
                             new_iter,
                             duration.into(),
-                            Timestamp4Humans::format(duration, false).into(),
+                            Timestamp4Humans::from_nano(duration).to_string(),
                         )
                     }
                 }
@@ -390,7 +386,7 @@ impl ChapterTree {
             &[
                 &default_title,
                 &target.as_u64(),
-                &target.get_4_humans().as_string(false),
+                &target.for_humans().to_string(),
                 &end.as_u64(),
                 &end_str,
             ],
@@ -425,10 +421,7 @@ impl ChapterTree {
                     self.store.set(
                         self.iter.as_ref().expect("inconsistency with iter"),
                         &[END_COL, END_STR_COL],
-                        &[
-                            &rem_ts.end.as_u64(),
-                            &rem_ts.end.get_4_humans().as_string(false),
-                        ],
+                        &[&rem_ts.end.as_u64(), &rem_ts.end.for_humans().to_string()],
                     );
                     self.selected = self.iter.clone();
                 }
@@ -518,7 +511,7 @@ impl ChapterTree {
         prev: &Option<ChapterIterStart>,
         next: &Option<ChapterIterEnd>,
     ) {
-        let target_str = target.get_4_humans().as_string(false);
+        let target_str = target.for_humans().to_string();
         if let Some(prev) = prev {
             self.store.set(
                 &prev.iter,
