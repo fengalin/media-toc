@@ -1,7 +1,9 @@
 use gstreamer as gst;
 use gstreamer::ElementExtManual;
 
-use super::{AudioBuffer, AudioChannel, Duration, SampleIndex, SampleIndexRange, Timestamp};
+use metadata::Duration;
+
+use super::{AudioBuffer, AudioChannel, SampleIndex, SampleIndexRange, Timestamp};
 
 pub struct SampleExtractionState {
     pub sample_duration: Duration,

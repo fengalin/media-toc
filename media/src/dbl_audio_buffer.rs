@@ -10,9 +10,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use metadata::Duration;
+
 use super::{
-    AudioBuffer, AudioChannel, Duration, SampleExtractor, SampleIndex, SampleIndexRange,
-    INLINE_CHANNELS, QUEUE_SIZE,
+    AudioBuffer, AudioChannel, SampleExtractor, SampleIndex, SampleIndexRange, INLINE_CHANNELS,
+    QUEUE_SIZE,
 };
 
 const EXTRACTION_THRESHOLD: SampleIndexRange = SampleIndexRange::new(4096);

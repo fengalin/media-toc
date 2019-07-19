@@ -16,6 +16,7 @@ chrono = { version = "0.4", optional = true }
 env_logger = "0.6"
 gstreamer = { version = "0.14", features = ["v1_10"] }
 media = { path = "../media", package = "media-toc-media"  }
+metadata = { path = "../metadata", package = "media-toc-metadata" }
 image = "0.21"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 smallvec = "0.6"

@@ -4,6 +4,8 @@ use nom::{
 
 use std::{fmt, string::ToString};
 
+use super::Duration;
+
 named!(
     parse_digits<CompleteStr<'_>, u64>,
     flat_map!(take_while1!(|c| c >= '0' && c <= '9'), parse_to!(u64))
@@ -154,6 +156,10 @@ impl Timestamp4Humans {
         }
     }
 
+    pub fn from_duration(duration: Duration) -> Self {
+        Self::from_nano(duration.into())
+    }
+
     pub fn with_hours(self) -> Timestamp4HumansWithHours {
         Timestamp4HumansWithHours(self)
     }
@@ -168,13 +174,7 @@ impl ToString for Timestamp4Humans {
         if self.h == 0 {
             format!("{:02}:{:02}.{:03}", self.m, self.s, self.ms)
         } else {
-            format!(
-                "{:02}:{:02}:{:02}.{:03}",
-                self.h,
-                self.m,
-                self.s,
-                self.ms,
-            )
+            format!("{:02}:{:02}:{:02}.{:03}", self.h, self.m, self.s, self.ms,)
         }
     }
 }

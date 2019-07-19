@@ -4,7 +4,9 @@ use std::{
     ops::{Add, AddAssign, Sub},
 };
 
-use super::{Duration, SampleIndexRange, Timestamp};
+use metadata::Duration;
+
+use super::{SampleIndexRange, Timestamp};
 
 #[derive(Clone, Copy, Default, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct SampleIndex(usize);

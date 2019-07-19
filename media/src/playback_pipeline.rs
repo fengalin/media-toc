@@ -16,9 +16,9 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use metadata::MediaInfo;
+use metadata::{Duration, MediaInfo};
 
-use super::{DoubleAudioBuffer, Duration, MediaEvent, PlaybackState, SampleExtractor, Timestamp};
+use super::{DoubleAudioBuffer, MediaEvent, PlaybackState, SampleExtractor, Timestamp};
 
 // This is the max duration that queues can hold
 pub const QUEUE_SIZE: Duration = Duration::from_secs(5);
@@ -532,11 +532,13 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                     }
                     PipelineState::StreamsSelected => {
                         pipeline_state = PipelineState::Playable(PlaybackState::Paused);
-                        let duration = pipeline
-                            .query_duration::<gst::ClockTime>()
-                            .unwrap_or_else(|| 0.into())
-                            .nanoseconds()
-                            .unwrap();
+                        let duration = Duration::from_nanos(
+                            pipeline
+                                .query_duration::<gst::ClockTime>()
+                                .unwrap_or_else(|| 0.into())
+                                .nanoseconds()
+                                .unwrap(),
+                        );
                         info_arc_mtx
                             .write()
                             .expect("Failed to lock media info while setting duration")

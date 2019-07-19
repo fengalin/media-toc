@@ -8,7 +8,8 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::{MainController, UIDispatcher};
 use crate::{application::CONFIG, with_main_ctrl};
-use media::{Duration, Timestamp};
+use media::Timestamp;
+use metadata::Duration;
 
 const GO_TO_PREV_CHAPTER_THRESHOLD: Duration = Duration::from_secs(1);
 

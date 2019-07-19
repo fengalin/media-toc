@@ -1,27 +1,30 @@
 use gstreamer as gst;
 
-pub mod cue_sheet_format;
+mod cue_sheet_format;
 pub use self::cue_sheet_format::CueSheetFormat;
+
+mod duration;
+pub use duration::Duration;
 
 pub mod factory;
 pub use self::factory::Factory;
 
-pub mod format;
+mod format;
 pub use self::format::{Exporter, Reader, Writer};
 
-pub mod matroska_toc_format;
+mod matroska_toc_format;
 pub use self::matroska_toc_format::MatroskaTocFormat;
 
-pub mod media_info;
+mod media_info;
 pub use self::media_info::{get_default_chapter_title, MediaInfo, Stream, Streams};
 
-pub mod mkvmerge_text_format;
+mod mkvmerge_text_format;
 pub use self::mkvmerge_text_format::MKVMergeTextFormat;
 
-pub mod timestamp_4_humans;
+mod timestamp_4_humans;
 pub use self::timestamp_4_humans::{parse_timestamp, Timestamp4Humans};
 
-pub mod toc_visitor;
+mod toc_visitor;
 pub use self::toc_visitor::{TocVisit, TocVisitor};
 
 #[derive(Clone, Copy, Debug, PartialEq)]

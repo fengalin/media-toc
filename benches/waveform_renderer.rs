@@ -13,9 +13,10 @@ use gstreamer_audio as gst_audio;
 use smallvec::SmallVec;
 
 use media::{
-    AudioBuffer, AudioChannel, Duration, SampleExtractor, SampleIndex, SampleIndexRange, Timestamp,
+    AudioBuffer, AudioChannel, SampleExtractor, SampleIndex, SampleIndexRange, Timestamp,
     INLINE_CHANNELS,
 };
+use metadata::Duration;
 use renderers::WaveformRenderer;
 
 const SAMPLE_RATE: u64 = 48_000;

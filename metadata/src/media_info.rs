@@ -1,5 +1,5 @@
 use gettextrs::gettext;
-use gst::tags::*;
+use gst::Tag;
 use gstreamer as gst;
 use lazy_static::lazy_static;
 use log::warn;
@@ -12,17 +12,17 @@ use std::{
     sync::Arc,
 };
 
-use super::{Format, MediaContent};
+use super::{Duration, Format, MediaContent};
 
 pub fn get_default_chapter_title() -> String {
     gettext("untitled")
 }
 
 macro_rules! add_tag_names (
-    ($($tag_type:ident),+) => {
+    ($($tag_type:path),+) => {
         {
             let mut tag_names = Vec::new();
-            $(tag_names.push($tag_type::tag_name());)+
+            $(tag_names.push(<$tag_type>::tag_name());)+
             tag_names
         }
     };
@@ -31,30 +31,30 @@ macro_rules! add_tag_names (
 lazy_static! {
     static ref TAGS_TO_SKIP_FOR_TRACK: Vec<&'static str> = {
         add_tag_names!(
-            Album,
-            AlbumSortname,
-            AlbumSortname,
-            AlbumArtist,
-            AlbumArtistSortname,
-            ApplicationName,
-            ApplicationData,
-            Artist,
-            ArtistSortname,
-            AudioCodec,
-            Codec,
-            ContainerFormat,
-            Duration,
-            Encoder,
-            EncoderVersion,
-            Image,
-            ImageOrientation,
-            PreviewImage,
-            SubtitleCodec,
-            Title,
-            TitleSortname,
-            TrackCount,
-            TrackNumber,
-            VideoCodec
+            gst::tags::Album,
+            gst::tags::AlbumSortname,
+            gst::tags::AlbumSortname,
+            gst::tags::AlbumArtist,
+            gst::tags::AlbumArtistSortname,
+            gst::tags::ApplicationName,
+            gst::tags::ApplicationData,
+            gst::tags::Artist,
+            gst::tags::ArtistSortname,
+            gst::tags::AudioCodec,
+            gst::tags::Codec,
+            gst::tags::ContainerFormat,
+            gst::tags::Duration,
+            gst::tags::Encoder,
+            gst::tags::EncoderVersion,
+            gst::tags::Image,
+            gst::tags::ImageOrientation,
+            gst::tags::PreviewImage,
+            gst::tags::SubtitleCodec,
+            gst::tags::Title,
+            gst::tags::TitleSortname,
+            gst::tags::TrackCount,
+            gst::tags::TrackNumber,
+            gst::tags::VideoCodec
         )
     };
 }
@@ -161,12 +161,12 @@ impl Stream {
         let type_ = stream.get_stream_type();
 
         let codec_printable = match type_ {
-            gst::StreamType::AUDIO => tags.get_index::<AudioCodec>(0),
-            gst::StreamType::VIDEO => tags.get_index::<VideoCodec>(0),
-            gst::StreamType::TEXT => tags.get_index::<SubtitleCodec>(0),
+            gst::StreamType::AUDIO => tags.get_index::<gst::tags::AudioCodec>(0),
+            gst::StreamType::VIDEO => tags.get_index::<gst::tags::VideoCodec>(0),
+            gst::StreamType::TEXT => tags.get_index::<gst::tags::SubtitleCodec>(0),
             _ => panic!("Stream::new can't handle {:?}", type_),
         }
-        .or_else(|| tags.get_index::<Codec>(0))
+        .or_else(|| tags.get_index::<gst::tags::Codec>(0))
         .and_then(glib::value::TypedValue::get)
         .map_or_else(
             || {
@@ -353,7 +353,7 @@ impl Streams {
         (streams, content)
     }
 
-    fn get_tag_list<'a, T: Tag<'a>>(&self) -> Option<gst::TagList> {
+    fn get_tag_list<'a, T: gst::Tag<'a>>(&self) -> Option<gst::TagList> {
         self.selected_audio()
             .and_then(|selected_audio| {
                 if selected_audio.tags.get_size::<T>() > 0 {
@@ -385,7 +385,7 @@ pub struct MediaInfo {
     pub chapter_count: Option<usize>,
 
     pub description: String,
-    pub duration: u64,
+    pub duration: Duration,
 
     pub streams: Streams,
 }
@@ -413,7 +413,7 @@ impl MediaInfo {
         &self.file_name
     }
 
-    fn get_tag_list<'a, T: Tag<'a>>(&self) -> Option<gst::TagList> {
+    fn get_tag_list<'a, T: gst::Tag<'a>>(&self) -> Option<gst::TagList> {
         if self.tags.get_size::<T>() > 0 {
             Some(self.tags.clone())
         } else {
@@ -428,23 +428,28 @@ impl MediaInfo {
         {
             let tags = tags.get_mut().unwrap();
             tags.insert(&self.tags, gst::TagMergeMode::ReplaceAll);
-            tags.add::<ApplicationName>(&"media-toc", gst::TagMergeMode::ReplaceAll);
+            tags.add::<gst::tags::ApplicationName>(&"media-toc", gst::TagMergeMode::ReplaceAll);
 
             // Attempt to fill missing global tags with current stream tags
-            add_stream_str_tags_if_empty!(self, tags, Artist, ArtistSortname);
-            add_stream_str_tags_if_empty!(self, tags, Album, AlbumSortname);
-            add_stream_str_tags_if_empty!(self, tags, AlbumArtist, AlbumArtistSortname);
-            add_stream_str_tags_if_empty!(self, tags, Title, TitleSortname);
+            add_stream_str_tags_if_empty!(self, tags, gst::tags::Artist, gst::tags::ArtistSortname);
+            add_stream_str_tags_if_empty!(self, tags, gst::tags::Album, gst::tags::AlbumSortname);
+            add_stream_str_tags_if_empty!(
+                self,
+                tags,
+                gst::tags::AlbumArtist,
+                gst::tags::AlbumArtistSortname
+            );
+            add_stream_str_tags_if_empty!(self, tags, gst::tags::Title, gst::tags::TitleSortname);
 
-            if self.tags.get::<Image>().is_none() {
-                let image_stream_tags = self.streams.get_tag_list::<Image>();
-                add_all_tags!(image_stream_tags, tags, Image);
-                add_all_tags!(image_stream_tags, tags, ImageOrientation);
+            if self.tags.get::<gst::tags::Image>().is_none() {
+                let image_stream_tags = self.streams.get_tag_list::<gst::tags::Image>();
+                add_all_tags!(image_stream_tags, tags, gst::tags::Image);
+                add_all_tags!(image_stream_tags, tags, gst::tags::ImageOrientation);
             }
 
-            if self.tags.get::<PreviewImage>().is_none() {
-                let image_stream_tags = self.streams.get_tag_list::<PreviewImage>();
-                add_all_tags!(image_stream_tags, tags, PreviewImage);
+            if self.tags.get::<gst::tags::PreviewImage>().is_none() {
+                let image_stream_tags = self.streams.get_tag_list::<gst::tags::PreviewImage>();
+                add_all_tags!(image_stream_tags, tags, gst::tags::PreviewImage);
             }
         }
 
@@ -493,17 +498,17 @@ impl MediaInfo {
             // Add track specific tags
             // Title is special as we don't fallback to the global title but give a default
             let title_tags = chapter.get_tags().and_then(|chapter_tags| {
-                if chapter_tags.get_size::<Title>() > 0 {
+                if chapter_tags.get_size::<gst::tags::Title>() > 0 {
                     Some(chapter_tags.clone())
                 } else {
                     None
                 }
             });
             if title_tags.is_some() {
-                add_first_str_tag!(title_tags, tags, Title);
-                add_first_str_tag!(title_tags, tags, TitleSortname);
+                add_first_str_tag!(title_tags, tags, gst::tags::Title);
+                add_first_str_tag!(title_tags, tags, gst::tags::TitleSortname);
             } else {
-                tags.add::<Title>(
+                tags.add::<gst::tags::Title>(
                     &get_default_chapter_title().as_str(),
                     gst::TagMergeMode::Append,
                 );
@@ -511,31 +516,53 @@ impl MediaInfo {
 
             // Use the media Title as the track Album (which folds back to Album)
             if let Some(track_album) = self.get_media_title() {
-                tags.add::<Album>(&track_album.as_str(), gst::TagMergeMode::Append);
+                tags.add::<gst::tags::Album>(&track_album.as_str(), gst::TagMergeMode::Append);
             }
             if let Some(track_album) = self.get_media_title_sortname() {
-                tags.add::<AlbumSortname>(&track_album.as_str(), gst::TagMergeMode::Append);
+                tags.add::<gst::tags::AlbumSortname>(
+                    &track_album.as_str(),
+                    gst::TagMergeMode::Append,
+                );
             }
 
-            add_str_tags_for_chapter!(self, chapter, tags, Artist, ArtistSortname);
-            add_str_tags_for_chapter!(self, chapter, tags, AlbumArtist, AlbumArtistSortname);
+            add_str_tags_for_chapter!(
+                self,
+                chapter,
+                tags,
+                gst::tags::Artist,
+                gst::tags::ArtistSortname
+            );
+            add_str_tags_for_chapter!(
+                self,
+                chapter,
+                tags,
+                gst::tags::AlbumArtist,
+                gst::tags::AlbumArtistSortname
+            );
 
-            let image_tags = get_tag_list_for_chapter!(self, chapter, Image);
-            add_all_tags!(image_tags, tags, Image);
-            add_all_tags!(image_tags, tags, ImageOrientation);
+            let image_tags = get_tag_list_for_chapter!(self, chapter, gst::tags::Image);
+            add_all_tags!(image_tags, tags, gst::tags::Image);
+            add_all_tags!(image_tags, tags, gst::tags::ImageOrientation);
 
-            let preview_image_tags = get_tag_list_for_chapter!(self, chapter, PreviewImage);
-            add_all_tags!(preview_image_tags, tags, PreviewImage);
+            let preview_image_tags =
+                get_tag_list_for_chapter!(self, chapter, gst::tags::PreviewImage);
+            add_all_tags!(preview_image_tags, tags, gst::tags::PreviewImage);
 
             let (start, end) = chapter.get_start_stop_times().unwrap();
 
-            tags.add::<TrackNumber>(&(track_number as u32), gst::TagMergeMode::ReplaceAll);
-            tags.add::<TrackCount>(&(chapter_count as u32), gst::TagMergeMode::ReplaceAll);
-            tags.add::<Duration>(
+            tags.add::<gst::tags::TrackNumber>(
+                &(track_number as u32),
+                gst::TagMergeMode::ReplaceAll,
+            );
+            tags.add::<gst::tags::TrackCount>(
+                &(chapter_count as u32),
+                gst::TagMergeMode::ReplaceAll,
+            );
+            tags.add::<gst::tags::Duration>(
                 &gst::ClockTime::from_nseconds((end - start) as u64),
                 gst::TagMergeMode::ReplaceAll,
             );
-            tags.add::<ApplicationName>(&"media-toc", gst::TagMergeMode::ReplaceAll);
+            tags.add::<gst::tags::ApplicationName>(&"media-toc", gst::TagMergeMode::ReplaceAll);
         }
 
         let mut track_chapter = gst::TocEntry::new(chapter.get_entry_type(), chapter.get_uid());
@@ -550,23 +577,27 @@ impl MediaInfo {
     }
 
     pub fn get_media_artist(&self) -> Option<String> {
-        get_tag_for_display!(self, Artist, AlbumArtist)
+        get_tag_for_display!(self, gst::tags::Artist, gst::tags::AlbumArtist)
     }
 
     pub fn get_media_artist_sortname(&self) -> Option<String> {
-        get_tag_for_display!(self, ArtistSortname, AlbumArtistSortname)
+        get_tag_for_display!(
+            self,
+            gst::tags::ArtistSortname,
+            gst::tags::AlbumArtistSortname
+        )
     }
 
     pub fn get_media_title(&self) -> Option<String> {
-        get_tag_for_display!(self, Title, Album)
+        get_tag_for_display!(self, gst::tags::Title, gst::tags::Album)
     }
 
     pub fn get_media_title_sortname(&self) -> Option<String> {
-        get_tag_for_display!(self, TitleSortname, AlbumSortname)
+        get_tag_for_display!(self, gst::tags::TitleSortname, gst::tags::AlbumSortname)
     }
 
     pub fn get_media_image(&self) -> Option<gst::Sample> {
-        get_tag_for_display!(self, Image, PreviewImage)
+        get_tag_for_display!(self, gst::tags::Image, gst::tags::PreviewImage)
     }
 
     pub fn get_container(&self) -> Option<&str> {
@@ -581,7 +612,7 @@ impl MediaInfo {
         }
 
         self.tags
-            .get_index::<ContainerFormat>(0)
+            .get_index::<gst::tags::ContainerFormat>(0)
             .and_then(glib::value::TypedValue::get)
     }
 }

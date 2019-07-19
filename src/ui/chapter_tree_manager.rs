@@ -11,7 +11,7 @@ use gtk::prelude::*;
 use std::{borrow::Cow, cell::RefCell, rc::Rc, string::ToString};
 
 use media::Timestamp;
-use metadata::{get_default_chapter_title, Timestamp4Humans, TocVisitor};
+use metadata::{get_default_chapter_title, Duration, Timestamp4Humans, TocVisitor};
 
 use super::{ChapterTimestamps, ChaptersBoundaries};
 
@@ -294,7 +294,7 @@ impl ChapterTree {
     }
 
     // Returns an iter on the new chapter
-    pub fn add(&mut self, target: Timestamp, duration: u64) -> Option<ChapterIterEnd> {
+    pub fn add(&mut self, target: Timestamp, duration: Duration) -> Option<ChapterIterEnd> {
         let (new_iter, end, end_str) = match self.selected_timestamps() {
             Some(sel_ts) => {
                 assert!(self.selected.is_some());
@@ -372,7 +372,7 @@ impl ChapterTree {
                         (
                             new_iter,
                             duration.into(),
-                            Timestamp4Humans::from_nano(duration).to_string(),
+                            Timestamp4Humans::from_nano(duration.as_u64()).to_string(),
                         )
                     }
                 }
@@ -648,7 +648,7 @@ impl ChapterTreeManager {
     }
 
     // Returns an iter on the new chapter
-    pub fn add_chapter(&mut self, target: Timestamp, duration: u64) -> Option<gtk::TreeIter> {
+    pub fn add_chapter(&mut self, target: Timestamp, duration: Duration) -> Option<gtk::TreeIter> {
         self.tree.add(target, duration).map(|new_chapter| {
             self.boundaries.borrow_mut().add_chapter(
                 ChapterTimestamps::new(target, new_chapter.end),

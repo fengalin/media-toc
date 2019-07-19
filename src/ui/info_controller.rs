@@ -8,16 +8,17 @@ use log::{info, warn};
 
 use std::{cell::RefCell, fs::File, rc::Rc};
 
+use crate::application::{CommandLineArguments, CONFIG};
+
 use media::Timestamp;
 use metadata;
-use metadata::{MediaInfo, Timestamp4Humans};
+use metadata::{Duration, MediaInfo, Timestamp4Humans};
 use renderers::Image;
 
 use super::{
     ChapterTreeManager, ChaptersBoundaries, ControllerState, PlaybackPipeline, PositionStatus,
     UIController, UIEventSender,
 };
-use crate::application::{CommandLineArguments, CONFIG};
 
 lazy_static! {
     static ref EMPTY_REPLACEMENT: &'static str = "-";
@@ -49,8 +50,7 @@ pub struct InfoController {
 
     pub(super) chapter_manager: ChapterTreeManager,
 
-    // FIXME: use a Duration struct
-    duration: u64,
+    duration: Duration,
     pub(super) repeat_chapter: bool,
 }
 
@@ -89,9 +89,9 @@ impl UIController for InfoController {
                     });
 
             self.duration = info.duration;
-            self.timeline_scale.set_range(0f64, info.duration as f64);
+            self.timeline_scale.set_range(0f64, info.duration.as_f64());
             self.duration_lbl
-                .set_label(&Timestamp4Humans::from_nano(info.duration).to_string());
+                .set_label(&Timestamp4Humans::from_duration(info.duration).to_string());
 
             self.thumbnail = info.get_media_image().and_then(|image| {
                 image.get_buffer().and_then(|image_buffer| {
@@ -190,7 +190,7 @@ impl UIController for InfoController {
         self.del_chapter_btn.set_sensitive(false);
         self.timeline_scale.clear_marks();
         self.timeline_scale.set_value(0f64);
-        self.duration = 0;
+        self.duration = Duration::default();
     }
 
     fn streams_changed(&mut self, info: &MediaInfo) {
@@ -249,7 +249,7 @@ impl InfoController {
 
             chapter_manager,
 
-            duration: 0,
+            duration: Duration::default(),
             repeat_chapter: false,
         }
     }
@@ -356,7 +356,7 @@ impl InfoController {
     }
 
     pub fn add_chapter(&mut self, ts: Timestamp) {
-        if ts.as_u64() >= self.duration {
+        if ts >= self.duration {
             // can't add a chapter starting at last position
             return;
         }

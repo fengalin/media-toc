@@ -549,8 +549,9 @@ mod tests {
     use std::io::ErrorKind;
 
     use media::{
-        AudioBuffer, AudioChannel, AudioChannelSide, Duration, SampleIndex, SampleIndexRange,
+        AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex, SampleIndexRange,
     };
+    use metadata::Duration;
 
     use super::WaveformImage;
 

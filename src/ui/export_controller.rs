@@ -13,7 +13,7 @@ use std::{
 
 use media::{MediaEvent, TocSetterPipeline};
 use metadata;
-use metadata::{Exporter, Format, MatroskaTocFormat, MediaInfo};
+use metadata::{Duration, Exporter, Format, MatroskaTocFormat, MediaInfo};
 
 use super::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
@@ -270,11 +270,11 @@ impl MediaProcessor for ExportControllerImpl {
 
     fn report_progress(&self) -> Option<f64> {
         let duration = self.src_info.as_ref().unwrap().read().unwrap().duration;
-        if duration > 0 {
+        if duration > Duration::default() {
             self.toc_setter_pipeline
                 .as_ref()
                 .map(TocSetterPipeline::get_current_ts)?
-                .map(|ts| ts.as_f64() / duration as f64)
+                .map(|ts| ts.as_f64() / duration.as_f64())
         } else {
             Some(0f64)
         }

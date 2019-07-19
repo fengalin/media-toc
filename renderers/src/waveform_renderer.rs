@@ -6,8 +6,10 @@ use std::boxed::Box;
 
 use media::{
     sample_extractor::SampleExtractionState, AudioBuffer, AudioChannel, DoubleAudioBuffer,
-    Duration, SampleExtractor, SampleIndex, SampleIndexRange, Timestamp,
+    SampleExtractor, SampleIndex, SampleIndexRange, Timestamp,
 };
+
+use metadata::Duration;
 
 use super::{Image, WaveformImage};
 

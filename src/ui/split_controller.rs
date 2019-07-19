@@ -14,7 +14,7 @@ use std::{
 };
 
 use media::{MediaEvent, SplitterPipeline};
-use metadata::{get_default_chapter_title, Format, MediaInfo, Stream, TocVisitor};
+use metadata::{get_default_chapter_title, Duration, Format, MediaInfo, Stream, TocVisitor};
 
 use super::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
@@ -284,7 +284,7 @@ impl MediaProcessor for SplitControllerImpl {
                 toc_entry
                     .get_mut()
                     .unwrap()
-                    .set_start_stop_times(0, src_info.duration as i64);
+                    .set_start_stop_times(0, src_info.duration.as_i64());
 
                 let mut tag_list = gst::TagList::new();
                 tag_list.get_mut().unwrap().add::<gst::tags::Title>(
@@ -379,11 +379,11 @@ impl MediaProcessor for SplitControllerImpl {
 
     fn report_progress(&self) -> Option<f64> {
         let duration = self.src_info.as_ref().unwrap().read().unwrap().duration;
-        if duration > 0 {
+        if duration > Duration::default() {
             self.splitter_pipeline
                 .as_ref()
                 .map(SplitterPipeline::get_current_ts)?
-                .map(|ts| ts.as_f64() / duration as f64)
+                .map(|ts| ts.as_f64() / duration.as_f64())
         } else {
             Some(0f64)
         }

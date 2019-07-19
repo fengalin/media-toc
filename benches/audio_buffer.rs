@@ -8,7 +8,8 @@ use byteorder::{ByteOrder, LittleEndian};
 use gstreamer as gst;
 use gstreamer_audio as gst_audio;
 
-use media::{AudioBuffer, Duration, SampleIndex, Timestamp};
+use media::{AudioBuffer, SampleIndex, Timestamp};
+use metadata::Duration;
 
 const SAMPLE_RATE: u32 = 48000;
 const SAMPLE_DURATION: Duration = Duration::from_frequency(SAMPLE_RATE as u64);

@@ -729,6 +729,7 @@ dependencies = [
  "image 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "media-toc-media 0.5.99",
+ "media-toc-metadata 0.5.99",
  "smallvec 0.6.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

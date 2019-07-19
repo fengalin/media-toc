@@ -202,7 +202,7 @@ impl Reader for MKVMergeTextFormat {
                     last_chapter
                         .get_mut()
                         .unwrap()
-                        .set_start_stop_times(last_start, info.duration as i64);
+                        .set_start_stop_times(last_start, info.duration.as_i64());
                     toc_edition
                         .get_mut()
                         .unwrap()
@@ -248,7 +248,9 @@ impl Writer for MKVMergeTextFormat {
                     destination,
                     "{}={}\n",
                     prefix,
-                    Timestamp4Humans::from_nano(start as u64).with_hours().to_string()
+                    Timestamp4Humans::from_nano(start as u64)
+                        .with_hours()
+                        .to_string()
                 );
 
                 let title = chapter

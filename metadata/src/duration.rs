@@ -3,8 +3,6 @@ use std::{
     ops::{Div, DivAssign, Mul, MulAssign},
 };
 
-use super::SampleIndexRange;
-
 // FIXME: consider moving to std::time::Duration when `div_duration` is stabilized.
 
 #[derive(Clone, Copy, Default, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -27,10 +25,6 @@ impl Duration {
         Duration(1_000_000_000u64 / freq)
     }
 
-    pub fn get_index_range(self, sample_duration: Duration) -> SampleIndexRange {
-        SampleIndexRange::new((self.0 / sample_duration.0) as usize)
-    }
-
     pub fn as_f64(self) -> f64 {
         self.0 as f64
     }
@@ -39,8 +33,18 @@ impl Duration {
         self.0
     }
 
+    pub fn as_i64(self) -> i64 {
+        self.0 as i64
+    }
+
     pub fn as_usize(self) -> usize {
         self.0 as usize
+    }
+}
+
+impl Into<u64> for Duration {
+    fn into(self) -> u64 {
+        self.0
     }
 }
 

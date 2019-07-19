@@ -4,9 +4,9 @@ use std::{
     ops::{Add, Sub},
 };
 
-use metadata::Timestamp4Humans;
+use metadata::{Duration, Timestamp4Humans};
 
-use super::{Duration, SampleIndex};
+use super::SampleIndex;
 
 #[derive(Clone, Copy, Default, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Timestamp(u64);

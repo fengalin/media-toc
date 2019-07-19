@@ -15,8 +15,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use media::{DoubleAudioBuffer, Duration, Timestamp, QUEUE_SIZE};
-use metadata::MediaInfo;
+use media::{DoubleAudioBuffer, SampleIndexRange, Timestamp, QUEUE_SIZE};
+use metadata::{Duration, MediaInfo};
 use renderers::{DoubleWaveformRenderer, ImagePositions, WaveformRenderer, BACKGROUND_COLOR};
 
 use super::{ChaptersBoundaries, PlaybackPipeline, UIController, UIEventSender};
@@ -510,8 +510,10 @@ impl AudioController {
 
         for (boundary, chapters) in chapter_range {
             if *boundary >= self.positions.first.ts {
-                let x = ((*boundary - self.positions.first.ts)
-                    .get_index_range(self.positions.sample_duration))
+                let x = SampleIndexRange::from_duration(
+                    *boundary - self.positions.first.ts,
+                    self.positions.sample_duration,
+                )
                 .as_f64()
                     / self.positions.sample_step;
                 cr.move_to(x, boundary_y0);

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use super::Duration;
+use metadata::Duration;
 
 #[derive(Clone, Copy, Default, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct SampleIndexRange(usize);

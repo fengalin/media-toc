@@ -14,7 +14,9 @@ use std::{
     io::{Cursor, Read},
 };
 
-use super::{Duration, SampleIndex, SampleIndexRange, SampleValue, Timestamp, INLINE_CHANNELS};
+use metadata::Duration;
+
+use super::{SampleIndex, SampleIndexRange, SampleValue, Timestamp, INLINE_CHANNELS};
 
 #[cfg(test)]
 use log::trace;
@@ -179,7 +181,7 @@ impl AudioBuffer {
         }
     }
 
-    // FIXME: find more explcite names and rationalize `init`, `cleanup`, `reset`, ...
+    // FIXME: find more explicite names and rationalize `init`, `cleanup`, `reset`, ...
     pub fn init(&mut self, audio_info: gst_audio::AudioInfo) {
         // assert_eq!(layout, Interleaved);
 
@@ -188,10 +190,11 @@ impl AudioBuffer {
 
         self.stream_state.init(&audio_info);
         self.channels = INLINE_CHANNELS.min(self.stream_state.channels);
-        self.capacity = self
-            .buffer_duration
-            .get_index_range(self.stream_state.sample_duration)
-            .as_usize()
+        self.capacity = SampleIndexRange::from_duration(
+            self.buffer_duration,
+            self.stream_state.sample_duration,
+        )
+        .as_usize()
             * self.channels;
         self.samples = VecDeque::with_capacity(self.capacity);
         self.drain_size = self.stream_state.rate as usize * self.channels; // 1s worth of samples
@@ -704,7 +707,8 @@ mod tests {
     use gstreamer_audio::AUDIO_FORMAT_S16;
     use log::{debug, info};
 
-    use crate::{Duration, SampleIndex, SampleIndexRange, SampleValue, Timestamp};
+    use metadata::Duration;
+    use crate::{SampleIndex, SampleIndexRange, SampleValue, Timestamp};
 
     use super::AudioBuffer;
 
