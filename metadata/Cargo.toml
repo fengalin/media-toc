@@ -19,4 +19,4 @@ gstreamer-audio = { version = "0.14", features = ["v1_10"] }
 image = "0.21"
 lazy_static = "1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
-nom = "4.2"
+nom = "5"

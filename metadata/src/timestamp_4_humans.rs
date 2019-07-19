@@ -1,75 +1,63 @@
 use nom::{
-    alt, do_parse, eof, flat_map, named, opt, parse_to, tag, take_while1, types::CompleteStr,
+    branch::alt,
+    bytes::complete::tag,
+    combinator::opt,
+    error::ErrorKind,
+    sequence::{preceded, separated_pair, tuple},
+    Err, IResult,
 };
 
-use std::{fmt, string::ToString};
+use std::{convert::TryFrom, fmt, string::ToString};
 
-use super::Duration;
+use super::{parse_to, Duration};
 
-named!(
-    parse_digits<CompleteStr<'_>, u64>,
-    flat_map!(take_while1!(|c| c >= '0' && c <= '9'), parse_to!(u64))
-);
+pub fn parse_timestamp(i: &str) -> IResult<&str, Timestamp4Humans> {
+    let parse_timestamp_ = tuple((
+        separated_pair(parse_to::<u8>, tag(":"), parse_to::<u8>),
+        opt(tuple((
+            // the next tag determines whether the 1st number is h or mn
+            alt((tag(":"), tag("."))),
+            parse_to::<u16>,
+            opt(preceded(tag("."), parse_to::<u16>)),
+        ))),
+    ));
 
-named!(
-    parse_opt_dot_digits<CompleteStr<'_>, Option<u64>>,
-    opt!(do_parse!(tag!(".") >> nb: parse_digits >> (nb)))
-);
+    let (i, res) = parse_timestamp_(i)?;
 
-named!(pub parse_timestamp<CompleteStr<'_>, Timestamp4Humans>,
-    do_parse!(
-        nb1: parse_digits >>
-        tag!(":") >>
-        nb2: parse_digits >>
-        nb1_is_hours: opt!(alt!(
-            tag!(":") => { |_| true } |
-            tag!(".") => { |_| false }
-        )) >>
-        nb3: opt!(parse_digits) >>
-        nb4: parse_opt_dot_digits >>
-        nb5: parse_opt_dot_digits >>
-        eof!() >>
-        ({
-            let mut ts = {
-                if nb1_is_hours.unwrap_or(false) {
-                    Timestamp4Humans {
-                        h: nb1 as u8,
-                        m: nb2 as u8,
-                        s: nb3.unwrap_or(0) as u8,
-                        ms: nb4.unwrap_or(0) as u16,
-                        us: nb5.unwrap_or(0) as u16,
-                        .. Timestamp4Humans::default()
-                    }
-                } else {
-                    Timestamp4Humans {
-                        h: 0u8,
-                        m: nb1 as u8,
-                        s: nb2 as u8,
-                        ms: nb3.unwrap_or(0) as u16,
-                        us: nb4.unwrap_or(0) as u16,
-                        nano: nb5.unwrap_or(0) as u16,
-                        .. Timestamp4Humans::default()
-                    }
-                }
-            };
-            ts.nano_total =
-                (
-                    (
-                        (
-                            (u64::from(ts.h) * 60 + u64::from(ts.m)) * 60 + u64::from(ts.s)
-                        ) * 1_000 + u64::from(ts.ms)
-                    ) * 1_000 + u64::from(ts.us)
-                ) * 1_000 + u64::from(ts.nano);
-            ts
-        })
-    )
-);
+    let ts = match res {
+        ((h, m), Some((":", s, ms))) => {
+            let s = u8::try_from(s).map_err(|_| Err::Error((i, ErrorKind::ParseTo)))?;
+
+            Timestamp4Humans {
+                h,
+                m,
+                s,
+                ms: ms.unwrap_or(0),
+                ..Timestamp4Humans::default()
+            }
+        }
+        ((m, s), Some((".", ms, us))) => Timestamp4Humans {
+            h: 0,
+            m,
+            s,
+            ms,
+            us: us.unwrap_or(0),
+            ..Timestamp4Humans::default()
+        },
+        ((_, _), Some((_, _, _))) => unreachable!("unexpected separator returned by parser"),
+        ((h, m), None) => Timestamp4Humans {
+            h,
+            m,
+            ..Timestamp4Humans::default()
+        },
+    };
+
+    Ok((i, ts))
+}
 
 #[test]
 fn parse_string() {
-    use nom;
-
-    let ts_res = parse_timestamp(CompleteStr("11:42:20.010"));
+    let ts_res = parse_timestamp("11:42:20.010");
     assert!(ts_res.is_ok());
     let ts = ts_res.unwrap().1;
     assert_eq!(ts.h, 11);
@@ -79,11 +67,11 @@ fn parse_string() {
     assert_eq!(ts.us, 0);
     assert_eq!(ts.nano, 0);
     assert_eq!(
-        ts.nano_total,
+        ts.nano_total(),
         ((((11 * 60 + 42) * 60 + 20) * 1_000) + 10) * 1_000 * 1_000
     );
 
-    let ts_res = parse_timestamp(CompleteStr("42:20.010"));
+    let ts_res = parse_timestamp("42:20.010");
     assert!(ts_res.is_ok());
     let ts = ts_res.unwrap().1;
     assert_eq!(ts.h, 0);
@@ -93,11 +81,11 @@ fn parse_string() {
     assert_eq!(ts.us, 0);
     assert_eq!(ts.nano, 0);
     assert_eq!(
-        ts.nano_total,
+        ts.nano_total(),
         (((42 * 60 + 20) * 1_000) + 10) * 1_000 * 1_000
     );
 
-    let ts_res = parse_timestamp(CompleteStr("42:20.010.015"));
+    let ts_res = parse_timestamp("42:20.010.015");
     assert!(ts_res.is_ok());
     let ts = ts_res.unwrap().1;
     assert_eq!(ts.h, 0);
@@ -107,26 +95,21 @@ fn parse_string() {
     assert_eq!(ts.us, 15);
     assert_eq!(ts.nano, 0);
     assert_eq!(
-        ts.nano_total,
+        ts.nano_total(),
         ((((42 * 60 + 20) * 1_000) + 10) * 1_000 + 15) * 1_000
     );
 
-    assert!(parse_timestamp(CompleteStr("abc:15")).is_err());
-    assert!(parse_timestamp(CompleteStr("42:aa.015")).is_err());
+    assert!(parse_timestamp("abc:15").is_err());
+    assert!(parse_timestamp("42:aa.015").is_err());
 
-    let ts_res = parse_timestamp(CompleteStr("42:20a"));
-    let err = ts_res.unwrap_err();
-    if let nom::Err::Error(nom::Context::Code(i, code)) = err {
-        assert_eq!(CompleteStr("a"), i);
-        assert_eq!(nom::ErrorKind::Eof, code);
-    } else {
-        panic!("unexpected error type returned");
-    }
+    let ts_res = parse_timestamp("42:20a");
+    assert!(ts_res.is_ok());
+    let (i, _) = ts_res.unwrap();
+    assert_eq!("a", i);
 }
 
 #[derive(Default)]
 pub struct Timestamp4Humans {
-    pub nano_total: u64,
     pub nano: u16,
     pub us: u16,
     pub ms: u16,
@@ -135,7 +118,9 @@ pub struct Timestamp4Humans {
     pub h: u8,
 }
 
+// New type to force display of hours
 pub struct Timestamp4HumansWithHours(Timestamp4Humans);
+// New type to force display of micro seconds
 pub struct Timestamp4HumansWithMicro(Timestamp4Humans);
 
 impl Timestamp4Humans {
@@ -146,7 +131,6 @@ impl Timestamp4Humans {
         let m_total = s_total / 60;
 
         Timestamp4Humans {
-            nano_total,
             nano: (nano_total % 1_000) as u16,
             us: (us_total % 1_000) as u16,
             ms: (ms_total % 1_000) as u16,
@@ -154,6 +138,15 @@ impl Timestamp4Humans {
             m: (m_total % 60) as u8,
             h: (m_total / 60) as u8,
         }
+    }
+
+    pub fn nano_total(&self) -> u64 {
+        ((((u64::from(self.h) * 60 + u64::from(self.m)) * 60 + u64::from(self.s)) * 1_000
+            + u64::from(self.ms))
+            * 1_000
+            + u64::from(self.us))
+            * 1_000
+            + u64::from(self.nano)
     }
 
     pub fn from_duration(duration: Duration) -> Self {

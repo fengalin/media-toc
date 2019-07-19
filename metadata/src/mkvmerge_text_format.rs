@@ -3,17 +3,20 @@ use gstreamer as gst;
 
 use log::error;
 
-use nom;
 use nom::{
-    do_parse, eat_separator, flat_map, named, opt, parse_to, tag, take, take_until_either,
-    types::CompleteStr, verify, AtEof, InputLength,
+    bytes::complete::tag,
+    character::complete::{line_ending, not_line_ending},
+    combinator::{opt, verify},
+    error::ErrorKind,
+    sequence::{pair, preceded, separated_pair, terminated},
+    IResult,
 };
 
 use std::io::{Read, Write};
 
 use super::{
-    get_default_chapter_title, parse_timestamp, MediaInfo, Reader, Timestamp4Humans, TocVisitor,
-    Writer,
+    get_default_chapter_title, parse_timestamp, parse_to, MediaInfo, Reader, Timestamp4Humans,
+    TocVisitor, Writer,
 };
 
 static EXTENSION: &str = "txt";
@@ -35,7 +38,7 @@ impl MKVMergeTextFormat {
 
 fn new_chapter(nb: usize, start_ts: Timestamp4Humans, title: &str) -> gst::TocEntry {
     let mut chapter = gst::TocEntry::new(gst::TocEntryType::Chapter, &format!("{:02}", nb));
-    let start = start_ts.nano_total as i64;
+    let start = start_ts.nano_total() as i64;
     chapter
         .get_mut()
         .unwrap()
@@ -50,31 +53,38 @@ fn new_chapter(nb: usize, start_ts: Timestamp4Humans, title: &str) -> gst::TocEn
     chapter
 }
 
-named!(
-    parse_chapter<CompleteStr<'_>, gst::TocEntry>,
-    do_parse!(
-        tag!(CHAPTER_TAG)
-            >> nb1: flat_map!(take!(2), parse_to!(usize))
-            >> tag!("=")
-            >> start: flat_map!(take_until_either!("\r\n"), parse_timestamp)
-            >> eat_separator!("\r\n")
-            >> tag!(CHAPTER_TAG)
-            >> nb: verify!(flat_map!(take!(2), parse_to!(usize)), |nb2: usize| nb1
-                == nb2)
-            >> tag!(NAME_TAG)
-            >> tag!("=")
-            >> title: take_until_either!("\r\n")
-            >> opt!(eat_separator!("\r\n"))
-            >> (new_chapter(nb, start, &title))
-    )
-);
+fn parse_chapter(i: &str) -> IResult<&str, gst::TocEntry> {
+    let parse_first_line = terminated(
+        preceded(
+            tag(CHAPTER_TAG),
+            separated_pair(parse_to::<usize>, tag("="), parse_timestamp),
+        ),
+        line_ending,
+    );
+
+    let (i, (nb, start_ts)) = parse_first_line(i)?;
+
+    let parse_second_line = terminated(
+        preceded(
+            tag(CHAPTER_TAG),
+            separated_pair(
+                verify(parse_to::<usize>, |nb2| nb == *nb2),
+                pair(tag(NAME_TAG), tag("=")),
+                not_line_ending,
+            ),
+        ),
+        opt(line_ending),
+    );
+
+    parse_second_line(i).map(|(i, (_, title))| (i, new_chapter(nb, start_ts, title)))
+}
 
 #[test]
 fn parse_chapter_test() {
-    use nom::InputLength;
+    use nom::{error::ErrorKind, InputLength};
     gst::init().unwrap();
 
-    let res = parse_chapter(CompleteStr("CHAPTER01=00:00:01.000\nCHAPTER01NAME=test\n"));
+    let res = parse_chapter("CHAPTER01=00:00:01.000\nCHAPTER01NAME=test\n");
     let (i, toc_entry) = res.unwrap();
     assert_eq!(0, i.input_len());
     assert_eq!(1_000_000_000, toc_entry.get_start_stop_times().unwrap().0);
@@ -85,9 +95,7 @@ fn parse_chapter_test() {
             .and_then(|tag| tag.get().map(|value| value.to_string()))),
     );
 
-    let res = parse_chapter(CompleteStr(
-        "CHAPTER01=00:00:01.000\r\nCHAPTER01NAME=test\r\n",
-    ));
+    let res = parse_chapter("CHAPTER01=00:00:01.000\r\nCHAPTER01NAME=test\r\n");
     let (i, toc_entry) = res.unwrap();
     assert_eq!(0, i.input_len());
     assert_eq!(1_000_000_000, toc_entry.get_start_stop_times().unwrap().0);
@@ -98,20 +106,20 @@ fn parse_chapter_test() {
             .and_then(|tag| tag.get().map(|value| value.to_string()))),
     );
 
-    let res = parse_chapter(CompleteStr("CHAPTER0x=00:00:01.000"));
+    let res = parse_chapter("CHAPTER0x=00:00:01.000");
     let err = res.unwrap_err();
-    if let nom::Err::Error(nom::Context::Code(i, code)) = err {
-        assert_eq!(CompleteStr("0x"), i);
-        assert_eq!(nom::ErrorKind::ParseTo, code);
+    if let nom::Err::Error((i, error_kind)) = err {
+        assert_eq!("x=00:00:01.000", i);
+        assert_eq!(ErrorKind::Tag, error_kind);
     } else {
         panic!("unexpected error type returned");
     }
 
-    let res = parse_chapter(CompleteStr("CHAPTER01=00:00:01.000\nCHAPTER02NAME=test\n"));
+    let res = parse_chapter("CHAPTER01=00:00:01.000\nCHAPTER02NAME=test\n");
     let err = res.unwrap_err();
-    if let nom::Err::Error(nom::Context::Code(i, code)) = err {
-        assert_eq!(CompleteStr("02NAME=test\n"), i);
-        assert_eq!(nom::ErrorKind::Verify, code);
+    if let nom::Err::Error((i, error_kind)) = err {
+        assert_eq!("02NAME=test\n", i);
+        assert_eq!(ErrorKind::Verify, error_kind);
     } else {
         panic!("unexpected error type returned");
     }
@@ -129,14 +137,14 @@ impl Reader for MKVMergeTextFormat {
         if !content.is_empty() {
             let mut toc_edition = gst::TocEntry::new(gst::TocEntryType::Edition, "");
             let mut last_chapter: Option<gst::TocEntry> = None;
-            let mut input = CompleteStr(&content[..]);
+            let mut input = content.as_str();
 
-            while input.input_len() > 0 {
+            while input.len() > 0 {
                 let cur_chapter = match parse_chapter(input) {
                     Ok((i, cur_chapter)) => {
-                        if i.input_len() == input.input_len() {
+                        if i.len() == input.len() {
                             // No progress
-                            if !i.at_eof() {
+                            if i.len() > 0 {
                                 let msg = gettext("unexpected sequence starting with: {}")
                                     .replacen("{}", &i[..i.len().min(10)], 1);
                                 error!("{}", msg);
@@ -148,14 +156,12 @@ impl Reader for MKVMergeTextFormat {
                         cur_chapter
                     }
                     Err(err) => {
-                        let msg = if let nom::Err::Error(nom::Context::Code(i, code)) = err {
-                            match code {
-                                nom::ErrorKind::ParseTo => gettext("expecting a number, found: {}")
+                        let msg = if let nom::Err::Error((i, error_kind)) = err {
+                            match error_kind {
+                                ErrorKind::ParseTo => gettext("expecting a number, found: {}")
                                     .replacen("{}", &i[..i.len().min(2)], 1),
-                                nom::ErrorKind::Verify => gettext(
-                                    "chapter numbers don't match for: {}",
-                                )
-                                .replacen("{}", &i[..i.len().min(2)], 1),
+                                ErrorKind::Verify => gettext("chapter numbers don't match for: {}")
+                                    .replacen("{}", &i[..i.len().min(2)], 1),
                                 _ => gettext("unexpected sequence starting with: {}").replacen(
                                     "{}",
                                     &i[..i.len().min(10)],
