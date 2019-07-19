@@ -1,3 +1,5 @@
+use bitflags::bitflags;
+
 use glib::GString;
 
 use gettextrs::gettext;
@@ -41,6 +43,14 @@ pub enum PositionStatus {
 impl From<Option<ChapterIterStart>> for PositionStatus {
     fn from(prev_chapter: Option<ChapterIterStart>) -> Self {
         PositionStatus::ChapterChanged { prev_chapter }
+    }
+}
+
+bitflags! {
+    struct ColumnOptions: u32 {
+        const NONE = 0b00000000;
+        const CAN_EXPAND = 0b00000001;
+        const IS_EDITABLE = 0b00000010;
     }
 }
 
@@ -546,10 +556,19 @@ impl ChapterTreeManager {
 
     pub fn init_treeview(&mut self, treeview: &gtk::TreeView) {
         treeview.set_model(Some(self.tree.store()));
-        self.title_renderer =
-            Some(self.add_column(treeview, &gettext("Title"), TITLE_COL, true, true));
-        self.add_column(treeview, &gettext("Start"), START_STR_COL, false, false);
-        self.add_column(treeview, &gettext("End"), END_STR_COL, false, false);
+        self.title_renderer = Some(self.add_column(
+            treeview,
+            &gettext("Title"),
+            TITLE_COL,
+            ColumnOptions::CAN_EXPAND | ColumnOptions::IS_EDITABLE,
+        ));
+        self.add_column(
+            treeview,
+            &gettext("Start"),
+            START_STR_COL,
+            ColumnOptions::NONE,
+        );
+        self.add_column(treeview, &gettext("End"), END_STR_COL, ColumnOptions::NONE);
     }
 
     fn add_column(
@@ -557,20 +576,19 @@ impl ChapterTreeManager {
         treeview: &gtk::TreeView,
         title: &str,
         col_id: u32,
-        can_expand: bool,
-        is_editable: bool,
+        options: ColumnOptions,
     ) -> gtk::CellRendererText {
         let col = gtk::TreeViewColumn::new();
         col.set_title(title);
 
         let renderer = gtk::CellRendererText::new();
-        renderer.set_property_editable(is_editable);
+        renderer.set_property_editable(options.contains(ColumnOptions::IS_EDITABLE));
 
         col.pack_start(&renderer, true);
         col.add_attribute(&renderer, "text", col_id as i32);
-        if can_expand {
+        if options.contains(ColumnOptions::CAN_EXPAND) {
             col.set_min_width(70);
-            col.set_expand(can_expand);
+            col.set_expand(true);
         } else {
             // align right
             renderer.set_property_xalign(1f32);

@@ -13,6 +13,7 @@ version = "0.5.99"
 build = "build.rs"
 
 [dependencies]
+bitflags = "1"
 cairo-rs = "0.7"
 clap = "2"
 directories = "2"
