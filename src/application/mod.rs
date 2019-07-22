@@ -5,7 +5,7 @@ use gtk;
 use lazy_static::lazy_static;
 use log::warn;
 
-use crate::ui::{MainController, MainDispatcher};
+use crate::ui::MainController;
 
 pub const TLD: &str = "org";
 pub const SLD: &str = "fengalin";
@@ -47,20 +47,6 @@ pub fn run() {
     let gtk_app = gtk::Application::new(Some(&APP_ID), gio::ApplicationFlags::empty())
         .expect("Failed to initialize GtkApplication");
 
-    gtk_app.connect_activate(move |gtk_app| {
-        let main_ctrl_rc = MainController::new_rc();
-        main_ctrl_rc.borrow_mut().setup(&args);
-        MainDispatcher::setup(gtk_app, &main_ctrl_rc);
-        let ui_event = main_ctrl_rc.borrow().get_ui_event_sender();
-        ui_event.show_all();
-
-        if gstreamer::init().is_ok() {
-            if let Some(input_file) = args.input_file.to_owned() {
-                ui_event.set_cursor_waiting();
-                ui_event.open_media(input_file);
-            }
-        }
-    });
-
+    gtk_app.connect_activate(move |gtk_app| MainController::setup(gtk_app, &args));
     gtk_app.run(&[]);
 }

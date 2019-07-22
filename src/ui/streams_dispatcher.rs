@@ -8,7 +8,7 @@ use crate::with_main_ctrl;
 
 use super::{
     streams_controller::{EXPORT_FLAG_COL, STREAM_ID_COL},
-    MainController, UIDispatcher,
+    MainController, StreamsController, UIDispatcher,
 };
 
 macro_rules! on_stream_selected(
@@ -98,10 +98,13 @@ macro_rules! register_on_export_toggled(
 
 pub struct StreamsDispatcher;
 impl UIDispatcher for StreamsDispatcher {
-    fn setup(_gtk_app: &gtk::Application, main_ctrl_rc: &Rc<RefCell<MainController>>) {
-        let main_ctrl = main_ctrl_rc.borrow();
-        let streams_ctrl = &main_ctrl.streams_ctrl;
+    type Controller = StreamsController;
 
+    fn setup(
+        streams_ctrl: &mut StreamsController,
+        main_ctrl_rc: &Rc<RefCell<MainController>>,
+        _app: &gtk::Application,
+    ) {
         // Video stream selection
         streams_ctrl
             .video_treeview

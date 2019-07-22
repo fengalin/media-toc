@@ -115,7 +115,14 @@ pub trait UIController {
 }
 
 pub trait UIDispatcher {
-    fn setup(gtk_app: &gtk::Application, main_ctrl_rc: &Rc<RefCell<MainController>>);
+    type Controller: UIController;
+
+    fn setup(
+        ctrl: &mut Self::Controller,
+        main_ctrl_rc: &Rc<RefCell<MainController>>,
+        app: &gtk::Application,
+    );
+    //fn activate_accels();
 }
 
 /// This macro allows declaring a closure which will borrow the specified `main_ctrl_rc`

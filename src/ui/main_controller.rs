@@ -13,9 +13,9 @@ use std::{borrow::ToOwned, cell::RefCell, collections::HashSet, path::PathBuf, r
 use media::{MediaEvent, PlaybackState, Timestamp};
 
 use super::{
-    AudioController, ChaptersBoundaries, ExportController, InfoController, PerspectiveController,
-    PlaybackPipeline, PositionStatus, SplitController, StreamsController, UIController, UIEvent,
-    UIEventSender, VideoController,
+    AudioController, ChaptersBoundaries, ExportController, InfoController, MainDispatcher,
+    PerspectiveController, PlaybackPipeline, PositionStatus, SplitController, StreamsController,
+    UIController, UIEventSender, VideoController,
 };
 use crate::application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG};
 
@@ -37,9 +37,7 @@ pub enum ControllerState {
 }
 
 pub struct MainController {
-    pub(super) ui_event_receiver: Option<glib::Receiver<UIEvent>>,
-    ui_event_sender: UIEventSender,
-
+    pub(super) app: gtk::Application,
     pub(super) window: gtk::ApplicationWindow,
 
     header_bar: gtk::HeaderBar,
@@ -52,6 +50,8 @@ pub struct MainController {
     info_bar_ok: gtk::Button,
     info_bar_lbl: gtk::Label,
     info_bar_btn_box: gtk::ButtonBox,
+
+    ui_event_sender: UIEventSender,
 
     pub(super) perspective_ctrl: PerspectiveController,
     pub(super) video_ctrl: VideoController,
@@ -73,8 +73,12 @@ pub struct MainController {
 }
 
 impl MainController {
-    pub fn new_rc() -> Rc<RefCell<Self>> {
+    pub fn setup(app: &gtk::Application, args: &CommandLineArguments) {
         let builder = gtk::Builder::new_from_resource(&format!("{}/{}", *APP_PATH, "media-toc.ui"));
+
+        let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
+        window.set_application(Some(app));
+
         let (ui_event_sender, ui_event_receiver) =
             glib::MainContext::channel(glib::PRIORITY_DEFAULT);
         let ui_event_sender: UIEventSender = ui_event_sender.into();
@@ -89,11 +93,11 @@ impl MainController {
         info_bar.add_button(&gettext("Cancel"), gtk::ResponseType::Cancel);
         info_bar.set_default_response(gtk::ResponseType::Yes);
 
-        Rc::new(RefCell::new(MainController {
-            ui_event_receiver: Some(ui_event_receiver),
-            ui_event_sender: ui_event_sender.clone(),
+        let gst_init_res = gst::init();
 
-            window: builder.get_object("application-window").unwrap(),
+        let main_ctrl_rc = Rc::new(RefCell::new(MainController {
+            app: app.clone(),
+            window,
             header_bar: builder.get_object("header-bar").unwrap(),
             open_btn: builder.get_object("open-btn").unwrap(),
             display_page: builder.get_object("display-box").unwrap(),
@@ -105,8 +109,10 @@ impl MainController {
             info_bar_lbl: builder.get_object("info_bar-lbl").unwrap(),
             info_bar_btn_box: builder.get_object("info_bar-btnbox").unwrap(),
 
+            ui_event_sender: ui_event_sender.clone(),
+
             perspective_ctrl: PerspectiveController::new(&builder),
-            video_ctrl: VideoController::new(&builder),
+            video_ctrl: VideoController::new(&builder, args),
             info_ctrl: InfoController::new(
                 &builder,
                 ui_event_sender.clone(),
@@ -130,32 +136,34 @@ impl MainController {
             media_event_handler: None,
             media_event_handler_src: None,
             callback_when_paused: None,
-        }))
-    }
+        }));
 
-    pub fn setup(&mut self, args: &CommandLineArguments) {
-        if gst::init().is_ok() {
+        let mut main_ctrl = main_ctrl_rc.borrow_mut();
+        MainDispatcher::setup(&mut main_ctrl, &main_ctrl_rc, ui_event_receiver);
+
+        if gst_init_res.is_ok() {
             {
                 let config = CONFIG.read().unwrap();
                 if config.ui.width > 0 && config.ui.height > 0 {
-                    self.window.resize(config.ui.width, config.ui.height);
-                    self.playback_paned.set_position(config.ui.paned_pos);
+                    main_ctrl.window.resize(config.ui.width, config.ui.height);
+                    main_ctrl.playback_paned.set_position(config.ui.paned_pos);
                 }
 
-                self.open_btn.set_sensitive(true);
+                main_ctrl.open_btn.set_sensitive(true);
             }
 
-            self.perspective_ctrl.setup(&args);
-            self.video_ctrl.setup(&args);
-            self.info_ctrl.setup(&args);
-            self.audio_ctrl.setup(&args);
-            self.export_ctrl.setup(&args);
-            self.split_ctrl.setup(&args);
-            self.streams_ctrl.setup(&args);
+            main_ctrl.ui_event_sender.show_all();
+
+            if let Some(input_file) = args.input_file.to_owned() {
+                main_ctrl.ui_event_sender.set_cursor_waiting();
+                main_ctrl.ui_event_sender.open_media(input_file);
+            }
+        } else {
+            main_ctrl.show_all();
         }
     }
 
-    pub fn get_ui_event_sender(&self) -> UIEventSender {
+    pub fn ui_event_sender(&self) -> UIEventSender {
         self.ui_event_sender.clone()
     }
 

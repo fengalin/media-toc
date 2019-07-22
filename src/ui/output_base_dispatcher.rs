@@ -23,10 +23,13 @@ where
     Impl: OutputDispatcherImpl,
     Impl::CtrlImpl: OutputControllerImpl,
 {
-    fn setup(_gtk_app: &gtk::Application, main_ctrl_rc: &Rc<RefCell<MainController>>) {
-        let mut main_ctrl = main_ctrl_rc.borrow_mut();
-        let ctrl = Impl::controller_mut(&mut main_ctrl);
+    type Controller = OutputBaseController<Impl::CtrlImpl>;
 
+    fn setup(
+        ctrl: &mut Self::Controller,
+        main_ctrl_rc: &Rc<RefCell<MainController>>,
+        _app: &gtk::Application,
+    ) {
         ctrl.btn.connect_map(move |btn| {
             btn.grab_default();
         });

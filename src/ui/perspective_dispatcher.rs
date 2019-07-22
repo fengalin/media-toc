@@ -6,7 +6,7 @@ use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};
 
-use super::{MainController, UIDispatcher};
+use super::{MainController, PerspectiveController, UIDispatcher};
 
 macro_rules! gtk_downcast(
     ($source:expr, $target_type:ty, $item_name:expr) => {
@@ -37,10 +37,13 @@ macro_rules! gtk_downcast(
 
 pub struct PerspectiveDispatcher;
 impl UIDispatcher for PerspectiveDispatcher {
-    fn setup(gtk_app: &gtk::Application, main_ctrl_rc: &Rc<RefCell<MainController>>) {
-        let main_ctrl = main_ctrl_rc.borrow();
-        let perspective_ctrl = &main_ctrl.perspective_ctrl;
+    type Controller = PerspectiveController;
 
+    fn setup(
+        perspective_ctrl: &mut PerspectiveController,
+        _main_ctrl_rc: &Rc<RefCell<MainController>>,
+        app: &gtk::Application,
+    ) {
         let menu_btn_box = gtk_downcast!(
             perspective_ctrl
                 .menu_btn
@@ -131,9 +134,9 @@ impl UIDispatcher for PerspectiveDispatcher {
                     }
 
                     let action = gio::SimpleAction::new(action_splits[1], None);
-                    gtk_app.add_action(&action);
+                    app.add_action(&action);
                     action.connect_activate(move |_, _| event());
-                    gtk_app.set_accels_for_action(&action_name, &[&accel_key]);
+                    app.set_accels_for_action(&action_name, &[&accel_key]);
                 }
                 None => {
                     button.connect_clicked(move |_| event());

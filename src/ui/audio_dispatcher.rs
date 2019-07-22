@@ -8,15 +8,21 @@ use std::{cell::RefCell, rc::Rc};
 
 use media::Timestamp;
 
-use super::{audio_controller::ControllerState, MainController, PositionStatus, UIDispatcher};
+use super::{
+    audio_controller::ControllerState, AudioController, MainController, PositionStatus,
+    UIDispatcher,
+};
 use crate::with_main_ctrl;
 
 pub struct AudioDispatcher;
 impl UIDispatcher for AudioDispatcher {
-    fn setup(gtk_app: &gtk::Application, main_ctrl_rc: &Rc<RefCell<MainController>>) {
-        let mut main_ctrl = main_ctrl_rc.borrow_mut();
-        let audio_ctrl = &mut main_ctrl.audio_ctrl;
+    type Controller = AudioController;
 
+    fn setup(
+        audio_ctrl: &mut AudioController,
+        main_ctrl_rc: &Rc<RefCell<MainController>>,
+        app: &gtk::Application,
+    ) {
         // draw
         audio_ctrl.drawingarea.connect_draw(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, drawing_area, cairo_ctx| {
@@ -90,34 +96,34 @@ impl UIDispatcher for AudioDispatcher {
 
         // Register Zoom in action
         let zoom_in = gio::SimpleAction::new("zoom_in", None);
-        gtk_app.add_action(&zoom_in);
+        app.add_action(&zoom_in);
         zoom_in.connect_activate(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _, _| main_ctrl.audio_ctrl.zoom_in()
         ));
-        gtk_app.set_accels_for_action("app.zoom_in", &["z"]);
+        app.set_accels_for_action("app.zoom_in", &["z"]);
 
         // Register Zoom out action
         let zoom_out = gio::SimpleAction::new("zoom_out", None);
-        gtk_app.add_action(&zoom_out);
+        app.add_action(&zoom_out);
         zoom_out.connect_activate(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _, _| main_ctrl.audio_ctrl.zoom_out()
         ));
-        gtk_app.set_accels_for_action("app.zoom_out", &["<Shift>z"]);
+        app.set_accels_for_action("app.zoom_out", &["<Shift>z"]);
 
         // Register Step forward action
         let step_forward = gio::SimpleAction::new("step_forward", None);
-        gtk_app.add_action(&step_forward);
+        app.add_action(&step_forward);
         step_forward.connect_activate(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _, _| {
                 let seek_target = main_ctrl.get_current_ts() + main_ctrl.audio_ctrl.seek_step;
                 main_ctrl.seek(seek_target, gst::SeekFlags::ACCURATE);
             }
         ));
-        gtk_app.set_accels_for_action("app.step_forward", &["Right"]);
+        app.set_accels_for_action("app.step_forward", &["Right"]);
 
         // Register Step back action
         let step_back = gio::SimpleAction::new("step_back", None);
-        gtk_app.add_action(&step_back);
+        app.add_action(&step_back);
         step_back.connect_activate(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _, _| {
                 let seek_pos = {
@@ -132,7 +138,7 @@ impl UIDispatcher for AudioDispatcher {
                 main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
             }
         ));
-        gtk_app.set_accels_for_action("app.step_back", &["Left"]);
+        app.set_accels_for_action("app.step_back", &["Left"]);
 
         // Update conditions asynchronously
         audio_ctrl.update_conditions_async = Some(Box::new(with_main_ctrl!(
