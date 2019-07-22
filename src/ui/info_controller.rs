@@ -3,7 +3,6 @@ use gettextrs::gettext;
 use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
-use lazy_static::lazy_static;
 use log::{info, warn};
 
 use std::{cell::RefCell, fs::File, rc::Rc};
@@ -20,9 +19,7 @@ use super::{
     UIController, UIEventSender,
 };
 
-lazy_static! {
-    static ref EMPTY_REPLACEMENT: &'static str = "-";
-}
+const EMPTY_REPLACEMENT: &str = "-";
 
 pub struct InfoController {
     ui_event: UIEventSender,
@@ -104,7 +101,7 @@ impl UIController for InfoController {
             });
 
             self.container_lbl
-                .set_label(info.get_container().unwrap_or(&EMPTY_REPLACEMENT));
+                .set_label(info.get_container().unwrap_or(EMPTY_REPLACEMENT));
 
             let extern_toc = toc_candidates
                 .next()
@@ -196,17 +193,17 @@ impl UIController for InfoController {
     fn streams_changed(&mut self, info: &MediaInfo) {
         match info.get_media_artist() {
             Some(artist) => self.artist_lbl.set_label(&artist),
-            None => self.artist_lbl.set_label(&EMPTY_REPLACEMENT),
+            None => self.artist_lbl.set_label(EMPTY_REPLACEMENT),
         }
         match info.get_media_title() {
             Some(title) => self.title_lbl.set_label(&title),
-            None => self.title_lbl.set_label(&EMPTY_REPLACEMENT),
+            None => self.title_lbl.set_label(EMPTY_REPLACEMENT),
         }
 
         self.audio_codec_lbl
-            .set_label(info.streams.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));
+            .set_label(info.streams.get_audio_codec().unwrap_or(EMPTY_REPLACEMENT));
         self.video_codec_lbl
-            .set_label(info.streams.get_video_codec().unwrap_or(&EMPTY_REPLACEMENT));
+            .set_label(info.streams.get_video_codec().unwrap_or(EMPTY_REPLACEMENT));
     }
 }
 
