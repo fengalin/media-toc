@@ -548,9 +548,7 @@ mod tests {
     use std::fs::{create_dir, File};
     use std::io::ErrorKind;
 
-    use media::{
-        AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex, SampleIndexRange,
-    };
+    use media::{AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex, SampleIndexRange};
     use metadata::Duration;
 
     use super::WaveformImage;

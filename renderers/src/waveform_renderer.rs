@@ -719,7 +719,8 @@ impl WaveformRenderer {
             self.first_visible_sample = None;
             self.first_visible_sample_lock = None;
 
-            Some((lower, upper))
+            // use defaults
+            None
         } else {
             match self.first_visible_sample {
                 Some(first_visible_sample) => {
@@ -763,6 +764,7 @@ impl WaveformRenderer {
                                     Some((first_visible_sample, upper))
                                 } else {
                                     self.first_visible_sample = None;
+                                    // use defaults
                                     None
                                 }
                             }
