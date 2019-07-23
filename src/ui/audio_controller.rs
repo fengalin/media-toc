@@ -1,5 +1,6 @@
 use cairo;
 use gdk;
+use gio;
 use glib;
 use gstreamer as gst;
 use gtk;
@@ -76,8 +77,13 @@ pub struct AudioController {
     container: gtk::Box,
     pub(super) drawingarea: gtk::DrawingArea,
     zoom_in_btn: gtk::ToolButton,
+    pub(super) zoom_in_action: gio::SimpleAction,
     zoom_out_btn: gtk::ToolButton,
+    pub(super) zoom_out_action: gio::SimpleAction,
     ref_lbl: gtk::Label,
+
+    pub(super) step_forward_action: gio::SimpleAction,
+    pub(super) step_back_action: gio::SimpleAction,
 
     text_metrics: TextMetrics,
 
@@ -116,12 +122,24 @@ impl UIController for AudioController {
             // all widgets are arranged to their target positions
             self.update_conditions_async.as_ref().unwrap()();
         }
+
+        // FIXME: step forward / back actions should probably be
+        // defined in the InfoController. On the other hand, they
+        // depend on the seek_step which is defined in AudioController
+        // since it depends on the zoom factor, which has to do with
+        // the waveform.
+        self.step_forward_action.set_enabled(true);
+        self.step_back_action.set_enabled(true);
     }
 
     fn cleanup(&mut self) {
         self.state = ControllerState::Disabled;
         self.zoom_in_btn.set_sensitive(false);
+        self.zoom_in_action.set_enabled(false);
         self.zoom_out_btn.set_sensitive(false);
+        self.zoom_out_action.set_enabled(false);
+        self.step_forward_action.set_enabled(false);
+        self.step_back_action.set_enabled(false);
         self.playback_needs_refresh = false;
         self.dbl_renderer_mtx.lock().unwrap().cleanup();
         self.requested_duration = INIT_REQ_DURATION_FOR_1000PX;
@@ -139,7 +157,9 @@ impl UIController for AudioController {
         if info.streams.is_audio_selected() {
             debug!("streams_changed audio selected");
             self.zoom_in_btn.set_sensitive(true);
+            self.zoom_in_action.set_enabled(true);
             self.zoom_out_btn.set_sensitive(true);
+            self.zoom_out_action.set_enabled(true);
             self.container.show();
         } else {
             debug!("streams_changed audio not selected");
@@ -157,14 +177,19 @@ impl AudioController {
         let dbl_waveform = DoubleWaveformRenderer::new_dbl_audio_buffer(BUFFER_DURATION);
         let waveform_renderer_mtx = dbl_waveform.get_exposed_buffer_mtx();
 
-        AudioController {
+        let mut ctrl = AudioController {
             ui_event: ui_event_sender,
 
             container: builder.get_object("audio-container").unwrap(),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
             zoom_in_btn: builder.get_object("audio_zoom_in-toolbutton").unwrap(),
+            zoom_in_action: gio::SimpleAction::new("zoom_in", None),
             zoom_out_btn: builder.get_object("audio_zoom_out-toolbutton").unwrap(),
+            zoom_out_action: gio::SimpleAction::new("zoom_out", None),
             ref_lbl: builder.get_object("title-caption").unwrap(),
+
+            step_forward_action: gio::SimpleAction::new("step_forward", None),
+            step_back_action: gio::SimpleAction::new("step_back", None),
 
             text_metrics: TextMetrics::default(),
 
@@ -188,7 +213,11 @@ impl AudioController {
 
             tick_cb: None,
             tick_cb_id: None,
-        }
+        };
+
+        ctrl.cleanup();
+
+        ctrl
     }
 
     pub fn redraw(&self) {

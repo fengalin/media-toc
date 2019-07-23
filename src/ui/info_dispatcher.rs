@@ -103,25 +103,27 @@ impl UIDispatcher for InfoDispatcher {
         }
 
         // Register add chapter action
-        let add_chapter = gio::SimpleAction::new("add_chapter", None);
-        app.add_action(&add_chapter);
-        add_chapter.connect_activate(with_main_ctrl!(
-            main_ctrl_rc => move |&mut main_ctrl, _, _| {
-                let ts = main_ctrl.get_current_ts();
-                main_ctrl.info_ctrl.add_chapter(ts);
-                main_ctrl.ui_event_sender().update_focus();
-            }
-        ));
+        app.add_action(&info_ctrl.add_chapter_action);
+        info_ctrl
+            .add_chapter_action
+            .connect_activate(with_main_ctrl!(
+                main_ctrl_rc => move |&mut main_ctrl, _, _| {
+                    let ts = main_ctrl.get_current_ts();
+                    main_ctrl.info_ctrl.add_chapter(ts);
+                    main_ctrl.ui_event_sender().update_focus();
+                }
+            ));
 
         // Register remove chapter action
-        let remove_chapter = gio::SimpleAction::new("remove_chapter", None);
-        app.add_action(&remove_chapter);
-        remove_chapter.connect_activate(with_main_ctrl!(
-            main_ctrl_rc => move |&mut main_ctrl, _, _| {
-                main_ctrl.info_ctrl.remove_chapter();
-                main_ctrl.ui_event_sender().update_focus();
-            }
-        ));
+        app.add_action(&info_ctrl.del_chapter_action);
+        info_ctrl
+            .del_chapter_action
+            .connect_activate(with_main_ctrl!(
+                main_ctrl_rc => move |&mut main_ctrl, _, _| {
+                    main_ctrl.info_ctrl.remove_chapter();
+                    main_ctrl.ui_event_sender().update_focus();
+                }
+            ));
 
         // Register Toggle repeat current chapter action
         let toggle_repeat_chapter = gio::SimpleAction::new("toggle_repeat_chapter", None);
@@ -138,26 +140,26 @@ impl UIDispatcher for InfoDispatcher {
         ));
 
         // Register next chapter action
-        let next_chapter = gio::SimpleAction::new("next_chapter", None);
-        app.add_action(&next_chapter);
-        next_chapter.connect_activate(with_main_ctrl!(
-            main_ctrl_rc => move |&mut main_ctrl, _, _| {
-                let seek_pos = main_ctrl
-                    .info_ctrl
-                    .chapter_manager
-                    .pick_next()
-                    .map(|next_chapter| next_chapter.start());
+        app.add_action(&info_ctrl.next_chapter_action);
+        info_ctrl
+            .next_chapter_action
+            .connect_activate(with_main_ctrl!(
+                main_ctrl_rc => move |&mut main_ctrl, _, _| {
+                    let seek_pos = main_ctrl
+                        .info_ctrl
+                        .chapter_manager
+                        .pick_next()
+                        .map(|next_chapter| next_chapter.start());
 
-                if let Some(seek_pos) = seek_pos {
-                    main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
+                    if let Some(seek_pos) = seek_pos {
+                        main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
+                    }
                 }
-            }
-        ));
+            ));
 
         // Register previous chapter action
-        let previous_chapter = gio::SimpleAction::new("previous_chapter", None);
-        app.add_action(&previous_chapter);
-        previous_chapter.connect_activate(with_main_ctrl!(
+        app.add_action(&info_ctrl.previous_chapter_action);
+        info_ctrl.previous_chapter_action.connect_activate(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _, _| {
                 let cur_ts = main_ctrl.get_current_ts();
                 let cur_start = main_ctrl

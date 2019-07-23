@@ -96,46 +96,46 @@ impl UIDispatcher for AudioDispatcher {
             ));
 
         // Register Zoom in action
-        let zoom_in = gio::SimpleAction::new("zoom_in", None);
-        app.add_action(&zoom_in);
-        zoom_in.connect_activate(with_main_ctrl!(
+        app.add_action(&audio_ctrl.zoom_in_action);
+        audio_ctrl.zoom_in_action.connect_activate(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _, _| main_ctrl.audio_ctrl.zoom_in()
         ));
 
         // Register Zoom out action
-        let zoom_out = gio::SimpleAction::new("zoom_out", None);
-        app.add_action(&zoom_out);
-        zoom_out.connect_activate(with_main_ctrl!(
+        app.add_action(&audio_ctrl.zoom_out_action);
+        audio_ctrl.zoom_out_action.connect_activate(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _, _| main_ctrl.audio_ctrl.zoom_out()
         ));
 
         // Register Step forward action
-        let step_forward = gio::SimpleAction::new("step_forward", None);
-        app.add_action(&step_forward);
-        step_forward.connect_activate(with_main_ctrl!(
-            main_ctrl_rc => move |&mut main_ctrl, _, _| {
-                let seek_target = main_ctrl.get_current_ts() + main_ctrl.audio_ctrl.seek_step;
-                main_ctrl.seek(seek_target, gst::SeekFlags::ACCURATE);
-            }
-        ));
+        app.add_action(&audio_ctrl.step_forward_action);
+        audio_ctrl
+            .step_forward_action
+            .connect_activate(with_main_ctrl!(
+                main_ctrl_rc => move |&mut main_ctrl, _, _| {
+                    let seek_target = main_ctrl.get_current_ts() + main_ctrl.audio_ctrl.seek_step;
+                    main_ctrl.seek(seek_target, gst::SeekFlags::ACCURATE);
+                }
+            ));
 
         // Register Step back action
-        let step_back = gio::SimpleAction::new("step_back", None);
-        app.add_action(&step_back);
-        step_back.connect_activate(with_main_ctrl!(
-            main_ctrl_rc => move |&mut main_ctrl, _, _| {
-                let seek_pos = {
-                    let ts = main_ctrl.get_current_ts();
-                    let audio_ctrl = &mut main_ctrl.audio_ctrl;
-                    if ts > audio_ctrl.seek_step {
-                        ts - audio_ctrl.seek_step
-                    } else {
-                        Timestamp::default()
-                    }
-                };
-                main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
-            }
-        ));
+        app.add_action(&audio_ctrl.step_back_action);
+        audio_ctrl
+            .step_back_action
+            .connect_activate(with_main_ctrl!(
+                main_ctrl_rc => move |&mut main_ctrl, _, _| {
+                    let seek_pos = {
+                        let ts = main_ctrl.get_current_ts();
+                        let audio_ctrl = &mut main_ctrl.audio_ctrl;
+                        if ts > audio_ctrl.seek_step {
+                            ts - audio_ctrl.seek_step
+                        } else {
+                            Timestamp::default()
+                        }
+                    };
+                    main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
+                }
+            ));
 
         // Update conditions asynchronously
         audio_ctrl.update_conditions_async = Some(Box::new(with_main_ctrl!(

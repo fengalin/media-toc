@@ -1,5 +1,6 @@
 use cairo;
 use gettextrs::gettext;
+use gio;
 use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
@@ -41,7 +42,12 @@ pub struct InfoController {
 
     pub(super) chapter_treeview: gtk::TreeView,
     add_chapter_btn: gtk::ToolButton,
+    pub(super) add_chapter_action: gio::SimpleAction,
     del_chapter_btn: gtk::ToolButton,
+    pub(super) del_chapter_action: gio::SimpleAction,
+
+    pub(super) next_chapter_action: gio::SimpleAction,
+    pub(super) previous_chapter_action: gio::SimpleAction,
 
     thumbnail: Option<Image>,
 
@@ -139,6 +145,7 @@ impl UIController for InfoController {
 
         self.repeat_btn.set_sensitive(true);
         self.add_chapter_btn.set_sensitive(true);
+        self.add_chapter_action.set_enabled(true);
         match self.chapter_manager.selected() {
             Some(sel_chapter) => {
                 // position is in a chapter => select it
@@ -146,13 +153,18 @@ impl UIController for InfoController {
                     .get_selection()
                     .select_iter(sel_chapter.iter());
                 self.del_chapter_btn.set_sensitive(true);
+                self.del_chapter_action.set_enabled(true);
             }
             None =>
             // position is not in any chapter
             {
-                self.del_chapter_btn.set_sensitive(false)
+                self.del_chapter_btn.set_sensitive(false);
+                self.del_chapter_action.set_enabled(false);
             }
         }
+
+        self.next_chapter_action.set_enabled(true);
+        self.previous_chapter_action.set_enabled(true);
 
         if self.thumbnail.is_some() {
             self.drawingarea.show();
@@ -174,7 +186,11 @@ impl UIController for InfoController {
         self.thumbnail = None;
         self.chapter_manager.clear();
         self.add_chapter_btn.set_sensitive(false);
+        self.add_chapter_action.set_enabled(false);
         self.del_chapter_btn.set_sensitive(false);
+        self.del_chapter_action.set_enabled(false);
+        self.next_chapter_action.set_enabled(false);
+        self.previous_chapter_action.set_enabled(false);
         self.timeline_scale.clear_marks();
         self.timeline_scale.set_value(0f64);
         self.duration = Duration::default();
@@ -250,7 +266,12 @@ impl InfoController {
 
             chapter_treeview,
             add_chapter_btn: builder.get_object("add_chapter-toolbutton").unwrap(),
+            add_chapter_action: gio::SimpleAction::new("add_chapter", None),
             del_chapter_btn: builder.get_object("remove_chapter-toolbutton").unwrap(),
+            del_chapter_action: gio::SimpleAction::new("del_chapter", None),
+
+            next_chapter_action: gio::SimpleAction::new("next_chapter", None),
+            previous_chapter_action: gio::SimpleAction::new("previous_chapter", None),
 
             thumbnail: None,
 
@@ -346,6 +367,7 @@ impl InfoController {
                         .get_selection()
                         .select_iter(sel_chapter.iter());
                     self.del_chapter_btn.set_sensitive(true);
+                    self.del_chapter_action.set_enabled(true);
                 }
                 None =>
                 // timestamp is not in any chapter
@@ -356,6 +378,7 @@ impl InfoController {
                             .get_selection()
                             .unselect_iter(&prev_chapter.iter);
                         self.del_chapter_btn.set_sensitive(false);
+                        self.del_chapter_action.set_enabled(false);
                     }
                 }
             }
@@ -386,6 +409,7 @@ impl InfoController {
             self.chapter_treeview.get_selection().select_iter(&new_iter);
             self.update_marks();
             self.del_chapter_btn.set_sensitive(true);
+            self.del_chapter_action.set_enabled(true);
         }
     }
 
@@ -395,6 +419,7 @@ impl InfoController {
             None => {
                 self.chapter_treeview.get_selection().unselect_all();
                 self.del_chapter_btn.set_sensitive(false);
+                self.del_chapter_action.set_enabled(false);
             }
         }
 
