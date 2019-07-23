@@ -6,7 +6,7 @@ use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};
 
-use super::{MainController, PerspectiveController, UIDispatcher};
+use super::{MainController, PerspectiveController, UIDispatcher, UIEventSender};
 
 macro_rules! gtk_downcast(
     ($source:expr, $target_type:ty, $item_name:expr) => {
@@ -43,6 +43,7 @@ impl UIDispatcher for PerspectiveDispatcher {
         perspective_ctrl: &mut PerspectiveController,
         _main_ctrl_rc: &Rc<RefCell<MainController>>,
         app: &gtk::Application,
+        _ui_event_sender: &UIEventSender,
     ) {
         let menu_btn_box = gtk_downcast!(
             perspective_ctrl

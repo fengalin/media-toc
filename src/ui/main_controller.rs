@@ -15,7 +15,7 @@ use media::{MediaEvent, PlaybackState, Timestamp};
 use super::{
     AudioController, ChaptersBoundaries, ExportController, InfoController, MainDispatcher,
     PerspectiveController, PlaybackPipeline, PositionStatus, SplitController, StreamsController,
-    UIController, UIEventSender, VideoController,
+    UIController, UIEventSender, UIFocusContext, VideoController,
 };
 use crate::application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG};
 
@@ -52,6 +52,8 @@ pub struct MainController {
     info_bar_btn_box: gtk::ButtonBox,
 
     ui_event_sender: UIEventSender,
+    saved_context: Option<UIFocusContext>,
+    pub(super) focus: UIFocusContext,
 
     pub(super) perspective_ctrl: PerspectiveController,
     pub(super) video_ctrl: VideoController,
@@ -110,6 +112,8 @@ impl MainController {
             info_bar_btn_box: builder.get_object("info_bar-btnbox").unwrap(),
 
             ui_event_sender: ui_event_sender.clone(),
+            saved_context: None,
+            focus: UIFocusContext::PlaybackPage,
 
             perspective_ctrl: PerspectiveController::new(&builder),
             video_ctrl: VideoController::new(&builder, args),
@@ -163,8 +167,8 @@ impl MainController {
         }
     }
 
-    pub fn ui_event_sender(&self) -> UIEventSender {
-        self.ui_event_sender.clone()
+    pub fn ui_event_sender(&self) -> &UIEventSender {
+        &self.ui_event_sender
     }
 
     pub fn show_all(&self) {
@@ -212,6 +216,16 @@ impl MainController {
         self.window.destroy();
     }
 
+    pub fn save_context(&mut self) {
+        self.saved_context = Some(self.focus);
+    }
+
+    pub fn restore_context(&mut self) {
+        if let Some(focus_ctx) = self.saved_context.take() {
+            self.ui_event_sender.switch_to(focus_ctx);
+        }
+    }
+
     pub fn show_message<Msg: AsRef<str>>(&mut self, type_: gtk::MessageType, message: Msg) {
         if type_ == gtk::MessageType::Question {
             self.info_bar_btn_box.set_visible(true);
@@ -227,6 +241,9 @@ impl MainController {
         self.info_bar.set_message_type(type_);
         self.info_bar_lbl.set_label(message.as_ref());
         self.info_bar_revealer.set_reveal_child(true);
+
+        self.ui_event_sender
+            .temporarily_switch_to(UIFocusContext::InfoBar);
     }
 
     pub fn show_error<Msg: AsRef<str>>(&mut self, message: Msg) {
@@ -249,13 +266,11 @@ impl MainController {
             self.info_bar.disconnect(src);
         }
 
-        let default_widget = self.window.get_default_widget();
+        let ui_event_sender = self.ui_event_sender.clone();
         self.info_bar_response_src =
             Some(self.info_bar.connect_response(move |_, response_type| {
                 info_bar_revealer.set_reveal_child(false);
-                if let Some(default_widget) = &default_widget {
-                    default_widget.grab_default();
-                }
+                ui_event_sender.restore_context();
                 response_cb(response_type);
             }));
         self.info_bar_ok.grab_default();

@@ -6,10 +6,11 @@ use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};
 
-use super::{InfoController, MainController, UIDispatcher};
 use crate::{application::CONFIG, with_main_ctrl};
 use media::Timestamp;
 use metadata::Duration;
+
+use super::{InfoController, MainController, UIDispatcher, UIEventSender, UIFocusContext};
 
 const GO_TO_PREV_CHAPTER_THRESHOLD: Duration = Duration::from_secs(1);
 
@@ -21,6 +22,7 @@ impl UIDispatcher for InfoDispatcher {
         info_ctrl: &mut InfoController,
         main_ctrl_rc: &Rc<RefCell<MainController>>,
         app: &gtk::Application,
+        ui_event_sender: &UIEventSender,
     ) {
         // Register Toggle show chapters list action
         let toggle_show_list = gio::SimpleAction::new("toggle_show_list", None);
@@ -29,7 +31,6 @@ impl UIDispatcher for InfoDispatcher {
         toggle_show_list.connect_activate(move |_, _| {
             show_chapters_btn.set_active(!show_chapters_btn.get_active());
         });
-        app.set_accels_for_action("app.toggle_show_list", &["l"]);
 
         info_ctrl.show_chapters_btn.connect_toggled(with_main_ctrl!(
             main_ctrl_rc => move |&main_ctrl, toggle_button| {
@@ -58,6 +59,8 @@ impl UIDispatcher for InfoDispatcher {
             .connect_change_value(with_main_ctrl!(
                 main_ctrl_rc => move |&mut main_ctrl, _, _, value| {
                     main_ctrl.seek((value as u64).into(), gst::SeekFlags::KEY_UNIT);
+                    // Restore the focus so as not to keep it on the scale
+                    main_ctrl.ui_event_sender().update_focus();
                     Inhibit(true)
                 }
             ));
@@ -76,60 +79,25 @@ impl UIDispatcher for InfoDispatcher {
             ));
 
         if let Some(ref title_renderer) = info_ctrl.chapter_manager.title_renderer {
-            // FIXME: when editing is canceled, we should restore the title that was used when editing starts...
-            let app_cb = app.clone();
+            let ui_event_sender_cb = ui_event_sender.clone();
             title_renderer.connect_editing_started(move |_, _, _| {
-                // FIXME: use a message to disable accels for printable chars & arrow keys (text entry significant keys)
-                app_cb.set_accels_for_action("app.play_pause", &["AudioPlay"]);
-                // Shouldn't need to handle "Escape" once it is properly handled
-                // once info_bar is opened/closed
-                app_cb.set_accels_for_action("app.close_info_bar", &[]);
-                app_cb.set_accels_for_action("app.toggle_show_list", &[]);
-                app_cb.set_accels_for_action("app.toggle_repeat_chapter", &[]);
-                app_cb.set_accels_for_action("app.add_chapter", &["KP_Add"]);
-                app_cb.set_accels_for_action("app.remove_chapter", &["KP_Subtract"]);
-                app_cb.set_accels_for_action("app.zoom_in", &[]);
-                app_cb.set_accels_for_action("app.step_forward", &[]);
-                app_cb.set_accels_for_action("app.step_back", &[]);
+                ui_event_sender_cb.temporarily_switch_to(UIFocusContext::TextEntry);
             });
 
-            let app_cb = app.clone();
+            let ui_event_sender_cb = ui_event_sender.clone();
             title_renderer.connect_editing_canceled(move |_| {
-                // FIXME: use a message to enable accels for printable chars & arrow keys (text entry significant keys)
-                app_cb.set_accels_for_action("app.play_pause", &["space", "AudioPlay"]);
-                // Shouldn't need to handle "Escape" once it is properly handled
-                // once info_bar is opened/closed
-                app_cb.set_accels_for_action("app.close_info_bar", &["Escape"]);
-                app_cb.set_accels_for_action("app.toggle_show_list", &["l"]);
-                app_cb.set_accels_for_action("app.toggle_repeat_chapter", &["r"]);
-                app_cb.set_accels_for_action("app.add_chapter", &["plus", "KP_Add"]);
-                app_cb.set_accels_for_action("app.remove_chapter", &["minus", "KP_Subtract"]);
-                app_cb.set_accels_for_action("app.zoom_in", &["z"]);
-                app_cb.set_accels_for_action("app.step_forward", &["Right"]);
-                app_cb.set_accels_for_action("app.step_back", &["Left"]);
+                ui_event_sender_cb.restore_context();
             });
 
-            let app_cb = app.clone();
             title_renderer.connect_edited(with_main_ctrl!(
                 main_ctrl_rc => move |&mut main_ctrl, _, _tree_path, new_title| {
-                    // FIXME: use a message to enable accels for printable chars & arrow keys (text entry significant keys)
-                    app_cb.set_accels_for_action("app.play_pause", &["space", "AudioPlay"]);
-                    // Shouldn't need to handle "Escape" once it is properly handled
-                    // once info_bar is opened/closed
-                    app_cb.set_accels_for_action("app.close_info_bar", &["Escape"]);
-                    app_cb.set_accels_for_action("app.toggle_show_list", &["l"]);
-                    app_cb.set_accels_for_action("app.toggle_repeat_chapter", &["r"]);
-                    app_cb.set_accels_for_action("app.add_chapter", &["plus", "KP_Add"]);
-                    app_cb.set_accels_for_action("app.remove_chapter", &["minus", "KP_Subtract"]);
-                    app_cb.set_accels_for_action("app.zoom_in", &["z"]);
-                    app_cb.set_accels_for_action("app.step_forward", &["Right"]);
-                    app_cb.set_accels_for_action("app.step_back", &["Left"]);
                     main_ctrl
                         .info_ctrl
                         .chapter_manager
                         .rename_selected(new_title);
                     // reflect title modification in other parts of the UI (audio waveform)
                     main_ctrl.refresh();
+                    main_ctrl.ui_event_sender().restore_context();
                 }
             ));
         }
@@ -141,17 +109,19 @@ impl UIDispatcher for InfoDispatcher {
             main_ctrl_rc => move |&mut main_ctrl, _, _| {
                 let ts = main_ctrl.get_current_ts();
                 main_ctrl.info_ctrl.add_chapter(ts);
+                main_ctrl.ui_event_sender().update_focus();
             }
         ));
-        app.set_accels_for_action("app.add_chapter", &["plus", "KP_Add"]);
 
         // Register remove chapter action
         let remove_chapter = gio::SimpleAction::new("remove_chapter", None);
         app.add_action(&remove_chapter);
         remove_chapter.connect_activate(with_main_ctrl!(
-            main_ctrl_rc => move |&mut main_ctrl, _, _| main_ctrl.info_ctrl.remove_chapter()
+            main_ctrl_rc => move |&mut main_ctrl, _, _| {
+                main_ctrl.info_ctrl.remove_chapter();
+                main_ctrl.ui_event_sender().update_focus();
+            }
         ));
-        app.set_accels_for_action("app.remove_chapter", &["minus", "KP_Subtract"]);
 
         // Register Toggle repeat current chapter action
         let toggle_repeat_chapter = gio::SimpleAction::new("toggle_repeat_chapter", None);
@@ -160,7 +130,6 @@ impl UIDispatcher for InfoDispatcher {
         toggle_repeat_chapter.connect_activate(move |_, _| {
             repeat_btn.set_active(!repeat_btn.get_active());
         });
-        app.set_accels_for_action("app.toggle_repeat_chapter", &["r"]);
 
         info_ctrl.repeat_btn.connect_clicked(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, button| {
@@ -216,5 +185,30 @@ impl UIDispatcher for InfoDispatcher {
                 main_ctrl.seek(seek_ts.unwrap_or_else(Timestamp::default), gst::SeekFlags::ACCURATE);
             }
         ));
+    }
+
+    fn bind_accels_for(ctx: UIFocusContext, app: &gtk::Application) {
+        match ctx {
+            UIFocusContext::PlaybackPage => {
+                app.set_accels_for_action("app.toggle_show_list", &["l"]);
+                app.set_accels_for_action("app.add_chapter", &["plus", "KP_Add"]);
+                app.set_accels_for_action("app.remove_chapter", &["minus", "KP_Subtract"]);
+                app.set_accels_for_action("app.toggle_repeat_chapter", &["r"]);
+            }
+            UIFocusContext::ExportPage
+            | UIFocusContext::SplitPage
+            | UIFocusContext::StreamsPage => {
+                app.set_accels_for_action("app.toggle_show_list", &["l"]);
+                app.set_accels_for_action("app.add_chapter", &[]);
+                app.set_accels_for_action("app.remove_chapter", &[]);
+                app.set_accels_for_action("app.toggle_repeat_chapter", &["r"]);
+            }
+            UIFocusContext::TextEntry | UIFocusContext::InfoBar => {
+                app.set_accels_for_action("app.toggle_show_list", &[]);
+                app.set_accels_for_action("app.add_chapter", &[]);
+                app.set_accels_for_action("app.remove_chapter", &[]);
+                app.set_accels_for_action("app.toggle_repeat_chapter", &[]);
+            }
+        }
     }
 }

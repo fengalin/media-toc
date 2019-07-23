@@ -18,9 +18,8 @@ use metadata::{get_default_chapter_title, Duration, Format, MediaInfo, Stream, T
 
 use super::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
-    PlaybackPipeline, ProcessingState, ProcessingType, UIController, UIEventSender,
+    PlaybackPipeline, ProcessingState, ProcessingType, UIController, UIEventSender, UIFocusContext,
 };
-use crate::application::CommandLineArguments;
 
 pub type SplitController = OutputBaseController<SplitControllerImpl>;
 
@@ -80,6 +79,7 @@ pub struct SplitControllerImpl {
 }
 
 impl OutputControllerImpl for SplitControllerImpl {
+    const FOCUS_CONTEXT: UIFocusContext = UIFocusContext::SplitPage;
     const BTN_NAME: &'static str = "split-btn";
     const LIST_NAME: &'static str = "split-list-box";
     const PROGRESS_BAR_NAME: &'static str = "split-progress";
@@ -104,27 +104,11 @@ impl UIController for SplitControllerImpl {
             self.split_btn.set_sensitive(self.selected_audio.is_some());
         }
     }
-
-    fn setup(&mut self, _args: &CommandLineArguments) {
-        update_list_with_format!(self, Format::Flac, split_to_flac_row, flac_warning_lbl);
-        update_list_with_format!(self, Format::Wave, split_to_wave_row, wave_warning_lbl);
-        update_list_with_format!(self, Format::Opus, split_to_opus_row, opus_warning_lbl);
-        update_list_with_format!(
-            self,
-            Format::Vorbis,
-            split_to_vorbis_row,
-            vorbis_warning_lbl
-        );
-        update_list_with_format!(self, Format::MP3, split_to_mp3_row, mp3_warning_lbl);
-
-        self.split_list.set_sensitive(self.is_usable);
-        self.split_btn.set_sensitive(self.is_usable);
-    }
 }
 
 impl SplitControllerImpl {
     pub fn new(builder: &gtk::Builder) -> Self {
-        SplitControllerImpl {
+        let mut ctrl = SplitControllerImpl {
             is_usable: false,
 
             src_info: None,
@@ -151,7 +135,23 @@ impl SplitControllerImpl {
             mp3_warning_lbl: builder.get_object("mp3_warning-lbl").unwrap(),
 
             split_btn: builder.get_object(Self::BTN_NAME).unwrap(),
-        }
+        };
+
+        update_list_with_format!(ctrl, Format::Flac, split_to_flac_row, flac_warning_lbl);
+        update_list_with_format!(ctrl, Format::Wave, split_to_wave_row, wave_warning_lbl);
+        update_list_with_format!(ctrl, Format::Opus, split_to_opus_row, opus_warning_lbl);
+        update_list_with_format!(
+            ctrl,
+            Format::Vorbis,
+            split_to_vorbis_row,
+            vorbis_warning_lbl
+        );
+        update_list_with_format!(ctrl, Format::MP3, split_to_mp3_row, mp3_warning_lbl);
+
+        ctrl.split_list.set_sensitive(ctrl.is_usable);
+        ctrl.split_btn.set_sensitive(ctrl.is_usable);
+
+        ctrl
     }
 
     fn reset(&mut self) {

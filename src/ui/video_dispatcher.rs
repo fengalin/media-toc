@@ -8,7 +8,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::with_main_ctrl;
 
-use super::{MainController, UIDispatcher, VideoController};
+use super::{MainController, UIDispatcher, UIEventSender, VideoController};
 
 pub struct VideoDispatcher;
 impl UIDispatcher for VideoDispatcher {
@@ -18,6 +18,7 @@ impl UIDispatcher for VideoDispatcher {
         video_ctrl: &mut VideoController,
         main_ctrl_rc: &Rc<RefCell<MainController>>,
         _app: &gtk::Application,
+        _ui_event_sender: &UIEventSender,
     ) {
         match video_ctrl.video_output {
             Some(ref video_output) => {

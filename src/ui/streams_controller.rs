@@ -9,7 +9,6 @@ use std::sync::Arc;
 use metadata::Stream;
 
 use super::{PlaybackPipeline, UIController};
-use crate::application::CommandLineArguments;
 
 const ALIGN_LEFT: f32 = 0f32;
 const ALIGN_CENTER: f32 = 0.5f32;
@@ -31,6 +30,8 @@ const AUDIO_CHANNELS_COL: u32 = 7;
 const TEXT_FORMAT_COL: u32 = 6;
 
 pub struct StreamsController {
+    pub(super) page: gtk::Grid,
+
     pub(super) video_treeview: gtk::TreeView,
     pub(super) video_store: gtk::ListStore,
     pub(super) video_selected: Option<Arc<str>>,
@@ -45,11 +46,6 @@ pub struct StreamsController {
 }
 
 impl UIController for StreamsController {
-    fn setup(&mut self, _args: &CommandLineArguments) {
-        self.cleanup();
-        self.init_treeviews();
-    }
-
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         {
             let mut info = pipeline.info.write().unwrap();
@@ -151,11 +147,17 @@ impl UIController for StreamsController {
         self.text_store.clear();
         self.text_selected = None;
     }
+
+    fn grab_focus(&self) {
+        self.audio_treeview.grab_focus();
+    }
 }
 
 impl StreamsController {
     pub fn new(builder: &gtk::Builder) -> Self {
-        StreamsController {
+        let mut ctrl = StreamsController {
+            page: builder.get_object("streams-grid").unwrap(),
+
             video_treeview: builder.get_object("video_streams-treeview").unwrap(),
             video_store: builder.get_object("video_streams-liststore").unwrap(),
             video_selected: None,
@@ -167,7 +169,12 @@ impl StreamsController {
             text_treeview: builder.get_object("text_streams-treeview").unwrap(),
             text_store: builder.get_object("text_streams-liststore").unwrap(),
             text_selected: None,
-        }
+        };
+
+        ctrl.cleanup();
+        ctrl.init_treeviews();
+
+        ctrl
     }
 
     pub fn get_selected_streams(&self) -> Vec<Arc<str>> {

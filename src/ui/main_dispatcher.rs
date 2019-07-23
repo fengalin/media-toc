@@ -11,7 +11,7 @@ use std::{cell::RefCell, rc::Rc};
 use super::{
     main_controller::ControllerState, AudioDispatcher, ExportDispatcher, InfoDispatcher,
     MainController, PerspectiveDispatcher, PlaybackPipeline, SplitDispatcher, StreamsDispatcher,
-    UIDispatcher, UIEvent, VideoDispatcher,
+    UIController, UIDispatcher, UIEvent, UIFocusContext, VideoDispatcher,
 };
 use crate::{application::CONFIG, with_main_ctrl};
 
@@ -30,26 +30,26 @@ impl MainDispatcher {
             }),
         );
 
+        let app = main_ctrl.app.clone();
+
         let app_menu = gio::Menu::new();
-        main_ctrl.app.set_app_menu(Some(&app_menu));
+        app.set_app_menu(Some(&app_menu));
 
         let app_section = gio::Menu::new();
         app_menu.append_section(None, &app_section);
 
         // About
         let about = gio::SimpleAction::new("about", None);
-        main_ctrl.app.add_action(&about);
+        app.add_action(&about);
         about.connect_activate(with_main_ctrl!(
             main_ctrl_rc => move |&main_ctrl, _, _| main_ctrl.about()
         ));
-        main_ctrl
-            .app
-            .set_accels_for_action("app.about", &["<Ctrl>A"]);
+        app.set_accels_for_action("app.about", &["<Ctrl>A"]);
         app_section.append(Some(&gettext("About")), Some("app.about"));
 
         // Quit
         let quit = gio::SimpleAction::new("quit", None);
-        main_ctrl.app.add_action(&quit);
+        app.add_action(&quit);
         quit.connect_activate(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _, _| main_ctrl.quit()
         ));
@@ -66,14 +66,49 @@ impl MainDispatcher {
         ));
 
         if gstreamer::init().is_ok() {
-            let app = main_ctrl.app.clone();
-            PerspectiveDispatcher::setup(&mut main_ctrl.perspective_ctrl, main_ctrl_rc, &app);
-            VideoDispatcher::setup(&mut main_ctrl.video_ctrl, main_ctrl_rc, &app);
-            InfoDispatcher::setup(&mut main_ctrl.info_ctrl, main_ctrl_rc, &app);
-            AudioDispatcher::setup(&mut main_ctrl.audio_ctrl, main_ctrl_rc, &app);
-            ExportDispatcher::setup(&mut main_ctrl.export_ctrl, main_ctrl_rc, &app);
-            SplitDispatcher::setup(&mut main_ctrl.split_ctrl, main_ctrl_rc, &app);
-            StreamsDispatcher::setup(&mut main_ctrl.streams_ctrl, main_ctrl_rc, &app);
+            let ui_event_sender = main_ctrl.ui_event_sender().clone();
+            PerspectiveDispatcher::setup(
+                &mut main_ctrl.perspective_ctrl,
+                main_ctrl_rc,
+                &app,
+                &ui_event_sender,
+            );
+            VideoDispatcher::setup(
+                &mut main_ctrl.video_ctrl,
+                main_ctrl_rc,
+                &app,
+                &ui_event_sender,
+            );
+            InfoDispatcher::setup(
+                &mut main_ctrl.info_ctrl,
+                main_ctrl_rc,
+                &app,
+                &ui_event_sender,
+            );
+            AudioDispatcher::setup(
+                &mut main_ctrl.audio_ctrl,
+                main_ctrl_rc,
+                &app,
+                &ui_event_sender,
+            );
+            ExportDispatcher::setup(
+                &mut main_ctrl.export_ctrl,
+                main_ctrl_rc,
+                &app,
+                &ui_event_sender,
+            );
+            SplitDispatcher::setup(
+                &mut main_ctrl.split_ctrl,
+                main_ctrl_rc,
+                &app,
+                &ui_event_sender,
+            );
+            StreamsDispatcher::setup(
+                &mut main_ctrl.streams_ctrl,
+                main_ctrl_rc,
+                &app,
+                &ui_event_sender,
+            );
 
             main_ctrl.media_event_handler = Some(Rc::new(with_main_ctrl!(
                 main_ctrl_rc => move |&mut main_ctrl, event| {
@@ -95,7 +130,7 @@ impl MainDispatcher {
 
             // Register Open action
             let open = gio::SimpleAction::new("open", None);
-            main_ctrl.app.add_action(&open);
+            app.add_action(&open);
             open.connect_activate(with_main_ctrl!(
                 main_ctrl_rc => move |&mut main_ctrl, _, _| {
                     match main_ctrl.state {
@@ -107,18 +142,16 @@ impl MainDispatcher {
                     }
                 }
             ));
-            main_ctrl
-                .app
-                .set_accels_for_action("app.open", &["<Ctrl>O"]);
             main_section.append(Some(&gettext("Open media file")), Some("app.open"));
+            app.set_accels_for_action("app.open", &["<Ctrl>O"]);
 
             main_ctrl.open_btn.set_sensitive(true);
 
             let window_box = main_ctrl.window.clone();
-            let ui_event_box = main_ctrl.ui_event_sender();
+            let ui_event_sender_box = main_ctrl.ui_event_sender().clone();
             main_ctrl.select_media_async = Some(Box::new(move || {
                 let window = window_box.clone();
-                let ui_event = ui_event_box.clone();
+                let ui_event_sender = ui_event_sender_box.clone();
                 gtk::idle_add(move || {
                     let file_dlg = gtk::FileChooserDialog::with_buttons(
                         Some(gettext("Open a media file").as_str()),
@@ -137,13 +170,13 @@ impl MainDispatcher {
                         let path = file_dlg.get_filename().map(|path| path.to_owned());
                         match path {
                             Some(path) => {
-                                ui_event.set_cursor_waiting();
-                                ui_event.open_media(path);
+                                ui_event_sender.set_cursor_waiting();
+                                ui_event_sender.open_media(path);
                             }
-                            None => ui_event.cancel_select_media(),
+                            None => ui_event_sender.cancel_select_media(),
                         }
                     } else {
-                        ui_event.cancel_select_media();
+                        ui_event_sender.cancel_select_media();
                     }
 
                     file_dlg.close();
@@ -154,55 +187,42 @@ impl MainDispatcher {
 
             // Register Play/Pause action
             let play_pause = gio::SimpleAction::new("play_pause", None);
-            main_ctrl.app.add_action(&play_pause);
+            app.add_action(&play_pause);
             play_pause.connect_activate(with_main_ctrl!(
                 main_ctrl_rc => move |&mut main_ctrl, _, _| {
                     main_ctrl.play_pause();
                 }
             ));
-            main_ctrl
-                .app
-                .set_accels_for_action("app.play_pause", &["space", "AudioPlay"]);
-
             main_ctrl.play_pause_btn.set_sensitive(true);
 
             // Register Close info bar action
             let close_info_bar = gio::SimpleAction::new("close_info_bar", None);
-            main_ctrl.app.add_action(&close_info_bar);
+            app.add_action(&close_info_bar);
             let info_bar = main_ctrl.info_bar.clone();
             close_info_bar.connect_activate(move |_, _| info_bar.emit_close());
 
-            // FIXME: register/unregister when opening/closing info bar
-            main_ctrl
-                .app
-                .set_accels_for_action("app.close_info_bar", &["Escape"]);
-
+            let ui_event_sender = main_ctrl.ui_event_sender().clone();
             let revealer = main_ctrl.info_bar_revealer.clone();
-            main_ctrl
-                .info_bar
-                .connect_response(move |_, _| revealer.set_reveal_child(false));
+            main_ctrl.info_bar.connect_response(move |_, _| {
+                revealer.set_reveal_child(false);
+                ui_event_sender.restore_context();
+            });
 
-            // FIXME: implement actual accell activation/deactivation in InfoDispatcher
-            // activate Next chapter accels only when the display page is shown
-            // so that other pages can use the Up & Down keys
-            let app_cb = app.clone();
+            let ui_event_sender = main_ctrl.ui_event_sender().clone();
             main_ctrl.display_page.connect_map(move |_| {
-                app_cb.set_accels_for_action("app.next_chapter", &["Down", "AudioNext"]);
-                app_cb.set_accels_for_action("app.previous_chapter", &["Up", "AudioPrev"]);
+                ui_event_sender.switch_to(UIFocusContext::PlaybackPage);
             });
 
-            let app_cb = app.clone();
-            main_ctrl.display_page.connect_unmap(move |_| {
-                app_cb.set_accels_for_action("app.next_chapter", &["AudioNext"]);
-                app_cb.set_accels_for_action("app.previous_chapter", &["AudioPrev"]);
-            });
+            main_ctrl
+                .ui_event_sender()
+                .switch_to(UIFocusContext::PlaybackPage);
         } else {
             // GStreamer initialization failed
             let mut main_ctrl = main_ctrl_rc.borrow_mut();
 
             // Register Close info bar action
             let close_info_bar = gio::SimpleAction::new("close_info_bar", None);
-            main_ctrl.app.add_action(&close_info_bar);
+            app.add_action(&close_info_bar);
             close_info_bar.connect_activate(with_main_ctrl!(
                 main_ctrl_rc => move |&mut main_ctrl, _, _| main_ctrl.quit()
             ));
@@ -216,6 +236,57 @@ impl MainDispatcher {
 
             let msg = gettext("Failed to initialize GStreamer, the application can't be used.");
             main_ctrl.show_error(msg);
+        }
+    }
+
+    fn bind_accels_for(main_ctrl: &mut MainController, ctx: UIFocusContext) {
+        let app = &main_ctrl.app;
+
+        match ctx {
+            UIFocusContext::PlaybackPage => {
+                app.set_accels_for_action("app.play_pause", &["space", "AudioPlay"]);
+                app.set_accels_for_action("app.next_chapter", &["Down", "AudioNext"]);
+                app.set_accels_for_action("app.previous_chapter", &["Up", "AudioPrev"]);
+                app.set_accels_for_action("app.close_info_bar", &[]);
+            }
+            UIFocusContext::ExportPage
+            | UIFocusContext::SplitPage
+            | UIFocusContext::StreamsPage => {
+                app.set_accels_for_action("app.play_pause", &["space", "AudioPlay"]);
+                app.set_accels_for_action("app.next_chapter", &["AudioNext"]);
+                app.set_accels_for_action("app.previous_chapter", &["AudioPrev"]);
+                app.set_accels_for_action("app.close_info_bar", &[]);
+            }
+            UIFocusContext::TextEntry => {
+                app.set_accels_for_action("app.play_pause", &["AudioPlay"]);
+                app.set_accels_for_action("app.next_chapter", &[]);
+                app.set_accels_for_action("app.previous_chapter", &[]);
+                app.set_accels_for_action("app.close_info_bar", &[]);
+            }
+            UIFocusContext::InfoBar => {
+                app.set_accels_for_action("app.play_pause", &["AudioPlay"]);
+                app.set_accels_for_action("app.next_chapter", &[]);
+                app.set_accels_for_action("app.previous_chapter", &[]);
+                app.set_accels_for_action("app.close_info_bar", &["Escape"]);
+            }
+        }
+
+        PerspectiveDispatcher::bind_accels_for(ctx, app);
+        VideoDispatcher::bind_accels_for(ctx, app);
+        InfoDispatcher::bind_accels_for(ctx, app);
+        AudioDispatcher::bind_accels_for(ctx, app);
+        ExportDispatcher::bind_accels_for(ctx, app);
+        SplitDispatcher::bind_accels_for(ctx, app);
+        StreamsDispatcher::bind_accels_for(ctx, app);
+    }
+
+    fn update_focus(main_ctrl: &mut MainController, ctx: UIFocusContext) {
+        match ctx {
+            UIFocusContext::ExportPage => main_ctrl.export_ctrl.grab_focus(),
+            UIFocusContext::PlaybackPage => main_ctrl.info_ctrl.grab_focus(),
+            UIFocusContext::SplitPage => main_ctrl.split_ctrl.grab_focus(),
+            UIFocusContext::StreamsPage => main_ctrl.streams_ctrl.grab_focus(),
+            _ => (),
         }
     }
 
@@ -235,12 +306,23 @@ impl MainDispatcher {
                 main_ctrl.play_range(start, end, ts_to_restore);
             }
             UIEvent::ResetCursor => main_ctrl.reset_cursor(),
+            UIEvent::RestoreContext => main_ctrl.restore_context(),
             UIEvent::ShowAll => main_ctrl.show_all(),
             UIEvent::Seek { target, flags } => main_ctrl.seek(target, flags),
             UIEvent::SetCursorDoubleArrow => main_ctrl.set_cursor_double_arrow(),
             UIEvent::SetCursorWaiting => main_ctrl.set_cursor_waiting(),
             UIEvent::ShowError(msg) => main_ctrl.show_error(&msg),
             UIEvent::ShowInfo(msg) => main_ctrl.show_info(&msg),
+            UIEvent::SwitchTo(focus_ctx) => {
+                main_ctrl.focus = focus_ctx;
+                Self::bind_accels_for(main_ctrl, focus_ctx);
+                Self::update_focus(main_ctrl, focus_ctx);
+            }
+            UIEvent::TemporarilySwitchTo(focus_ctx) => {
+                main_ctrl.save_context();
+                Self::bind_accels_for(main_ctrl, focus_ctx);
+            }
+            UIEvent::UpdateFocus => Self::update_focus(main_ctrl, main_ctrl.focus),
         }
     }
 }

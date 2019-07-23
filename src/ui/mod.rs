@@ -68,8 +68,6 @@ use std::{
 use media;
 use metadata;
 
-use crate::application::CommandLineArguments;
-
 pub struct PlaybackPipeline(media::PlaybackPipeline<renderers::WaveformRenderer>);
 
 impl PlaybackPipeline {
@@ -108,10 +106,20 @@ impl DerefMut for PlaybackPipeline {
 }
 
 pub trait UIController {
-    fn setup(&mut self, _args: &CommandLineArguments) {}
     fn new_media(&mut self, _pipeline: &PlaybackPipeline) {}
     fn cleanup(&mut self);
     fn streams_changed(&mut self, _info: &metadata::MediaInfo) {}
+    fn grab_focus(&self) {}
+}
+
+#[derive(Clone, Copy)]
+pub enum UIFocusContext {
+    ExportPage,
+    InfoBar,
+    PlaybackPage,
+    SplitPage,
+    StreamsPage,
+    TextEntry,
 }
 
 pub trait UIDispatcher {
@@ -121,8 +129,11 @@ pub trait UIDispatcher {
         ctrl: &mut Self::Controller,
         main_ctrl_rc: &Rc<RefCell<MainController>>,
         app: &gtk::Application,
+        ui_event_sender: &UIEventSender,
     );
-    //fn activate_accels();
+
+    // bind context specific accels
+    fn bind_accels_for(_ctx: UIFocusContext, _app: &gtk::Application) {}
 }
 
 /// This macro allows declaring a closure which will borrow the specified `main_ctrl_rc`

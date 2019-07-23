@@ -10,7 +10,7 @@ use media::Timestamp;
 
 use super::{
     audio_controller::ControllerState, AudioController, MainController, PositionStatus,
-    UIDispatcher,
+    UIDispatcher, UIEventSender, UIFocusContext,
 };
 use crate::with_main_ctrl;
 
@@ -22,6 +22,7 @@ impl UIDispatcher for AudioDispatcher {
         audio_ctrl: &mut AudioController,
         main_ctrl_rc: &Rc<RefCell<MainController>>,
         app: &gtk::Application,
+        _ui_event_sender: &UIEventSender,
     ) {
         // draw
         audio_ctrl.drawingarea.connect_draw(with_main_ctrl!(
@@ -100,7 +101,6 @@ impl UIDispatcher for AudioDispatcher {
         zoom_in.connect_activate(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _, _| main_ctrl.audio_ctrl.zoom_in()
         ));
-        app.set_accels_for_action("app.zoom_in", &["z"]);
 
         // Register Zoom out action
         let zoom_out = gio::SimpleAction::new("zoom_out", None);
@@ -108,7 +108,6 @@ impl UIDispatcher for AudioDispatcher {
         zoom_out.connect_activate(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _, _| main_ctrl.audio_ctrl.zoom_out()
         ));
-        app.set_accels_for_action("app.zoom_out", &["<Shift>z"]);
 
         // Register Step forward action
         let step_forward = gio::SimpleAction::new("step_forward", None);
@@ -119,7 +118,6 @@ impl UIDispatcher for AudioDispatcher {
                 main_ctrl.seek(seek_target, gst::SeekFlags::ACCURATE);
             }
         ));
-        app.set_accels_for_action("app.step_forward", &["Right"]);
 
         // Register Step back action
         let step_back = gio::SimpleAction::new("step_back", None);
@@ -138,7 +136,6 @@ impl UIDispatcher for AudioDispatcher {
                 main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
             }
         ));
-        app.set_accels_for_action("app.step_back", &["Left"]);
 
         // Update conditions asynchronously
         audio_ctrl.update_conditions_async = Some(Box::new(with_main_ctrl!(
@@ -154,5 +151,26 @@ impl UIDispatcher for AudioDispatcher {
                 main_ctrl.audio_ctrl.tick();
             }
         )));
+    }
+
+    fn bind_accels_for(ctx: UIFocusContext, app: &gtk::Application) {
+        match ctx {
+            UIFocusContext::PlaybackPage => {
+                app.set_accels_for_action("app.zoom_in", &["z"]);
+                app.set_accels_for_action("app.zoom_out", &["<Shift>z"]);
+                app.set_accels_for_action("app.step_forward", &["Right"]);
+                app.set_accels_for_action("app.step_back", &["Left"]);
+            }
+            UIFocusContext::ExportPage
+            | UIFocusContext::InfoBar
+            | UIFocusContext::StreamsPage
+            | UIFocusContext::SplitPage
+            | UIFocusContext::TextEntry => {
+                app.set_accels_for_action("app.zoom_in", &[]);
+                app.set_accels_for_action("app.zoom_out", &[]);
+                app.set_accels_for_action("app.step_forward", &[]);
+                app.set_accels_for_action("app.step_back", &[]);
+            }
+        }
     }
 }

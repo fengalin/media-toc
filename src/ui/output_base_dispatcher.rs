@@ -5,7 +5,9 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 use crate::with_main_ctrl;
 
-use super::{MainController, OutputBaseController, OutputControllerImpl, UIDispatcher};
+use super::{
+    MainController, OutputBaseController, OutputControllerImpl, UIDispatcher, UIEventSender,
+};
 
 pub trait OutputDispatcherImpl {
     type CtrlImpl: OutputControllerImpl;
@@ -29,14 +31,11 @@ where
         ctrl: &mut Self::Controller,
         main_ctrl_rc: &Rc<RefCell<MainController>>,
         _app: &gtk::Application,
+        ui_event_sender: &UIEventSender,
     ) {
-        ctrl.btn.connect_map(move |btn| {
-            btn.grab_default();
-        });
-        ctrl.list.connect_map(move |list| {
-            if let Some(selected_row) = list.get_selected_row() {
-                selected_row.grab_focus();
-            }
+        let ui_event_sender = ui_event_sender.clone();
+        ctrl.page.connect_map(move |_| {
+            ui_event_sender.switch_to(Impl::CtrlImpl::FOCUS_CONTEXT);
         });
 
         ctrl.btn.connect_clicked(with_main_ctrl!(

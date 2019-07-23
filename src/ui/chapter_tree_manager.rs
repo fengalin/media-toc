@@ -199,6 +199,12 @@ impl ChapterTree {
         self.selected_chapter().map(|chapter| chapter.timestamps())
     }
 
+    fn selected_path(&self) -> Option<gtk::TreePath> {
+        self.selected
+            .as_ref()
+            .map_or(None, |sel_iter| self.store.get_path(sel_iter))
+    }
+
     fn iter_chapter(&self) -> Option<ChapterEntry<'_>> {
         self.iter
             .as_ref()
@@ -600,6 +606,10 @@ impl ChapterTreeManager {
 
     pub fn selected(&self) -> Option<ChapterEntry<'_>> {
         self.tree.selected_chapter()
+    }
+
+    pub fn selected_path(&self) -> Option<gtk::TreePath> {
+        self.tree.selected_path()
     }
 
     pub fn chapter_from_path(&self, tree_path: &gtk::TreePath) -> Option<ChapterEntry<'_>> {

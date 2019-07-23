@@ -4,7 +4,6 @@ use gtk::prelude::*;
 use metadata::MediaInfo;
 
 use super::{PlaybackPipeline, UIController};
-use crate::application::CommandLineArguments;
 
 pub struct PerspectiveController {
     pub(super) menu_btn: gtk::MenuButton,
@@ -15,20 +14,20 @@ pub struct PerspectiveController {
 
 impl PerspectiveController {
     pub fn new(builder: &gtk::Builder) -> Self {
-        PerspectiveController {
+        let mut ctrl = PerspectiveController {
             menu_btn: builder.get_object("perspective-menu-btn").unwrap(),
             popover: builder.get_object("perspective-popovermenu").unwrap(),
             stack: builder.get_object("perspective-stack").unwrap(),
             split_btn: builder.get_object("perspective-split-btn").unwrap(),
-        }
+        };
+
+        ctrl.cleanup();
+
+        ctrl
     }
 }
 
 impl UIController for PerspectiveController {
-    fn setup(&mut self, _args: &CommandLineArguments) {
-        self.cleanup();
-    }
-
     fn new_media(&mut self, _pipeline: &PlaybackPipeline) {
         self.menu_btn.set_sensitive(true);
     }

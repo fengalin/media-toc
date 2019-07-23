@@ -14,8 +14,7 @@ use media::MediaEvent;
 use metadata;
 use metadata::{Format, MediaInfo};
 
-use super::{PlaybackPipeline, UIController, UIEventSender};
-use crate::application::CommandLineArguments;
+use super::{PlaybackPipeline, UIController, UIEventSender, UIFocusContext};
 
 const PROGRESS_TIMER_PERIOD: u32 = 250; // 250 ms
 
@@ -46,6 +45,7 @@ pub trait MediaProcessor {
 }
 
 pub trait OutputControllerImpl: MediaProcessor + UIController {
+    const FOCUS_CONTEXT: UIFocusContext;
     const BTN_NAME: &'static str;
     const LIST_NAME: &'static str;
     const PROGRESS_BAR_NAME: &'static str;
@@ -85,7 +85,7 @@ pub struct OutputBaseController<Impl> {
 
     perspective_selector: gtk::MenuButton,
     open_btn: gtk::Button,
-    chapter_grid: gtk::Grid,
+    pub(super) page: gtk::Widget,
 
     pub(super) media_event_handler: Option<Rc<Fn(MediaEvent)>>,
     media_event_handler_src: Option<glib::SourceId>,
@@ -100,19 +100,23 @@ pub struct OutputBaseController<Impl> {
 impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
     pub fn new_base(impl_: Impl, builder: &gtk::Builder, ui_event_sender: UIEventSender) -> Self {
         let btn: gtk::Button = builder.get_object(Impl::BTN_NAME).unwrap();
+        let list: gtk::ListBox = builder.get_object(Impl::LIST_NAME).unwrap();
+        let page: gtk::Widget = list
+            .get_parent()
+            .expect(&format!("Could get parent for list {}", Impl::LIST_NAME));
 
-        OutputBaseController {
+        let ctrl = OutputBaseController {
             impl_,
             ui_event: ui_event_sender,
 
             btn_default_label: btn.get_label().unwrap(),
             btn,
-            list: builder.get_object(Impl::LIST_NAME).unwrap(),
+            list,
             progress_bar: builder.get_object(Impl::PROGRESS_BAR_NAME).unwrap(),
 
             perspective_selector: builder.get_object("perspective-menu-btn").unwrap(),
             open_btn: builder.get_object("open-btn").unwrap(),
-            chapter_grid: builder.get_object("info-chapter_list-grid").unwrap(),
+            page,
 
             media_event_handler: None,
             media_event_handler_src: None,
@@ -122,7 +126,11 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
 
             overwrite_response_cb: None,
             overwrite_all: false,
-        }
+        };
+
+        ctrl.btn.set_sensitive(false);
+
+        ctrl
     }
 
     pub fn start(&mut self) {
@@ -251,7 +259,6 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
 
         self.perspective_selector.set_sensitive(false);
         self.open_btn.set_sensitive(false);
-        self.chapter_grid.set_sensitive(false);
 
         self.ui_event.set_cursor_waiting();
     }
@@ -266,7 +273,6 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
 
         self.perspective_selector.set_sensitive(true);
         self.open_btn.set_sensitive(true);
-        self.chapter_grid.set_sensitive(true);
 
         self.ui_event.reset_cursor();
     }
@@ -336,11 +342,6 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
 }
 
 impl<Impl: OutputControllerImpl> UIController for OutputBaseController<Impl> {
-    fn setup(&mut self, args: &CommandLineArguments) {
-        self.btn.set_sensitive(false);
-        self.impl_.setup(args);
-    }
-
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         self.btn.set_sensitive(true);
         self.impl_.new_media(pipeline);
@@ -355,5 +356,12 @@ impl<Impl: OutputControllerImpl> UIController for OutputBaseController<Impl> {
 
     fn streams_changed(&mut self, info: &MediaInfo) {
         self.impl_.streams_changed(info);
+    }
+
+    fn grab_focus(&self) {
+        self.btn.grab_default();
+        if let Some(selected_row) = self.list.get_selected_row() {
+            selected_row.grab_focus();
+        }
     }
 }

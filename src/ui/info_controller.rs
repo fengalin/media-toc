@@ -7,7 +7,7 @@ use log::{info, warn};
 
 use std::{cell::RefCell, fs::File, rc::Rc};
 
-use crate::application::{CommandLineArguments, CONFIG};
+use crate::application::CONFIG;
 
 use media::Timestamp;
 use metadata;
@@ -52,18 +52,6 @@ pub struct InfoController {
 }
 
 impl UIController for InfoController {
-    fn setup(&mut self, _args: &CommandLineArguments) {
-        self.cleanup();
-
-        // Show chapters toggle
-        if CONFIG.read().unwrap().ui.is_chapters_list_hidden {
-            self.show_chapters_btn.set_active(false);
-            self.info_container.hide();
-        }
-
-        self.show_chapters_btn.set_sensitive(true);
-    }
-
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         let toc_extensions = metadata::Factory::get_extensions();
 
@@ -172,6 +160,8 @@ impl UIController for InfoController {
         } else {
             self.drawingarea.hide();
         }
+
+        self.ui_event.update_focus();
     }
 
     fn cleanup(&mut self) {
@@ -205,6 +195,26 @@ impl UIController for InfoController {
         self.video_codec_lbl
             .set_label(info.streams.get_video_codec().unwrap_or(EMPTY_REPLACEMENT));
     }
+
+    fn grab_focus(&self) {
+        self.chapter_treeview.grab_focus();
+
+        match self.chapter_manager.selected_path() {
+            Some(sel_path) => {
+                self.chapter_treeview
+                    .set_cursor(&sel_path, None::<&gtk::TreeViewColumn>, false);
+                self.chapter_treeview.grab_default();
+            }
+            None => {
+                // Set the cursor to an uninitialized path to unselect
+                self.chapter_treeview.set_cursor(
+                    &gtk::TreePath::new(),
+                    None::<&gtk::TreeViewColumn>,
+                    false,
+                );
+            }
+        }
+    }
 }
 
 impl InfoController {
@@ -220,7 +230,7 @@ impl InfoController {
         let chapter_treeview: gtk::TreeView = builder.get_object("chapter-treeview").unwrap();
         chapter_manager.init_treeview(&chapter_treeview);
 
-        InfoController {
+        let mut ctrl = InfoController {
             ui_event: ui_event_sender,
 
             info_container: builder.get_object("info-chapter_list-grid").unwrap(),
@@ -248,7 +258,19 @@ impl InfoController {
 
             duration: Duration::default(),
             repeat_chapter: false,
+        };
+
+        ctrl.cleanup();
+
+        // Show chapters toggle
+        if CONFIG.read().unwrap().ui.is_chapters_list_hidden {
+            ctrl.show_chapters_btn.set_active(false);
+            ctrl.info_container.hide();
         }
+
+        ctrl.show_chapters_btn.set_sensitive(true);
+
+        ctrl
     }
 
     pub fn draw_thumbnail(&mut self, drawingarea: &gtk::DrawingArea, cairo_ctx: &cairo::Context) {
@@ -337,6 +359,8 @@ impl InfoController {
                     }
                 }
             }
+
+            self.ui_event.update_focus();
         }
     }
 

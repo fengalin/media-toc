@@ -3,6 +3,7 @@ use gstreamer as gst;
 use gtk;
 use std::{borrow::Cow, path::PathBuf, rc::Rc};
 
+use super::UIFocusContext;
 use media::Timestamp;
 
 #[derive(Clone)]
@@ -19,6 +20,7 @@ pub enum UIEvent {
         ts_to_restore: Timestamp,
     },
     ResetCursor,
+    RestoreContext,
     Seek {
         target: Timestamp,
         flags: gst::SeekFlags,
@@ -28,6 +30,9 @@ pub enum UIEvent {
     SetCursorDoubleArrow,
     ShowError(Cow<'static, str>),
     ShowInfo(Cow<'static, str>),
+    SwitchTo(UIFocusContext),
+    TemporarilySwitchTo(UIFocusContext),
+    UpdateFocus,
 }
 
 #[derive(Clone)]
@@ -73,6 +78,10 @@ impl UIEventSender {
         self.0.send(UIEvent::ResetCursor);
     }
 
+    pub fn restore_context(&self) {
+        self.0.send(UIEvent::RestoreContext);
+    }
+
     pub fn show_all(&self) {
         self.0.send(UIEvent::ShowAll);
     }
@@ -101,6 +110,19 @@ impl UIEventSender {
         Msg: Into<Cow<'static, str>>,
     {
         self.0.send(UIEvent::ShowInfo(msg.into()));
+    }
+
+    pub fn switch_to(&self, ctx: UIFocusContext) {
+        self.0.send(UIEvent::SwitchTo(ctx));
+    }
+
+    // Call `restore_context` to retrieve initial state
+    pub fn temporarily_switch_to(&self, ctx: UIFocusContext) {
+        self.0.send(UIEvent::TemporarilySwitchTo(ctx));
+    }
+
+    pub fn update_focus(&self) {
+        self.0.send(UIEvent::UpdateFocus);
     }
 }
 

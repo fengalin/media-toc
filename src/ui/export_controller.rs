@@ -17,9 +17,8 @@ use metadata::{Duration, Exporter, Format, MatroskaTocFormat, MediaInfo};
 
 use super::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
-    PlaybackPipeline, ProcessingState, ProcessingType, UIController, UIEventSender,
+    PlaybackPipeline, ProcessingState, ProcessingType, UIController, UIEventSender, UIFocusContext,
 };
-use crate::application::CommandLineArguments;
 
 pub type ExportController = OutputBaseController<ExportControllerImpl>;
 
@@ -51,25 +50,13 @@ pub struct ExportControllerImpl {
 }
 
 impl OutputControllerImpl for ExportControllerImpl {
+    const FOCUS_CONTEXT: UIFocusContext = UIFocusContext::ExportPage;
     const BTN_NAME: &'static str = "export-btn";
     const LIST_NAME: &'static str = "export-list-box";
     const PROGRESS_BAR_NAME: &'static str = "export-progress";
 }
 
 impl UIController for ExportControllerImpl {
-    fn setup(&mut self, _args: &CommandLineArguments) {
-        match TocSetterPipeline::check_requirements() {
-            Ok(_) => self.export_list.select_row(Some(&self.mkvmerge_txt_row)),
-            Err(err) => {
-                warn!("{}", err);
-                self.mkvmerge_txt_warning_lbl.set_label(&err);
-
-                self.export_list.set_sensitive(false);
-                self.export_btn.set_sensitive(false);
-            }
-        }
-    }
-
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         self.src_info = Some(Arc::clone(&pipeline.info));
     }
@@ -82,7 +69,7 @@ impl UIController for ExportControllerImpl {
 
 impl ExportControllerImpl {
     pub fn new(builder: &gtk::Builder) -> Self {
-        ExportControllerImpl {
+        let ctrl = ExportControllerImpl {
             src_info: None,
 
             idx: 0,
@@ -97,7 +84,20 @@ impl ExportControllerImpl {
             mkv_row: builder.get_object("matroska_export-row").unwrap(),
 
             export_btn: builder.get_object(Self::BTN_NAME).unwrap(),
+        };
+
+        match TocSetterPipeline::check_requirements() {
+            Ok(_) => ctrl.export_list.select_row(Some(&ctrl.mkvmerge_txt_row)),
+            Err(err) => {
+                warn!("{}", err);
+                ctrl.mkvmerge_txt_warning_lbl.set_label(&err);
+
+                ctrl.export_list.set_sensitive(false);
+                ctrl.export_btn.set_sensitive(false);
+            }
         }
+
+        ctrl
     }
 
     fn reset(&mut self) {
