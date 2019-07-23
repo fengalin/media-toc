@@ -149,7 +149,13 @@ impl UIController for StreamsController {
     }
 
     fn grab_focus(&self) {
-        self.audio_treeview.grab_focus();
+        // grab focus asynchronoulsy because it triggers the `cursor_changed` signal
+        // which needs to check if the stream has changed
+        let audio_treeview = self.audio_treeview.clone();
+        gtk::idle_add(move || {
+            audio_treeview.grab_focus();
+            glib::Continue(false)
+        });
     }
 }
 
