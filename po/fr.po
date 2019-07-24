@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2019-07-01 10:36+0200\n"
+"POT-Creation-Date: 2019-07-24 12:34+0200\n"
 "PO-Revision-Date: 2019-07-01 10:37+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
@@ -51,7 +51,7 @@ msgstr "Impossible de passer le média en mode lecture."
 msgid "Could not set media in Paused mode"
 msgstr "Impossible de passer le média en mode pause."
 
-#: media/src/playback_pipeline.rs:644
+#: media/src/playback_pipeline.rs:646
 msgid "No usable streams could be found."
 msgstr "Aucun flux exploitable n'a été trouvé."
 
@@ -148,7 +148,7 @@ msgstr "Export vers {}…"
 msgid "Failed to write Cue Sheet file"
 msgstr "Échec à l'écriture du fichier Cue Sheet."
 
-#: metadata/src/cue_sheet_format.rs:37 metadata/src/mkvmerge_text_format.rs:236
+#: metadata/src/cue_sheet_format.rs:37 metadata/src/mkvmerge_text_format.rs:242
 msgid "The table of contents is empty"
 msgstr "La table des matières est vide"
 
@@ -156,32 +156,32 @@ msgstr "La table des matières est vide"
 msgid "untitled"
 msgstr "sans titre"
 
-#: metadata/src/media_info.rs:479
+#: metadata/src/media_info.rs:484
 msgid "couldn't add tag {tag_name}"
 msgstr "impossible d'ajouter l'étiquette {tag_name}"
 
-#: metadata/src/mkvmerge_text_format.rs:122
+#: metadata/src/mkvmerge_text_format.rs:130
 msgid "unexpected error reading mkvmerge text file."
 msgstr "erreur inattendue à la lecture du fichier texte mkvmerge"
 
-#: metadata/src/mkvmerge_text_format.rs:140
-#: metadata/src/mkvmerge_text_format.rs:159
+#: metadata/src/mkvmerge_text_format.rs:148
+#: metadata/src/mkvmerge_text_format.rs:165
 msgid "unexpected sequence starting with: {}"
 msgstr "séquence inattendue commençant par : {}"
 
-#: metadata/src/mkvmerge_text_format.rs:153
+#: metadata/src/mkvmerge_text_format.rs:161
 msgid "expecting a number, found: {}"
 msgstr "un nombre est attendu au lieu de : {}"
 
-#: metadata/src/mkvmerge_text_format.rs:156
+#: metadata/src/mkvmerge_text_format.rs:163
 msgid "chapter numbers don't match for: {}"
 msgstr "les numéros de chapitre ne correspondent pas pour : {}"
 
-#: metadata/src/mkvmerge_text_format.rs:197
+#: metadata/src/mkvmerge_text_format.rs:203
 msgid "couldn't update last start position"
 msgstr "impossible de mettre à jour la dernière position de départ"
 
-#: metadata/src/mkvmerge_text_format.rs:226
+#: metadata/src/mkvmerge_text_format.rs:232
 msgid "Failed to write mkvmerge text file"
 msgstr "Échec à l'écriture du fichier texte mkvmerge"
 
@@ -230,27 +230,27 @@ msgid "Duration:"
 msgstr "Durée :"
 
 #. Button tooltip
-#: res/ui/media-toc.ui:470
+#: res/ui/media-toc.ui:471
 msgid "Repeat current chapter"
 msgstr "Répéter le chapitre courant"
 
 #. Button tooltip
-#: res/ui/media-toc.ui:496
+#: res/ui/media-toc.ui:497
 msgid "Remove current chapter"
 msgstr "Supprimer le chapitre courant"
 
 #. Button tooltip
-#: res/ui/media-toc.ui:512
+#: res/ui/media-toc.ui:513
 msgid "Add a new chapter"
 msgstr "Ajouter un nouveau chapitre"
 
 #. Button tooltip
-#: res/ui/media-toc.ui:639
+#: res/ui/media-toc.ui:640
 msgid "Zoom in"
 msgstr "Zoomer"
 
 #. Button tooltip
-#: res/ui/media-toc.ui:655
+#: res/ui/media-toc.ui:656
 msgid "Zoom out"
 msgstr "Dé-zoomer"
 
@@ -263,19 +263,19 @@ msgstr "Jouer / Mettre en pause"
 msgid "Video Streams"
 msgstr "Flux Vidéos"
 
-#: res/ui/media-toc.ui:804
+#: res/ui/media-toc.ui:805
 msgid "Audio Streams"
 msgstr "Flux Audios"
 
-#: res/ui/media-toc.ui:837
+#: res/ui/media-toc.ui:839
 msgid "Text Streams"
 msgstr "Flux Textes"
 
-#: res/ui/media-toc.ui:967
+#: res/ui/media-toc.ui:970
 msgid "mkvmerge text format"
 msgstr "Format textuel de mkvmerge"
 
-#: res/ui/media-toc.ui:983
+#: res/ui/media-toc.ui:986
 msgid ""
 "mkvmerge compliant text format.\n"
 "Flat table of contents.\n"
@@ -285,11 +285,11 @@ msgstr ""
 "Table des matières à plat.\n"
 "Résolution temporelle : 1 ms."
 
-#: res/ui/media-toc.ui:1017
+#: res/ui/media-toc.ui:1020
 msgid "Cue Sheet format"
 msgstr "Format Cue Sheet"
 
-#: res/ui/media-toc.ui:1033
+#: res/ui/media-toc.ui:1036
 msgid ""
 "Cue Sheet compliant text format.\n"
 "Hierachical table of contents.\n"
@@ -299,11 +299,11 @@ msgstr ""
 "Table des matières hiérarchique.\n"
 "Résolution temporelle : 1 trame (1/75 s)."
 
-#: res/ui/media-toc.ui:1067
+#: res/ui/media-toc.ui:1070
 msgid "Matroska Container"
 msgstr "Conteneur Matroska"
 
-#: res/ui/media-toc.ui:1083
+#: res/ui/media-toc.ui:1086
 msgid ""
 "Binary audio, video & text media container.\n"
 "Hierachical table of contents.\n"
@@ -315,24 +315,24 @@ msgstr ""
 
 #. Button label
 #. Name of the perspective
-#: res/ui/media-toc.ui:1127 res/ui/media-toc.ui:1928
+#: res/ui/media-toc.ui:1130 res/ui/media-toc.ui:1931
 msgid "Export"
 msgstr "Exporter"
 
 #. Button tooltip
-#: res/ui/media-toc.ui:1132
+#: res/ui/media-toc.ui:1135
 msgid "Export media to selected format"
 msgstr "Exporter le média au format sélectionné"
 
-#: res/ui/media-toc.ui:1151
+#: res/ui/media-toc.ui:1154
 msgid "Export Formats"
 msgstr "Formats d'export"
 
-#: res/ui/media-toc.ui:1269
+#: res/ui/media-toc.ui:1272
 msgid "Flac"
 msgstr "Flac"
 
-#: res/ui/media-toc.ui:1285
+#: res/ui/media-toc.ui:1288
 msgid ""
 "Audio lossless compression.\n"
 "Tags support."
@@ -340,11 +340,11 @@ msgstr ""
 "Flac (compression sans perte).\n"
 "Tags gérés."
 
-#: res/ui/media-toc.ui:1337
+#: res/ui/media-toc.ui:1340
 msgid "Wave / PCM"
 msgstr "Wave / PCM"
 
-#: res/ui/media-toc.ui:1353
+#: res/ui/media-toc.ui:1356
 msgid ""
 "No compression.\n"
 "Tags support."
@@ -352,11 +352,11 @@ msgstr ""
 "Sans compression.\n"
 "Tags gérés."
 
-#: res/ui/media-toc.ui:1405
+#: res/ui/media-toc.ui:1408
 msgid "Opus"
 msgstr "Opus"
 
-#: res/ui/media-toc.ui:1421 res/ui/media-toc.ui:1489 res/ui/media-toc.ui:1557
+#: res/ui/media-toc.ui:1424 res/ui/media-toc.ui:1492 res/ui/media-toc.ui:1560
 msgid ""
 "Audio lossy compression.\n"
 "Tags support."
@@ -364,40 +364,40 @@ msgstr ""
 "Compression audio avec perte.\n"
 "Tags gérés."
 
-#: res/ui/media-toc.ui:1473
+#: res/ui/media-toc.ui:1476
 msgid "Vorbis"
 msgstr "Vorbis"
 
-#: res/ui/media-toc.ui:1541
+#: res/ui/media-toc.ui:1544
 msgid "MP3"
 msgstr "MP3"
 
 #. Button label
 #. Name of the perspective
-#: res/ui/media-toc.ui:1600 res/ui/media-toc.ui:1989
+#: res/ui/media-toc.ui:1603 res/ui/media-toc.ui:1992
 msgid "Split"
 msgstr "Découper"
 
 #. Button tooltip
-#: res/ui/media-toc.ui:1605
+#: res/ui/media-toc.ui:1608
 msgid "Split audio stream and encode to selected format"
 msgstr "Découper le flux audio et encoder au format sélectionné"
 
-#: res/ui/media-toc.ui:1624
+#: res/ui/media-toc.ui:1627
 msgid "Split Formats"
 msgstr "Formats cibles"
 
 #. Name of the perspective
-#: res/ui/media-toc.ui:1804
+#: res/ui/media-toc.ui:1807
 msgid "Display"
 msgstr "Affichage"
 
 #. Name of the perspective
-#: res/ui/media-toc.ui:1866
+#: res/ui/media-toc.ui:1869
 msgid "Streams"
 msgstr "Flux"
 
-#: src/application/command_line.rs:13 src/ui/main_controller.rs:175
+#: src/application/command_line.rs:13 src/ui/main_controller.rs:183
 msgid ""
 "Build a table of contents from a media file\n"
 "or split a media file into chapters"
@@ -445,15 +445,15 @@ msgstr "impossible de créer le fichier de configuration : {}"
 msgid "Failed to initialize GTK"
 msgstr "Impossible d'initialiser GTK"
 
-#: src/ui/chapter_tree_manager.rs:141
+#: src/ui/chapter_tree_manager.rs:567
 msgid "Title"
 msgstr "Titre"
 
-#: src/ui/chapter_tree_manager.rs:142
+#: src/ui/chapter_tree_manager.rs:573
 msgid "Start"
 msgstr "Début"
 
-#: src/ui/chapter_tree_manager.rs:143
+#: src/ui/chapter_tree_manager.rs:577
 msgid "End"
 msgstr "Fin"
 
@@ -473,11 +473,11 @@ msgstr "Échec à la préparation de l'export : {}"
 msgid "Failed to export media. {}"
 msgstr "Échec à l'export du média. {}"
 
-#: src/ui/info_controller.rs:118
+#: src/ui/info_controller.rs:107
 msgid "No toc in file \"{}\""
 msgstr "Aucune table des matières dans le fichier «{}»"
 
-#: src/ui/info_controller.rs:129
+#: src/ui/info_controller.rs:118
 msgid ""
 "Error opening toc file \"{}\":\n"
 "{}"
@@ -485,46 +485,46 @@ msgstr ""
 "Erreur à l'ouverture du fichier «{}» :\n"
 "{}"
 
-#: src/ui/info_controller.rs:143
+#: src/ui/info_controller.rs:132
 msgid "Failed to open toc file."
 msgstr "Impossible d'ouvrir le fichier de table des matières."
 
-#: src/ui/main_controller.rs:85
+#: src/ui/main_controller.rs:91
 msgid "Yes"
 msgstr "Oui"
 
-#: src/ui/main_controller.rs:87
+#: src/ui/main_controller.rs:93
 msgid "No"
 msgstr "Non"
 
-#: src/ui/main_controller.rs:88
+#: src/ui/main_controller.rs:94
 msgid "Yes to all"
 msgstr "Oui pour tous"
 
-#: src/ui/main_controller.rs:89 src/ui/main_dispatcher.rs:131
-#: src/ui/output_base_controller.rs:250
+#: src/ui/main_controller.rs:95 src/ui/main_dispatcher.rs:131
+#: src/ui/output_base_controller.rs:258
 msgid "Cancel"
 msgstr "Annuler"
 
-#: src/ui/main_controller.rs:177
+#: src/ui/main_controller.rs:185
 msgid "© 2017–2019 François Laignel"
 msgstr "© 2017–2019 François Laignel"
 
-#: src/ui/main_controller.rs:178
+#: src/ui/main_controller.rs:186
 msgid "translator-credits"
 msgstr "François Laignel"
 
-#: src/ui/main_controller.rs:182
+#: src/ui/main_controller.rs:190
 msgid "Learn more about media-toc"
 msgstr "En apprendre plus sur media-toc"
 
-#: src/ui/main_controller.rs:432 src/ui/main_controller.rs:497
+#: src/ui/main_controller.rs:449 src/ui/main_controller.rs:514
 msgid "Missing plugin: {}"
 msgid_plural "Missing plugins: {}"
 msgstr[0] "Greffon manquant : {}"
 msgstr[1] "Greffons manquants : {}"
 
-#: src/ui/main_controller.rs:545 src/ui/main_controller.rs:643
+#: src/ui/main_controller.rs:562 src/ui/main_controller.rs:660
 msgid ""
 "Error opening file.\n"
 "\n"
@@ -534,7 +534,7 @@ msgstr ""
 "\n"
 "{}"
 
-#: src/ui/main_controller.rs:564
+#: src/ui/main_controller.rs:581
 msgid ""
 "Video rendering hardware acceleration seems broken and has been disabled.\n"
 "Please restart the application."
@@ -543,15 +543,15 @@ msgstr ""
 "car elle ne semble pas fonctionner correctement.\n"
 "Veuillez relancer l'application."
 
-#: src/ui/main_dispatcher.rs:51
+#: src/ui/main_dispatcher.rs:48
 msgid "About"
 msgstr "À propos"
 
-#: src/ui/main_dispatcher.rs:60
+#: src/ui/main_dispatcher.rs:59
 msgid "Quit"
 msgstr "Quitter"
 
-#: src/ui/main_dispatcher.rs:116
+#: src/ui/main_dispatcher.rs:115
 msgid "Open media file"
 msgstr "Ouvrir un fichier multimédia"
 
@@ -563,11 +563,11 @@ msgstr "Ouvrir un fichier multimédia"
 msgid "Open"
 msgstr "Ouvrir"
 
-#: src/ui/main_dispatcher.rs:197
+#: src/ui/main_dispatcher.rs:205
 msgid "Failed to initialize GStreamer, the application can't be used."
 msgstr "Échec à l'initialisation de GStreamer, l'application est inutilisable."
 
-#: src/ui/output_base_controller.rs:208
+#: src/ui/output_base_controller.rs:216
 msgid ""
 "{output_file}\n"
 "already exists. Overwrite?"
@@ -587,47 +587,47 @@ msgstr "Échec à la préparation du découpage : {}"
 msgid "Failed to split media. {}"
 msgstr "Échec lors du découpage du média. {}"
 
-#: src/ui/streams_controller.rs:193
+#: src/ui/streams_controller.rs:206
 msgid "unknown"
 msgstr "inconnu"
 
-#: src/ui/streams_controller.rs:234
+#: src/ui/streams_controller.rs:247
 msgid "Export?"
 msgstr "Exporter ?"
 
-#: src/ui/streams_controller.rs:235
+#: src/ui/streams_controller.rs:248
 msgid "Stream id"
 msgstr "Id. du flux"
 
-#: src/ui/streams_controller.rs:236
+#: src/ui/streams_controller.rs:249
 msgid "Language"
 msgstr "Langue"
 
-#: src/ui/streams_controller.rs:237
+#: src/ui/streams_controller.rs:250
 msgid "Codec"
 msgstr "Codec"
 
-#: src/ui/streams_controller.rs:238
+#: src/ui/streams_controller.rs:251
 msgid "Comment"
 msgstr "Commentaire"
 
-#: src/ui/streams_controller.rs:265
+#: src/ui/streams_controller.rs:278
 msgid "Width"
 msgstr "Largeur"
 
-#: src/ui/streams_controller.rs:272
+#: src/ui/streams_controller.rs:285
 msgid "Height"
 msgstr "Hauteur"
 
-#: src/ui/streams_controller.rs:311
+#: src/ui/streams_controller.rs:324
 msgid "Rate"
 msgstr "Débit"
 
-#: src/ui/streams_controller.rs:318
+#: src/ui/streams_controller.rs:331
 msgid "Channels"
 msgstr "Canaux"
 
-#: src/ui/streams_controller.rs:356
+#: src/ui/streams_controller.rs:369
 msgid "Format"
 msgstr "Format"
 
