@@ -131,7 +131,7 @@ Author: François Laignel <fengalin@free.fr>
           <object class="GtkMenuButton" id="perspective-menu-btn">
             <property name="visible">True</property>
             <property name="sensitive">False</property>
-            <property name="can_focus">True</property>
+            <property name="can_focus">False</property>
             <property name="receives_default">True</property>
             <property name="popover">perspective-popovermenu</property>
             <child>
@@ -195,8 +195,8 @@ Author: François Laignel <fengalin@free.fr>
           <object class="GtkToggleButton" id="show_chapters-toggle">
             <property name="visible">True</property>
             <property name="sensitive">False</property>
-            <property name="can_focus">True</property>
-            <property name="receives_default">True</property>
+            <property name="can_focus">False</property>
+            <property name="receives_default">False</property>
             <property name="tooltip_text" translatable="yes" comments="Button tooltip">Show / hide chapters list</property>
             <property name="image">show_chapters-image</property>
             <property name="always_show_image">True</property>
@@ -692,7 +692,7 @@ Author: François Laignel <fengalin@free.fr>
                         <child>
                           <object class="GtkScale" id="timeline-scale">
                             <property name="visible">True</property>
-                            <property name="can_focus">True</property>
+                            <property name="can_focus">False</property>
                             <property name="valign">end</property>
                             <property name="hexpand">True</property>
                             <property name="show_fill_level">True</property>
@@ -717,8 +717,7 @@ Author: François Laignel <fengalin@free.fr>
                             <child>
                               <object class="GtkToolButton" id="play_pause-toolbutton">
                                 <property name="visible">True</property>
-                                <property name="can_focus">True</property>
-                                <property name="can_default">True</property>
+                                <property name="can_focus">False</property>
                                 <property name="tooltip_text" translatable="yes" comments="Button tooltip">Play / Pause</property>
                                 <property name="halign">end</property>
                                 <property name="valign">end</property>
@@ -781,6 +780,7 @@ Author: François Laignel <fengalin@free.fr>
                           <object class="GtkTreeView" id="video_streams-treeview">
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
+                            <property name="can_default">True</property>
                             <property name="model">video_streams-liststore</property>
                             <property name="rules_hint">True</property>
                             <property name="search_column">0</property>
@@ -814,6 +814,7 @@ Author: François Laignel <fengalin@free.fr>
                           <object class="GtkTreeView" id="audio_streams-treeview">
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
+                            <property name="can_default">True</property>
                             <property name="model">audio_streams-liststore</property>
                             <property name="rules_hint">True</property>
                             <property name="search_column">0</property>
@@ -847,6 +848,7 @@ Author: François Laignel <fengalin@free.fr>
                           <object class="GtkTreeView" id="text_streams-treeview">
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
+                            <property name="can_default">True</property>
                             <property name="model">text_streams-liststore</property>
                             <property name="rules_hint">True</property>
                             <property name="search_column">0</property>
@@ -1127,7 +1129,7 @@ Time resolution: 1 ns.</property>
                       <object class="GtkButton" id="export-btn">
                         <property name="label" translatable="yes" comments="Button label">Export</property>
                         <property name="visible">True</property>
-                        <property name="can_focus">True</property>
+                        <property name="can_focus">False</property>
                         <property name="can_default">True</property>
                         <property name="receives_default">True</property>
                         <property name="tooltip_text" translatable="yes" comments="Button tooltip">Export media to selected format</property>
@@ -1600,7 +1602,7 @@ Tags support.</property>
                       <object class="GtkButton" id="split-btn">
                         <property name="label" translatable="yes" comments="Button label">Split</property>
                         <property name="visible">True</property>
-                        <property name="can_focus">True</property>
+                        <property name="can_focus">False</property>
                         <property name="can_default">True</property>
                         <property name="receives_default">True</property>
                         <property name="tooltip_text" translatable="yes" comments="Button tooltip">Split audio stream and encode to selected format</property>
@@ -1777,7 +1779,7 @@ Tags support.</property>
           <object class="GtkButton" id="perspective-display-btn">
             <property name="name">perspective-display-btn</property>
             <property name="visible">True</property>
-            <property name="can_focus">True</property>
+            <property name="can_focus">False</property>
             <property name="receives_default">True</property>
             <property name="action_name">app.perspective.display</property>
             <property name="relief">none</property>
@@ -1839,7 +1841,7 @@ Tags support.</property>
           <object class="GtkButton" id="perspective-streams-btn">
             <property name="name">perspective-streams-btn</property>
             <property name="visible">True</property>
-            <property name="can_focus">True</property>
+            <property name="can_focus">False</property>
             <property name="receives_default">True</property>
             <property name="action_name">app.perspective.streams</property>
             <property name="relief">none</property>
@@ -1901,7 +1903,7 @@ Tags support.</property>
           <object class="GtkButton" id="perspective-export-btn">
             <property name="name">perspective-export-btn</property>
             <property name="visible">True</property>
-            <property name="can_focus">True</property>
+            <property name="can_focus">False</property>
             <property name="receives_default">True</property>
             <property name="action_name">app.perspective.export</property>
             <property name="relief">none</property>
@@ -1962,7 +1964,7 @@ Tags support.</property>
           <object class="GtkButton" id="perspective-split-btn">
             <property name="name">perspective-split-btn</property>
             <property name="visible">True</property>
-            <property name="can_focus">True</property>
+            <property name="can_focus">False</property>
             <property name="receives_default">True</property>
             <property name="action_name">app.perspective.split</property>
             <property name="relief">none</property>

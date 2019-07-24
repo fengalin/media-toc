@@ -59,8 +59,6 @@ impl UIDispatcher for InfoDispatcher {
             .connect_change_value(with_main_ctrl!(
                 main_ctrl_rc => move |&mut main_ctrl, _, _, value| {
                     main_ctrl.seek((value as u64).into(), gst::SeekFlags::KEY_UNIT);
-                    // Restore the focus so as not to keep it on the scale
-                    main_ctrl.ui_event().update_focus();
                     Inhibit(true)
                 }
             ));
