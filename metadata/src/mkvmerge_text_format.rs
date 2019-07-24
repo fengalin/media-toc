@@ -139,12 +139,12 @@ impl Reader for MKVMergeTextFormat {
             let mut last_chapter: Option<gst::TocEntry> = None;
             let mut input = content.as_str();
 
-            while input.len() > 0 {
+            while !input.is_empty() {
                 let cur_chapter = match parse_chapter(input) {
                     Ok((i, cur_chapter)) => {
                         if i.len() == input.len() {
                             // No progress
-                            if i.len() > 0 {
+                            if !i.is_empty() {
                                 let msg = gettext("unexpected sequence starting with: {}")
                                     .replacen("{}", &i[..i.len().min(10)], 1);
                                 error!("{}", msg);

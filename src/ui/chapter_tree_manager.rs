@@ -48,9 +48,9 @@ impl From<Option<ChapterIterStart>> for PositionStatus {
 
 bitflags! {
     struct ColumnOptions: u32 {
-        const NONE = 0b00000000;
-        const CAN_EXPAND = 0b00000001;
-        const IS_EDITABLE = 0b00000010;
+        const NONE = 0b0000_0000;
+        const CAN_EXPAND = 0b0000_0001;
+        const IS_EDITABLE = 0b0000_0010;
     }
 }
 
@@ -202,7 +202,7 @@ impl ChapterTree {
     fn selected_path(&self) -> Option<gtk::TreePath> {
         self.selected
             .as_ref()
-            .map_or(None, |sel_iter| self.store.get_path(sel_iter))
+            .and_then(|sel_iter| self.store.get_path(sel_iter))
     }
 
     fn iter_chapter(&self) -> Option<ChapterEntry<'_>> {

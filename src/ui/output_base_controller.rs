@@ -103,11 +103,11 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
         let list: gtk::ListBox = builder.get_object(Impl::LIST_NAME).unwrap();
         let page: gtk::Widget = list
             .get_parent()
-            .expect(&format!("Could get parent for list {}", Impl::LIST_NAME));
+            .unwrap_or_else(|| panic!("Couldn't get parent for list {}", Impl::LIST_NAME));
 
         let ctrl = OutputBaseController {
             impl_,
-            ui_event: ui_event,
+            ui_event,
 
             btn_default_label: btn.get_label().unwrap(),
             btn,

@@ -707,8 +707,8 @@ mod tests {
     use gstreamer_audio::AUDIO_FORMAT_S16;
     use log::{debug, info};
 
-    use metadata::Duration;
     use crate::{SampleIndex, SampleIndexRange, SampleValue, Timestamp};
+    use metadata::Duration;
 
     use super::AudioBuffer;
 
