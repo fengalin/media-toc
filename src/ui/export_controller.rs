@@ -23,11 +23,11 @@ use super::{
 pub type ExportController = OutputBaseController<ExportControllerImpl>;
 
 impl ExportController {
-    pub fn new(builder: &gtk::Builder, ui_event_sender: UIEventSender) -> Self {
+    pub fn new(builder: &gtk::Builder, ui_event: UIEventSender) -> Self {
         OutputBaseController::<ExportControllerImpl>::new_base(
             ExportControllerImpl::new(builder),
             builder,
-            ui_event_sender,
+            ui_event,
         )
     }
 }

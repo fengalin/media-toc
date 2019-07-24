@@ -18,7 +18,7 @@ impl UIDispatcher for VideoDispatcher {
         video_ctrl: &mut VideoController,
         main_ctrl_rc: &Rc<RefCell<MainController>>,
         _app: &gtk::Application,
-        _ui_event_sender: &UIEventSender,
+        _ui_event: &UIEventSender,
     ) {
         match video_ctrl.video_output {
             Some(ref video_output) => {

@@ -24,11 +24,11 @@ use super::{
 pub type SplitController = OutputBaseController<SplitControllerImpl>;
 
 impl SplitController {
-    pub fn new(builder: &gtk::Builder, ui_event_sender: UIEventSender) -> Self {
+    pub fn new(builder: &gtk::Builder, ui_event: UIEventSender) -> Self {
         OutputBaseController::<SplitControllerImpl>::new_base(
             SplitControllerImpl::new(builder),
             builder,
-            ui_event_sender,
+            ui_event,
         )
     }
 }

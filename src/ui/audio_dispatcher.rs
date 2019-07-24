@@ -22,7 +22,7 @@ impl UIDispatcher for AudioDispatcher {
         audio_ctrl: &mut AudioController,
         main_ctrl_rc: &Rc<RefCell<MainController>>,
         app: &gtk::Application,
-        _ui_event_sender: &UIEventSender,
+        _ui_event: &UIEventSender,
     ) {
         // draw
         audio_ctrl.drawingarea.connect_draw(with_main_ctrl!(

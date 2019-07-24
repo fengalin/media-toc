@@ -171,14 +171,14 @@ impl UIController for AudioController {
 impl AudioController {
     pub fn new(
         builder: &gtk::Builder,
-        ui_event_sender: UIEventSender,
+        ui_event: UIEventSender,
         boundaries: Rc<RefCell<ChaptersBoundaries>>,
     ) -> Self {
         let dbl_waveform = DoubleWaveformRenderer::new_dbl_audio_buffer(BUFFER_DURATION);
         let waveform_renderer_mtx = dbl_waveform.get_exposed_buffer_mtx();
 
         let mut ctrl = AudioController {
-            ui_event: ui_event_sender,
+            ui_event,
 
             container: builder.get_object("audio-container").unwrap(),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),

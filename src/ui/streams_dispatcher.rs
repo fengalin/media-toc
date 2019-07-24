@@ -106,7 +106,7 @@ impl UIDispatcher for StreamsDispatcher {
         streams_ctrl: &mut StreamsController,
         main_ctrl_rc: &Rc<RefCell<MainController>>,
         _app: &gtk::Application,
-        ui_event_sender: &UIEventSender,
+        ui_event: &UIEventSender,
     ) {
         // Video stream selection
         streams_ctrl
@@ -158,9 +158,9 @@ impl UIDispatcher for StreamsDispatcher {
             get_text_mut
         );
 
-        let ui_event_sender = ui_event_sender.clone();
+        let ui_event = ui_event.clone();
         streams_ctrl.page.connect_map(move |_| {
-            ui_event_sender.switch_to(UIFocusContext::StreamsPage);
+            ui_event.switch_to(UIFocusContext::StreamsPage);
         });
     }
 }

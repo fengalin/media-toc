@@ -31,11 +31,11 @@ where
         ctrl: &mut Self::Controller,
         main_ctrl_rc: &Rc<RefCell<MainController>>,
         _app: &gtk::Application,
-        ui_event_sender: &UIEventSender,
+        ui_event: &UIEventSender,
     ) {
-        let ui_event_sender = ui_event_sender.clone();
+        let ui_event = ui_event.clone();
         ctrl.page.connect_map(move |_| {
-            ui_event_sender.switch_to(Impl::CtrlImpl::FOCUS_CONTEXT);
+            ui_event.switch_to(Impl::CtrlImpl::FOCUS_CONTEXT);
         });
 
         ctrl.btn.connect_clicked(with_main_ctrl!(

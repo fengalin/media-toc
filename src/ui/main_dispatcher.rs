@@ -66,49 +66,19 @@ impl MainDispatcher {
         ));
 
         if gstreamer::init().is_ok() {
-            let ui_event_sender = main_ctrl.ui_event_sender().clone();
+            let ui_event = main_ctrl.ui_event().clone();
             PerspectiveDispatcher::setup(
                 &mut main_ctrl.perspective_ctrl,
                 main_ctrl_rc,
                 &app,
-                &ui_event_sender,
+                &ui_event,
             );
-            VideoDispatcher::setup(
-                &mut main_ctrl.video_ctrl,
-                main_ctrl_rc,
-                &app,
-                &ui_event_sender,
-            );
-            InfoDispatcher::setup(
-                &mut main_ctrl.info_ctrl,
-                main_ctrl_rc,
-                &app,
-                &ui_event_sender,
-            );
-            AudioDispatcher::setup(
-                &mut main_ctrl.audio_ctrl,
-                main_ctrl_rc,
-                &app,
-                &ui_event_sender,
-            );
-            ExportDispatcher::setup(
-                &mut main_ctrl.export_ctrl,
-                main_ctrl_rc,
-                &app,
-                &ui_event_sender,
-            );
-            SplitDispatcher::setup(
-                &mut main_ctrl.split_ctrl,
-                main_ctrl_rc,
-                &app,
-                &ui_event_sender,
-            );
-            StreamsDispatcher::setup(
-                &mut main_ctrl.streams_ctrl,
-                main_ctrl_rc,
-                &app,
-                &ui_event_sender,
-            );
+            VideoDispatcher::setup(&mut main_ctrl.video_ctrl, main_ctrl_rc, &app, &ui_event);
+            InfoDispatcher::setup(&mut main_ctrl.info_ctrl, main_ctrl_rc, &app, &ui_event);
+            AudioDispatcher::setup(&mut main_ctrl.audio_ctrl, main_ctrl_rc, &app, &ui_event);
+            ExportDispatcher::setup(&mut main_ctrl.export_ctrl, main_ctrl_rc, &app, &ui_event);
+            SplitDispatcher::setup(&mut main_ctrl.split_ctrl, main_ctrl_rc, &app, &ui_event);
+            StreamsDispatcher::setup(&mut main_ctrl.streams_ctrl, main_ctrl_rc, &app, &ui_event);
 
             main_ctrl.media_event_handler = Some(Rc::new(with_main_ctrl!(
                 main_ctrl_rc => move |&mut main_ctrl, event| {
@@ -148,10 +118,10 @@ impl MainDispatcher {
             main_ctrl.open_btn.set_sensitive(true);
 
             let window_box = main_ctrl.window.clone();
-            let ui_event_sender_box = main_ctrl.ui_event_sender().clone();
+            let ui_event_box = main_ctrl.ui_event().clone();
             main_ctrl.select_media_async = Some(Box::new(move || {
                 let window = window_box.clone();
-                let ui_event_sender = ui_event_sender_box.clone();
+                let ui_event = ui_event_box.clone();
                 gtk::idle_add(move || {
                     let file_dlg = gtk::FileChooserDialog::with_buttons(
                         Some(gettext("Open a media file").as_str()),
@@ -170,13 +140,13 @@ impl MainDispatcher {
                         let path = file_dlg.get_filename().map(|path| path.to_owned());
                         match path {
                             Some(path) => {
-                                ui_event_sender.set_cursor_waiting();
-                                ui_event_sender.open_media(path);
+                                ui_event.set_cursor_waiting();
+                                ui_event.open_media(path);
                             }
-                            None => ui_event_sender.cancel_select_media(),
+                            None => ui_event.cancel_select_media(),
                         }
                     } else {
-                        ui_event_sender.cancel_select_media();
+                        ui_event.cancel_select_media();
                     }
 
                     file_dlg.close();
@@ -201,21 +171,19 @@ impl MainDispatcher {
             let info_bar = main_ctrl.info_bar.clone();
             close_info_bar.connect_activate(move |_, _| info_bar.emit_close());
 
-            let ui_event_sender = main_ctrl.ui_event_sender().clone();
+            let ui_event = main_ctrl.ui_event().clone();
             let revealer = main_ctrl.info_bar_revealer.clone();
             main_ctrl.info_bar.connect_response(move |_, _| {
                 revealer.set_reveal_child(false);
-                ui_event_sender.restore_context();
+                ui_event.restore_context();
             });
 
-            let ui_event_sender = main_ctrl.ui_event_sender().clone();
+            let ui_event = main_ctrl.ui_event().clone();
             main_ctrl.display_page.connect_map(move |_| {
-                ui_event_sender.switch_to(UIFocusContext::PlaybackPage);
+                ui_event.switch_to(UIFocusContext::PlaybackPage);
             });
 
-            main_ctrl
-                .ui_event_sender()
-                .switch_to(UIFocusContext::PlaybackPage);
+            main_ctrl.ui_event().switch_to(UIFocusContext::PlaybackPage);
         } else {
             // GStreamer initialization failed
             let mut main_ctrl = main_ctrl_rc.borrow_mut();

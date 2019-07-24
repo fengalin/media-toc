@@ -43,7 +43,7 @@ impl UIDispatcher for PerspectiveDispatcher {
         perspective_ctrl: &mut PerspectiveController,
         _main_ctrl_rc: &Rc<RefCell<MainController>>,
         app: &gtk::Application,
-        _ui_event_sender: &UIEventSender,
+        _ui_event: &UIEventSender,
     ) {
         let menu_btn_box = gtk_downcast!(
             perspective_ctrl

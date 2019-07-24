@@ -129,7 +129,7 @@ pub trait UIDispatcher {
         ctrl: &mut Self::Controller,
         main_ctrl_rc: &Rc<RefCell<MainController>>,
         app: &gtk::Application,
-        ui_event_sender: &UIEventSender,
+        ui_event: &UIEventSender,
     );
 
     // bind context specific accels

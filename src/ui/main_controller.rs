@@ -51,7 +51,7 @@ pub struct MainController {
     info_bar_lbl: gtk::Label,
     info_bar_btn_box: gtk::ButtonBox,
 
-    ui_event_sender: UIEventSender,
+    ui_event: UIEventSender,
     saved_context: Option<UIFocusContext>,
     pub(super) focus: UIFocusContext,
 
@@ -83,7 +83,7 @@ impl MainController {
 
         let (ui_event_sender, ui_event_receiver) =
             glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-        let ui_event_sender: UIEventSender = ui_event_sender.into();
+        let ui_event: UIEventSender = ui_event_sender.into();
         let chapters_boundaries = Rc::new(RefCell::new(ChaptersBoundaries::new()));
 
         let info_bar: gtk::InfoBar = builder.get_object("info_bar").unwrap();
@@ -111,7 +111,7 @@ impl MainController {
             info_bar_lbl: builder.get_object("info_bar-lbl").unwrap(),
             info_bar_btn_box: builder.get_object("info_bar-btnbox").unwrap(),
 
-            ui_event_sender: ui_event_sender.clone(),
+            ui_event: ui_event.clone(),
             saved_context: None,
             focus: UIFocusContext::PlaybackPage,
 
@@ -119,16 +119,12 @@ impl MainController {
             video_ctrl: VideoController::new(&builder, args),
             info_ctrl: InfoController::new(
                 &builder,
-                ui_event_sender.clone(),
+                ui_event.clone(),
                 Rc::clone(&chapters_boundaries),
             ),
-            audio_ctrl: AudioController::new(
-                &builder,
-                ui_event_sender.clone(),
-                chapters_boundaries,
-            ),
-            export_ctrl: ExportController::new(&builder, ui_event_sender.clone()),
-            split_ctrl: SplitController::new(&builder, ui_event_sender.clone()),
+            audio_ctrl: AudioController::new(&builder, ui_event.clone(), chapters_boundaries),
+            export_ctrl: ExportController::new(&builder, ui_event.clone()),
+            split_ctrl: SplitController::new(&builder, ui_event.clone()),
             streams_ctrl: StreamsController::new(&builder),
 
             pipeline: None,
@@ -156,19 +152,19 @@ impl MainController {
                 main_ctrl.open_btn.set_sensitive(true);
             }
 
-            main_ctrl.ui_event_sender.show_all();
+            main_ctrl.ui_event.show_all();
 
             if let Some(input_file) = args.input_file.to_owned() {
-                main_ctrl.ui_event_sender.set_cursor_waiting();
-                main_ctrl.ui_event_sender.open_media(input_file);
+                main_ctrl.ui_event.set_cursor_waiting();
+                main_ctrl.ui_event.open_media(input_file);
             }
         } else {
             main_ctrl.show_all();
         }
     }
 
-    pub fn ui_event_sender(&self) -> &UIEventSender {
-        &self.ui_event_sender
+    pub fn ui_event(&self) -> &UIEventSender {
+        &self.ui_event
     }
 
     pub fn show_all(&self) {
@@ -222,7 +218,7 @@ impl MainController {
 
     pub fn restore_context(&mut self) {
         if let Some(focus_ctx) = self.saved_context.take() {
-            self.ui_event_sender.switch_to(focus_ctx);
+            self.ui_event.switch_to(focus_ctx);
         }
     }
 
@@ -242,8 +238,7 @@ impl MainController {
         self.info_bar_lbl.set_label(message.as_ref());
         self.info_bar_revealer.set_reveal_child(true);
 
-        self.ui_event_sender
-            .temporarily_switch_to(UIFocusContext::InfoBar);
+        self.ui_event.temporarily_switch_to(UIFocusContext::InfoBar);
     }
 
     pub fn show_error<Msg: AsRef<str>>(&mut self, message: Msg) {
@@ -266,11 +261,11 @@ impl MainController {
             self.info_bar.disconnect(src);
         }
 
-        let ui_event_sender = self.ui_event_sender.clone();
+        let ui_event = self.ui_event.clone();
         self.info_bar_response_src =
             Some(self.info_bar.connect_response(move |_, response_type| {
                 info_bar_revealer.set_reveal_child(false);
-                ui_event_sender.restore_context();
+                ui_event.restore_context();
                 response_cb(response_type);
             }));
         self.info_bar_ok.grab_default();

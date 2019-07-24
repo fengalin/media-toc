@@ -98,7 +98,7 @@ pub struct OutputBaseController<Impl> {
 }
 
 impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
-    pub fn new_base(impl_: Impl, builder: &gtk::Builder, ui_event_sender: UIEventSender) -> Self {
+    pub fn new_base(impl_: Impl, builder: &gtk::Builder, ui_event: UIEventSender) -> Self {
         let btn: gtk::Button = builder.get_object(Impl::BTN_NAME).unwrap();
         let list: gtk::ListBox = builder.get_object(Impl::LIST_NAME).unwrap();
         let page: gtk::Widget = list
@@ -107,7 +107,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
 
         let ctrl = OutputBaseController {
             impl_,
-            ui_event: ui_event_sender,
+            ui_event: ui_event,
 
             btn_default_label: btn.get_label().unwrap(),
             btn,

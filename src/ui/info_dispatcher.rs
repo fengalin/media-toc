@@ -22,7 +22,7 @@ impl UIDispatcher for InfoDispatcher {
         info_ctrl: &mut InfoController,
         main_ctrl_rc: &Rc<RefCell<MainController>>,
         app: &gtk::Application,
-        ui_event_sender: &UIEventSender,
+        ui_event: &UIEventSender,
     ) {
         // Register Toggle show chapters list action
         let toggle_show_list = gio::SimpleAction::new("toggle_show_list", None);
@@ -60,7 +60,7 @@ impl UIDispatcher for InfoDispatcher {
                 main_ctrl_rc => move |&mut main_ctrl, _, _, value| {
                     main_ctrl.seek((value as u64).into(), gst::SeekFlags::KEY_UNIT);
                     // Restore the focus so as not to keep it on the scale
-                    main_ctrl.ui_event_sender().update_focus();
+                    main_ctrl.ui_event().update_focus();
                     Inhibit(true)
                 }
             ));
@@ -79,14 +79,14 @@ impl UIDispatcher for InfoDispatcher {
             ));
 
         if let Some(ref title_renderer) = info_ctrl.chapter_manager.title_renderer {
-            let ui_event_sender_cb = ui_event_sender.clone();
+            let ui_event_cb = ui_event.clone();
             title_renderer.connect_editing_started(move |_, _, _| {
-                ui_event_sender_cb.temporarily_switch_to(UIFocusContext::TextEntry);
+                ui_event_cb.temporarily_switch_to(UIFocusContext::TextEntry);
             });
 
-            let ui_event_sender_cb = ui_event_sender.clone();
+            let ui_event_cb = ui_event.clone();
             title_renderer.connect_editing_canceled(move |_| {
-                ui_event_sender_cb.restore_context();
+                ui_event_cb.restore_context();
             });
 
             title_renderer.connect_edited(with_main_ctrl!(
@@ -97,7 +97,7 @@ impl UIDispatcher for InfoDispatcher {
                         .rename_selected(new_title);
                     // reflect title modification in other parts of the UI (audio waveform)
                     main_ctrl.refresh();
-                    main_ctrl.ui_event_sender().restore_context();
+                    main_ctrl.ui_event().restore_context();
                 }
             ));
         }
@@ -110,7 +110,7 @@ impl UIDispatcher for InfoDispatcher {
                 main_ctrl_rc => move |&mut main_ctrl, _, _| {
                     let ts = main_ctrl.get_current_ts();
                     main_ctrl.info_ctrl.add_chapter(ts);
-                    main_ctrl.ui_event_sender().update_focus();
+                    main_ctrl.ui_event().update_focus();
                 }
             ));
 
@@ -121,7 +121,7 @@ impl UIDispatcher for InfoDispatcher {
             .connect_activate(with_main_ctrl!(
                 main_ctrl_rc => move |&mut main_ctrl, _, _| {
                     main_ctrl.info_ctrl.remove_chapter();
-                    main_ctrl.ui_event_sender().update_focus();
+                    main_ctrl.ui_event().update_focus();
                 }
             ));
 

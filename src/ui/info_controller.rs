@@ -236,7 +236,7 @@ impl UIController for InfoController {
 impl InfoController {
     pub fn new(
         builder: &gtk::Builder,
-        ui_event_sender: UIEventSender,
+        ui_event: UIEventSender,
         boundaries: Rc<RefCell<ChaptersBoundaries>>,
     ) -> Self {
         let mut chapter_manager = ChapterTreeManager::new(
@@ -247,7 +247,7 @@ impl InfoController {
         chapter_manager.init_treeview(&chapter_treeview);
 
         let mut ctrl = InfoController {
-            ui_event: ui_event_sender,
+            ui_event,
 
             info_container: builder.get_object("info-chapter_list-grid").unwrap(),
             show_chapters_btn: builder.get_object("show_chapters-toggle").unwrap(),
