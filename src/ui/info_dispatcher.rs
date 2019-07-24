@@ -192,7 +192,7 @@ impl UIDispatcher for InfoDispatcher {
             UIFocusContext::PlaybackPage => {
                 app.set_accels_for_action("app.toggle_show_list", &["l"]);
                 app.set_accels_for_action("app.add_chapter", &["plus", "KP_Add"]);
-                app.set_accels_for_action("app.remove_chapter", &["minus", "KP_Subtract"]);
+                app.set_accels_for_action("app.del_chapter", &["minus", "KP_Subtract"]);
                 app.set_accels_for_action("app.toggle_repeat_chapter", &["r"]);
             }
             UIFocusContext::ExportPage
@@ -200,13 +200,13 @@ impl UIDispatcher for InfoDispatcher {
             | UIFocusContext::StreamsPage => {
                 app.set_accels_for_action("app.toggle_show_list", &["l"]);
                 app.set_accels_for_action("app.add_chapter", &[]);
-                app.set_accels_for_action("app.remove_chapter", &[]);
+                app.set_accels_for_action("app.del_chapter", &[]);
                 app.set_accels_for_action("app.toggle_repeat_chapter", &["r"]);
             }
             UIFocusContext::TextEntry | UIFocusContext::InfoBar => {
                 app.set_accels_for_action("app.toggle_show_list", &[]);
                 app.set_accels_for_action("app.add_chapter", &[]);
-                app.set_accels_for_action("app.remove_chapter", &[]);
+                app.set_accels_for_action("app.del_chapter", &[]);
                 app.set_accels_for_action("app.toggle_repeat_chapter", &[]);
             }
         }

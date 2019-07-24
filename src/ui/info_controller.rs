@@ -184,6 +184,7 @@ impl UIController for InfoController {
         self.video_codec_lbl.set_text("");
         self.duration_lbl.set_text("00:00.000");
         self.thumbnail = None;
+        self.chapter_treeview.get_selection().unselect_all();
         self.chapter_manager.clear();
         self.add_chapter_btn.set_sensitive(false);
         self.add_chapter_action.set_enabled(false);
@@ -267,7 +268,7 @@ impl InfoController {
             chapter_treeview,
             add_chapter_btn: builder.get_object("add_chapter-toolbutton").unwrap(),
             add_chapter_action: gio::SimpleAction::new("add_chapter", None),
-            del_chapter_btn: builder.get_object("remove_chapter-toolbutton").unwrap(),
+            del_chapter_btn: builder.get_object("del_chapter-toolbutton").unwrap(),
             del_chapter_action: gio::SimpleAction::new("del_chapter", None),
 
             next_chapter_action: gio::SimpleAction::new("next_chapter", None),

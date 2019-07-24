@@ -143,8 +143,6 @@ impl ChaptersBoundaries {
     }
 
     pub fn remove_chapter(&mut self, ts: ChapterTimestamps) {
-        debug!("remove_chapter {}", ts);
-
         let prev_chapter = self.0.get_mut(&ts.start).unwrap().prev.take();
         self.0.remove(&ts.start);
 

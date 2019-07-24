@@ -490,13 +490,13 @@ Author: François Laignel <fengalin@free.fr>
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkToolButton" id="remove_chapter-toolbutton">
+                      <object class="GtkToolButton" id="del_chapter-toolbutton">
                         <property name="visible">True</property>
                         <property name="sensitive">False</property>
                         <property name="can_focus">False</property>
                         <property name="tooltip_text" translatable="yes" comments="Button tooltip">Remove current chapter</property>
                         <property name="halign">end</property>
-                        <property name="action_name">app.remove_chapter</property>
+                        <property name="action_name">app.del_chapter</property>
                         <property name="use_underline">True</property>
                         <property name="icon_name">list-remove-symbolic</property>
                       </object>
