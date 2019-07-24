@@ -3,7 +3,7 @@
 
 The MIT License (MIT)
 
-Copyright (c) Copyright (C) 2018 François Laignel
+Copyright (c) Copyright (C) 2017-2019 François Laignel
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,7 @@ Author: François Laignel <fengalin@free.fr>
   <!-- interface-license-type mit -->
   <!-- interface-name media-toc -->
   <!-- interface-description Build a table of contents from a media file or split a media file into chapters -->
-  <!-- interface-copyright Copyright (C) 2018 Fran\303\247ois Laignel -->
+  <!-- interface-copyright Copyright (C) 2018-2019 Fran\303\247ois Laignel -->
   <!-- interface-authors Fran\303\247ois Laignel <fengalin@free.fr> -->
   <object class="GtkListStore" id="audio_streams-liststore">
     <columns>
