@@ -7,7 +7,7 @@ keywords = ["multimedia", "chapter", "table-of-contents", "gtk3", "gstreamer"]
 license = "MIT"
 name = "media-toc-media"
 repository = "https://github.com/fengalin/media-toc"
-version = "0.6.0"
+version = "0.6.99"
 
 [dependencies]
 byteorder = "1"

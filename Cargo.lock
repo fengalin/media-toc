@@ -655,7 +655,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "media-toc"
-version = "0.6.0"
+version = "0.6.99"
 dependencies = [
  "bitflags 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -672,9 +672,9 @@ dependencies = [
  "gtk 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "media-toc-media 0.6.0",
- "media-toc-metadata 0.6.0",
- "media-toc-renderers 0.6.0",
+ "media-toc-media 0.6.99",
+ "media-toc-metadata 0.6.99",
+ "media-toc-renderers 0.6.99",
  "pango 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ron 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.97 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -684,7 +684,7 @@ dependencies = [
 
 [[package]]
 name = "media-toc-media"
-version = "0.6.0"
+version = "0.6.99"
 dependencies = [
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -694,14 +694,14 @@ dependencies = [
  "gstreamer-audio 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "media-toc-metadata 0.6.0",
+ "media-toc-metadata 0.6.99",
  "sample 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec 0.6.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "media-toc-metadata"
-version = "0.6.0"
+version = "0.6.99"
 dependencies = [
  "env_logger 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "gettext-rs 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -716,15 +716,15 @@ dependencies = [
 
 [[package]]
 name = "media-toc-renderers"
-version = "0.6.0"
+version = "0.6.99"
 dependencies = [
  "cairo-rs 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "gstreamer 0.14.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "image 0.21.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "media-toc-media 0.6.0",
- "media-toc-metadata 0.6.0",
+ "media-toc-media 0.6.99",
+ "media-toc-metadata 0.6.99",
  "smallvec 0.6.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

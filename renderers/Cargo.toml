@@ -8,7 +8,7 @@ license = "MIT"
 name = "media-toc-renderers"
 readme = "README.md"
 repository = "https://github.com/fengalin/media-toc"
-version = "0.6.0"
+version = "0.6.99"
 
 [dependencies]
 cairo-rs = "0.7"
