@@ -68,7 +68,6 @@ pub struct MainController {
     pub(super) state: ControllerState,
 
     info_bar_response_src: Option<glib::signal::SignalHandlerId>,
-    pub(super) select_media_async: Option<Box<Fn()>>,
     pub(super) media_event_handler: Option<Rc<Fn(MediaEvent) -> glib::Continue>>,
     media_event_handler_src: Option<glib::SourceId>,
     callback_when_paused: Option<Box<dyn Fn(&mut MainController)>>,
@@ -132,7 +131,6 @@ impl MainController {
             state: ControllerState::Stopped,
 
             info_bar_response_src: None,
-            select_media_async: None,
             media_event_handler: None,
             media_event_handler_src: None,
             callback_when_paused: None,
@@ -619,7 +617,42 @@ impl MainController {
     pub fn select_media(&mut self) {
         self.info_bar_revealer.set_reveal_child(false);
         self.state = ControllerState::PendingSelectMediaDecision;
-        self.select_media_async.as_ref().unwrap()();
+
+        // The file dialog must be opened asynchronously because:
+        // - there is an event loop running until a response is returned by `run`
+        // - the `AudioController` needs to be able to redraw the waveform.
+        // so `self` can't be kept borrowed.
+        let window = self.window.clone();
+        let ui_event = self.ui_event.clone();
+        gtk::idle_add(move || {
+            let file_dlg = gtk::FileChooserDialog::with_buttons(
+                Some(gettext("Open a media file").as_str()),
+                Some(&window),
+                gtk::FileChooserAction::Open,
+                &[
+                    (&gettext("Cancel"), gtk::ResponseType::Cancel),
+                    (&gettext("Open"), gtk::ResponseType::Accept),
+                ],
+            );
+            if let Some(ref last_path) = CONFIG.read().unwrap().media.last_path {
+                file_dlg.set_current_folder(last_path);
+            }
+
+            if file_dlg.run() == gtk::ResponseType::Accept {
+                match file_dlg.get_filename().to_owned() {
+                    Some(path) => {
+                        ui_event.set_cursor_waiting();
+                        ui_event.open_media(path);
+                    }
+                    None => ui_event.cancel_select_media(),
+                }
+            } else {
+                ui_event.cancel_select_media();
+            }
+
+            file_dlg.close();
+            gtk::Continue(false)
+        });
     }
 
     pub fn open_media(&mut self, path: PathBuf) {

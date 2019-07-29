@@ -13,7 +13,7 @@ use super::{
     MainController, PerspectiveDispatcher, PlaybackPipeline, SplitDispatcher, StreamsDispatcher,
     UIController, UIDispatcher, UIEvent, UIFocusContext, VideoDispatcher,
 };
-use crate::{application::CONFIG, with_main_ctrl};
+use crate::with_main_ctrl;
 
 pub struct MainDispatcher;
 impl MainDispatcher {
@@ -116,44 +116,6 @@ impl MainDispatcher {
             app.set_accels_for_action("app.open", &["<Ctrl>O"]);
 
             main_ctrl.open_btn.set_sensitive(true);
-
-            let window_box = main_ctrl.window.clone();
-            let ui_event_box = main_ctrl.ui_event().clone();
-            main_ctrl.select_media_async = Some(Box::new(move || {
-                let window = window_box.clone();
-                let ui_event = ui_event_box.clone();
-                gtk::idle_add(move || {
-                    let file_dlg = gtk::FileChooserDialog::with_buttons(
-                        Some(gettext("Open a media file").as_str()),
-                        Some(&window),
-                        gtk::FileChooserAction::Open,
-                        &[
-                            (&gettext("Cancel"), gtk::ResponseType::Cancel),
-                            (&gettext("Open"), gtk::ResponseType::Accept),
-                        ],
-                    );
-                    if let Some(ref last_path) = CONFIG.read().unwrap().media.last_path {
-                        file_dlg.set_current_folder(last_path);
-                    }
-
-                    if file_dlg.run() == gtk::ResponseType::Accept {
-                        let path = file_dlg.get_filename().map(|path| path.to_owned());
-                        match path {
-                            Some(path) => {
-                                ui_event.set_cursor_waiting();
-                                ui_event.open_media(path);
-                            }
-                            None => ui_event.cancel_select_media(),
-                        }
-                    } else {
-                        ui_event.cancel_select_media();
-                    }
-
-                    file_dlg.close();
-
-                    glib::Continue(false)
-                });
-            }));
 
             // Register Play/Pause action
             let play_pause = gio::SimpleAction::new("play_pause", None);
