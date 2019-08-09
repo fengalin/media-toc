@@ -41,7 +41,7 @@ pub trait MediaProcessor {
     fn process(&mut self, path: &Path) -> Result<ProcessingState, String>;
     fn cancel(&mut self);
     fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingState, String>;
-    fn report_progress(&self) -> Option<f64>;
+    fn report_progress(&mut self) -> f64;
 }
 
 pub trait OutputControllerImpl: MediaProcessor + UIController {
@@ -87,11 +87,9 @@ pub struct OutputBaseController<Impl> {
     open_btn: gtk::Button,
     pub(super) page: gtk::Widget,
 
-    pub(super) media_event_handler: Option<Rc<Fn(MediaEvent)>>,
-    media_event_handler_src: Option<glib::SourceId>,
-
-    pub(super) progress_updater: Option<Rc<Fn()>>,
-    progress_timer_src: Option<glib::SourceId>,
+    pub(super) is_busy: bool,
+    pub(super) media_event_handler: Option<Rc<Fn(MediaEvent) -> gtk::Continue>>,
+    pub(super) progress_updater: Option<Rc<Fn() -> gtk::Continue>>,
 
     pub(super) overwrite_response_cb: Option<Rc<OverwriteResponseCb>>,
     overwrite_all: bool,
@@ -118,11 +116,9 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
             open_btn: builder.get_object("open-btn").unwrap(),
             page,
 
+            is_busy: false,
             media_event_handler: None,
-            media_event_handler_src: None,
-
             progress_updater: None,
-            progress_timer_src: None,
 
             overwrite_response_cb: None,
             overwrite_all: false,
@@ -153,60 +149,35 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
         self.handle_processing_states(Ok(ProcessingState::Cancelled));
     }
 
-    pub fn is_busy(&self) -> bool {
-        self.media_event_handler_src.is_some()
-    }
-
     #[allow(clippy::redundant_closure)]
     fn attach_media_event_handler(&mut self, receiver: glib::Receiver<MediaEvent>) {
-        debug_assert!(self.media_event_handler_src.is_none());
-
         let media_event_handler = Rc::clone(self.media_event_handler.as_ref().unwrap());
-        self.media_event_handler_src = Some(receiver.attach(None, move |event| {
-            media_event_handler(event);
-            // will be removed in `OutputBaseController::switch_to_available`
-            glib::Continue(true)
-        }));
+        receiver.attach(None, move |event| media_event_handler(event));
     }
 
-    fn remove_media_event_handler(&mut self) {
-        if let Some(src) = self.media_event_handler_src.take() {
-            let _res = glib::Source::remove(src);
-        }
-    }
-
-    pub fn handle_media_event(&mut self, event: MediaEvent) {
+    pub fn handle_media_event(&mut self, event: MediaEvent) -> gtk::Continue {
         let res = self.impl_.handle_media_event(event);
-        self.handle_processing_states(res);
+        self.handle_processing_states(res)
     }
 
     fn register_progress_timer(&mut self) {
-        if self.progress_timer_src.is_none() {
-            let progress_updater = Rc::clone(self.progress_updater.as_ref().unwrap());
-            self.progress_timer_src =
-                Some(glib::timeout_add_local(PROGRESS_TIMER_PERIOD, move || {
-                    progress_updater();
-                    glib::Continue(true)
-                }));
-        }
+        let progress_updater = Rc::clone(self.progress_updater.as_ref().unwrap());
+        glib::timeout_add_local(PROGRESS_TIMER_PERIOD, move || progress_updater());
     }
 
-    fn remove_progress_timer(&mut self) {
-        if let Some(src) = self.progress_timer_src.take() {
-            let _res = glib::Source::remove(src);
-        }
-    }
-
-    pub fn update_progress(&self) {
-        if let Some(progress) = self.impl_.report_progress() {
-            self.progress_bar.set_fraction(progress);
+    pub fn update_progress(&mut self) -> gtk::Continue {
+        if self.is_busy {
+            self.progress_bar.set_fraction(self.impl_.report_progress());
+            gtk::Continue(true)
+        } else {
+            self.progress_bar.set_fraction(0f64);
+            gtk::Continue(false)
         }
     }
 
     fn ask_overwrite_question(&mut self, path: &Rc<Path>) {
         self.btn.set_sensitive(false);
 
-        self.remove_progress_timer();
         self.ui_event.reset_cursor();
 
         let filename = path.file_name().expect("no `filename` in `path`");
@@ -247,13 +218,12 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
 
         if next_state != ProcessingState::Cancelled {
             self.ui_event.set_cursor_waiting();
-            self.register_progress_timer();
         }
 
         self.handle_processing_states(Ok(next_state));
     }
 
-    fn switch_to_busy(&self) {
+    fn switch_to_busy(&mut self) {
         self.list.set_sensitive(false);
         self.btn.set_label(&gettext("Cancel"));
 
@@ -261,11 +231,12 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
         self.open_btn.set_sensitive(false);
 
         self.ui_event.set_cursor_waiting();
+
+        self.is_busy = true;
     }
 
-    fn switch_to_available(&mut self) {
-        self.remove_media_event_handler();
-        self.remove_progress_timer();
+    pub(super) fn switch_to_available(&mut self) {
+        self.is_busy = false;
 
         self.progress_bar.set_fraction(0f64);
         self.list.set_sensitive(true);
@@ -277,23 +248,24 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
         self.ui_event.reset_cursor();
     }
 
-    fn handle_processing_states(&mut self, mut res: Result<ProcessingState, String>) {
-        loop {
+    fn handle_processing_states(
+        &mut self,
+        mut res: Result<ProcessingState, String>,
+    ) -> gtk::Continue {
+        let ret = loop {
             match res {
                 Ok(ProcessingState::AllComplete(msg)) => {
-                    self.switch_to_available();
                     self.ui_event.show_info(msg);
-                    break;
+                    break gtk::Continue(false);
                 }
                 Ok(ProcessingState::Cancelled) => {
-                    self.switch_to_available();
-                    break;
+                    break gtk::Continue(false);
                 }
                 Ok(ProcessingState::ConfirmedOutputTo(path)) => {
                     res = self.impl_.process(path.as_ref());
                     if res == Ok(ProcessingState::PendingAsyncMediaEvent) {
                         // Next state handled asynchronously in media event handler
-                        break;
+                        break gtk::Continue(true);
                     }
                 }
                 Ok(ProcessingState::DoneWithCurrent) => {
@@ -301,7 +273,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
                 }
                 Ok(ProcessingState::PendingAsyncMediaEvent) => {
                     // Next state handled asynchronously in media event handler
-                    break;
+                    break gtk::Continue(true);
                 }
                 Ok(ProcessingState::Start) => {
                     res = self.impl_.next();
@@ -312,8 +284,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
                             ProcessingState::AllComplete(_) => {
                                 // Don't display the success message when the user decided
                                 // to skip (not overwrite) last part as it seems missleading
-                                self.switch_to_available();
-                                break;
+                                break gtk::Continue(false);
                             }
                             other => Ok(other),
                         },
@@ -325,19 +296,24 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
                         self.ask_overwrite_question(&path);
                         // Pending user response
                         // Next steps handled asynchronously (see closure above)
-                        break;
+                        break gtk::Continue(true);
                     } else {
                         // handle processing in next iteration
                         res = Ok(ProcessingState::ConfirmedOutputTo(path));
                     }
                 }
                 Err(err) => {
-                    self.switch_to_available();
                     self.ui_event.show_error(err);
-                    break;
+                    break gtk::Continue(false);
                 }
             }
+        };
+
+        if let gtk::Continue(false) = ret {
+            self.switch_to_available();
         }
+
+        ret
     }
 }
 

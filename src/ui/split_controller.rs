@@ -60,6 +60,7 @@ pub struct SplitControllerImpl {
     splitter_pipeline: Option<SplitterPipeline>,
     toc_visitor: Option<TocVisitor>,
     idx: usize,
+    last_progress: f64,
     current_chapter: Option<gst::TocEntry>,
     current_path: Option<Rc<Path>>,
 
@@ -119,6 +120,7 @@ impl SplitControllerImpl {
             splitter_pipeline: None,
             toc_visitor: None,
             idx: 0,
+            last_progress: 0f64,
             current_chapter: None,
             current_path: None,
 
@@ -160,6 +162,7 @@ impl SplitControllerImpl {
         self.splitter_pipeline = None;
         self.toc_visitor = None;
         self.idx = 0;
+        self.last_progress = 0f64;
         self.current_chapter = None;
         self.current_path = None;
     }
@@ -377,15 +380,22 @@ impl MediaProcessor for SplitControllerImpl {
         }
     }
 
-    fn report_progress(&self) -> Option<f64> {
+    fn report_progress(&mut self) -> f64 {
         let duration = self.src_info.as_ref().unwrap().read().unwrap().duration;
         if duration > Duration::default() {
-            self.splitter_pipeline
+            // With some formats, we can't retrieve a proper ts between 2 files
+            // some, just report known last progress in this case
+            if let Some(ts) = self
+                .splitter_pipeline
                 .as_ref()
-                .map(SplitterPipeline::get_current_ts)?
-                .map(|ts| ts.as_f64() / duration.as_f64())
+                .and_then(SplitterPipeline::get_current_ts)
+            {
+                self.last_progress = ts.as_f64() / duration.as_f64()
+            }
+
+            self.last_progress
         } else {
-            Some(0f64)
+            0f64
         }
     }
 }

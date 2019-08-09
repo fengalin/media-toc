@@ -77,14 +77,14 @@ impl TocSetterPipeline {
             .map_err(|_| gettext("Could not set media in Playing mode"))
     }
 
-    pub fn get_current_ts(&self) -> Option<Timestamp> {
+    pub fn get_current_ts(&self) -> Timestamp {
         let mut position_query = gst::Query::new_position(gst::Format::Time);
         self.pipeline.query(&mut position_query);
         let position = position_query.get_result().get_value();
         if position >= 0 {
-            Some(position.into())
+            position.into()
         } else {
-            None
+            Timestamp::default()
         }
     }
 

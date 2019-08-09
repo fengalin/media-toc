@@ -41,7 +41,7 @@ where
         ctrl.btn.connect_clicked(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, _| {
                 main_ctrl.pause_and_callback(Box::new(|main_ctrl: &mut MainController| {
-                    if !Impl::controller_mut(main_ctrl).is_busy() {
+                    if !Impl::controller_mut(main_ctrl).is_busy {
                         if let Some(pipeline) = main_ctrl.pipeline.as_mut() {
                             main_ctrl.info_ctrl.export_chapters(&mut pipeline.info.write().unwrap());
                             Impl::controller_mut(main_ctrl).start();
@@ -55,13 +55,14 @@ where
 
         ctrl.media_event_handler = Some(Rc::new(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl, event| {
-                Impl::controller_mut(&mut main_ctrl).handle_media_event(event);
+                let ctrl = Impl::controller_mut(&mut main_ctrl);
+                ctrl.handle_media_event(event)
             }
         )));
 
         ctrl.progress_updater = Some(Rc::new(with_main_ctrl!(
-            main_ctrl_rc => move |&main_ctrl| {
-                Impl::controller(&main_ctrl).update_progress();
+            main_ctrl_rc => move |&mut main_ctrl| {
+                Impl::controller_mut(&mut main_ctrl).update_progress()
             }
         )));
 
