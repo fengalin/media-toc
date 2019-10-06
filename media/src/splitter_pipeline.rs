@@ -1,3 +1,5 @@
+use futures::channel::mpsc as async_mpsc;
+
 use gettextrs::gettext;
 
 use gstreamer as gst;
@@ -96,7 +98,7 @@ impl SplitterPipeline {
         stream_id: &str,
         format: Format,
         chapter: gst::TocEntry,
-        sender: glib::Sender<MediaEvent>,
+        sender: async_mpsc::Sender<MediaEvent>,
     ) -> Result<SplitterPipeline, String> {
         info!(
             "{}",
@@ -324,23 +326,23 @@ impl SplitterPipeline {
     }
 
     // Uses sender to notify the UI controllers
-    fn register_bus_inspector(&self, sender: glib::Sender<MediaEvent>) {
+    fn register_bus_inspector(&self, mut sender: async_mpsc::Sender<MediaEvent>) {
         let pipeline = self.pipeline.clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
                     if pipeline.set_state(gst::State::Null).is_err() {
                         sender
-                            .send(MediaEvent::FailedToExport(gettext(
+                            .try_send(MediaEvent::FailedToExport(gettext(
                                 "Failed to terminate properly. Check the resulting file.",
                             )))
                             .unwrap();
                     }
-                    sender.send(MediaEvent::Eos).unwrap();
+                    sender.try_send(MediaEvent::Eos).unwrap();
                     return glib::Continue(false);
                 }
                 gst::MessageView::Error(err) => {
-                    let _ = sender.send(MediaEvent::FailedToExport(
+                    let _ = sender.try_send(MediaEvent::FailedToExport(
                         err.get_error().description().to_owned(),
                     ));
                     return glib::Continue(false);
@@ -349,7 +351,7 @@ impl SplitterPipeline {
                     // Start splitting
                     if pipeline.set_state(gst::State::Playing).is_err() {
                         sender
-                            .send(MediaEvent::FailedToExport(gettext(
+                            .try_send(MediaEvent::FailedToExport(gettext(
                                 "Failed to start splitting.",
                             )))
                             .unwrap();

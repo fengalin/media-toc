@@ -19,18 +19,16 @@ use self::info_controller::InfoController;
 mod info_dispatcher;
 use self::info_dispatcher::InfoDispatcher;
 
+#[macro_use]
+pub mod macros;
+
 mod main_controller;
 pub use self::main_controller::{ControllerState, MainController};
 mod main_dispatcher;
 pub use self::main_dispatcher::MainDispatcher;
 
 mod output_base_controller;
-use self::output_base_controller::{
-    MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
-    ProcessingState, ProcessingType,
-};
 mod output_base_dispatcher;
-use self::output_base_dispatcher::{OutputBaseDispatcher, OutputDispatcherImpl};
 
 mod perspective_controller;
 use self::perspective_controller::PerspectiveController;
@@ -55,6 +53,8 @@ use self::video_controller::VideoController;
 mod video_dispatcher;
 use self::video_dispatcher::VideoDispatcher;
 
+use futures::channel::mpsc as async_mpsc;
+
 use gstreamer as gst;
 
 use std::{
@@ -75,7 +75,7 @@ impl PlaybackPipeline {
         path: &Path,
         dbl_audio_buffer_mtx: &Arc<Mutex<media::DoubleAudioBuffer<renderers::WaveformRenderer>>>,
         video_sink: &Option<gst::Element>,
-        sender: glib::Sender<media::MediaEvent>,
+        sender: async_mpsc::Sender<media::MediaEvent>,
     ) -> Result<Self, String> {
         media::PlaybackPipeline::<renderers::WaveformRenderer>::try_new(
             path,
@@ -134,172 +134,4 @@ pub trait UIDispatcher {
 
     // bind context specific accels
     fn bind_accels_for(_ctx: UIFocusContext, _app: &gtk::Application) {}
-}
-
-/// This macro allows declaring a closure which will borrow the specified `main_ctrl_rc`
-/// The following variantes are available:
-///
-/// - Borrow as immutable
-/// ```
-/// with_main_ctrl!(
-///     main_ctrl_rc => |&main_ctrl| main_ctrl.about()
-/// )
-/// ```
-///
-/// - Borrow as mutable
-/// ```
-/// with_main_ctrl!(
-///     main_ctrl_rc => |&mut main_ctrl| main_ctrl.quit()
-/// )
-/// ```
-///
-/// - Borrow as mutable with argument(s) (also available as immutable)
-/// ```
-/// with_main_ctrl!(
-///     main_ctrl_rc => |&mut main_ctrl, event| main_ctrl.handle_media_event(event)
-/// )
-/// ```
-///
-/// - Try to borrow as mutable (also available with argument(s)). The body will not be called if
-/// the borrow attempt fails.
-/// ```
-/// with_main_ctrl!(
-///     main_ctrl_rc => try |&mut main_ctrl| main_ctrl.about()
-/// )
-/// ```
-///
-/// - Borrow as mutable and trigger asynchronously (also available as immutable and with argument(s))
-/// ```
-/// with_main_ctrl!(
-///     main_ctrl_rc => async |&mut main_ctrl| main_ctrl.about()
-/// )
-/// ```
-#[macro_export]
-macro_rules! with_main_ctrl {
-    (@param _) => ( _ );
-    (@param $x:ident) => ( $x );
-    ($main_ctrl_rc:ident => move |&$main_ctrl:ident| $body:expr) => (
-        {
-            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
-            move || {
-                let $main_ctrl = main_ctrl_rc.borrow();
-                $body
-            }
-        }
-    );
-    ($main_ctrl_rc:ident => move |&$main_ctrl:ident, $($p:tt),+| $body:expr) => (
-        {
-            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
-            move |$(with_main_ctrl!(@param $p),)+| {
-                let $main_ctrl = main_ctrl_rc.borrow();
-                $body
-            }
-        }
-    );
-    ($main_ctrl_rc:ident => try move |&$main_ctrl:ident| $body:expr) => (
-        {
-            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
-            move || {
-                if let Ok($main_ctrl) = main_ctrl_rc.try_borrow() {
-                    $body
-                }
-            }
-        }
-    );
-    ($main_ctrl_rc:ident => try move |&$main_ctrl:ident, $($p:tt),+| $body:expr) => (
-        {
-            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
-            move |$(with_main_ctrl!(@param $p),)+| {
-                if let Ok($main_ctrl) = main_ctrl_rc.try_borrow() {
-                    $body
-                }
-            }
-        }
-    );
-    ($main_ctrl_rc:ident => async move |&$main_ctrl:ident| $body:expr) => (
-        {
-            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
-            move || {
-                let main_ctrl_rc_idle = Rc::clone(&main_ctrl_rc);
-                gtk::idle_add(move || {
-                    let $main_ctrl = main_ctrl_rc_idle.borrow();
-                    $body
-                })
-            }
-        }
-    );
-    ($main_ctrl_rc:ident => async move |&$main_ctrl:ident, $($p:tt),+| $body:expr) => (
-        {
-            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
-            move |$(with_main_ctrl!(@param $p),)+| {
-                let main_ctrl_rc_idle = Rc::clone(&main_ctrl_rc);
-                gtk::idle_add(move |$(with_main_ctrl!(@param $p),)+| {
-                    let $main_ctrl = main_ctrl_rc_idle.borrow();
-                    $body
-                })
-            }
-        }
-    );
-    ($main_ctrl_rc:ident => move |&mut $main_ctrl:ident| $body:expr) => (
-        {
-            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
-            move || {
-                let mut $main_ctrl = main_ctrl_rc.borrow_mut();
-                $body
-            }
-        }
-    );
-    ($main_ctrl_rc:ident => move |&mut $main_ctrl:ident, $($p:tt),+| $body:expr) => (
-        {
-            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
-            move |$(with_main_ctrl!(@param $p),)+| {
-                let mut $main_ctrl = main_ctrl_rc.borrow_mut();
-                $body
-            }
-        }
-    );
-    ($main_ctrl_rc:ident => try move |&mut $main_ctrl:ident| $body:expr) => (
-        {
-            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
-            move || {
-                if let Ok(mut $main_ctrl) = main_ctrl_rc.try_borrow_mut() {
-                    $body
-                }
-            }
-        }
-    );
-    ($main_ctrl_rc:ident => try move |&mut $main_ctrl:ident, $($p:tt),+| $body:expr) => (
-        {
-            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
-            move |$(with_main_ctrl!(@param $p),)+| {
-                if let Ok(mut $main_ctrl) = main_ctrl_rc.try_borrow_mut() {
-                    $body
-                }
-            }
-        }
-    );
-    ($main_ctrl_rc:ident => async move |&mut $main_ctrl:ident| $body:expr) => (
-        {
-            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
-            move || {
-                let main_ctrl_rc_idle = Rc::clone(&main_ctrl_rc);
-                gtk::idle_add(move || {
-                    let mut $main_ctrl = main_ctrl_rc_idle.borrow_mut();
-                    $body
-                })
-            }
-        }
-    );
-    ($main_ctrl_rc:ident => async move |&mut $main_ctrl:ident, $($p:tt),+| $body:expr) => (
-        {
-            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
-            move |$(with_main_ctrl!(@param $p),)+| {
-                let main_ctrl_rc_idle = Rc::clone(&main_ctrl_rc);
-                gtk::idle_add(move |$(with_main_ctrl!(@param $p),)+| {
-                    let mut $main_ctrl = main_ctrl_rc_idle.borrow_mut();
-                    $body
-                })
-            }
-        }
-    );
 }

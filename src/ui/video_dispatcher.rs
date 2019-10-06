@@ -38,10 +38,9 @@ impl UIDispatcher for VideoDispatcher {
             }
             None => {
                 error!("{}", gettext("Couldn't find GStreamer GTK video sink."));
-                let container_clone = video_ctrl.container.clone();
-                gtk::idle_add(move || {
-                    container_clone.hide();
-                    glib::Continue(false)
+                let container = video_ctrl.container.clone();
+                spawn!(async move {
+                    container.hide();
                 });
             }
         };

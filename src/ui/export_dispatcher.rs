@@ -1,7 +1,7 @@
-use super::{
-    export_controller::ExportControllerImpl, ExportController, MainController,
-    OutputBaseDispatcher, OutputDispatcherImpl,
-};
+use super::MainController;
+
+use super::export_controller::{ExportController, ExportControllerImpl};
+use super::output_base_dispatcher::{OutputBaseDispatcher, OutputDispatcherImpl};
 
 pub type ExportDispatcher = OutputBaseDispatcher<ExportDispatcherImpl>;
 

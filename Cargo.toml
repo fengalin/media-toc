@@ -18,10 +18,11 @@ cairo-rs = "0.7"
 clap = "2"
 directories = "2"
 env_logger = "0.6"
+futures-preview = "0.3.0-alpha"
 gdk = "0.11"
 gettext-rs = { version = "0.4", features = ["gettext-system"] }
 gio = "0.7"
-glib = "0.8"
+glib = { version = "0.8", features = ["futures"] }
 gstreamer = { version = "0.14", features = ["v1_10"] }
 gstreamer-audio = { version = "0.14", features = ["v1_10"] }
 gtk = { version = "0.7", features = ["v3_18"] }

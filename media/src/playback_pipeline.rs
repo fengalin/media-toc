@@ -1,3 +1,5 @@
+use futures::channel::mpsc as async_mpsc;
+
 use gettextrs::gettext;
 
 use gstreamer as gst;
@@ -52,7 +54,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
         path: &Path,
         dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer<SE>>>,
         video_sink: &Option<gst::Element>,
-        sender: glib::Sender<MediaEvent>,
+        sender: async_mpsc::Sender<MediaEvent>,
     ) -> Result<PlaybackPipeline<SE>, String> {
         info!(
             "{}",
@@ -254,7 +256,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
         &mut self,
         path: &Path,
         video_sink: &Option<gst::Element>,
-        sender: glib::Sender<MediaEvent>,
+        sender: async_mpsc::Sender<MediaEvent>,
     ) {
         // From decodebin3's documentation: "Children: multiqueue0"
         let decodebin_as_bin = self.decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
@@ -316,7 +318,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
         audio_sink: &gst::Element,
         dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer<SE>>>,
         info_rwlck: &Arc<RwLock<MediaInfo>>,
-        sender_mtx: &Arc<Mutex<glib::Sender<MediaEvent>>>,
+        sender_mtx: &Arc<Mutex<async_mpsc::Sender<MediaEvent>>>,
     ) {
         let playback_queue =
             gst::ElementFactory::make("queue", Some("audio_playback_queue")).unwrap();
@@ -401,7 +403,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                     sender_mtx_cb
                         .lock()
                         .expect("waveform_sink::probe couldn't lock sender_mtx")
-                        .send(MediaEvent::ReadyForRefresh)
+                        .try_send(MediaEvent::ReadyForRefresh)
                         .expect("Failed to notify UI");
                 }
 
@@ -429,7 +431,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                         sender_mtx_cb
                             .lock()
                             .unwrap()
-                            .send(MediaEvent::ReadyForRefresh)
+                            .try_send(MediaEvent::ReadyForRefresh)
                             .unwrap();
                     }
                     gst::EventView::Segment(segment_evt) => {
@@ -481,7 +483,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
     }
 
     // Uses sender to notify the UI controllers about the inspection process
-    fn register_bus_inspector(&self, sender: glib::Sender<MediaEvent>) {
+    fn register_bus_inspector(&self, mut sender: async_mpsc::Sender<MediaEvent>) {
         let mut pipeline_state = PipelineState::None;
         let info_arc_mtx = Arc::clone(&self.info);
         let dbl_audio_buffer_mtx = Arc::clone(&self.dbl_audio_buffer_mtx);
@@ -493,17 +495,17 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                         .lock()
                         .unwrap()
                         .set_state(gst::State::Paused);
-                    sender.send(MediaEvent::Eos).expect("Failed to notify UI");
+                    sender.try_send(MediaEvent::Eos).expect("Failed to notify UI");
                 }
                 gst::MessageView::Error(err) => {
                     if "sink" == err.get_src().unwrap().get_name() {
                         // Failure detected on a sink, this occurs when the GL sink
                         // can't operate properly
                         // TODO: make sure this only occurs in this particular case
-                        sender.send(MediaEvent::GLSinkError).unwrap();
+                        sender.try_send(MediaEvent::GLSinkError).unwrap();
                     } else {
                         sender
-                            .send(MediaEvent::FailedToOpenMedia(
+                            .try_send(MediaEvent::FailedToOpenMedia(
                                 err.get_error().description().to_owned(),
                             ))
                             .unwrap();
@@ -514,7 +516,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                     let structure = element_msg.get_structure().unwrap();
                     if structure.get_name() == "missing-plugin" {
                         sender
-                            .send(MediaEvent::MissingPlugin(
+                            .try_send(MediaEvent::MissingPlugin(
                                 structure
                                     .get_value("name")
                                     .unwrap()
@@ -527,7 +529,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                 gst::MessageView::AsyncDone(_) => match pipeline_state {
                     PipelineState::Playable(playback_state) => {
                         sender
-                            .send(MediaEvent::AsyncDone(playback_state))
+                            .try_send(MediaEvent::AsyncDone(playback_state))
                             .expect("Failed to notify UI");
                     }
                     PipelineState::StreamsSelected => {
@@ -550,7 +552,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                             .set_state(gst::State::Paused);
 
                         sender
-                            .send(MediaEvent::InitDone)
+                            .try_send(MediaEvent::InitDone)
                             .expect("Failed to notify UI");
                     }
                     _ => (),
@@ -581,7 +583,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                                         }
                                         pipeline_state =
                                             PipelineState::Playable(PlaybackState::Paused);
-                                        sender.send(MediaEvent::ReadyForRefresh).unwrap();
+                                        sender.try_send(MediaEvent::ReadyForRefresh).unwrap();
                                     }
                                 }
                                 _ => unreachable!(format!(
@@ -622,7 +624,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                 }
                 gst::MessageView::StreamsSelected(msg_streams_selected) => match pipeline_state {
                     PipelineState::Playable(_) => {
-                        sender.send(MediaEvent::StreamsSelected).unwrap();
+                        sender.try_send(MediaEvent::StreamsSelected).unwrap();
                     }
                     PipelineState::None => {
                         let stream_collection = msg_streams_selected.get_stream_collection();
@@ -642,7 +644,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                             pipeline_state = PipelineState::StreamsSelected;
                         } else {
                             sender
-                                .send(MediaEvent::FailedToOpenMedia(gettext(
+                                .try_send(MediaEvent::FailedToOpenMedia(gettext(
                                     "No usable streams could be found.",
                                 )))
                                 .unwrap();

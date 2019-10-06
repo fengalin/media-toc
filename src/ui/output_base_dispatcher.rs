@@ -1,13 +1,18 @@
+use futures::channel::mpsc as async_mpsc;
+use futures::prelude::*;
+
 use gtk;
 use gtk::prelude::*;
 
+use log::debug;
+
 use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
-use crate::with_main_ctrl;
+use media::MediaEvent;
 
-use super::{
-    MainController, OutputBaseController, OutputControllerImpl, UIDispatcher, UIEventSender,
-};
+use super::{MainController, UIDispatcher, UIEventSender};
+
+use super::output_base_controller::{OutputBaseController, OutputControllerImpl};
 
 pub trait OutputDispatcherImpl {
     type CtrlImpl: OutputControllerImpl;
@@ -53,12 +58,18 @@ where
             }
         ));
 
-        ctrl.media_event_handler = Some(Rc::new(with_main_ctrl!(
-            main_ctrl_rc => move |&mut main_ctrl, event| {
-                let ctrl = Impl::controller_mut(&mut main_ctrl);
-                ctrl.handle_media_event(event)
-            }
-        )));
+        ctrl.new_media_event_handler = Some(Box::new(
+            call_async_with!((main_ctrl_rc) => move async boxed_local |receiver| {
+                let mut receiver = receiver;
+                while let Some(event) = async_mpsc::Receiver::<MediaEvent>::next(&mut receiver).await {
+                    let mut main_ctrl = main_ctrl_rc.borrow_mut();
+                    if Impl::controller_mut(&mut main_ctrl).handle_media_event(event).is_err() {
+                        break;
+                    }
+                }
+                debug!("Output Controller media event handler terminated");
+            }),
+        ));
 
         ctrl.progress_updater = Some(Rc::new(with_main_ctrl!(
             main_ctrl_rc => move |&mut main_ctrl| {

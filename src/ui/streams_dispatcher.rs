@@ -38,10 +38,8 @@ macro_rules! on_stream_selected(
                             let streams = streams_ctrl.get_selected_streams();
 
                             // Asynchronoulsy notify the main controller
-                            let main_ctrl_rc_idle = Rc::clone(&main_ctrl_rc_cb);
-                            gtk::idle_add(move || {
-                                main_ctrl_rc_idle.borrow_mut().select_streams(&streams);
-                                glib::Continue(false)
+                            spawn_with_main_ctrl!(main_ctrl_rc_cb => move async |&mut main_ctrl_rc| {
+                                main_ctrl_rc.select_streams(&streams);
                             });
                         }
                     }

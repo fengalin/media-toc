@@ -1,16 +1,19 @@
+use futures::channel::mpsc as async_mpsc;
+
 use glib;
 use gstreamer as gst;
 use gtk;
-use std::{borrow::Cow, path::PathBuf, rc::Rc};
+use std::{borrow::Cow, cell::RefCell, path::PathBuf, rc::Rc};
 
 use super::UIFocusContext;
+use crate::spawn;
 use media::Timestamp;
 
 #[derive(Clone)]
 pub enum UIEvent {
     AskQuestion {
         question: Cow<'static, str>,
-        response_cb: Rc<Fn(gtk::ResponseType)>,
+        response_cb: Rc<dyn Fn(gtk::ResponseType)>,
     },
     CancelSelectMedia,
     OpenMedia(PathBuf),
@@ -36,38 +39,41 @@ pub enum UIEvent {
 }
 
 #[derive(Clone)]
-pub struct UIEventSender(glib::Sender<UIEvent>);
+pub struct UIEventSender(RefCell<async_mpsc::Sender<UIEvent>>);
 
 #[allow(unused_must_use)]
 impl UIEventSender {
-    pub fn ask_question<Q>(&self, question: Q, response_cb: Rc<Fn(gtk::ResponseType)>)
+    fn send(&self, event: UIEvent) {
+        self.0.borrow_mut().try_send(event).unwrap();
+    }
+
+    pub fn ask_question<Q>(&self, question: Q, response_cb: Rc<dyn Fn(gtk::ResponseType)>)
     where
         Q: Into<Cow<'static, str>>,
     {
-        self.0.send(UIEvent::AskQuestion {
+        self.send(UIEvent::AskQuestion {
             question: question.into(),
             response_cb,
         });
     }
 
     pub fn cancel_select_media(&self) {
-        self.0.send(UIEvent::CancelSelectMedia);
+        self.send(UIEvent::CancelSelectMedia);
     }
 
     pub fn open_media(&self, path: PathBuf) {
         // Trigger the message asynchronously otherwise the waiting cursor might not show up
         let mut path = Some(path);
-        let sender = self.0.clone();
-        gtk::idle_add(move || {
+        let mut sender = self.0.borrow_mut().clone();
+        spawn!(async move {
             if let Some(path) = path.take() {
-                sender.send(UIEvent::OpenMedia(path));
+                sender.try_send(UIEvent::OpenMedia(path)).unwrap();
             }
-            glib::Continue(false)
         });
     }
 
     pub fn play_range(&self, start: Timestamp, end: Timestamp, ts_to_restore: Timestamp) {
-        self.0.send(UIEvent::PlayRange {
+        self.send(UIEvent::PlayRange {
             start,
             end,
             ts_to_restore,
@@ -75,59 +81,59 @@ impl UIEventSender {
     }
 
     pub fn reset_cursor(&self) {
-        self.0.send(UIEvent::ResetCursor);
+        self.send(UIEvent::ResetCursor);
     }
 
     pub fn restore_context(&self) {
-        self.0.send(UIEvent::RestoreContext);
+        self.send(UIEvent::RestoreContext);
     }
 
     pub fn show_all(&self) {
-        self.0.send(UIEvent::ShowAll);
+        self.send(UIEvent::ShowAll);
     }
 
     pub fn seek(&self, target: Timestamp, flags: gst::SeekFlags) {
-        self.0.send(UIEvent::Seek { target, flags });
+        self.send(UIEvent::Seek { target, flags });
     }
 
     pub fn set_cursor_double_arrow(&self) {
-        self.0.send(UIEvent::SetCursorDoubleArrow);
+        self.send(UIEvent::SetCursorDoubleArrow);
     }
 
     pub fn set_cursor_waiting(&self) {
-        self.0.send(UIEvent::SetCursorWaiting);
+        self.send(UIEvent::SetCursorWaiting);
     }
 
     pub fn show_error<Msg>(&self, msg: Msg)
     where
         Msg: Into<Cow<'static, str>>,
     {
-        self.0.send(UIEvent::ShowError(msg.into()));
+        self.send(UIEvent::ShowError(msg.into()));
     }
 
     pub fn show_info<Msg>(&self, msg: Msg)
     where
         Msg: Into<Cow<'static, str>>,
     {
-        self.0.send(UIEvent::ShowInfo(msg.into()));
+        self.send(UIEvent::ShowInfo(msg.into()));
     }
 
     pub fn switch_to(&self, ctx: UIFocusContext) {
-        self.0.send(UIEvent::SwitchTo(ctx));
+        self.send(UIEvent::SwitchTo(ctx));
     }
 
     // Call `restore_context` to retrieve initial state
     pub fn temporarily_switch_to(&self, ctx: UIFocusContext) {
-        self.0.send(UIEvent::TemporarilySwitchTo(ctx));
+        self.send(UIEvent::TemporarilySwitchTo(ctx));
     }
 
     pub fn update_focus(&self) {
-        self.0.send(UIEvent::UpdateFocus);
+        self.send(UIEvent::UpdateFocus);
     }
 }
 
-impl From<glib::Sender<UIEvent>> for UIEventSender {
-    fn from(glib_ui_event: glib::Sender<UIEvent>) -> Self {
-        UIEventSender(glib_ui_event)
+impl From<async_mpsc::Sender<UIEvent>> for UIEventSender {
+    fn from(async_ui_event_sender: async_mpsc::Sender<UIEvent>) -> Self {
+        UIEventSender(RefCell::new(async_ui_event_sender))
     }
 }

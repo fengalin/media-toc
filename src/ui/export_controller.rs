@@ -1,5 +1,6 @@
+use futures::channel::mpsc as async_mpsc;
+
 use gettextrs::gettext;
-use glib;
 use gtk;
 use gtk::prelude::*;
 use log::warn;
@@ -15,9 +16,11 @@ use media::{MediaEvent, TocSetterPipeline};
 use metadata;
 use metadata::{Duration, Exporter, Format, MatroskaTocFormat, MediaInfo};
 
-use super::{
+use super::{PlaybackPipeline, UIController, UIEventSender, UIFocusContext};
+
+use super::output_base_controller::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
-    PlaybackPipeline, ProcessingState, ProcessingType, UIController, UIEventSender, UIFocusContext,
+    ProcessingState, ProcessingType, MEDIA_EVENT_CHANNEL_CAPACITY,
 };
 
 pub type ExportController = OutputBaseController<ExportControllerImpl>;
@@ -37,7 +40,7 @@ pub struct ExportControllerImpl {
 
     idx: u64,
     export_file_info: Option<OutputMediaFileInfo>,
-    media_event_sender: Option<glib::Sender<MediaEvent>>,
+    media_event_sender: Option<async_mpsc::Sender<MediaEvent>>,
     toc_setter_pipeline: Option<TocSetterPipeline>,
 
     export_list: gtk::ListBox,
@@ -117,7 +120,7 @@ impl MediaProcessor for ExportControllerImpl {
         } else if self.cue_row.is_selected() {
             (Format::CueSheet, ProcessingType::Sync)
         } else if self.mkv_row.is_selected() {
-            let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+            let (sender, receiver) = async_mpsc::channel(MEDIA_EVENT_CHANNEL_CAPACITY);
             self.media_event_sender = Some(sender);
 
             (Format::Matroska, ProcessingType::Async(receiver))

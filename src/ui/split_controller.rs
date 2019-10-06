@@ -1,5 +1,6 @@
+use futures::channel::mpsc as async_mpsc;
+
 use gettextrs::gettext;
-use glib;
 use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
@@ -16,9 +17,11 @@ use std::{
 use media::{MediaEvent, SplitterPipeline};
 use metadata::{get_default_chapter_title, Duration, Format, MediaInfo, Stream, TocVisitor};
 
-use super::{
+use super::{PlaybackPipeline, UIController, UIEventSender, UIFocusContext};
+
+use super::output_base_controller::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
-    PlaybackPipeline, ProcessingState, ProcessingType, UIController, UIEventSender, UIFocusContext,
+    ProcessingState, ProcessingType, MEDIA_EVENT_CHANNEL_CAPACITY,
 };
 
 pub type SplitController = OutputBaseController<SplitControllerImpl>;
@@ -56,7 +59,7 @@ pub struct SplitControllerImpl {
     selected_audio: Option<Stream>,
 
     split_file_info: Option<OutputMediaFileInfo>,
-    media_event_sender: Option<glib::Sender<MediaEvent>>,
+    media_event_sender: Option<async_mpsc::Sender<MediaEvent>>,
     splitter_pipeline: Option<SplitterPipeline>,
     toc_visitor: Option<TocVisitor>,
     idx: usize,
@@ -258,7 +261,7 @@ impl MediaProcessor for SplitControllerImpl {
             OutputMediaFileInfo::new(format, &src_info)
         });
 
-        let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        let (sender, receiver) = async_mpsc::channel(MEDIA_EVENT_CHANNEL_CAPACITY);
         self.media_event_sender = Some(sender);
 
         ProcessingType::Async(receiver)

@@ -1,3 +1,5 @@
+use futures::prelude::*;
+
 use gio;
 use gio::prelude::*;
 use gstreamer as gst;
@@ -139,9 +141,8 @@ impl UIDispatcher for AudioDispatcher {
 
         // Update conditions asynchronously
         audio_ctrl.update_conditions_async = Some(Box::new(with_main_ctrl!(
-            main_ctrl_rc => async move |&mut main_ctrl| {
+            main_ctrl_rc => move async boxed_local |&mut main_ctrl| {
                 main_ctrl.audio_ctrl.update_conditions();
-                glib::Continue(false)
             }
         )));
 

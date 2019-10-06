@@ -1,3 +1,5 @@
+use futures::channel::mpsc as async_mpsc;
+
 use gettextrs::gettext;
 
 use gstreamer as gst;
@@ -45,7 +47,7 @@ impl TocSetterPipeline {
         input_path: &Path,
         output_path: &Path,
         streams: Arc<RwLock<HashSet<String>>>,
-        sender: glib::Sender<MediaEvent>,
+        sender: async_mpsc::Sender<MediaEvent>,
     ) -> Result<TocSetterPipeline, String> {
         info!(
             "{}",
@@ -181,16 +183,16 @@ impl TocSetterPipeline {
     }
 
     // Uses sender to notify the UI controllers about the inspection process
-    fn register_bus_inspector(&self, sender: glib::Sender<MediaEvent>) {
+    fn register_bus_inspector(&self, mut sender: async_mpsc::Sender<MediaEvent>) {
         let mut init_done = false;
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
-                    sender.send(MediaEvent::Eos).unwrap();
+                    sender.try_send(MediaEvent::Eos).unwrap();
                     return glib::Continue(false);
                 }
                 gst::MessageView::Error(err) => {
-                    let _ = sender.send(MediaEvent::FailedToExport(
+                    let _ = sender.try_send(MediaEvent::FailedToExport(
                         err.get_error().description().to_owned(),
                     ));
                     return glib::Continue(false);
@@ -198,7 +200,7 @@ impl TocSetterPipeline {
                 gst::MessageView::AsyncDone(_) => {
                     if !init_done {
                         init_done = true;
-                        sender.send(MediaEvent::InitDone).unwrap();
+                        sender.try_send(MediaEvent::InitDone).unwrap();
                     }
                 }
                 _ => (),

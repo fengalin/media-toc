@@ -1,3 +1,6 @@
+use futures::channel::mpsc as async_mpsc;
+use futures::future::LocalBoxFuture;
+
 use gettextrs::gettext;
 use glib;
 use gtk;
@@ -16,10 +19,11 @@ use metadata::{Format, MediaInfo};
 
 use super::{PlaybackPipeline, UIController, UIEventSender, UIFocusContext};
 
+pub const MEDIA_EVENT_CHANNEL_CAPACITY: usize = 1;
 const PROGRESS_TIMER_PERIOD: u32 = 250; // 250 ms
 
 pub enum ProcessingType {
-    Async(glib::Receiver<MediaEvent>),
+    Async(async_mpsc::Receiver<MediaEvent>),
     Sync,
 }
 
@@ -72,7 +76,7 @@ impl OutputMediaFileInfo {
     }
 }
 
-type OverwriteResponseCb = Fn(gtk::ResponseType, &Rc<Path>);
+type OverwriteResponseCb = dyn Fn(gtk::ResponseType, &Rc<Path>);
 
 pub struct OutputBaseController<Impl> {
     impl_: Impl,
@@ -88,8 +92,9 @@ pub struct OutputBaseController<Impl> {
     pub(super) page: gtk::Widget,
 
     pub(super) is_busy: bool,
-    pub(super) media_event_handler: Option<Rc<Fn(MediaEvent) -> gtk::Continue>>,
-    pub(super) progress_updater: Option<Rc<Fn() -> gtk::Continue>>,
+    pub(super) new_media_event_handler:
+        Option<Box<dyn Fn(async_mpsc::Receiver<MediaEvent>) -> LocalBoxFuture<'static, ()>>>,
+    pub(super) progress_updater: Option<Rc<dyn Fn() -> gtk::Continue>>,
 
     pub(super) overwrite_response_cb: Option<Rc<OverwriteResponseCb>>,
     overwrite_all: bool,
@@ -117,7 +122,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
             page,
 
             is_busy: false,
-            media_event_handler: None,
+            new_media_event_handler: None,
             progress_updater: None,
 
             overwrite_response_cb: None,
@@ -136,26 +141,26 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
         match self.impl_.init() {
             ProcessingType::Sync => (),
             ProcessingType::Async(receiver) => {
-                self.attach_media_event_handler(receiver);
+                self.spawn_media_event_handler(receiver);
                 self.register_progress_timer();
             }
         }
 
-        self.handle_processing_states(Ok(ProcessingState::Start));
+        let () = self
+            .handle_processing_states(Ok(ProcessingState::Start))
+            .unwrap();
     }
 
     pub fn cancel(&mut self) {
         self.impl_.cancel();
-        self.handle_processing_states(Ok(ProcessingState::Cancelled));
+        let _ = self.handle_processing_states(Ok(ProcessingState::Cancelled));
     }
 
-    #[allow(clippy::redundant_closure)]
-    fn attach_media_event_handler(&mut self, receiver: glib::Receiver<MediaEvent>) {
-        let media_event_handler = Rc::clone(self.media_event_handler.as_ref().unwrap());
-        receiver.attach(None, move |event| media_event_handler(event));
+    fn spawn_media_event_handler(&mut self, receiver: async_mpsc::Receiver<MediaEvent>) {
+        spawn!(self.new_media_event_handler.as_ref().unwrap()(receiver));
     }
 
-    pub fn handle_media_event(&mut self, event: MediaEvent) -> gtk::Continue {
+    pub fn handle_media_event(&mut self, event: MediaEvent) -> Result<(), ()> {
         let res = self.impl_.handle_media_event(event);
         self.handle_processing_states(res)
     }
@@ -220,7 +225,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
             self.ui_event.set_cursor_waiting();
         }
 
-        self.handle_processing_states(Ok(next_state));
+        let _ = self.handle_processing_states(Ok(next_state));
     }
 
     fn switch_to_busy(&mut self) {
@@ -251,21 +256,21 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
     fn handle_processing_states(
         &mut self,
         mut res: Result<ProcessingState, String>,
-    ) -> gtk::Continue {
-        let ret = loop {
+    ) -> Result<(), ()> {
+        let res = loop {
             match res {
                 Ok(ProcessingState::AllComplete(msg)) => {
                     self.ui_event.show_info(msg);
-                    break gtk::Continue(false);
+                    break Err(());
                 }
                 Ok(ProcessingState::Cancelled) => {
-                    break gtk::Continue(false);
+                    break Err(());
                 }
                 Ok(ProcessingState::ConfirmedOutputTo(path)) => {
                     res = self.impl_.process(path.as_ref());
                     if res == Ok(ProcessingState::PendingAsyncMediaEvent) {
                         // Next state handled asynchronously in media event handler
-                        break gtk::Continue(true);
+                        break Ok(());
                     }
                 }
                 Ok(ProcessingState::DoneWithCurrent) => {
@@ -273,7 +278,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
                 }
                 Ok(ProcessingState::PendingAsyncMediaEvent) => {
                     // Next state handled asynchronously in media event handler
-                    break gtk::Continue(true);
+                    break Ok(());
                 }
                 Ok(ProcessingState::Start) => {
                     res = self.impl_.next();
@@ -284,7 +289,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
                             ProcessingState::AllComplete(_) => {
                                 // Don't display the success message when the user decided
                                 // to skip (not overwrite) last part as it seems missleading
-                                break gtk::Continue(false);
+                                break Err(());
                             }
                             other => Ok(other),
                         },
@@ -296,7 +301,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
                         self.ask_overwrite_question(&path);
                         // Pending user response
                         // Next steps handled asynchronously (see closure above)
-                        break gtk::Continue(true);
+                        break Ok(());
                     } else {
                         // handle processing in next iteration
                         res = Ok(ProcessingState::ConfirmedOutputTo(path));
@@ -304,16 +309,16 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
                 }
                 Err(err) => {
                     self.ui_event.show_error(err);
-                    break gtk::Continue(false);
+                    break Err(());
                 }
             }
         };
 
-        if let gtk::Continue(false) = ret {
+        if res.is_err() {
             self.switch_to_available();
         }
 
-        ret
+        res
     }
 }
 

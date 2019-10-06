@@ -1,7 +1,7 @@
-use super::{
-    split_controller::SplitControllerImpl, MainController, OutputBaseDispatcher,
-    OutputDispatcherImpl, SplitController,
-};
+use super::MainController;
+
+use super::output_base_dispatcher::{OutputBaseDispatcher, OutputDispatcherImpl};
+use super::split_controller::{SplitController, SplitControllerImpl};
 
 pub type SplitDispatcher = OutputBaseDispatcher<SplitDispatcherImpl>;
 

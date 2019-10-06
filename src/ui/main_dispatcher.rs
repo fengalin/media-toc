@@ -1,3 +1,6 @@
+use futures::channel::mpsc as async_mpsc;
+use futures::prelude::*;
+
 use gettextrs::gettext;
 use gio;
 use gio::prelude::*;
@@ -6,29 +9,28 @@ use glib;
 use gtk;
 use gtk::prelude::*;
 
+use log::debug;
+
 use std::{cell::RefCell, rc::Rc};
+
+use media::MediaEvent;
 
 use super::{
     main_controller::ControllerState, AudioDispatcher, ExportDispatcher, InfoDispatcher,
     MainController, PerspectiveDispatcher, PlaybackPipeline, SplitDispatcher, StreamsDispatcher,
     UIController, UIDispatcher, UIEvent, UIFocusContext, VideoDispatcher,
 };
-use crate::with_main_ctrl;
 
 pub struct MainDispatcher;
 impl MainDispatcher {
     pub fn setup(
         main_ctrl: &mut MainController,
         main_ctrl_rc: &Rc<RefCell<MainController>>,
-        ui_event_receiver: glib::Receiver<UIEvent>,
+        ui_event_receiver: async_mpsc::Receiver<UIEvent>,
     ) {
-        ui_event_receiver.attach(
-            None,
-            with_main_ctrl!(main_ctrl_rc => move |&mut main_ctrl, event| {
-                Self::handle_ui_event(&mut main_ctrl, event);
-                glib::Continue(true)
-            }),
-        );
+        spawn_event_handler!((ui_event_receiver, main_ctrl_rc) => move |&mut main_ctrl, event| {
+            Self::handle_ui_event(&mut main_ctrl, event);
+        });
 
         let app = main_ctrl.app.clone();
 
@@ -80,19 +82,22 @@ impl MainDispatcher {
             SplitDispatcher::setup(&mut main_ctrl.split_ctrl, main_ctrl_rc, &app, &ui_event);
             StreamsDispatcher::setup(&mut main_ctrl.streams_ctrl, main_ctrl_rc, &app, &ui_event);
 
-            main_ctrl.media_event_handler = Some(Rc::new(with_main_ctrl!(
-                main_ctrl_rc => move |&mut main_ctrl, event| {
-                    main_ctrl.handle_media_event(event)
-                }
-            )));
+            main_ctrl.new_media_event_handler = Some(Box::new(
+                call_async_with!((main_ctrl_rc) => move async boxed_local |receiver| {
+                    let mut receiver = receiver;
+                    while let Some(event) = async_mpsc::Receiver::<MediaEvent>::next(&mut receiver).await {
+                        if main_ctrl_rc.borrow_mut().handle_media_event(event).is_err() {
+                            break;
+                        }
+                    }
+                    debug!("Media event handler terminated");
+                }),
+            ));
 
             let _ = PlaybackPipeline::check_requirements().map_err(|err| {
-                with_main_ctrl!(
-                    main_ctrl_rc => async move |&mut main_ctrl| {
-                        main_ctrl.show_error(&err);
-                        glib::Continue(false)
-                    }
-                )
+                spawn_with_main_ctrl!(main_ctrl_rc => move async |&mut main_ctrl| {
+                    main_ctrl.show_error(&err);
+                })
             });
 
             let main_section = gio::Menu::new();

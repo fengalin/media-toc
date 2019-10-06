@@ -1,4 +1,5 @@
 use cairo;
+use futures::future::LocalBoxFuture;
 use gdk;
 use gio;
 use glib;
@@ -21,6 +22,7 @@ use metadata::{Duration, MediaInfo};
 use renderers::{DoubleWaveformRenderer, ImagePositions, WaveformRenderer, BACKGROUND_COLOR};
 
 use super::{ChaptersBoundaries, PlaybackPipeline, UIController, UIEventSender};
+use crate::spawn;
 
 const BUFFER_DURATION: Duration = Duration::from_secs(60);
 const INIT_REQ_DURATION_FOR_1000PX: Duration = Duration::from_secs(4);
@@ -102,9 +104,9 @@ pub struct AudioController {
     waveform_renderer_mtx: Arc<Mutex<Box<WaveformRenderer>>>,
     pub dbl_renderer_mtx: Arc<Mutex<DoubleAudioBuffer<WaveformRenderer>>>,
 
-    pub(super) update_conditions_async: Option<Box<Fn() -> glib::SourceId>>,
+    pub(super) update_conditions_async: Option<Box<dyn Fn() -> LocalBoxFuture<'static, ()>>>,
 
-    pub(super) tick_cb: Option<Rc<Fn(&gtk::DrawingArea, &gdk::FrameClock)>>,
+    pub(super) tick_cb: Option<Rc<dyn Fn(&gtk::DrawingArea, &gdk::FrameClock)>>,
     tick_cb_id: Option<gtk::TickCallbackId>,
 }
 
@@ -120,7 +122,7 @@ impl UIController for AudioController {
 
             // Refresh conditions asynchronously so that
             // all widgets are arranged to their target positions
-            self.update_conditions_async.as_ref().unwrap()();
+            spawn!(self.update_conditions_async.as_ref().unwrap()());
         }
 
         // FIXME: step forward / back actions should probably be
