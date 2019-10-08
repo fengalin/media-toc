@@ -14,6 +14,9 @@ use self::export_controller::ExportController;
 mod export_dispatcher;
 use self::export_dispatcher::ExportDispatcher;
 
+mod info_bar_controller;
+use self::info_bar_controller::InfoBarController;
+
 mod info_controller;
 use self::info_controller::InfoController;
 mod info_dispatcher;
@@ -46,7 +49,7 @@ mod split_dispatcher;
 use self::split_dispatcher::SplitDispatcher;
 
 mod ui_event;
-use self::ui_event::{UIEvent, UIEventSender};
+use self::ui_event::{UIEventHandler, UIEventSender, UIFocusContext};
 
 mod video_controller;
 use self::video_controller::VideoController;
@@ -110,16 +113,6 @@ pub trait UIController {
     fn cleanup(&mut self);
     fn streams_changed(&mut self, _info: &metadata::MediaInfo) {}
     fn grab_focus(&self) {}
-}
-
-#[derive(Clone, Copy)]
-pub enum UIFocusContext {
-    ExportPage,
-    InfoBar,
-    PlaybackPage,
-    SplitPage,
-    StreamsPage,
-    TextEntry,
 }
 
 pub trait UIDispatcher {

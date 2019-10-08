@@ -63,7 +63,7 @@ where
                 let mut receiver = receiver;
                 while let Some(event) = async_mpsc::Receiver::<MediaEvent>::next(&mut receiver).await {
                     let mut main_ctrl = main_ctrl_rc.borrow_mut();
-                    if Impl::controller_mut(&mut main_ctrl).handle_media_event(event).is_err() {
+                    if Impl::controller_mut(&mut main_ctrl).handle_media_event(event).await.is_err() {
                         break;
                     }
                 }
@@ -71,16 +71,20 @@ where
             }),
         ));
 
+        // FIXME use a glib interval
         ctrl.progress_updater = Some(Rc::new(with_main_ctrl!(
-            main_ctrl_rc => move |&mut main_ctrl| {
+            main_ctrl_rc => try move |&mut main_ctrl| {
                 Impl::controller_mut(&mut main_ctrl).update_progress()
+            } else {
+                gtk::Continue(true)
             }
         )));
 
-        ctrl.overwrite_response_cb = Some(Rc::new(with_main_ctrl!(
-            main_ctrl_rc => move |&mut main_ctrl, response_type, path| {
-                Impl::controller_mut(&mut main_ctrl).handle_overwrite_response(response_type, path);
-            }
-        )));
+        ctrl.new_processing_state_handler = Some(Box::new(
+            call_async_with!((main_ctrl_rc) => move async boxed_local |state| {
+                let mut main_ctrl = main_ctrl_rc.borrow_mut();
+                let () = Impl::controller_mut(&mut main_ctrl).handle_processing_states(Ok(state)).await.unwrap();
+            }),
+        ));
     }
 }

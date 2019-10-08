@@ -1,5 +1,6 @@
 use futures::channel::mpsc as async_mpsc;
-use futures::future::LocalBoxFuture;
+use futures::future::{abortable, AbortHandle, LocalBoxFuture};
+use futures::prelude::*;
 
 use gettextrs::gettext;
 use glib;
@@ -30,7 +31,6 @@ pub enum ProcessingType {
 #[derive(Debug, PartialEq)]
 pub enum ProcessingState {
     AllComplete(String),
-    Cancelled,
     ConfirmedOutputTo(Rc<Path>),
     SkipCurrent,
     DoneWithCurrent,
@@ -76,8 +76,6 @@ impl OutputMediaFileInfo {
     }
 }
 
-type OverwriteResponseCb = dyn Fn(gtk::ResponseType, &Rc<Path>);
-
 pub struct OutputBaseController<Impl> {
     impl_: Impl,
     ui_event: UIEventSender,
@@ -94,9 +92,12 @@ pub struct OutputBaseController<Impl> {
     pub(super) is_busy: bool,
     pub(super) new_media_event_handler:
         Option<Box<dyn Fn(async_mpsc::Receiver<MediaEvent>) -> LocalBoxFuture<'static, ()>>>,
+    media_event_abort_handle: Option<AbortHandle>,
     pub(super) progress_updater: Option<Rc<dyn Fn() -> gtk::Continue>>,
 
-    pub(super) overwrite_response_cb: Option<Rc<OverwriteResponseCb>>,
+    pub(super) new_processing_state_handler:
+        Option<Box<dyn Fn(ProcessingState) -> LocalBoxFuture<'static, ()>>>,
+
     overwrite_all: bool,
 }
 
@@ -123,9 +124,11 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
 
             is_busy: false,
             new_media_event_handler: None,
+            media_event_abort_handle: None,
             progress_updater: None,
 
-            overwrite_response_cb: None,
+            new_processing_state_handler: None,
+
             overwrite_all: false,
         };
 
@@ -138,6 +141,8 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
         self.switch_to_busy();
         self.overwrite_all = false;
 
+        // FIXME spawn the media event handler and progress timer
+        // from the implementation when necessary
         match self.impl_.init() {
             ProcessingType::Sync => (),
             ProcessingType::Async(receiver) => {
@@ -146,23 +151,28 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
             }
         }
 
-        let () = self
-            .handle_processing_states(Ok(ProcessingState::Start))
-            .unwrap();
+        spawn!(self.new_processing_state_handler.as_ref().unwrap()(
+            ProcessingState::Start
+        ));
     }
 
     pub fn cancel(&mut self) {
         self.impl_.cancel();
-        let _ = self.handle_processing_states(Ok(ProcessingState::Cancelled));
+        if let Some(abortable_handler) = self.media_event_abort_handle.take() {
+            abortable_handler.abort();
+        }
     }
 
     fn spawn_media_event_handler(&mut self, receiver: async_mpsc::Receiver<MediaEvent>) {
-        spawn!(self.new_media_event_handler.as_ref().unwrap()(receiver));
+        let (abortable_handler, abort_handle) =
+            abortable(self.new_media_event_handler.as_ref().unwrap()(receiver));
+        self.media_event_abort_handle = Some(abort_handle);
+        spawn!(abortable_handler.map(drop));
     }
 
-    pub fn handle_media_event(&mut self, event: MediaEvent) -> Result<(), ()> {
+    pub(super) async fn handle_media_event(&mut self, event: MediaEvent) -> Result<(), ()> {
         let res = self.impl_.handle_media_event(event);
-        self.handle_processing_states(res)
+        self.handle_processing_states(res).await
     }
 
     fn register_progress_timer(&mut self) {
@@ -180,7 +190,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
         }
     }
 
-    fn ask_overwrite_question(&mut self, path: &Rc<Path>) {
+    async fn ask_overwrite_question(&self, path: &Rc<Path>) -> gtk::ResponseType {
         self.btn.set_sensitive(false);
 
         self.ui_event.reset_cursor();
@@ -195,37 +205,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
             1,
         );
 
-        let path_cb = Rc::clone(path);
-        let overwrite_response_cb = Rc::clone(self.overwrite_response_cb.as_ref().unwrap());
-        self.ui_event.ask_question(
-            question,
-            Rc::new(move |response_type| overwrite_response_cb(response_type, &path_cb)),
-        );
-    }
-
-    pub fn handle_overwrite_response(&mut self, response_type: gtk::ResponseType, path: &Rc<Path>) {
-        self.btn.set_sensitive(true);
-
-        let next_state = match response_type {
-            gtk::ResponseType::Apply => {
-                // This one is used for "Yes to all"
-                self.overwrite_all = true;
-                ProcessingState::ConfirmedOutputTo(Rc::clone(path))
-            }
-            gtk::ResponseType::Cancel => ProcessingState::Cancelled,
-            gtk::ResponseType::No => ProcessingState::SkipCurrent,
-            gtk::ResponseType::Yes => ProcessingState::ConfirmedOutputTo(Rc::clone(path)),
-            other => unimplemented!(
-                "Response type {:?} in OutputBaseController::handle_overwrite_response",
-                other,
-            ),
-        };
-
-        if next_state != ProcessingState::Cancelled {
-            self.ui_event.set_cursor_waiting();
-        }
-
-        let _ = self.handle_processing_states(Ok(next_state));
+        self.ui_event.ask_question(question).await
     }
 
     fn switch_to_busy(&mut self) {
@@ -253,7 +233,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
         self.ui_event.reset_cursor();
     }
 
-    fn handle_processing_states(
+    pub(super) async fn handle_processing_states(
         &mut self,
         mut res: Result<ProcessingState, String>,
     ) -> Result<(), ()> {
@@ -261,9 +241,6 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
             match res {
                 Ok(ProcessingState::AllComplete(msg)) => {
                     self.ui_event.show_info(msg);
-                    break Err(());
-                }
-                Ok(ProcessingState::Cancelled) => {
                     break Err(());
                 }
                 Ok(ProcessingState::ConfirmedOutputTo(path)) => {
@@ -298,10 +275,31 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
                 }
                 Ok(ProcessingState::WouldOutputTo(path)) => {
                     if !self.overwrite_all && path.exists() {
-                        self.ask_overwrite_question(&path);
-                        // Pending user response
-                        // Next steps handled asynchronously (see closure above)
-                        break Ok(());
+                        // handle state from response in next iteration
+                        let response = self.ask_overwrite_question(&path).await;
+                        self.btn.set_sensitive(true);
+                        let next_state = match response {
+                            gtk::ResponseType::Apply => {
+                                // This one is used for "Yes to all"
+                                self.overwrite_all = true;
+                                ProcessingState::ConfirmedOutputTo(Rc::clone(&path))
+                            }
+                            gtk::ResponseType::Cancel => {
+                                self.cancel();
+                                break Err(());
+                            }
+                            gtk::ResponseType::No => ProcessingState::SkipCurrent,
+                            gtk::ResponseType::Yes => {
+                                ProcessingState::ConfirmedOutputTo(Rc::clone(&path))
+                            }
+                            other => unimplemented!(
+                                "Response {:?} in OutputBaseController::ask_overwrite_question",
+                                other,
+                            ),
+                        };
+
+                        self.ui_event.set_cursor_waiting();
+                        res = Ok(next_state);
                     } else {
                         // handle processing in next iteration
                         res = Ok(ProcessingState::ConfirmedOutputTo(path));

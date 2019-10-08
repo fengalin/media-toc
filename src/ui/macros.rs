@@ -22,14 +22,6 @@
 /// )
 /// ```
 ///
-/// - Try to borrow as mutable (also available with argument(s)). The body will not be called if
-/// the borrow attempt fails.
-/// ```
-/// with_main_ctrl!(
-///     main_ctrl_rc => try |&mut main_ctrl| main_ctrl.about()
-/// )
-/// ```
-///
 /// - Borrow as mutable and trigger asynchronously (also available as immutable and with argument(s))
 /// ```
 /// with_main_ctrl!(
@@ -41,7 +33,7 @@ macro_rules! with_main_ctrl {
     (@arg _) => ( _ );
     (@arg $x:ident) => ( $x );
 
-    ($main_ctrl_rc:ident => move |&$main_ctrl:ident| $body:expr) => (
+    ($main_ctrl_rc:ident => move |&$main_ctrl:ident| $body:expr) => {
         {
             let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
             move || {
@@ -49,17 +41,48 @@ macro_rules! with_main_ctrl {
                 $body
             }
         }
-    );
-    ($main_ctrl_rc:ident => move |&$main_ctrl:ident, $($p:tt),+| $body:expr) => (
+    };
+    ($main_ctrl_rc:ident => move |&$main_ctrl:ident, $($p:tt),+| $body:expr) => {
         {
             let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
-            move |$(with_main_ctrl!(@arg $p),)+| {
+            move |$($crate::with_main_ctrl!(@arg $p),)+| {
                 let $main_ctrl = main_ctrl_rc.borrow();
                 $body
             }
         }
-    );
-    ($main_ctrl_rc:ident => try move |&$main_ctrl:ident| $body:expr) => (
+    };
+    ($main_ctrl_rc:ident => move |&mut $main_ctrl:ident| $body:expr) => {
+        {
+            let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
+            move || {
+                let mut $main_ctrl = main_ctrl_rc.borrow_mut();
+                $body
+            }
+        }
+    };
+    ($main_ctrl_rc:ident => move |&mut $main_ctrl:ident, $($p:tt),+| $body:expr) => {
+        {
+            let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
+            move |$($crate::with_main_ctrl!(@arg $p),)+| {
+                let mut $main_ctrl = main_ctrl_rc.borrow_mut();
+                $body
+            }
+        }
+    };
+    (
+        $main_ctrl_rc:ident => try move |&$main_ctrl:ident| $body:block
+        else $else:block
+    ) => {
+        {
+            let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
+            move || {
+                if let Ok($main_ctrl) = main_ctrl_rc.try_borrow() {
+                    $body
+                } else $else
+            }
+        }
+    };
+    ($main_ctrl_rc:ident => try move |&$main_ctrl:ident| $body:expr) => {
         {
             let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
             move || {
@@ -68,36 +91,31 @@ macro_rules! with_main_ctrl {
                 }
             }
         }
-    );
-    ($main_ctrl_rc:ident => try move |&$main_ctrl:ident, $($p:tt),+| $body:expr) => (
+    };
+    ($main_ctrl_rc:ident => try move |&$main_ctrl:ident, $($p:tt),+| $body:expr) => {
         {
             let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
-            move |$(with_main_ctrl!(@arg $p),)+| {
+            move |$($crate::with_main_ctrl!(@arg $p),)+| {
                 if let Ok($main_ctrl) = main_ctrl_rc.try_borrow() {
                     $body
                 }
             }
         }
-    );
-    ($main_ctrl_rc:ident => move |&mut $main_ctrl:ident| $body:expr) => (
+    };
+    (
+        $main_ctrl_rc:ident => try move |&mut $main_ctrl:ident| $body:block
+        else $else:block
+    ) => {
         {
             let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
             move || {
-                let mut $main_ctrl = main_ctrl_rc.borrow_mut();
-                $body
+                if let Ok(mut $main_ctrl) = main_ctrl_rc.try_borrow_mut() {
+                    $body
+                } else $else
             }
         }
-    );
-    ($main_ctrl_rc:ident => move |&mut $main_ctrl:ident, $($p:tt),+| $body:expr) => (
-        {
-            let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
-            move |$(with_main_ctrl!(@arg $p),)+| {
-                let mut $main_ctrl = main_ctrl_rc.borrow_mut();
-                $body
-            }
-        }
-    );
-    ($main_ctrl_rc:ident => try move |&mut $main_ctrl:ident| $body:expr) => (
+    };
+    ($main_ctrl_rc:ident => try move |&mut $main_ctrl:ident| $body:expr) => {
         {
             let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
             move || {
@@ -106,18 +124,18 @@ macro_rules! with_main_ctrl {
                 }
             }
         }
-    );
-    ($main_ctrl_rc:ident => try move |&mut $main_ctrl:ident, $($p:tt),+| $body:expr) => (
+    };
+    ($main_ctrl_rc:ident => try move |&mut $main_ctrl:ident, $($p:tt),+| $body:expr) => {
         {
             let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
-            move |$(with_main_ctrl!(@arg $p),)+| {
+            move |$($crate::with_main_ctrl!(@arg $p),)+| {
                 if let Ok(mut $main_ctrl) = main_ctrl_rc.try_borrow_mut() {
                     $body
                 }
             }
         }
-    );
-    ($main_ctrl_rc:ident => move async |&mut $main_ctrl:ident| $body:expr) => (
+    };
+    ($main_ctrl_rc:ident => move async |&mut $main_ctrl:ident| $body:expr) => {
         {
             let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
             move || {
@@ -128,11 +146,11 @@ macro_rules! with_main_ctrl {
                 }
             }
         }
-    );
-    ($main_ctrl_rc:ident => move async |&mut $main_ctrl:ident, $($p:tt),+| $body:expr) => (
+    };
+    ($main_ctrl_rc:ident => move async |&mut $main_ctrl:ident, $($p:tt),+| $body:expr) => {
         {
             let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
-            move |$(with_main_ctrl!(@arg $p),)+| {
+            move |$($crate::with_main_ctrl!(@arg $p),)+| {
                 let main_ctrl_rc = std::rc::Rc::clone(&main_ctrl_rc);
                 async move {
                     let mut $main_ctrl = main_ctrl_rc.borrow_mut();
@@ -140,8 +158,8 @@ macro_rules! with_main_ctrl {
                 }
             }
         }
-    );
-    ($main_ctrl_rc:ident => move async boxed_local |&mut $main_ctrl:ident| $body:expr) => (
+    };
+    ($main_ctrl_rc:ident => move async boxed_local |&mut $main_ctrl:ident| $body:expr) => {
         {
             let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
             move || {
@@ -152,11 +170,11 @@ macro_rules! with_main_ctrl {
                 }.boxed_local()
             }
         }
-    );
-    ($main_ctrl_rc:ident => move async boxed_local |&mut $main_ctrl:ident, $($p:tt),+| $body:expr) => (
+    };
+    ($main_ctrl_rc:ident => move async boxed_local |&mut $main_ctrl:ident, $($p:tt),+| $body:expr) => {
         {
             let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
-            move |$(with_main_ctrl!(@arg $p),)+| {
+            move |$($crate::with_main_ctrl!(@arg $p),)+| {
                 let main_ctrl_rc = std::rc::Rc::clone(&main_ctrl_rc);
                 async move {
                     let mut $main_ctrl = main_ctrl_rc.borrow_mut();
@@ -164,7 +182,21 @@ macro_rules! with_main_ctrl {
                 }.boxed_local()
             }
         }
-    );
+    };
+}
+
+#[macro_export]
+macro_rules! block_on {
+    ($future:expr) => {
+        glib::MainContext::ref_thread_default().block_on($future);
+    };
+}
+
+#[macro_export]
+macro_rules! lock_async_mutex {
+    ($mutex:expr) => {
+        $crate::block_on!($mutex.lock());
+    };
 }
 
 #[macro_export]
@@ -179,38 +211,42 @@ macro_rules! spawn_with_main_ctrl {
     (@arg _) => ( _ );
     (@arg $x:ident) => ( $x );
 
-    ($main_ctrl_rc:ident => move async |&mut $main_ctrl:ident| $body:expr) => (
+    ($main_ctrl_rc:ident => move async |&$main_ctrl:ident| $body:expr) => {
         {
             let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
-            crate::spawn!(async move {
+            $crate::spawn!(async move {
+                let $main_ctrl = main_ctrl_rc.borrow();
+                $body
+            })
+        }
+    };
+    ($main_ctrl_rc:ident => move async |&$main_ctrl:ident, $($p:tt),+| $body:expr) => {
+        {
+            let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
+            $crate::spawn!(async move {
+                let $main_ctrl = main_ctrl_rc.borrow();
+                $body
+            })
+        }
+    };
+    ($main_ctrl_rc:ident => move async |&mut $main_ctrl:ident| $body:expr) => {
+        {
+            let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
+            $crate::spawn!(async move {
                 let mut $main_ctrl = main_ctrl_rc.borrow_mut();
                 $body
             })
         }
-    );
-    ($main_ctrl_rc:ident => move async |&mut $main_ctrl:ident, $($p:tt),+| $body:expr) => (
+    };
+    ($main_ctrl_rc:ident => move async |&mut $main_ctrl:ident, $($p:tt),+| $body:expr) => {
         {
             let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
-            crate::spawn!(async move {
+            $crate::spawn!(async move {
                 let mut $main_ctrl = main_ctrl_rc.borrow_mut();
                 $body
             })
         }
-    );
-}
-
-#[macro_export]
-macro_rules! spawn_event_handler {
-    (($receiver:ident, $main_ctrl_rc:ident) => move |&mut $main_ctrl:ident, $event:ident| $body:expr) => {{
-        let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
-        crate::spawn!(async move {
-            let mut receiver = $receiver;
-            while let Some($event) = receiver.next().await {
-                let mut $main_ctrl = main_ctrl_rc.borrow_mut();
-                $body
-            }
-        })
-    }};
+    };
 }
 
 #[macro_export]

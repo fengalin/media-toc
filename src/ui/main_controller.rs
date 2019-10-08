@@ -2,7 +2,6 @@ use futures::channel::mpsc as async_mpsc;
 use futures::future::{abortable, AbortHandle, LocalBoxFuture};
 use futures::prelude::*;
 
-use gdk::{Cursor, CursorType, WindowExt};
 use gettextrs::{gettext, ngettext};
 
 use glib;
@@ -10,7 +9,7 @@ use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 
-use log::{debug, error, info};
+use log::{debug, error};
 
 use std::{borrow::ToOwned, cell::RefCell, collections::HashSet, path::PathBuf, rc::Rc, sync::Arc};
 
@@ -21,10 +20,8 @@ use crate::application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG};
 use super::{
     AudioController, ChaptersBoundaries, ExportController, InfoController, MainDispatcher,
     PerspectiveController, PlaybackPipeline, PositionStatus, SplitController, StreamsController,
-    UIController, UIEventSender, UIFocusContext, VideoController,
+    UIController, UIEventHandler, UIEventSender, VideoController,
 };
-
-const UI_EVENT_CHANNEL_CAPACITY: usize = 4;
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
 const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
@@ -44,7 +41,6 @@ pub enum ControllerState {
 }
 
 pub struct MainController {
-    pub(super) app: gtk::Application,
     pub(super) window: gtk::ApplicationWindow,
 
     header_bar: gtk::HeaderBar,
@@ -52,15 +48,8 @@ pub struct MainController {
     pub(super) display_page: gtk::Box,
     playback_paned: gtk::Paned,
     pub(super) play_pause_btn: gtk::ToolButton,
-    pub(super) info_bar_revealer: gtk::Revealer,
-    pub(super) info_bar: gtk::InfoBar,
-    info_bar_ok: gtk::Button,
-    info_bar_lbl: gtk::Label,
-    info_bar_btn_box: gtk::ButtonBox,
 
     ui_event: UIEventSender,
-    saved_context: Option<UIFocusContext>,
-    pub(super) focus: UIFocusContext,
 
     pub(super) perspective_ctrl: PerspectiveController,
     pub(super) video_ctrl: VideoController,
@@ -74,7 +63,6 @@ pub struct MainController {
     missing_plugins: HashSet<String>,
     pub(super) state: ControllerState,
 
-    info_bar_response_src: Option<glib::signal::SignalHandlerId>,
     pub(super) new_media_event_handler:
         Option<Box<dyn Fn(async_mpsc::Receiver<MediaEvent>) -> LocalBoxFuture<'static, ()>>>,
     media_event_abort_handle: Option<AbortHandle>,
@@ -88,38 +76,20 @@ impl MainController {
         let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
         window.set_application(Some(app));
 
-        let (ui_event_sender, ui_event_receiver) = async_mpsc::channel(UI_EVENT_CHANNEL_CAPACITY);
-        let ui_event: UIEventSender = ui_event_sender.into();
+        let (ui_event_handler, ui_event) = UIEventHandler::new_pair(&app, &builder);
         let chapters_boundaries = Rc::new(RefCell::new(ChaptersBoundaries::new()));
-
-        let info_bar: gtk::InfoBar = builder.get_object("info_bar").unwrap();
-        let info_bar_ok = info_bar
-            .add_button(&gettext("Yes"), gtk::ResponseType::Yes)
-            .unwrap();
-        info_bar.add_button(&gettext("No"), gtk::ResponseType::No);
-        info_bar.add_button(&gettext("Yes to all"), gtk::ResponseType::Apply);
-        info_bar.add_button(&gettext("Cancel"), gtk::ResponseType::Cancel);
-        info_bar.set_default_response(gtk::ResponseType::Yes);
 
         let gst_init_res = gst::init();
 
         let main_ctrl_rc = Rc::new(RefCell::new(MainController {
-            app: app.clone(),
             window,
             header_bar: builder.get_object("header-bar").unwrap(),
             open_btn: builder.get_object("open-btn").unwrap(),
             display_page: builder.get_object("display-box").unwrap(),
             playback_paned: builder.get_object("playback-paned").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
-            info_bar_revealer: builder.get_object("info_bar-revealer").unwrap(),
-            info_bar,
-            info_bar_ok,
-            info_bar_lbl: builder.get_object("info_bar-lbl").unwrap(),
-            info_bar_btn_box: builder.get_object("info_bar-btnbox").unwrap(),
 
             ui_event: ui_event.clone(),
-            saved_context: None,
-            focus: UIFocusContext::PlaybackPage,
 
             perspective_ctrl: PerspectiveController::new(&builder),
             video_ctrl: VideoController::new(&builder, args),
@@ -137,14 +107,15 @@ impl MainController {
             missing_plugins: HashSet::<String>::new(),
             state: ControllerState::Stopped,
 
-            info_bar_response_src: None,
             new_media_event_handler: None,
             media_event_abort_handle: None,
             callback_when_paused: None,
         }));
 
+        ui_event_handler.spawn(&main_ctrl_rc);
+
         let mut main_ctrl = main_ctrl_rc.borrow_mut();
-        MainDispatcher::setup(&mut main_ctrl, &main_ctrl_rc, ui_event_receiver);
+        MainDispatcher::setup(&mut main_ctrl, &main_ctrl_rc, app);
 
         if gst_init_res.is_ok() {
             {
@@ -157,24 +128,19 @@ impl MainController {
                 main_ctrl.open_btn.set_sensitive(true);
             }
 
-            main_ctrl.ui_event.show_all();
+            ui_event.show_all();
 
             if let Some(input_file) = args.input_file.to_owned() {
                 main_ctrl.ui_event.set_cursor_waiting();
                 main_ctrl.ui_event.open_media(input_file);
             }
         } else {
-            main_ctrl.show_all();
+            ui_event.show_all();
         }
     }
 
     pub fn ui_event(&self) -> &UIEventSender {
         &self.ui_event
-    }
-
-    pub fn show_all(&self) {
-        self.window.show();
-        self.window.activate();
     }
 
     pub fn about(&self) {
@@ -215,66 +181,6 @@ impl MainController {
         }
 
         self.window.destroy();
-    }
-
-    pub fn save_context(&mut self) {
-        self.saved_context = Some(self.focus);
-    }
-
-    pub fn restore_context(&mut self) {
-        if let Some(focus_ctx) = self.saved_context.take() {
-            self.ui_event.switch_to(focus_ctx);
-        }
-    }
-
-    pub fn show_message<Msg: AsRef<str>>(&mut self, type_: gtk::MessageType, message: Msg) {
-        if type_ == gtk::MessageType::Question {
-            self.info_bar_btn_box.set_visible(true);
-            self.info_bar.set_show_close_button(false);
-        } else {
-            if let Some(src) = self.info_bar_response_src.take() {
-                self.info_bar.disconnect(src);
-            }
-            self.info_bar_btn_box.set_visible(false);
-            self.info_bar.set_show_close_button(true);
-        }
-
-        self.info_bar.set_message_type(type_);
-        self.info_bar_lbl.set_label(message.as_ref());
-        self.info_bar_revealer.set_reveal_child(true);
-
-        self.ui_event.temporarily_switch_to(UIFocusContext::InfoBar);
-    }
-
-    pub fn show_error<Msg: AsRef<str>>(&mut self, message: Msg) {
-        error!("{}", message.as_ref());
-        self.show_message(gtk::MessageType::Error, message);
-    }
-
-    pub fn show_info<Msg: AsRef<str>>(&mut self, message: Msg) {
-        info!("{}", message.as_ref());
-        self.show_message(gtk::MessageType::Info, message);
-    }
-
-    pub fn show_question<Q: AsRef<str>>(
-        &mut self,
-        question: Q,
-        response_cb: Rc<dyn Fn(gtk::ResponseType)>,
-    ) {
-        let info_bar_revealer = self.info_bar_revealer.clone();
-        if let Some(src) = self.info_bar_response_src.take() {
-            self.info_bar.disconnect(src);
-        }
-
-        let ui_event = self.ui_event.clone();
-        self.info_bar_response_src =
-            Some(self.info_bar.connect_response(move |_, response_type| {
-                info_bar_revealer.set_reveal_child(false);
-                ui_event.restore_context();
-                response_cb(response_type);
-            }));
-        self.info_bar_ok.grab_default();
-        self.show_message(gtk::MessageType::Question, question);
     }
 
     pub fn play_pause(&mut self) {
@@ -411,7 +317,7 @@ impl MainController {
     }
 
     pub fn hold(&mut self) {
-        self.set_cursor_waiting();
+        self.ui_event.set_cursor_waiting();
         self.audio_ctrl.switch_to_not_playing();
         self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
 
@@ -506,11 +412,11 @@ impl MainController {
                 self.streams_selected();
 
                 if let Some(message) = self.check_missing_plugins() {
-                    self.show_error(message);
+                    self.ui_event.show_error(message);
                 }
 
                 self.audio_ctrl.switch_to_not_playing();
-                self.reset_cursor();
+                self.ui_event.reset_cursor();
                 self.state = ControllerState::Paused;
             }
             MediaEvent::MissingPlugin(plugin) => {
@@ -560,7 +466,7 @@ impl MainController {
             MediaEvent::FailedToOpenMedia(error) => {
                 self.pipeline = None;
                 self.state = ControllerState::Stopped;
-                self.reset_cursor();
+                self.ui_event.reset_cursor();
 
                 keep_going = false;
 
@@ -569,12 +475,12 @@ impl MainController {
                     error += "\n\n";
                     error += &message;
                 }
-                self.show_error(error);
+                self.ui_event.show_error(error);
             }
             MediaEvent::GLSinkError => {
                 self.pipeline = None;
                 self.state = ControllerState::Stopped;
-                self.reset_cursor();
+                self.ui_event.reset_cursor();
 
                 let mut config = CONFIG.write().expect("Failed to get CONFIG as mut");
                 config.media.is_gl_disabled = true;
@@ -582,7 +488,7 @@ impl MainController {
 
                 keep_going = false;
 
-                self.show_error(gettext(
+                self.ui_event.show_error(gettext(
 "Video rendering hardware acceleration seems broken and has been disabled.\nPlease restart the application.",
                 ));
             }
@@ -597,32 +503,7 @@ impl MainController {
         }
     }
 
-    pub fn set_cursor_waiting(&self) {
-        if let Some(gdk_window) = self.window.get_window() {
-            gdk_window.set_cursor(Some(&Cursor::new_for_display(
-                &gdk_window.get_display(),
-                CursorType::Watch,
-            )));
-        }
-    }
-
-    pub fn set_cursor_double_arrow(&self) {
-        if let Some(gdk_window) = self.window.get_window() {
-            gdk_window.set_cursor(Some(&Cursor::new_for_display(
-                &gdk_window.get_display(),
-                CursorType::SbHDoubleArrow,
-            )));
-        }
-    }
-
-    pub fn reset_cursor(&self) {
-        if let Some(gdk_window) = self.window.get_window() {
-            gdk_window.set_cursor(None);
-        }
-    }
-
     pub fn select_media(&mut self) {
-        self.info_bar_revealer.set_reveal_child(false);
         self.state = ControllerState::PendingSelectMediaDecision;
 
         // The file dialog must be opened asynchronously because:
@@ -698,15 +579,15 @@ impl MainController {
                 self.pipeline = Some(pipeline);
             }
             Err(error) => {
-                self.reset_cursor();
+                self.ui_event.reset_cursor();
                 let error = gettext("Error opening file.\n\n{}").replace("{}", &error);
-                self.show_error(error);
+                self.ui_event.show_error(error);
             }
         };
     }
 
     pub fn cancel_select_media(&mut self) {
-        self.reset_cursor();
+        self.ui_event.reset_cursor();
         match &self.state {
             ControllerState::PendingSelectMediaDecision => {
                 self.state = self
