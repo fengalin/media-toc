@@ -21,6 +21,8 @@ use super::output_base_controller::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, ProcessingState,
 };
 
+const PROGRESS_TIMER_PERIOD: u32 = 250; // 250 ms
+
 pub trait OutputDispatcherImpl {
     type CtrlImpl: OutputControllerImpl;
 
@@ -89,14 +91,18 @@ where
             }),
         ));
 
-        // FIXME use a glib interval
-        ctrl.progress_updater = Some(Rc::new(with_main_ctrl!(
-            main_ctrl_rc => try move |&mut main_ctrl| {
-                Impl::ctrl_mut(&mut main_ctrl).update_progress()
-            } else {
-                gtk::Continue(true)
-            }
-        )));
+        ctrl.new_progress_updater = Some(Box::new(
+            call_async_with!((main_ctrl_rc) => move async boxed_local || {
+                    let mut stream = glib::interval_stream(PROGRESS_TIMER_PERIOD);
+                    loop {
+                        let _ = stream.next().await;
+                        if Impl::ctrl_ref_mut(&main_ctrl_rc).update_progress().is_err() {
+                            break;
+                        }
+                    }
+                }
+            ),
+        ));
 
         let btn = ctrl.btn.clone();
         ctrl.new_processing_state_handler = Some(Box::new(

@@ -21,7 +21,6 @@ use metadata::{Format, MediaInfo};
 use super::{PlaybackPipeline, UIController, UIEventSender, UIFocusContext};
 
 pub const MEDIA_EVENT_CHANNEL_CAPACITY: usize = 1;
-const PROGRESS_TIMER_PERIOD: u32 = 250; // 250 ms
 
 pub enum ProcessingType {
     Async(async_mpsc::Receiver<MediaEvent>),
@@ -93,7 +92,7 @@ pub struct OutputBaseController<Impl> {
     pub(super) new_media_event_handler:
         Option<Box<dyn Fn(async_mpsc::Receiver<MediaEvent>) -> LocalBoxFuture<'static, ()>>>,
     media_event_abort_handle: Option<AbortHandle>,
-    pub(super) progress_updater: Option<Rc<dyn Fn() -> gtk::Continue>>,
+    pub(super) new_progress_updater: Option<Box<dyn Fn() -> LocalBoxFuture<'static, ()>>>,
 
     pub(super) new_processing_state_handler: Option<
         Box<dyn Fn(Result<ProcessingState, String>) -> LocalBoxFuture<'static, Result<(), ()>>>,
@@ -126,7 +125,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
             is_busy: false,
             new_media_event_handler: None,
             media_event_abort_handle: None,
-            progress_updater: None,
+            new_progress_updater: None,
 
             new_processing_state_handler: None,
 
@@ -147,8 +146,12 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
         match self.impl_.init() {
             ProcessingType::Sync => (),
             ProcessingType::Async(receiver) => {
-                self.spawn_media_event_handler(receiver);
-                self.register_progress_timer();
+                let (abortable_handler, abort_handle) =
+                    abortable(self.new_media_event_handler.as_ref().unwrap()(receiver));
+                self.media_event_abort_handle = Some(abort_handle);
+                spawn!(abortable_handler.map(drop));
+
+                spawn!(self.new_progress_updater.as_ref().unwrap()());
             }
         }
 
@@ -165,25 +168,13 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
         }
     }
 
-    fn spawn_media_event_handler(&mut self, receiver: async_mpsc::Receiver<MediaEvent>) {
-        let (abortable_handler, abort_handle) =
-            abortable(self.new_media_event_handler.as_ref().unwrap()(receiver));
-        self.media_event_abort_handle = Some(abort_handle);
-        spawn!(abortable_handler.map(drop));
-    }
-
-    fn register_progress_timer(&mut self) {
-        let progress_updater = Rc::clone(self.progress_updater.as_ref().unwrap());
-        glib::timeout_add_local(PROGRESS_TIMER_PERIOD, move || progress_updater());
-    }
-
-    pub fn update_progress(&mut self) -> gtk::Continue {
+    pub fn update_progress(&mut self) -> Result<(), ()> {
         if self.is_busy {
             self.progress_bar.set_fraction(self.impl_.report_progress());
-            gtk::Continue(true)
+            Ok(())
         } else {
             self.progress_bar.set_fraction(0f64);
-            gtk::Continue(false)
+            Err(())
         }
     }
 
