@@ -77,7 +77,7 @@ impl OutputMediaFileInfo {
 }
 
 pub struct OutputBaseController<Impl> {
-    impl_: Impl,
+    pub(super) impl_: Impl,
     ui_event: UIEventSender,
 
     progress_bar: gtk::ProgressBar,
@@ -95,10 +95,11 @@ pub struct OutputBaseController<Impl> {
     media_event_abort_handle: Option<AbortHandle>,
     pub(super) progress_updater: Option<Rc<dyn Fn() -> gtk::Continue>>,
 
-    pub(super) new_processing_state_handler:
-        Option<Box<dyn Fn(ProcessingState) -> LocalBoxFuture<'static, ()>>>,
+    pub(super) new_processing_state_handler: Option<
+        Box<dyn Fn(Result<ProcessingState, String>) -> LocalBoxFuture<'static, Result<(), ()>>>,
+    >,
 
-    overwrite_all: bool,
+    pub(super) overwrite_all: bool,
 }
 
 impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
@@ -151,9 +152,10 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
             }
         }
 
-        spawn!(self.new_processing_state_handler.as_ref().unwrap()(
-            ProcessingState::Start
-        ));
+        spawn!(
+            self.new_processing_state_handler.as_ref().unwrap()(Ok(ProcessingState::Start))
+                .map(drop)
+        );
     }
 
     pub fn cancel(&mut self) {
@@ -170,11 +172,6 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
         spawn!(abortable_handler.map(drop));
     }
 
-    pub(super) async fn handle_media_event(&mut self, event: MediaEvent) -> Result<(), ()> {
-        let res = self.impl_.handle_media_event(event);
-        self.handle_processing_states(res).await
-    }
-
     fn register_progress_timer(&mut self) {
         let progress_updater = Rc::clone(self.progress_updater.as_ref().unwrap());
         glib::timeout_add_local(PROGRESS_TIMER_PERIOD, move || progress_updater());
@@ -188,24 +185,6 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
             self.progress_bar.set_fraction(0f64);
             gtk::Continue(false)
         }
-    }
-
-    async fn ask_overwrite_question(&self, path: &Rc<Path>) -> gtk::ResponseType {
-        self.btn.set_sensitive(false);
-
-        self.ui_event.reset_cursor();
-
-        let filename = path.file_name().expect("no `filename` in `path`");
-        let filename = filename
-            .to_str()
-            .expect("can't get printable `str` from `filename`");
-        let question = gettext("{output_file}\nalready exists. Overwrite?").replacen(
-            "{output_file}",
-            filename,
-            1,
-        );
-
-        self.ui_event.ask_question(question).await
     }
 
     fn switch_to_busy(&mut self) {
@@ -231,92 +210,6 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
         self.open_btn.set_sensitive(true);
 
         self.ui_event.reset_cursor();
-    }
-
-    pub(super) async fn handle_processing_states(
-        &mut self,
-        mut res: Result<ProcessingState, String>,
-    ) -> Result<(), ()> {
-        let res = loop {
-            match res {
-                Ok(ProcessingState::AllComplete(msg)) => {
-                    self.ui_event.show_info(msg);
-                    break Err(());
-                }
-                Ok(ProcessingState::ConfirmedOutputTo(path)) => {
-                    res = self.impl_.process(path.as_ref());
-                    if res == Ok(ProcessingState::PendingAsyncMediaEvent) {
-                        // Next state handled asynchronously in media event handler
-                        break Ok(());
-                    }
-                }
-                Ok(ProcessingState::DoneWithCurrent) => {
-                    res = self.impl_.next();
-                }
-                Ok(ProcessingState::PendingAsyncMediaEvent) => {
-                    // Next state handled asynchronously in media event handler
-                    break Ok(());
-                }
-                Ok(ProcessingState::Start) => {
-                    res = self.impl_.next();
-                }
-                Ok(ProcessingState::SkipCurrent) => {
-                    res = match self.impl_.next() {
-                        Ok(state) => match state {
-                            ProcessingState::AllComplete(_) => {
-                                // Don't display the success message when the user decided
-                                // to skip (not overwrite) last part as it seems missleading
-                                break Err(());
-                            }
-                            other => Ok(other),
-                        },
-                        Err(err) => Err(err),
-                    };
-                }
-                Ok(ProcessingState::WouldOutputTo(path)) => {
-                    if !self.overwrite_all && path.exists() {
-                        // handle state from response in next iteration
-                        let response = self.ask_overwrite_question(&path).await;
-                        self.btn.set_sensitive(true);
-                        let next_state = match response {
-                            gtk::ResponseType::Apply => {
-                                // This one is used for "Yes to all"
-                                self.overwrite_all = true;
-                                ProcessingState::ConfirmedOutputTo(Rc::clone(&path))
-                            }
-                            gtk::ResponseType::Cancel => {
-                                self.cancel();
-                                break Err(());
-                            }
-                            gtk::ResponseType::No => ProcessingState::SkipCurrent,
-                            gtk::ResponseType::Yes => {
-                                ProcessingState::ConfirmedOutputTo(Rc::clone(&path))
-                            }
-                            other => unimplemented!(
-                                "Response {:?} in OutputBaseController::ask_overwrite_question",
-                                other,
-                            ),
-                        };
-
-                        self.ui_event.set_cursor_waiting();
-                        res = Ok(next_state);
-                    } else {
-                        // handle processing in next iteration
-                        res = Ok(ProcessingState::ConfirmedOutputTo(path));
-                    }
-                }
-                Err(err) => {
-                    self.ui_event.show_error(err);
-                    break Err(());
-                }
-            }
-        };
-
-        if res.is_err() {
-            self.switch_to_available();
-        }
-
-        res
     }
 }
 
