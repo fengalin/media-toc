@@ -45,16 +45,20 @@ impl MainDispatcher {
         // Quit
         let quit = gio::SimpleAction::new("quit", None);
         app.add_action(&quit);
-        let ui_event = main_ctrl.ui_event().clone();
-        quit.connect_activate(move |_, _| ui_event.quit());
+        quit.connect_activate(with_main_ctrl!(
+            main_ctrl_rc => move |&mut main_ctrl, _, _| {
+                main_ctrl.quit()
+            }
+        ));
         app.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
         app_section.append(Some(&gettext("Quit")), Some("app.quit"));
 
-        let ui_event = main_ctrl.ui_event().clone();
-        main_ctrl.window.connect_delete_event(move |_, _| {
-            ui_event.quit();
-            Inhibit(false)
-        });
+        main_ctrl.window.connect_delete_event(with_main_ctrl!(
+            main_ctrl_rc => move |&mut main_ctrl, _, _| {
+                main_ctrl.quit();
+                Inhibit(false)
+            }
+        ));
 
         let ui_event = main_ctrl.ui_event().clone();
         if gstreamer::init().is_ok() {

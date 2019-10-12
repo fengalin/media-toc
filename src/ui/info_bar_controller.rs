@@ -9,9 +9,10 @@ use gtk::prelude::*;
 
 use log::{error, info};
 
-use std::cell::RefCell;
+use std::{cell::RefCell, rc::Rc};
 
-use super::{UIEventSender, UIFocusContext};
+use super::{MainController, UIEventSender, UIFocusContext};
+use crate::with_main_ctrl;
 
 pub struct InfoBarController {
     info_bar: gtk::InfoBar,
@@ -21,6 +22,7 @@ pub struct InfoBarController {
     btn_box: gtk::ButtonBox,
     response_src: Option<glib::signal::SignalHandlerId>,
     ui_event: UIEventSender,
+    close_info_bar_action: gio::SimpleAction,
 }
 
 impl InfoBarController {
@@ -36,20 +38,9 @@ impl InfoBarController {
 
         let revealer: gtk::Revealer = builder.get_object("info_bar-revealer").unwrap();
 
-        let close_info_bar = gio::SimpleAction::new("close_info_bar", None);
-        app.add_action(&close_info_bar);
-        if gstreamer::init().is_ok() {
-            let info_bar = info_bar.clone();
-            close_info_bar.connect_activate(move |_, _| info_bar.emit_close());
-        } else {
-            let ui_event_clone = ui_event.clone();
-            close_info_bar.connect_activate(move |_, _| ui_event_clone.quit());
-            app.set_accels_for_action("app.close_info_bar", &["Escape"]);
-
-            // FIXME isn't this redundant with close_info_bar.connect_activate?
-            let ui_event_clone = ui_event.clone();
-            info_bar.connect_response(move |_, _| ui_event_clone.quit());
-        }
+        let close_info_bar_action = gio::SimpleAction::new("close_info_bar", None);
+        app.add_action(&close_info_bar_action);
+        app.set_accels_for_action("app.close_info_bar", &["Escape"]);
 
         let revealer_clone = revealer.clone();
         let ui_event_clone = ui_event.clone();
@@ -67,6 +58,28 @@ impl InfoBarController {
             btn_box: builder.get_object("info_bar-btnbox").unwrap(),
             response_src: None,
             ui_event,
+            close_info_bar_action,
+        }
+    }
+
+    pub fn have_main_ctrl(&self, main_ctrl_rc: &Rc<RefCell<MainController>>) {
+        if gstreamer::init().is_ok() {
+            let info_bar = self.info_bar.clone();
+            self.close_info_bar_action
+                .connect_activate(move |_, _| info_bar.emit_close());
+        } else {
+            self.close_info_bar_action.connect_activate(with_main_ctrl!(
+                main_ctrl_rc => move |&mut main_ctrl, _, _| {
+                    main_ctrl.quit()
+                }
+            ));
+
+            // FIXME isn't this redundant with close_info_bar.connect_activate?
+            self.info_bar.connect_response(with_main_ctrl!(
+                main_ctrl_rc => move |&mut main_ctrl, _, _| {
+                    main_ctrl.quit()
+                }
+            ));
         }
     }
 

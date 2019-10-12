@@ -40,13 +40,13 @@ enum UIEvent {
         response_sender: oneshot::Sender<gtk::ResponseType>,
     },
     CancelSelectMedia,
+    HideInfoBar,
     OpenMedia(PathBuf),
     PlayRange {
         start: Timestamp,
         end: Timestamp,
         ts_to_restore: Timestamp,
     },
-    Quit,
     ResetCursor,
     RestoreContext,
     Seek {
@@ -91,6 +91,10 @@ impl UIEventSender {
         self.send(UIEvent::CancelSelectMedia);
     }
 
+    pub fn hide_info_bar(&self) {
+        self.send(UIEvent::HideInfoBar);
+    }
+
     pub fn open_media(&self, path: PathBuf) {
         // Trigger the message asynchronously otherwise the waiting cursor might not show up
         let mut path = Some(path);
@@ -108,10 +112,6 @@ impl UIEventSender {
             end,
             ts_to_restore,
         });
-    }
-
-    pub fn quit(&self) {
-        self.send(UIEvent::Quit);
     }
 
     pub fn reset_cursor(&self) {
@@ -194,9 +194,13 @@ impl UIEventHandler {
         (handler, ui_event_sender)
     }
 
-    pub fn spawn(mut self, main_ctrl: &Rc<RefCell<MainController>>) {
+    pub fn have_main_ctrl(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
         self.main_ctrl = Some(Rc::clone(&main_ctrl));
+        self.info_bar_ctrl.have_main_ctrl(main_ctrl);
+    }
 
+    pub fn spawn(mut self) {
+        assert!(self.main_ctrl.is_some());
         spawn!(async move {
             while let Some(event) = self.receiver.next().await {
                 if self.handle(event).is_err() {
@@ -223,20 +227,14 @@ impl UIEventHandler {
                 response_sender,
             } => self.info_bar_ctrl.ask_question(&question, response_sender),
             UIEvent::CancelSelectMedia => self.main_ctrl_mut().cancel_select_media(),
-            UIEvent::OpenMedia(path) => {
-                self.info_bar_ctrl.hide();
-                self.main_ctrl_mut().open_media(path);
-            }
+            UIEvent::HideInfoBar => self.info_bar_ctrl.hide(),
+            UIEvent::OpenMedia(path) => self.main_ctrl_mut().open_media(path),
             UIEvent::PlayRange {
                 start,
                 end,
                 ts_to_restore,
             } => {
                 self.main_ctrl_mut().play_range(start, end, ts_to_restore);
-            }
-            UIEvent::Quit => {
-                self.main_ctrl_mut().quit();
-                return Err(());
             }
             UIEvent::ResetCursor => self.reset_cursor(),
             UIEvent::RestoreContext => self.restore_context(),

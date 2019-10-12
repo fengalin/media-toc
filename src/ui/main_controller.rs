@@ -76,7 +76,7 @@ impl MainController {
         let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
         window.set_application(Some(app));
 
-        let (ui_event_handler, ui_event) = UIEventHandler::new_pair(&app, &builder);
+        let (mut ui_event_handler, ui_event) = UIEventHandler::new_pair(&app, &builder);
         let chapters_boundaries = Rc::new(RefCell::new(ChaptersBoundaries::new()));
 
         let gst_init_res = gst::init();
@@ -112,7 +112,8 @@ impl MainController {
             callback_when_paused: None,
         }));
 
-        ui_event_handler.spawn(&main_ctrl_rc);
+        ui_event_handler.have_main_ctrl(&main_ctrl_rc);
+        ui_event_handler.spawn();
 
         let mut main_ctrl = main_ctrl_rc.borrow_mut();
         MainDispatcher::setup(&mut main_ctrl, &main_ctrl_rc, app);
@@ -505,6 +506,8 @@ impl MainController {
 
     pub fn select_media(&mut self) {
         self.state = ControllerState::PendingSelectMediaDecision;
+
+        self.ui_event.hide_info_bar();
 
         // The file dialog must be opened asynchronously because:
         // - there is an event loop running until a response is returned by `run`
