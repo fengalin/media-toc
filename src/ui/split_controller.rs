@@ -227,6 +227,8 @@ impl SplitControllerImpl {
 
 impl MediaProcessor for SplitControllerImpl {
     fn init(&mut self) -> ProcessingType {
+        self.reset();
+
         let format = if self.split_to_flac_row.is_selected() {
             Format::Flac
         } else if self.split_to_wave_row.is_selected() {
@@ -387,7 +389,7 @@ impl MediaProcessor for SplitControllerImpl {
         let duration = self.src_info.as_ref().unwrap().read().unwrap().duration;
         if duration > Duration::default() {
             // With some formats, we can't retrieve a proper ts between 2 files
-            // some, just report known last progress in this case
+            // so, just report known last progress in this case
             if let Some(ts) = self
                 .splitter_pipeline
                 .as_ref()
