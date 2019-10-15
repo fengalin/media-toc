@@ -71,10 +71,11 @@ macro_rules! register_on_export_toggled(
                             let stream_id = store
                                 .get_value(&iter, STREAM_ID_COL as i32)
                                 .get::<GString>()
+                                .unwrap()
                                 .unwrap();
                             let value = !store
                                 .get_value(&iter, EXPORT_FLAG_COL as i32)
-                                .get::<bool>()
+                                .get_some::<bool>()
                                 .unwrap();
                             store.set_value(&iter, EXPORT_FLAG_COL, &gtk::Value::from(&value));
 

@@ -7,6 +7,9 @@ use glib;
 use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
+
+use log::debug;
+
 use std::{
     borrow::Cow,
     cell::{Ref, RefCell, RefMut},
@@ -24,7 +27,7 @@ use super::{
 
 const UI_EVENT_CHANNEL_CAPACITY: usize = 4;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum UIFocusContext {
     ExportPage,
     InfoBar,
@@ -34,6 +37,7 @@ pub enum UIFocusContext {
     TextEntry,
 }
 
+#[derive(Debug)]
 enum UIEvent {
     AskQuestion {
         question: Cow<'static, str>,
@@ -89,6 +93,7 @@ impl UIEventSender {
 
     pub fn cancel_select_media(&self) {
         self.send(UIEvent::CancelSelectMedia);
+        self.reset_cursor();
     }
 
     pub fn hide_info_bar(&self) {
@@ -96,14 +101,8 @@ impl UIEventSender {
     }
 
     pub fn open_media(&self, path: PathBuf) {
-        // Trigger the message asynchronously otherwise the waiting cursor might not show up
-        let mut path = Some(path);
-        let mut sender = self.0.borrow_mut().clone();
-        spawn!(async move {
-            if let Some(path) = path.take() {
-                sender.try_send(UIEvent::OpenMedia(path)).unwrap();
-            }
-        });
+        self.set_cursor_waiting();
+        self.send(UIEvent::OpenMedia(path));
     }
 
     pub fn play_range(&self, start: Timestamp, end: Timestamp, ts_to_restore: Timestamp) {
@@ -203,6 +202,7 @@ impl UIEventHandler {
         assert!(self.main_ctrl.is_some());
         spawn!(async move {
             while let Some(event) = self.receiver.next().await {
+                debug!("handling event {:?}", event);
                 if self.handle(event).is_err() {
                     break;
                 }

@@ -521,6 +521,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                                     .get_value("name")
                                     .unwrap()
                                     .get::<String>()
+                                    .unwrap()
                                     .unwrap(),
                             ))
                             .unwrap();

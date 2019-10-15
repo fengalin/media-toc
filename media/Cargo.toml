@@ -14,9 +14,9 @@ byteorder = "1"
 env_logger = "0.6"
 futures-preview = "0.3.0-alpha"
 gettext-rs = { version = "0.4", features = ["gettext-system"] }
-glib = "0.8"
-gstreamer = { version = "0.14", features = ["v1_10"] }
-gstreamer-audio = { version = "0.14", features = ["v1_10"] }
+glib = "=0.8.0"
+gstreamer = { version = "0.15", features = ["v1_10"] }
+gstreamer-audio = { version = "0.15", features = ["v1_10"] }
 lazy_static = "1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 metadata = { path = "../metadata", package = "media-toc-metadata" }
@@ -26,3 +26,23 @@ smallvec = "0.6"
 [features]
 trace-playback-queues = []
 default = []
+
+[patch.crates-io]
+atk = { git = "https://github.com/gtk-rs/atk" }
+cairo-rs = { git = "https://github.com/gtk-rs/cairo" }
+cairo-sys-rs = { git = "https://github.com/gtk-rs/cairo" }
+gdk-sys = { git = "https://github.com/gtk-rs/sys" }
+gdk-pixbuf-sys = { git = "https://github.com/gtk-rs/sys" }
+gio-sys = { git = "https://github.com/gtk-rs/sys" }
+glib-sys = { git = "https://github.com/gtk-rs/sys" }
+gobject-sys = { git = "https://github.com/gtk-rs/sys" }
+gtk-sys = { git = "https://github.com/gtk-rs/sys" }
+pango-sys = { git = "https://github.com/gtk-rs/sys" }
+gio = { git = "https://github.com/gtk-rs/gio" }
+glib = { git = "https://github.com/gtk-rs/glib" }
+gdk = { git = "https://github.com/gtk-rs/gdk" }
+gdk-pixbuf = { git = "https://github.com/gtk-rs/gdk-pixbuf" }
+pango = { git = "https://github.com/gtk-rs/pango" }
+gstreamer = { git = "https://gitlab.freedesktop.org/gstreamer/gstreamer" }
+gstreamer-audio = { git = "https://gitlab.freedesktop.org/gstreamer/gstreamer" }
+gtk = { git = "https://github.com/gtk-rs/gtk" }

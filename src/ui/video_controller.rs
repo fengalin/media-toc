@@ -79,7 +79,8 @@ impl VideoController {
                         .get_property("widget")
                         .expect("VideoController: couldn't get `widget` from `gtkglsink`")
                         .get::<gtk::Widget>()
-                        .expect("VideoController: unexpected type for `widget` in `gtkglsink`"),
+                        .expect("VideoController: unexpected type for `widget` in `gtkglsink`")
+                        .expect("VideoController: `widget` not found in `gtkglsink`"),
                 }
             })
         } else {
@@ -92,9 +93,10 @@ impl VideoController {
                     sink: sink.clone(),
                     widget: sink
                         .get_property("widget")
-                        .expect("PlaybackPipeline: couldn't get `widget` from `gtksink`")
+                        .expect("VideoController: couldn't get `widget` from `gtksink`")
                         .get::<gtk::Widget>()
-                        .expect("PlaybackPipeline: unexpected type for `widget` in `gtksink`"),
+                        .expect("VideoController: unexpected type for `widget` in `gtksink`")
+                        .expect("VideoController: `widget` not found in `gtksink`"),
                 }
             })
         });

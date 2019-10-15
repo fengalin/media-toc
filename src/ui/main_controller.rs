@@ -48,6 +48,7 @@ pub struct MainController {
     pub(super) display_page: gtk::Box,
     playback_paned: gtk::Paned,
     pub(super) play_pause_btn: gtk::ToolButton,
+    file_dlg: gtk::FileChooserNative,
 
     ui_event: UIEventSender,
 
@@ -79,6 +80,23 @@ impl MainController {
         let (mut ui_event_handler, ui_event) = UIEventHandler::new_pair(&app, &builder);
         let chapters_boundaries = Rc::new(RefCell::new(ChaptersBoundaries::new()));
 
+        let file_dlg = gtk::FileChooserNativeBuilder::new()
+            .title(&gettext("Open a media file"))
+            .transient_for(window.upcast_ref())
+            .modal(true)
+            .accept_label(&gettext("Open"))
+            .cancel_label(&gettext("Cancel"))
+            .build();
+
+        let ui_event_clone = ui_event.clone();
+        file_dlg.connect_response(move |file_dlg, response| {
+            file_dlg.hide();
+            match (response, file_dlg.get_filename().to_owned()) {
+                (gtk::ResponseType::Accept, Some(path)) => ui_event_clone.open_media(path),
+                _ => ui_event_clone.cancel_select_media(),
+            }
+        });
+
         let gst_init_res = gst::init();
 
         let main_ctrl_rc = Rc::new(RefCell::new(MainController {
@@ -88,6 +106,7 @@ impl MainController {
             display_page: builder.get_object("display-box").unwrap(),
             playback_paned: builder.get_object("playback-paned").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
+            file_dlg,
 
             ui_event: ui_event.clone(),
 
@@ -132,7 +151,6 @@ impl MainController {
             ui_event.show_all();
 
             if let Some(input_file) = args.input_file.to_owned() {
-                main_ctrl.ui_event.set_cursor_waiting();
                 main_ctrl.ui_event.open_media(input_file);
             }
         } else {
@@ -367,11 +385,15 @@ impl MainController {
         }
     }
 
-    fn spawn_media_event_handler(&mut self, receiver: async_mpsc::Receiver<MediaEvent>) {
+    fn spawn_media_event_handler(&mut self) -> async_mpsc::Sender<MediaEvent> {
+        let (sender, receiver) = async_mpsc::channel(1);
+
         let (abortable_event_handler, abort_handle) =
             abortable(self.new_media_event_handler.as_ref().unwrap()(receiver));
         spawn!(abortable_event_handler.map(drop));
         self.media_event_abort_handle = Some(abort_handle);
+
+        sender
     }
 
     fn abort_media_event_handler(&mut self) {
@@ -506,45 +528,12 @@ impl MainController {
 
     pub fn select_media(&mut self) {
         self.state = ControllerState::PendingSelectMediaDecision;
-
         self.ui_event.hide_info_bar();
 
-        // The file dialog must be opened asynchronously because:
-        // - there is an event loop running until a response is returned by `run`
-        // - the `AudioController` needs to be able to redraw the waveform.
-        // so `self` can't be kept borrowed.
-        let file_dlg = gtk::FileChooserDialog::with_buttons(
-            Some(gettext("Open a media file").as_str()),
-            Some(&self.window),
-            gtk::FileChooserAction::Open,
-            &[
-                (&gettext("Cancel"), gtk::ResponseType::Cancel),
-                (&gettext("Open"), gtk::ResponseType::Accept),
-            ],
-        );
         if let Some(ref last_path) = CONFIG.read().unwrap().media.last_path {
-            file_dlg.set_current_folder(last_path);
+            self.file_dlg.set_current_folder(last_path);
         }
-
-        // Can't use a `Future` here because `FileChooserDialog::run`
-        // spawns another loop
-        let ui_event = self.ui_event.clone();
-        gtk::idle_add(move || {
-            if file_dlg.run() == gtk::ResponseType::Accept {
-                match file_dlg.get_filename().to_owned() {
-                    Some(path) => {
-                        ui_event.set_cursor_waiting();
-                        ui_event.open_media(path);
-                    }
-                    None => ui_event.cancel_select_media(),
-                }
-            } else {
-                ui_event.cancel_select_media();
-            }
-
-            file_dlg.close();
-            gtk::Continue(false)
-        });
+        self.file_dlg.show();
     }
 
     pub fn open_media(&mut self, path: PathBuf) {
@@ -563,12 +552,9 @@ impl MainController {
         self.perspective_ctrl.cleanup();
         self.header_bar.set_subtitle(Some(""));
 
-        // FIXME: how many messages might be pending?
-        let (sender, receiver) = async_mpsc::channel(1);
-
         self.state = ControllerState::Stopped;
         self.missing_plugins.clear();
-        self.spawn_media_event_handler(receiver);
+        let sender = self.spawn_media_event_handler();
 
         let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.dbl_renderer_mtx);
         match PlaybackPipeline::try_new(
@@ -590,15 +576,11 @@ impl MainController {
     }
 
     pub fn cancel_select_media(&mut self) {
-        self.ui_event.reset_cursor();
-        match &self.state {
-            ControllerState::PendingSelectMediaDecision => {
-                self.state = self
-                    .pipeline
-                    .as_ref()
-                    .map_or(ControllerState::Stopped, |_| ControllerState::Paused);
-            }
-            other => panic!("Called `cancel_select_media()` in state {:?}", other),
+        if self.state == ControllerState::PendingSelectMediaDecision {
+            self.state = self
+                .pipeline
+                .as_ref()
+                .map_or(ControllerState::Stopped, |_| ControllerState::Paused);
         }
     }
 }

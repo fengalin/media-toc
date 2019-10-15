@@ -42,10 +42,9 @@ impl InfoBarController {
         app.add_action(&close_info_bar_action);
         app.set_accels_for_action("app.close_info_bar", &["Escape"]);
 
-        let revealer_clone = revealer.clone();
         let ui_event_clone = ui_event.clone();
         info_bar.connect_response(move |_, _| {
-            revealer_clone.set_reveal_child(false);
+            ui_event_clone.hide_info_bar();
             ui_event_clone.restore_context();
         });
 

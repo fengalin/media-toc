@@ -63,11 +63,11 @@ impl UIController for StreamsController {
                 stream.must_export = true;
                 let iter = self.add_stream(&self.video_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
-                if let Some(width) = caps_structure.get::<i32>("width") {
+                if let Some(width) = caps_structure.get::<i32>("width").unwrap() {
                     self.video_store
                         .set_value(&iter, VIDEO_WIDTH_COL, &gtk::Value::from(&width));
                 }
-                if let Some(height) = caps_structure.get::<i32>("height") {
+                if let Some(height) = caps_structure.get::<i32>("height").unwrap() {
                     self.video_store
                         .set_value(&iter, VIDEO_HEIGHT_COL, &gtk::Value::from(&height));
                 }
@@ -86,11 +86,11 @@ impl UIController for StreamsController {
                 stream.must_export = true;
                 let iter = self.add_stream(&self.audio_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
-                if let Some(rate) = caps_structure.get::<i32>("rate") {
+                if let Some(rate) = caps_structure.get::<i32>("rate").unwrap() {
                     self.audio_store
                         .set_value(&iter, AUDIO_RATE_COL, &gtk::Value::from(&rate));
                 }
-                if let Some(channels) = caps_structure.get::<i32>("channels") {
+                if let Some(channels) = caps_structure.get::<i32>("channels").unwrap() {
                     self.audio_store.set_value(
                         &iter,
                         AUDIO_CHANNELS_COL,
@@ -116,7 +116,7 @@ impl UIController for StreamsController {
                 self.text_store
                     .set_value(&iter, EXPORT_FLAG_COL, &gtk::Value::from(&false));
                 let caps_structure = stream.caps.get_structure(0).unwrap();
-                if let Some(format) = caps_structure.get::<&str>("format") {
+                if let Some(format) = caps_structure.get::<&str>("format").unwrap() {
                     self.text_store
                         .set_value(&iter, TEXT_FORMAT_COL, &gtk::Value::from(&format));
                 }
@@ -236,6 +236,7 @@ impl StreamsController {
         store
             .get_value(iter, STREAM_ID_COL as i32)
             .get::<String>()
+            .unwrap()
             .unwrap()
             .into()
     }

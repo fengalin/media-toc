@@ -84,6 +84,7 @@ impl<'entry> ChapterEntry<'entry> {
             .get_value(&self.iter, TITLE_COL as i32)
             .get::<GString>()
             .unwrap()
+            .unwrap()
     }
 
     fn set_title(&self, title: &str) {
@@ -94,7 +95,7 @@ impl<'entry> ChapterEntry<'entry> {
     pub fn start(&self) -> Timestamp {
         self.store
             .get_value(&self.iter, START_COL as i32)
-            .get::<u64>()
+            .get_some::<u64>()
             .unwrap()
             .into()
     }
@@ -102,7 +103,7 @@ impl<'entry> ChapterEntry<'entry> {
     pub fn end(&self) -> Timestamp {
         self.store
             .get_value(&self.iter, END_COL as i32)
-            .get::<u64>()
+            .get_some::<u64>()
             .unwrap()
             .into()
     }
