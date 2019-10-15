@@ -212,12 +212,9 @@ impl MediaProcessor for ExportControllerImpl {
     }
 
     fn cancel(&mut self) {
-        self.toc_setter_pipeline
-            .as_mut()
-            .expect("ExportController::cancel no toc_setter_pipeline")
-            .cancel();
+        if let Some(pipeline) = self.toc_setter_pipeline.as_mut() {
+            pipeline.cancel();
 
-        {
             let path = &self
                 .export_file_info
                 .as_ref()

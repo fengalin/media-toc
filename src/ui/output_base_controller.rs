@@ -166,6 +166,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
         if let Some(abortable_handler) = self.media_event_abort_handle.take() {
             abortable_handler.abort();
         }
+        self.switch_to_available();
     }
 
     pub fn update_progress(&mut self) -> Result<(), ()> {

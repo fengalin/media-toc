@@ -352,15 +352,14 @@ impl MediaProcessor for SplitControllerImpl {
     }
 
     fn cancel(&mut self) {
-        self.splitter_pipeline
-            .as_mut()
-            .expect("SplitController::cancel no splitter_pipeline")
-            .cancel();
+        if let Some(pipeline) = self.splitter_pipeline.as_mut() {
+            pipeline.cancel();
 
-        if let Some(current_path) = self.current_path.take() {
-            if std::fs::remove_file(&current_path).is_err() {
-                if let Some(printable_path) = current_path.to_str() {
-                    warn!("Failed to remove canceled split file {}", printable_path);
+            if let Some(current_path) = self.current_path.take() {
+                if std::fs::remove_file(&current_path).is_err() {
+                    if let Some(printable_path) = current_path.to_str() {
+                        warn!("Failed to remove canceled split file {}", printable_path);
+                    }
                 }
             }
         }
@@ -373,6 +372,7 @@ impl MediaProcessor for SplitControllerImpl {
             MediaEvent::Eos => {
                 self.current_chapter = None;
                 self.current_path = None;
+                self.splitter_pipeline = None;
                 Ok(ProcessingState::DoneWithCurrent)
             }
             MediaEvent::FailedToExport(err) => {
