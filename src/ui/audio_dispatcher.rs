@@ -71,9 +71,11 @@ impl UIDispatcher for AudioDispatcher {
         audio_ctrl
             .drawingarea
             .connect_leave_notify_event(with_main_ctrl!(
-                main_ctrl_rc => move |&mut main_ctrl, _, _event_crossing| {
+                main_ctrl_rc => try move |&mut main_ctrl, _, _event_crossing| {
                     main_ctrl.audio_ctrl.leave_drawing_area();
                     Inhibit(true)
+                } else {
+                    Inhibit(false)
                 }
             ));
 

@@ -92,6 +92,19 @@ macro_rules! with_main_ctrl {
             }
         }
     };
+    (
+        $main_ctrl_rc:ident => try move |&$main_ctrl:ident, $($p:tt),+| $body:block
+        else $else:block
+    ) => {
+        {
+            let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
+            move |$($crate::with_main_ctrl!(@arg $p),)+| {
+                if let Ok($main_ctrl) = main_ctrl_rc.try_borrow() {
+                    $body
+                } else $else
+            }
+        }
+    };
     ($main_ctrl_rc:ident => try move |&$main_ctrl:ident, $($p:tt),+| $body:expr) => {
         {
             let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
@@ -122,6 +135,19 @@ macro_rules! with_main_ctrl {
                 if let Ok(mut $main_ctrl) = main_ctrl_rc.try_borrow_mut() {
                     $body
                 }
+            }
+        }
+    };
+    (
+        $main_ctrl_rc:ident => try move |&mut $main_ctrl:ident, $($p:tt),+| $body:block
+        else $else:block
+    ) => {
+        {
+            let main_ctrl_rc = std::rc::Rc::clone(&$main_ctrl_rc);
+            move |$($crate::with_main_ctrl!(@arg $p),)+| {
+                if let Ok(mut $main_ctrl) = main_ctrl_rc.try_borrow_mut() {
+                    $body
+                } else $else
             }
         }
     };
