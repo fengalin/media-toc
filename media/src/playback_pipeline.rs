@@ -199,24 +199,24 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
         #[cfg(feature = "trace-playback-queues")]
         queue
             .connect("overrun", false, |args| {
-                let queue = args[0].get::<gst::Element>().unwrap();
+                let queue = args[0].get::<gst::Element>().unwrap().unwrap();
                 warn!(
                     "OVERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
                     queue.get_name(),
                     queue
                         .get_property("max-size-bytes")
                         .unwrap()
-                        .get::<u32>()
+                        .get_some::<u32>()
                         .unwrap(),
                     queue
                         .get_property("max-size-buffers")
                         .unwrap()
-                        .get::<u32>()
+                        .get_some::<u32>()
                         .unwrap(),
                     queue
                         .get_property("max-size-time")
                         .unwrap()
-                        .get::<u64>()
+                        .get_some::<u64>()
                         .unwrap(),
                 );
                 None
@@ -226,24 +226,24 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
         #[cfg(feature = "trace-playback-queues")]
         queue
             .connect("underrun", false, |args| {
-                let queue = args[0].get::<gst::Element>().unwrap();
+                let queue = args[0].get::<gst::Element>().unwrap().unwrap();
                 warn!(
                     "UNDERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
                     queue.get_name(),
                     queue
                         .get_property("max-size-bytes")
                         .unwrap()
-                        .get::<u32>()
+                        .get_some::<u32>()
                         .unwrap(),
                     queue
                         .get_property("max-size-buffers")
                         .unwrap()
-                        .get::<u32>()
+                        .get_some::<u32>()
                         .unwrap(),
                     queue
                         .get_property("max-size-time")
                         .unwrap()
-                        .get::<u64>()
+                        .get_some::<u64>()
                         .unwrap(),
                 );
                 None
