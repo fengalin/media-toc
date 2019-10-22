@@ -11,7 +11,6 @@ if [ $TRAVIS_OS_NAME = linux ]; then
 elif [ $TRAVIS_OS_NAME = osx ]; then
     brew update
     brew install gtk+3 gstreamer gst-plugins-base
-    export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/local/opt/libffi/lib/pkgconfig;
 else:
     echo Unknown OS $TRAVIS_OS_NAME
 fi
