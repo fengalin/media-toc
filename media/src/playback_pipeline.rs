@@ -269,7 +269,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
 
         let file_src = gst::ElementFactory::make("filesrc", Some("filesrc")).unwrap();
         file_src
-            .set_property("location", &gst::Value::from(path.to_str().unwrap()))
+            .set_property("location", &glib::Value::from(path.to_str().unwrap()))
             .unwrap();
         self.pipeline.add(&file_src).unwrap();
         file_src.link(&self.decodebin).unwrap();
@@ -371,11 +371,11 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
 
         // get samples as fast as possible
         waveform_sink
-            .set_property("sync", &gst::Value::from(&false))
+            .set_property("sync", &glib::Value::from(&false))
             .unwrap();
         // and don't block pipeline when switching state
         waveform_sink
-            .set_property("async", &gst::Value::from(&false))
+            .set_property("async", &glib::Value::from(&false))
             .unwrap();
 
         {
@@ -495,7 +495,9 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                         .lock()
                         .unwrap()
                         .set_state(gst::State::Paused);
-                    sender.try_send(MediaEvent::Eos).expect("Failed to notify UI");
+                    sender
+                        .try_send(MediaEvent::Eos)
+                        .expect("Failed to notify UI");
                 }
                 gst::MessageView::Error(err) => {
                     if "sink" == err.get_src().unwrap().get_name() {

@@ -89,7 +89,7 @@ impl<'entry> ChapterEntry<'entry> {
 
     fn set_title(&self, title: &str) {
         self.store
-            .set_value(&self.iter, TITLE_COL, &gtk::Value::from(title));
+            .set_value(&self.iter, TITLE_COL, &glib::Value::from(title));
     }
 
     pub fn start(&self) -> Timestamp {

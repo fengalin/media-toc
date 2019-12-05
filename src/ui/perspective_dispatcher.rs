@@ -65,7 +65,7 @@ impl UIDispatcher for PerspectiveDispatcher {
             });
 
             let button = gtk_downcast!(perspective_box_child, gtk::Button, "popover box");
-            let button_name = gtk::WidgetExt::get_name(&button);
+            let button_name = button.get_widget_name();
             let button_box = gtk_downcast!(
                 button.get_child().unwrap_or_else(|| panic!(
                     "PerspectiveController no box for button {:?}",

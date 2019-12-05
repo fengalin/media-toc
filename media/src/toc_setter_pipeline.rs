@@ -99,7 +99,7 @@ impl TocSetterPipeline {
         // Input
         let filesrc = gst::ElementFactory::make("filesrc", None).unwrap();
         filesrc
-            .set_property("location", &gst::Value::from(input_path.to_str().unwrap()))
+            .set_property("location", &glib::Value::from(input_path.to_str().unwrap()))
             .unwrap();
 
         let parsebin = gst::ElementFactory::make("parsebin", None).unwrap();
@@ -113,12 +113,15 @@ impl TocSetterPipeline {
         // Muxer and output sink
         let muxer = gst::ElementFactory::make("matroskamux", None).unwrap();
         muxer
-            .set_property("writing-app", &gst::Value::from("media-toc"))
+            .set_property("writing-app", &glib::Value::from("media-toc"))
             .unwrap();
 
         let filesink = gst::ElementFactory::make("filesink", Some("filesink")).unwrap();
         filesink
-            .set_property("location", &gst::Value::from(output_path.to_str().unwrap()))
+            .set_property(
+                "location",
+                &glib::Value::from(output_path.to_str().unwrap()),
+            )
             .unwrap();
 
         {

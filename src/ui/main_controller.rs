@@ -82,7 +82,7 @@ impl MainController {
 
         let file_dlg = gtk::FileChooserNativeBuilder::new()
             .title(&gettext("Open a media file"))
-            .transient_for(window.upcast_ref())
+            .transient_for(&window)
             .modal(true)
             .accept_label(&gettext("Open"))
             .cancel_label(&gettext("Cancel"))

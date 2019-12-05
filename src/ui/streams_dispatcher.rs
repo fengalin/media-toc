@@ -77,7 +77,7 @@ macro_rules! register_on_export_toggled(
                                 .get_value(&iter, EXPORT_FLAG_COL as i32)
                                 .get_some::<bool>()
                                 .unwrap();
-                            store.set_value(&iter, EXPORT_FLAG_COL, &gtk::Value::from(&value));
+                            store.set_value(&iter, EXPORT_FLAG_COL, &glib::Value::from(&value));
 
                             if let Some(pipeline) = main_ctrl.pipeline.as_mut() {
                                 pipeline

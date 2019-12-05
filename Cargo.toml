@@ -14,18 +14,18 @@ build = "build.rs"
 
 [dependencies]
 bitflags = "1"
-cairo-rs = "=0.7"
+cairo-rs = { git = "https://github.com/gtk-rs/cairo" }
 clap = "2"
 directories = "2"
-env_logger = "0.6"
-futures-preview = "0.3.0-alpha"
-gdk = "0.11"
+env_logger = "0.7"
+futures = "0.3"
+gdk = { git = "https://github.com/gtk-rs/gdk" }
 gettext-rs = { version = "0.4", features = ["gettext-system"] }
-gio = "0.7"
-glib = { version = "=0.8.0", features = ["futures"] }
-gstreamer = { version = "0.15", features = ["v1_10"] }
-gstreamer-audio = { version = "0.15", features = ["v1_10"] }
-gtk = { version = "0.7", features = ["v3_20"] }
+gio = { git = "https://github.com/gtk-rs/gio" }
+glib = { git = "https://github.com/gtk-rs/glib" }
+gstreamer = {  git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
+gstreamer-audio = {  git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
+gtk = { git = "https://github.com/gtk-rs/gtk", features = ["v3_20"] }
 lazy_static = "1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 media = { path = "media", package = "media-toc-media"  }

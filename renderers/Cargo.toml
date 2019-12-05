@@ -12,14 +12,13 @@ version = "0.6.99"
 
 [dependencies]
 cairo-rs = "=0.7"
-chrono = { version = "0.4", optional = true }
-env_logger = "0.6"
-gstreamer = { version = "0.15", features = ["v1_10"] }
+env_logger = "0.7"
+gstreamer = {  git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
 media = { path = "../media", package = "media-toc-media"  }
 metadata = { path = "../metadata", package = "media-toc-metadata" }
-image = "0.21"
+image = "0.22"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
-smallvec = "0.6"
+smallvec = "1"
 
 [dev-dependencies]
 byteorder = "1"

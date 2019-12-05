@@ -161,7 +161,7 @@ impl SplitterPipeline {
         // Input
         let filesrc = gst::ElementFactory::make("filesrc", None).unwrap();
         filesrc
-            .set_property("location", &gst::Value::from(input_path.to_str().unwrap()))
+            .set_property("location", &glib::Value::from(input_path.to_str().unwrap()))
             .unwrap();
         let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
 
@@ -275,7 +275,10 @@ impl SplitterPipeline {
         // Output sink
         let outsink = gst::ElementFactory::make("filesink", Some("filesink")).unwrap();
         outsink
-            .set_property("location", &gst::Value::from(output_path.to_str().unwrap()))
+            .set_property(
+                "location",
+                &glib::Value::from(output_path.to_str().unwrap()),
+            )
             .unwrap();
 
         self.pipeline.add(&outsink).unwrap();

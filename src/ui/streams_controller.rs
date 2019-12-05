@@ -65,11 +65,14 @@ impl UIController for StreamsController {
                 let caps_structure = stream.caps.get_structure(0).unwrap();
                 if let Ok(Some(width)) = caps_structure.get::<i32>("width") {
                     self.video_store
-                        .set_value(&iter, VIDEO_WIDTH_COL, &gtk::Value::from(&width));
+                        .set_value(&iter, VIDEO_WIDTH_COL, &glib::Value::from(&width));
                 }
                 if let Ok(Some(height)) = caps_structure.get::<i32>("height") {
-                    self.video_store
-                        .set_value(&iter, VIDEO_HEIGHT_COL, &gtk::Value::from(&height));
+                    self.video_store.set_value(
+                        &iter,
+                        VIDEO_HEIGHT_COL,
+                        &glib::Value::from(&height),
+                    );
                 }
             }
 
@@ -88,13 +91,13 @@ impl UIController for StreamsController {
                 let caps_structure = stream.caps.get_structure(0).unwrap();
                 if let Ok(Some(rate)) = caps_structure.get::<i32>("rate") {
                     self.audio_store
-                        .set_value(&iter, AUDIO_RATE_COL, &gtk::Value::from(&rate));
+                        .set_value(&iter, AUDIO_RATE_COL, &glib::Value::from(&rate));
                 }
                 if let Ok(Some(channels)) = caps_structure.get::<i32>("channels") {
                     self.audio_store.set_value(
                         &iter,
                         AUDIO_CHANNELS_COL,
-                        &gtk::Value::from(&channels),
+                        &glib::Value::from(&channels),
                     );
                 }
             }
@@ -114,11 +117,11 @@ impl UIController for StreamsController {
                 // (see https://github.com/fengalin/media-toc/issues/136)
                 stream.must_export = false;
                 self.text_store
-                    .set_value(&iter, EXPORT_FLAG_COL, &gtk::Value::from(&false));
+                    .set_value(&iter, EXPORT_FLAG_COL, &glib::Value::from(&false));
                 let caps_structure = stream.caps.get_structure(0).unwrap();
                 if let Ok(Some(format)) = caps_structure.get::<&str>("format") {
                     self.text_store
-                        .set_value(&iter, TEXT_FORMAT_COL, &gtk::Value::from(&format));
+                        .set_value(&iter, TEXT_FORMAT_COL, &glib::Value::from(&format));
                 }
             }
         }
@@ -217,17 +220,21 @@ impl StreamsController {
             .or_else(|| stream.tags.get_index::<gst::tags::LanguageCode>(0))
             .and_then(glib::TypedValue::get)
             .unwrap_or("-");
-        store.set_value(&iter, LANGUAGE_COL, &gtk::Value::from(lang));
+        store.set_value(&iter, LANGUAGE_COL, &glib::Value::from(lang));
 
         if let Some(comment) = stream
             .tags
             .get_index::<gst::tags::Comment>(0)
             .and_then(glib::TypedValue::get)
         {
-            store.set_value(&iter, COMMENT_COL, &gtk::Value::from(comment));
+            store.set_value(&iter, COMMENT_COL, &glib::Value::from(comment));
         }
 
-        store.set_value(&iter, CODEC_COL, &gtk::Value::from(&stream.codec_printable));
+        store.set_value(
+            &iter,
+            CODEC_COL,
+            &glib::Value::from(&stream.codec_printable),
+        );
 
         iter
     }
