@@ -3,7 +3,7 @@
 ![media-toc logo](res/icons/banner/org.fengalin.media-toc.png "media-toc logo")
 
 **media-toc** is an application to build a table of contents from a media file or to split a media
-file into chapters. It runs on Linux and Windows and should also work on macOS.
+file into chapters.
 
 You might also be interested in [media-toc-player](https://github.com/fengalin/media-toc-player):
 a media player with a table of contents.
@@ -13,7 +13,7 @@ a media player with a table of contents.
 - [Screenshots](#ui)
 - [Features](#features)
 - [Accelerators](#accelerators)
-- [How-tos](#how-tos)
+- [how-to](#how-to)
   * [Create the table of contents](#how-to-create-the-toc)
   * [Save the table of contents](#how-to-save-the-toc)
   * [Export the resulting media with its table of contents to a Matroska container](#export-to-mkv)
@@ -41,10 +41,10 @@ a media player with a table of contents.
 - Draw the audio waveform and chapters boundaries.
 - Seek in the media by left clicking on the waveform, on the timeline or in the chapters list.
 - Play from a position until the end of current time frame by right clicking on the waveform
-at the starting position in paused mode.
+  at the starting position in paused mode.
 - Zoom in/out the waveform on the time axis.
 - Add/remove a chapter.
-- Drag chapters' boundaries in order to adjust their position.
+- Drag chapters boundaries in order to adjust their position.
 - Play current chapter in a loop.
 - Export the table of contents to:
 	* A Matroska container. Currently, this is only possible if the input streams are compatible
@@ -52,8 +52,8 @@ at the starting position in paused mode.
 	[`gst-plugins-good` 1.14](https://gstreamer.freedesktop.org/releases/1.14/) or above.
 	* [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
 	* [Cue Sheet](http://wiki.hydrogenaud.io/index.php?title=Cue_sheet).
-- Split the currently selected audio stream into `flac`, `wave`, `opus`, `vorbis` or `mp3`
-files: one file per chapter.
+- Split currently selected audio stream into `flac`, `wave`, `opus`, `vorbis` or `mp3` files:
+  one file per chapter.
 - Import the table of contents from:
 	* A Matroska container.
 	* [mkvmerge simple chapter format](https://mkvtoolnix.download/doc/mkvmerge.html#mkvmerge.chapters).
@@ -84,7 +84,7 @@ The following functions are bound to one or multiple key accelerators:
 | Show the Split perspective                                 | <kbd>F8</kbd>                       |
 | Open the about dialog                                      | <kbd>Control</kbd> + <kbd>A</kbd>   |
 
-# <a name='how-tos'></a>How-tos
+# <a name='how-to'></a>How-to
 
 ## <a name='how-to-create-the-toc'></a>Create the table of contents
 
@@ -238,7 +238,7 @@ toolchain.
 - Get the sources for last release:
 
   ```
-  git clone --branch v0.5.1 https://github.com/fengalin/media-toc
+  git clone --branch v0.6.0 https://github.com/fengalin/media-toc
   cd media-toc
   ```
 
@@ -344,7 +344,7 @@ with:
 
 ## Discarding the translations
 
-*media-toc* is currently available in English, French and Spanish. The user's
+*media-toc* is currently available in English, French and Spanish. The user
 locale should be automatically detected. If you want to use the English version
 or if you want to submit logs, you can discard the translations using the
 following command:
