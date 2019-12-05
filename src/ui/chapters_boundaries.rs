@@ -196,7 +196,7 @@ impl Deref for ChaptersBoundaries {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "macos")))]
 mod tests {
     use super::*;
     use glib;
