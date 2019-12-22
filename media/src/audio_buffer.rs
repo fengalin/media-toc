@@ -400,7 +400,7 @@ impl AudioBuffer {
         }
 
         if ins.upper_to_add_rel > SampleIndex::default() {
-            let buffer = gst_buffer.map_readable().take().unwrap();
+            let buffer = gst_buffer.map_readable().unwrap();
             let converter_iter = SampleConverterIter::from_slice(
                 buffer.as_slice(),
                 self,

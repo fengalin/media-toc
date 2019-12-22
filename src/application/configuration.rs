@@ -53,7 +53,7 @@ impl GlobalConfig {
             .expect("Couldn't find project dirs for this platform");
         let config_dir = project_dirs.config_dir();
         create_dir_all(&config_dir).unwrap();
-        let path = config_dir.join(CONFIG_FILENAME).to_owned();
+        let path = config_dir.join(CONFIG_FILENAME);
 
         let last = match File::open(&path) {
             Ok(config_file) => {

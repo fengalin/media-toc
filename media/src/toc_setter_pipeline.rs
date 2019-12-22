@@ -30,11 +30,10 @@ impl TocSetterPipeline {
         // available from gst-plugins-good 1.13.1
         let (major, minor, _micro, _nano) = gst::version();
         if major >= 1 && minor >= 14 {
-            gst::ElementFactory::make("matroskamux", None).map_or(
-                Err(gettext(
+            gst::ElementFactory::make("matroskamux", None).map(drop).map_err(|_|
+                gettext(
                     "Missing `matroskamux`\ncheck your gst-plugins-good install",
-                )),
-                |_| Ok(()),
+                )
             )
         } else {
             Err(gettext(
@@ -210,6 +209,6 @@ impl TocSetterPipeline {
             }
 
             glib::Continue(true)
-        });
+        }).unwrap();
     }
 }

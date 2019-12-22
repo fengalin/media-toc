@@ -19,8 +19,8 @@ use crate::application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG};
 
 use super::{
     AudioController, ChaptersBoundaries, ExportController, InfoController, MainDispatcher,
-    PerspectiveController, PlaybackPipeline, PositionStatus, SplitController, StreamsController,
-    UIController, UIEventHandler, UIEventSender, VideoController,
+    MediaEventReceiver, PerspectiveController, PlaybackPipeline, PositionStatus, SplitController,
+    StreamsController, UIController, UIEventHandler, UIEventSender, VideoController,
 };
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
@@ -65,7 +65,7 @@ pub struct MainController {
     pub(super) state: ControllerState,
 
     pub(super) new_media_event_handler:
-        Option<Box<dyn Fn(async_mpsc::Receiver<MediaEvent>) -> LocalBoxFuture<'static, ()>>>,
+        Option<Box<dyn Fn(MediaEventReceiver) -> LocalBoxFuture<'static, ()>>>,
     media_event_abort_handle: Option<AbortHandle>,
     callback_when_paused: Option<Box<dyn Fn(&mut MainController)>>,
 }
@@ -91,7 +91,7 @@ impl MainController {
         let ui_event_clone = ui_event.clone();
         file_dlg.connect_response(move |file_dlg, response| {
             file_dlg.hide();
-            match (response, file_dlg.get_filename().to_owned()) {
+            match (response, file_dlg.get_filename()) {
                 (gtk::ResponseType::Accept, Some(path)) => ui_event_clone.open_media(path),
                 _ => ui_event_clone.cancel_select_media(),
             }

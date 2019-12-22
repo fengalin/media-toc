@@ -28,61 +28,53 @@ pub struct SplitterPipeline {
 impl SplitterPipeline {
     pub fn check_requirements(format: Format) -> Result<(), String> {
         match format {
-            Format::Flac => gst::ElementFactory::make("flacenc", None).map_or(
-                Err(gettext(
+            Format::Flac => gst::ElementFactory::make("flacenc", None).map(drop).map_err(|_|
+                gettext(
                     "Missing `flacenc`\ncheck your gst-plugins-good install",
-                )),
-                |_| Ok(()),
+                )
             ),
-            Format::Wave => gst::ElementFactory::make("wavenc", None).map_or(
-                Err(gettext(
+            Format::Wave => gst::ElementFactory::make("wavenc", None).map(drop).map_err(|_|
+                gettext(
                     "Missing `wavenc`\ncheck your gst-plugins-good install",
-                )),
-                |_| Ok(()),
+                )
             ),
             Format::Opus => gst::ElementFactory::make("opusenc", None)
-                .map_or(
-                    Err(gettext(
+                .map_err(|_|
+                    gettext(
                         "Missing `opusenc`\ncheck your gst-plugins-good install",
-                    )),
-                    |_| Ok(()),
+                    )
                 )
                 .and_then(|_| {
-                    gst::ElementFactory::make("oggmux", None).map_or(
-                        Err(gettext(
+                    gst::ElementFactory::make("oggmux", None).map(drop).map_err(|_|
+                        gettext(
                             "Missing `oggmux`\ncheck your gst-plugins-good install",
-                        )),
-                        |_| Ok(()),
+                        )
                     )
                 }),
             Format::Vorbis => gst::ElementFactory::make("vorbisenc", None)
-                .map_or(
-                    Err(gettext(
+                .map_err(|_|
+                    gettext(
                         "Missing `opusenc`\ncheck your gst-plugins-good install",
-                    )),
-                    |_| Ok(()),
+                    )
                 )
                 .and_then(|_| {
-                    gst::ElementFactory::make("oggmux", None).map_or(
-                        Err(gettext(
+                    gst::ElementFactory::make("oggmux", None).map(drop).map_err(|_|
+                        gettext(
                             "Missing `oggmux`\ncheck your gst-plugins-good install",
-                        )),
-                        |_| Ok(()),
+                        )
                     )
                 }),
             Format::MP3 => gst::ElementFactory::make("lamemp3enc", None)
-                .map_or(
-                    Err(gettext(
+                .map_err(|_|
+                    gettext(
                         "Missing `lamemp3enc`\ncheck your gst-plugins-good install",
-                    )),
-                    |_| Ok(()),
+                    )
                 )
                 .and_then(|_| {
-                    gst::ElementFactory::make("id3v2mux", None).map_or(
-                        Err(gettext(
+                    gst::ElementFactory::make("id3v2mux", None).map(drop).map_err(|_|
+                        gettext(
                             "Missing `id3v2mux`\ncheck your gst-plugins-good install",
-                        )),
-                        |_| Ok(()),
+                        )
                     )
                 }),
             _ => panic!(
@@ -268,7 +260,7 @@ impl SplitterPipeline {
         };
 
         if let Some(tags) = self.chapter.get_tags() {
-            let tag_setter = tag_setter.clone().dynamic_cast::<gst::TagSetter>().unwrap();
+            let tag_setter = tag_setter.dynamic_cast::<gst::TagSetter>().unwrap();
             tag_setter.merge_tags(&tags, gst::TagMergeMode::ReplaceAll);
         }
 
@@ -364,6 +356,6 @@ impl SplitterPipeline {
             }
 
             glib::Continue(true)
-        });
+        }).unwrap();
     }
 }

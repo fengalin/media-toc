@@ -65,40 +65,44 @@ impl VideoController {
         let container: gtk::Box = builder.get_object("video-container").unwrap();
 
         let video_output = if !args.disable_gl && !CONFIG.read().unwrap().media.is_gl_disabled {
-            gst::ElementFactory::make("gtkglsink", Some("gtkglsink")).map(|gtkglsink| {
-                let glsinkbin = gst::ElementFactory::make("glsinkbin", Some("video_sink"))
-                    .expect("PlaybackPipeline: couldn't get `glsinkbin` from `gtkglsink`");
-                glsinkbin
-                    .set_property("sink", &gtkglsink.to_value())
-                    .expect("VideoController: couldn't set `sink` for `glsinkbin`");
+            gst::ElementFactory::make("gtkglsink", Some("gtkglsink"))
+                .map(|gtkglsink| {
+                    let glsinkbin = gst::ElementFactory::make("glsinkbin", Some("video_sink"))
+                        .expect("PlaybackPipeline: couldn't get `glsinkbin` from `gtkglsink`");
+                    glsinkbin
+                        .set_property("sink", &gtkglsink.to_value())
+                        .expect("VideoController: couldn't set `sink` for `glsinkbin`");
 
-                debug!("Using gtkglsink");
-                VideoOutput {
-                    sink: glsinkbin,
-                    widget: gtkglsink
-                        .get_property("widget")
-                        .expect("VideoController: couldn't get `widget` from `gtkglsink`")
-                        .get::<gtk::Widget>()
-                        .expect("VideoController: unexpected type for `widget` in `gtkglsink`")
-                        .expect("VideoController: `widget` not found in `gtkglsink`"),
-                }
-            })
+                    debug!("Using gtkglsink");
+                    VideoOutput {
+                        sink: glsinkbin,
+                        widget: gtkglsink
+                            .get_property("widget")
+                            .expect("VideoController: couldn't get `widget` from `gtkglsink`")
+                            .get::<gtk::Widget>()
+                            .expect("VideoController: unexpected type for `widget` in `gtkglsink`")
+                            .expect("VideoController: `widget` not found in `gtkglsink`"),
+                    }
+                })
+                .ok()
         } else {
             None
         }
         .or_else(|| {
-            gst::ElementFactory::make("gtksink", Some("video_sink")).map(|sink| {
-                debug!("Using gtksink");
-                VideoOutput {
-                    sink: sink.clone(),
-                    widget: sink
-                        .get_property("widget")
-                        .expect("VideoController: couldn't get `widget` from `gtksink`")
-                        .get::<gtk::Widget>()
-                        .expect("VideoController: unexpected type for `widget` in `gtksink`")
-                        .expect("VideoController: `widget` not found in `gtksink`"),
-                }
-            })
+            gst::ElementFactory::make("gtksink", Some("video_sink"))
+                .map(|sink| {
+                    debug!("Using gtksink");
+                    VideoOutput {
+                        sink: sink.clone(),
+                        widget: sink
+                            .get_property("widget")
+                            .expect("VideoController: couldn't get `widget` from `gtksink`")
+                            .get::<gtk::Widget>()
+                            .expect("VideoController: unexpected type for `widget` in `gtksink`")
+                            .expect("VideoController: `widget` not found in `gtksink`"),
+                    }
+                })
+                .ok()
         });
 
         if let Some(video_output) = video_output.as_ref() {

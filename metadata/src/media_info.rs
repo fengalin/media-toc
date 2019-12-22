@@ -499,7 +499,7 @@ impl MediaInfo {
             // Title is special as we don't fallback to the global title but give a default
             let title_tags = chapter.get_tags().and_then(|chapter_tags| {
                 if chapter_tags.get_size::<gst::tags::Title>() > 0 {
-                    Some(chapter_tags.clone())
+                    Some(chapter_tags)
                 } else {
                     None
                 }

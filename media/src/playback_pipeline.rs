@@ -71,20 +71,19 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
 
         this.pipeline.add(&this.decodebin).unwrap();
         this.build_pipeline(path, video_sink, sender.clone());
-        this.register_bus_inspector(sender.clone());
+        this.register_bus_inspector(sender);
 
         this.pause().map(|_| this)
     }
 
     pub fn check_requirements() -> Result<(), String> {
-        gst::ElementFactory::make("decodebin3", None).map_or(
-            Err(gettext(
+        gst::ElementFactory::make("decodebin3", None).map(drop).map_err(|_|
+            gettext(
                 "Missing `decodebin3`\ncheck your gst-plugins-base install",
-            )),
-            |_| Ok(()),
+            )
         )?;
-        gst::ElementFactory::make("gtksink", None).map_or_else(
-            || {
+        gst::ElementFactory::make("gtksink", None).map(drop).map_err(
+            |_| {
                 let (major, minor, _micro, _nano) = gst::version();
                 let (variant1, variant2) = if major >= 1 && minor >= 14 {
                     ("gstreamer1-plugins-base", "gstreamer1.0-plugins-base")
@@ -94,16 +93,15 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                         "gstreamer1.0-plugins-bad",
                     )
                 };
-                Err(format!(
+                format!(
                     "{} {}\n{}",
                     gettext("Couldn't find GStreamer GTK video sink."),
                     gettext("Video playback will be disabled."),
                     gettext("Please install {} or {}, depending on your distribution.")
                         .replacen("{}", variant1, 1)
                         .replacen("{}", variant2, 1),
-                ))
-            },
-            |_| Ok(()),
+                )
+            }
         )
     }
 
@@ -663,6 +661,6 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
             }
 
             glib::Continue(true)
-        });
+        }).unwrap();
     }
 }

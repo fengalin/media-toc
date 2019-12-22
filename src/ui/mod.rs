@@ -71,6 +71,8 @@ use std::{
 use media;
 use metadata;
 
+type MediaEventReceiver = async_mpsc::Receiver<media::MediaEvent>;
+
 pub struct PlaybackPipeline(media::PlaybackPipeline<renderers::WaveformRenderer>);
 
 impl PlaybackPipeline {

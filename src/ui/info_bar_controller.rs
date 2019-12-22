@@ -130,7 +130,7 @@ impl InfoBarController {
         self.response_src = Some(self.info_bar.connect_response(move |_, response_type| {
             revealer.set_reveal_child(false);
             ui_event.restore_context();
-            let _ = response_sender
+            response_sender
                 .borrow_mut()
                 .take()
                 .unwrap()

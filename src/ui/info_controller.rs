@@ -86,7 +86,7 @@ impl UIController for InfoController {
 
             self.thumbnail = info.get_media_image().and_then(|image| {
                 image.get_buffer().and_then(|image_buffer| {
-                    image_buffer.map_readable().and_then(|image_map| {
+                    image_buffer.map_readable().ok().and_then(|image_map| {
                         Image::from_unknown(image_map.as_slice())
                             .map_err(|err| warn!("{}", err))
                             .ok()

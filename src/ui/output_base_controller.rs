@@ -18,7 +18,7 @@ use media::MediaEvent;
 use metadata;
 use metadata::{Format, MediaInfo};
 
-use super::{PlaybackPipeline, UIController, UIEventSender, UIFocusContext};
+use super::{MediaEventReceiver, PlaybackPipeline, UIController, UIEventSender, UIFocusContext};
 
 pub const MEDIA_EVENT_CHANNEL_CAPACITY: usize = 1;
 
@@ -75,6 +75,8 @@ impl OutputMediaFileInfo {
     }
 }
 
+type ProcessingStateResult = Result<ProcessingState, String>;
+
 pub struct OutputBaseController<Impl> {
     pub(super) impl_: Impl,
     ui_event: UIEventSender,
@@ -90,13 +92,12 @@ pub struct OutputBaseController<Impl> {
 
     pub(super) is_busy: bool,
     pub(super) new_media_event_handler:
-        Option<Box<dyn Fn(async_mpsc::Receiver<MediaEvent>) -> LocalBoxFuture<'static, ()>>>,
+        Option<Box<dyn Fn(MediaEventReceiver) -> LocalBoxFuture<'static, ()>>>,
     media_event_abort_handle: Option<AbortHandle>,
     pub(super) new_progress_updater: Option<Box<dyn Fn() -> LocalBoxFuture<'static, ()>>>,
 
-    pub(super) new_processing_state_handler: Option<
-        Box<dyn Fn(Result<ProcessingState, String>) -> LocalBoxFuture<'static, Result<(), ()>>>,
-    >,
+    pub(super) new_processing_state_handler:
+        Option<Box<dyn Fn(ProcessingStateResult) -> LocalBoxFuture<'static, Result<(), ()>>>>,
 
     pub(super) overwrite_all: bool,
 }
