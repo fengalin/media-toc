@@ -142,8 +142,7 @@ fn generate_install_script() {
                     .unwrap();
 
                 install_file.write_all(b"\n# Install executable\n").unwrap();
-                let exe_source_path = PathBuf::from("..")
-                    .join("target")
+                let exe_source_path = PathBuf::from("target")
                     .join("release")
                     .join(env!("CARGO_PKG_NAME"));
                 install_file
