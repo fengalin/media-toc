@@ -10,9 +10,6 @@ pub struct SampleExtractionState {
     pub duration_per_1000_samples: Duration,
     pub state: gst::State,
     audio_ref: Option<gst::Element>,
-    pub base_ts: Option<(Timestamp, Timestamp)>, // (base_ts, base_frame_ts)
-    pub last_ts: Timestamp,
-    pub is_stable: bool, // post-"new segment" position stabilization flag
 }
 
 impl Default for SampleExtractionState {
@@ -22,9 +19,6 @@ impl Default for SampleExtractionState {
             duration_per_1000_samples: Duration::default(),
             state: gst::State::Null,
             audio_ref: None,
-            base_ts: None,
-            last_ts: Timestamp::default(),
-            is_stable: false,
         }
     }
 }
@@ -38,11 +32,6 @@ impl SampleExtractionState {
         // clear for reuse
         *self = Self::default();
     }
-
-    pub fn reset_base_ts(&mut self) {
-        self.is_stable = false;
-        self.base_ts = None;
-    }
 }
 
 pub trait SampleExtractor: Send {
@@ -54,20 +43,10 @@ pub trait SampleExtractor: Send {
     fn set_state(&mut self, new_state: gst::State) {
         let state = self.get_extraction_state_mut();
         state.state = new_state;
-        state.reset_base_ts();
     }
 
     fn set_time_ref(&mut self, audio_ref: &gst::Element) {
         self.get_extraction_state_mut().audio_ref = Some(audio_ref.clone());
-    }
-
-    #[inline]
-    fn reset_base_ts(&mut self) {
-        self.get_extraction_state_mut().reset_base_ts();
-    }
-
-    fn new_segment(&mut self) {
-        self.reset_base_ts();
     }
 
     fn set_channels(&mut self, channels: &[AudioChannel]);
@@ -86,61 +65,16 @@ pub trait SampleExtractor: Send {
     // extraction process by keeping conditions between frames
     fn update_concrete_state(&mut self, other: &mut Self);
 
-    fn get_current_sample(
-        &mut self,
-        last_frame_ts: Timestamp,
-        next_frame_ts: Timestamp,
-    ) -> (Timestamp, SampleIndex) {
-        let state = &mut self.get_extraction_state_mut();
+    fn get_current_sample(&mut self) -> Option<(Timestamp, SampleIndex)> {
+        let state = &self.get_extraction_state();
 
-        let ts = match state.state {
-            gst::State::Playing => {
-                let computed_ts = state
-                    .base_ts
-                    .map(|(base_ts, base_frame_ts)| base_ts + (next_frame_ts - base_frame_ts));
+        let mut query = gst::Query::new_position(gst::Format::Time);
+        if !state.audio_ref.as_ref().unwrap().query(&mut query) {
+            return None;
+        }
 
-                if state.is_stable {
-                    computed_ts.expect("get_current_sample is_stable but no base_ts")
-                } else {
-                    let mut query = gst::Query::new_position(gst::Format::Time);
-                    if state.audio_ref.as_ref().unwrap().query(&mut query) {
-                        // approximate current timestamp as being exactly between last frame
-                        // and next frame
-                        let base_ts = Timestamp::new(query.get_result().get_value() as u64);
-                        let half_interval = (next_frame_ts - last_frame_ts) / 2;
-                        let ts = base_ts + half_interval;
-
-                        if let Some(computed_ts) = computed_ts {
-                            let delta = ts.as_i64() - computed_ts.as_i64();
-                            if Duration::from_nanos(delta.abs() as u64) < half_interval {
-                                // computed timestamp is now close enough to the actual timestamp
-                                state.is_stable = true;
-                            }
-                        }
-
-                        state.base_ts =
-                            Some((base_ts, last_frame_ts.get_halfway_to(next_frame_ts)));
-
-                        ts
-                    } else {
-                        state.last_ts
-                    }
-                }
-            }
-            gst::State::Paused => {
-                let mut query = gst::Query::new_position(gst::Format::Time);
-                if state.audio_ref.as_ref().unwrap().query(&mut query) {
-                    Timestamp::new(query.get_result().get_value() as u64)
-                } else {
-                    state.last_ts
-                }
-            }
-            _ => state.last_ts,
-        };
-
-        state.last_ts = ts;
-
-        (ts, ts.get_sample_index(state.sample_duration))
+        let ts = Timestamp::new(query.get_result().get_value() as u64);
+        Some((ts, ts.get_sample_index(state.sample_duration)))
     }
 
     // Update the extractions taking account new

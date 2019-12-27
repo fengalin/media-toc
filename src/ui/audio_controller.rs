@@ -40,8 +40,6 @@ const MIN_RANGE_DURATION: Duration = Duration::from_millis(100);
 
 const ONE_HOUR: Duration = Duration::from_secs(60 * 60);
 
-const EXPECTED_FRAME_DURATION: Duration = Duration::from_frequency(60);
-
 // Use this text to compute the largest text box for the waveform limits
 // This is required to position the labels in such a way they don't
 // move constantly depending on the digits width
@@ -449,7 +447,7 @@ impl AudioController {
         self.redraw();
     }
 
-    pub fn draw(&mut self, da: &gtk::DrawingArea, cr: &cairo::Context) -> Option<Timestamp> {
+    pub fn draw(&mut self, _da: &gtk::DrawingArea, cr: &cairo::Context) -> Option<Timestamp> {
         cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
         cr.paint();
 
@@ -459,30 +457,12 @@ impl AudioController {
             return None;
         }
 
-        // Get frame timings
-        let (last_frame_ts, next_frame_ts) =
-            da.get_frame_clock()?
-                .get_current_timings()
-                .map(|frame_timings| {
-                    let frame_time = Timestamp::new(1_000 * frame_timings.get_frame_time() as u64);
-                    frame_timings.get_predicted_presentation_time().map_or_else(
-                        || (frame_time, frame_time + EXPECTED_FRAME_DURATION),
-                        |predicted_pres_time| {
-                            (
-                                frame_time,
-                                Timestamp::new(1_000 * predicted_pres_time.get() as u64),
-                            )
-                        },
-                    )
-                })?;
-
         // Get waveform and timestamps
         self.positions = {
             let waveform_renderer = &mut *self.waveform_renderer_mtx.lock().unwrap();
             self.playback_needs_refresh = waveform_renderer.playback_needs_refresh;
 
-            let (image, positions) = match waveform_renderer.get_image(last_frame_ts, next_frame_ts)
-            {
+            let (image, positions) = match waveform_renderer.get_image() {
                 Some(image_and_positions) => image_and_positions,
                 None => return None,
             };

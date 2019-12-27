@@ -226,33 +226,30 @@ impl WaveformRenderer {
         }
     }
 
-    fn refresh_ts(&mut self, last_frame_ts: Timestamp, next_frame_ts: Timestamp) {
+    fn refresh_ts(&mut self) {
         match self.first_visible_sample_lock {
             Some((_first_visible_sample_lock, LockState::Seeking)) => (),
             _ => {
-                let (ts, mut sample) = self.get_current_sample(last_frame_ts, next_frame_ts);
-
-                if self.get_extraction_state().is_stable {
-                    // after seek stabilization complete
+                if let Some((ts, mut sample)) = self.get_current_sample() {
                     self.previous_sample = Some(self.cursor_sample);
-                }
 
-                if self.image.contains_eos && sample >= self.image.upper {
-                    sample = self.image.upper;
-                    sample
-                        .try_dec()
-                        .expect("adjusting cursor_sample to last sample in stream");
+                    if self.image.contains_eos && sample >= self.image.upper {
+                        sample = self.image.upper;
+                        sample
+                            .try_dec()
+                            .expect("adjusting cursor_sample to last sample in stream");
+                    }
+                    self.cursor_sample = sample;
+                    self.cursor_ts = ts;
                 }
-                self.cursor_sample = sample;
-                self.cursor_ts = ts;
             }
         }
     }
 
     // Update to current timestamp and compute the first sample to display.
-    fn update_first_visible_sample(&mut self, last_frame_ts: Timestamp, next_frame_ts: Timestamp) {
+    fn update_first_visible_sample(&mut self) {
         self.first_visible_sample = if self.image.is_ready {
-            self.refresh_ts(last_frame_ts, next_frame_ts);
+            self.refresh_ts();
 
             if self.cursor_sample >= self.image.lower {
                 // current sample appears after first sample on image
@@ -581,12 +578,8 @@ impl WaveformRenderer {
     }
 
     // Get the waveform as an image in current conditions.
-    pub fn get_image(
-        &mut self,
-        last_frame_ts: Timestamp,
-        next_frame_ts: Timestamp,
-    ) -> Option<(&mut Image, ImagePositions)> {
-        self.update_first_visible_sample(last_frame_ts, next_frame_ts);
+    pub fn get_image(&mut self) -> Option<(&mut Image, ImagePositions)> {
+        self.update_first_visible_sample();
 
         let first_visible_sample = match self.first_visible_sample {
             Some(first_visible_sample) => first_visible_sample,
@@ -956,10 +949,6 @@ impl SampleExtractor for WaveformRenderer {
 
             other.conditions_changed = false;
         } // else: other has nothing new
-
-        self.state.base_ts = other.state.base_ts;
-        self.state.last_ts = other.state.last_ts;
-        self.state.is_stable = other.state.is_stable;
 
         self.image.update_from_other(&mut other.image);
     }

@@ -110,12 +110,6 @@ impl<SE: SampleExtractor + 'static> DoubleAudioBuffer<SE> {
 
     pub fn clean_samples(&mut self) {
         self.audio_buffer.clean_samples();
-        // Also reset basetime
-        {
-            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
-            exposed_buffer_box.reset_base_ts();
-        }
-        self.working_buffer.as_mut().unwrap().reset_base_ts();
     }
 
     pub fn set_caps(&mut self, caps: &gst::CapsRef) {
@@ -145,13 +139,11 @@ impl<SE: SampleExtractor + 'static> DoubleAudioBuffer<SE> {
             let exposed_buffer = &mut self.exposed_buffer_mtx.lock().unwrap();
             exposed_buffer.set_sample_duration(sample_duration, duration_per_1000_samples);
             exposed_buffer.set_channels(&channels);
-            exposed_buffer.new_segment();
         }
 
         let working_buffer = self.working_buffer.as_mut().unwrap();
         working_buffer.set_sample_duration(sample_duration, duration_per_1000_samples);
         working_buffer.set_channels(&channels);
-        working_buffer.new_segment();
     }
 
     pub fn set_ref(&mut self, audio_ref: &gst::Element) {
@@ -190,11 +182,6 @@ impl<SE: SampleExtractor + 'static> DoubleAudioBuffer<SE> {
         self.audio_buffer
             .have_gst_segment(segment.get_start().get_value().into());
         self.sample_gauge = Some(SampleIndex::default());
-        {
-            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
-            exposed_buffer_box.new_segment();
-        }
-        self.working_buffer.as_mut().unwrap().new_segment();
     }
 
     pub fn push_gst_buffer(&mut self, buffer: &gst::Buffer) -> bool {
