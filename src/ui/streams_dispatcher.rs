@@ -1,10 +1,8 @@
-use glib::GString;
+use glib::{clone, GString};
 use gtk;
 use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};
-
-use crate::with_main_ctrl;
 
 use super::{
     streams_controller::{EXPORT_FLAG_COL, STREAM_ID_COL},
@@ -38,8 +36,9 @@ macro_rules! on_stream_selected(
                             let streams = streams_ctrl.get_selected_streams();
 
                             // Asynchronoulsy notify the main controller
-                            spawn_with_main_ctrl!(main_ctrl_rc_cb => move async |&mut main_ctrl_rc| {
-                                main_ctrl_rc.select_streams(&streams);
+                            let main_ctrl_rc = Rc::clone(&main_ctrl_rc_cb);
+                            spawn!(async move {
+                                main_ctrl_rc.borrow_mut().select_streams(&streams);
                             });
                         }
                     }
@@ -63,36 +62,35 @@ macro_rules! register_on_export_toggled(
                 .unwrap()
                 .downcast::<gtk::CellRendererToggle>()
                 .expect("Unexpected `CellRenderer` type for `export` column")
-                .connect_toggled(with_main_ctrl!(
-                    main_ctrl_rc => move |&mut main_ctrl, _, tree_path| {
-                        let store = main_ctrl.streams_ctrl.$store.clone();
+                .connect_toggled(clone!(@strong main_ctrl_rc => move |_, tree_path| {
+                    let mut main_ctrl = main_ctrl_rc.borrow_mut();
+                    let store = main_ctrl.streams_ctrl.$store.clone();
 
-                        store.get_iter(&tree_path).map(|iter| {
-                            let stream_id = store
-                                .get_value(&iter, STREAM_ID_COL as i32)
-                                .get::<GString>()
+                    store.get_iter(&tree_path).map(|iter| {
+                        let stream_id = store
+                            .get_value(&iter, STREAM_ID_COL as i32)
+                            .get::<GString>()
+                            .unwrap()
+                            .unwrap();
+                        let value = !store
+                            .get_value(&iter, EXPORT_FLAG_COL as i32)
+                            .get_some::<bool>()
+                            .unwrap();
+                        store.set_value(&iter, EXPORT_FLAG_COL, &glib::Value::from(&value));
+
+                        if let Some(pipeline) = main_ctrl.pipeline.as_mut() {
+                            pipeline
+                                .info
+                                .write()
                                 .unwrap()
-                                .unwrap();
-                            let value = !store
-                                .get_value(&iter, EXPORT_FLAG_COL as i32)
-                                .get_some::<bool>()
-                                .unwrap();
-                            store.set_value(&iter, EXPORT_FLAG_COL, &glib::Value::from(&value));
-
-                            if let Some(pipeline) = main_ctrl.pipeline.as_mut() {
-                                pipeline
-                                    .info
-                                    .write()
-                                    .unwrap()
-                                    .streams
-                                    .$streams_getter(stream_id)
-                                    .as_mut()
-                                    .unwrap()
-                                    .must_export = value;
-                            }
-                        });
-                    }
-                ));
+                                .streams
+                                .$streams_getter(stream_id)
+                                .as_mut()
+                                .unwrap()
+                                .must_export = value;
+                        }
+                    });
+                }));
         }
     };
 );

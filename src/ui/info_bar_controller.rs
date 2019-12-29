@@ -4,6 +4,7 @@ use gettextrs::gettext;
 
 use gio;
 use gio::prelude::*;
+use glib::clone;
 use gtk;
 use gtk::prelude::*;
 
@@ -12,7 +13,6 @@ use log::{error, info};
 use std::{cell::RefCell, rc::Rc};
 
 use super::{MainController, UIEventSender, UIFocusContext};
-use crate::with_main_ctrl;
 
 pub struct InfoBarController {
     info_bar: gtk::InfoBar,
@@ -67,18 +67,16 @@ impl InfoBarController {
             self.close_info_bar_action
                 .connect_activate(move |_, _| info_bar.emit_close());
         } else {
-            self.close_info_bar_action.connect_activate(with_main_ctrl!(
-                main_ctrl_rc => move |&mut main_ctrl, _, _| {
-                    main_ctrl.quit()
-                }
-            ));
+            self.close_info_bar_action.connect_activate(
+                clone!(@strong main_ctrl_rc => move |_, _| {
+                    main_ctrl_rc.borrow_mut().quit()
+                }),
+            );
 
-            // FIXME isn't this redundant with close_info_bar.connect_activate?
-            self.info_bar.connect_response(with_main_ctrl!(
-                main_ctrl_rc => move |&mut main_ctrl, _, _| {
-                    main_ctrl.quit()
-                }
-            ));
+            self.info_bar
+                .connect_response(clone!(@strong main_ctrl_rc => move |_, _| {
+                    main_ctrl_rc.borrow_mut().quit()
+                }));
         }
     }
 

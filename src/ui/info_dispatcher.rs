@@ -1,12 +1,13 @@
 use gio;
 use gio::prelude::*;
+use glib::clone;
 use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{application::CONFIG, with_main_ctrl};
+use crate::application::CONFIG;
 use media::Timestamp;
 use metadata::Duration;
 
@@ -32,8 +33,9 @@ impl UIDispatcher for InfoDispatcher {
             show_chapters_btn.set_active(!show_chapters_btn.get_active());
         });
 
-        info_ctrl.show_chapters_btn.connect_toggled(with_main_ctrl!(
-            main_ctrl_rc => move |&main_ctrl, toggle_button| {
+        info_ctrl.show_chapters_btn.connect_toggled(clone!(
+            @strong main_ctrl_rc => move |toggle_button| {
+                let main_ctrl = main_ctrl_rc.borrow();
                 let info_ctrl = &main_ctrl.info_ctrl;
                 if toggle_button.get_active() {
                     CONFIG.write().unwrap().ui.is_chapters_list_hidden = false;
@@ -46,35 +48,34 @@ impl UIDispatcher for InfoDispatcher {
         ));
 
         // Draw thumnail image
-        info_ctrl.drawingarea.connect_draw(with_main_ctrl!(
-            main_ctrl_rc => move |&mut main_ctrl, drawingarea, cairo_ctx| {
+        info_ctrl.drawingarea.connect_draw(clone!(
+            @strong main_ctrl_rc => move |drawingarea, cairo_ctx| {
+                let mut main_ctrl = main_ctrl_rc.borrow_mut();
                 main_ctrl.info_ctrl.draw_thumbnail(drawingarea, cairo_ctx);
                 Inhibit(true)
             }
         ));
 
         // Scale seek
-        info_ctrl
-            .timeline_scale
-            .connect_change_value(with_main_ctrl!(
-                main_ctrl_rc => move |&mut main_ctrl, _, _, value| {
-                    main_ctrl.seek((value as u64).into(), gst::SeekFlags::KEY_UNIT);
-                    Inhibit(true)
-                }
-            ));
+        info_ctrl.timeline_scale.connect_change_value(
+            clone!(@strong main_ctrl_rc => move |_, _, value| {
+                let mut main_ctrl = main_ctrl_rc.borrow_mut();
+                main_ctrl.seek((value as u64).into(), gst::SeekFlags::KEY_UNIT);
+                Inhibit(true)
+            }),
+        );
 
         // TreeView seek
-        info_ctrl
-            .chapter_treeview
-            .connect_row_activated(with_main_ctrl!(
-                main_ctrl_rc => move |&mut main_ctrl, _, tree_path, _| {
-                    let info_ctrl = &mut main_ctrl.info_ctrl;
-                    if let Some(chapter) = &info_ctrl.chapter_manager.chapter_from_path(tree_path) {
-                        let seek_ts = chapter.start();
-                        main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
-                    }
+        info_ctrl.chapter_treeview.connect_row_activated(
+            clone!(@strong main_ctrl_rc => move |_, tree_path, _| {
+                let mut main_ctrl = main_ctrl_rc.borrow_mut();
+                let info_ctrl = &mut main_ctrl.info_ctrl;
+                if let Some(chapter) = &info_ctrl.chapter_manager.chapter_from_path(tree_path) {
+                    let seek_ts = chapter.start();
+                    main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
                 }
-            ));
+            }),
+        );
 
         if let Some(ref title_renderer) = info_ctrl.chapter_manager.title_renderer {
             let ui_event_cb = ui_event.clone();
@@ -87,8 +88,9 @@ impl UIDispatcher for InfoDispatcher {
                 ui_event_cb.restore_context();
             });
 
-            title_renderer.connect_edited(with_main_ctrl!(
-                main_ctrl_rc => move |&mut main_ctrl, _, _tree_path, new_title| {
+            title_renderer.connect_edited(clone!(
+                @strong main_ctrl_rc => move |_, _tree_path, new_title| {
+                    let mut main_ctrl = main_ctrl_rc.borrow_mut();
                     main_ctrl
                         .info_ctrl
                         .chapter_manager
@@ -104,24 +106,22 @@ impl UIDispatcher for InfoDispatcher {
         app.add_action(&info_ctrl.add_chapter_action);
         info_ctrl
             .add_chapter_action
-            .connect_activate(with_main_ctrl!(
-                main_ctrl_rc => move |&mut main_ctrl, _, _| {
-                    let ts = main_ctrl.get_current_ts();
-                    main_ctrl.info_ctrl.add_chapter(ts);
-                    main_ctrl.ui_event().update_focus();
-                }
-            ));
+            .connect_activate(clone!(@strong main_ctrl_rc => move |_, _| {
+                let mut main_ctrl = main_ctrl_rc.borrow_mut();
+                let ts = main_ctrl.get_current_ts();
+                main_ctrl.info_ctrl.add_chapter(ts);
+                main_ctrl.ui_event().update_focus();
+            }));
 
         // Register remove chapter action
         app.add_action(&info_ctrl.del_chapter_action);
         info_ctrl
             .del_chapter_action
-            .connect_activate(with_main_ctrl!(
-                main_ctrl_rc => move |&mut main_ctrl, _, _| {
-                    main_ctrl.info_ctrl.remove_chapter();
-                    main_ctrl.ui_event().update_focus();
-                }
-            ));
+            .connect_activate(clone!(@strong main_ctrl_rc => move |_, _| {
+                let mut main_ctrl = main_ctrl_rc.borrow_mut();
+                main_ctrl.info_ctrl.remove_chapter();
+                main_ctrl.ui_event().update_focus();
+            }));
 
         // Register Toggle repeat current chapter action
         let toggle_repeat_chapter = gio::SimpleAction::new("toggle_repeat_chapter", None);
@@ -131,34 +131,35 @@ impl UIDispatcher for InfoDispatcher {
             repeat_btn.set_active(!repeat_btn.get_active());
         });
 
-        info_ctrl.repeat_btn.connect_clicked(with_main_ctrl!(
-            main_ctrl_rc => move |&mut main_ctrl, button| {
+        info_ctrl
+            .repeat_btn
+            .connect_clicked(clone!(@strong main_ctrl_rc => move |button| {
+                let mut main_ctrl = main_ctrl_rc.borrow_mut();
                 main_ctrl.info_ctrl.repeat_chapter = button.get_active();
-            }
-        ));
+            }));
 
         // Register next chapter action
         app.add_action(&info_ctrl.next_chapter_action);
-        info_ctrl
-            .next_chapter_action
-            .connect_activate(with_main_ctrl!(
-                main_ctrl_rc => move |&mut main_ctrl, _, _| {
-                    let seek_pos = main_ctrl
-                        .info_ctrl
-                        .chapter_manager
-                        .pick_next()
-                        .map(|next_chapter| next_chapter.start());
+        info_ctrl.next_chapter_action.connect_activate(
+            clone!(@strong main_ctrl_rc => move |_, _| {
+                let mut main_ctrl = main_ctrl_rc.borrow_mut();
+                let seek_pos = main_ctrl
+                    .info_ctrl
+                    .chapter_manager
+                    .pick_next()
+                    .map(|next_chapter| next_chapter.start());
 
-                    if let Some(seek_pos) = seek_pos {
-                        main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
-                    }
+                if let Some(seek_pos) = seek_pos {
+                    main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
                 }
-            ));
+            }),
+        );
 
         // Register previous chapter action
         app.add_action(&info_ctrl.previous_chapter_action);
-        info_ctrl.previous_chapter_action.connect_activate(with_main_ctrl!(
-            main_ctrl_rc => move |&mut main_ctrl, _, _| {
+        info_ctrl.previous_chapter_action.connect_activate(clone!(
+            @strong main_ctrl_rc => move |_, _| {
+                let mut main_ctrl = main_ctrl_rc.borrow_mut();
                 let cur_ts = main_ctrl.get_current_ts();
                 let cur_start = main_ctrl
                     .info_ctrl

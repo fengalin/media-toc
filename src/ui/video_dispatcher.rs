@@ -1,12 +1,11 @@
 use gdk;
 use gettextrs::gettext;
+use glib::clone;
 use gtk;
 use gtk::prelude::*;
 use log::error;
 
 use std::{cell::RefCell, rc::Rc};
-
-use crate::with_main_ctrl;
 
 use super::{MainController, UIDispatcher, UIEventSender, VideoController};
 
@@ -27,14 +26,12 @@ impl UIDispatcher for VideoDispatcher {
                     .widget
                     .set_events(gdk::EventMask::BUTTON_PRESS_MASK);
 
-                video_ctrl
-                    .container
-                    .connect_button_press_event(with_main_ctrl!(
-                        main_ctrl_rc => move |&mut main_ctrl, _, _event_button| {
-                            main_ctrl.play_pause();
-                            Inhibit(true)
-                        }
-                    ));
+                video_ctrl.container.connect_button_press_event(
+                    clone!(@strong main_ctrl_rc => move |_, _| {
+                        main_ctrl_rc.borrow_mut().play_pause();
+                        Inhibit(true)
+                    }),
+                );
             }
             None => {
                 error!("{}", gettext("Couldn't find GStreamer GTK video sink."));
