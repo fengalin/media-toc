@@ -553,7 +553,7 @@ mod tests {
 
     use super::WaveformImage;
 
-    const OUT_DIR: &str = "target/test";
+    const OUT_DIR: &str = "../target/test";
     const SAMPLE_RATE: u32 = 300;
     const SAMPLE_DURATION: Duration = Duration::from_frequency(SAMPLE_RATE as u64);
     const SAMPLE_WINDOW: SampleIndexRange = SampleIndexRange::new(300);

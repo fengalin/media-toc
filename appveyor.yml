@@ -19,9 +19,6 @@ install:
 
 build_script:
   - cargo build
-  - pushd media && cargo test && popd
-  - pushd metadata && cargo test && popd
-  - pushd renderers && cargo test && popd
   - cargo test
   - cargo build --all-features
 
