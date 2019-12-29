@@ -13,7 +13,7 @@ use std::{
     sync::RwLock,
 };
 
-use super::{SLD, TLD};
+use super::{APP_NAME, SLD, TLD};
 
 const CONFIG_FILENAME: &str = "config.ron";
 
@@ -49,7 +49,7 @@ pub struct GlobalConfig {
 
 impl GlobalConfig {
     fn new() -> GlobalConfig {
-        let project_dirs = ProjectDirs::from(TLD, SLD, env!("CARGO_PKG_NAME"))
+        let project_dirs = ProjectDirs::from(TLD, SLD, &APP_NAME)
             .expect("Couldn't find project dirs for this platform");
         let config_dir = project_dirs.config_dir();
         create_dir_all(&config_dir).unwrap();

@@ -5,10 +5,10 @@ use gtk;
 use gtk::prelude::*;
 use log::debug;
 
+use application::{CommandLineArguments, CONFIG};
 use metadata::MediaInfo;
 
 use super::UIController;
-use crate::application::{CommandLineArguments, CONFIG};
 
 pub struct VideoOutput {
     sink: gst::Element,

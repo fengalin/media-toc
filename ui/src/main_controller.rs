@@ -15,7 +15,7 @@ use std::{borrow::ToOwned, cell::RefCell, collections::HashSet, path::PathBuf, r
 
 use media::{MediaEvent, PlaybackState, Timestamp};
 
-use crate::application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG};
+use application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG};
 
 use super::{
     AudioController, ChaptersBoundaries, ExportController, InfoController, MainDispatcher,

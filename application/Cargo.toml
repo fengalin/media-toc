@@ -1,19 +1,26 @@
 [package]
 authors = ["François Laignel <fengalin@free.fr>"]
-description = "metadata modules for media-toc"
+description = "application modules for media-toc"
 edition = '2018'
 homepage = "https://github.com/fengalin/media-toc"
 keywords = ["multimedia", "chapter", "table-of-contents", "gtk3", "gstreamer"]
 license = "MIT"
-name = "media-toc-metadata"
+name = "media-toc-application"
 readme = "README.md"
 repository = "https://github.com/fengalin/media-toc"
 version = "0.6.99"
 
+build = "build.rs"
+
 [dependencies]
+clap = "2"
+directories = "2"
 gettext-rs = { version = "0.4", features = ["gettext-system"] }
-glib = "0.9"
-gstreamer = { version = "0.15", features = ["v1_10"] }
 lazy_static = "1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
-nom = "5"
+ron = "0.5"
+serde = "1"
+serde_derive = "1"
+
+[build-dependencies]
+directories = "2"

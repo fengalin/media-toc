@@ -1,31 +1,37 @@
 [package]
 authors = ["François Laignel <fengalin@free.fr>"]
-description = "media modules for media-toc"
+description = "application modules for media-toc"
 edition = '2018'
 homepage = "https://github.com/fengalin/media-toc"
 keywords = ["multimedia", "chapter", "table-of-contents", "gtk3", "gstreamer"]
 license = "MIT"
-name = "media-toc-media"
+name = "media-toc-ui"
+readme = "README.md"
 repository = "https://github.com/fengalin/media-toc"
 version = "0.6.99"
 
-[lib]
-name = "mediatocmedia"
-path = "src/lib.rs"
-
 [dependencies]
-byteorder = "1"
+application = { path = "../application", package = "media-toc-application"  }
+bitflags = "1"
+cairo-rs = "0.8"
 futures = "0.3"
+gdk = "0.12"
 gettext-rs = { version = "0.4", features = ["gettext-system"] }
+gio = "0.8"
 glib = "0.9"
 gstreamer = { version = "0.15", features = ["v1_10"] }
 gstreamer-audio = { version = "0.15", features = ["v1_10"] }
+gtk = { version = "0.8", features = ["v3_20"] }
 lazy_static = "1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
-metadata = { path = "../metadata", package = "media-toc-metadata" }
-sample = "0.10"
-smallvec = "1"
+media = { path = "../media", package = "media-toc-media"  }
+metadata = { path = "../metadata", package = "media-toc-metadata"  }
+pango = "0.7"
+renderers = { path = "../renderers", package = "media-toc-renderers"  }
+ron = "0.5"
+serde = "1"
+serde_derive = "1"
 
-[features]
-trace-playback-queues = ["default"]
-default = []
+[dev-dependencies]
+byteorder = "1"
+smallvec = "0.6"

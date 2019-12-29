@@ -7,7 +7,7 @@ use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::application::CONFIG;
+use application::CONFIG;
 use media::Timestamp;
 use metadata::Duration;
 

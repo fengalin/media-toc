@@ -28,54 +28,38 @@ pub struct SplitterPipeline {
 impl SplitterPipeline {
     pub fn check_requirements(format: Format) -> Result<(), String> {
         match format {
-            Format::Flac => gst::ElementFactory::make("flacenc", None).map(drop).map_err(|_|
-                gettext(
-                    "Missing `flacenc`\ncheck your gst-plugins-good install",
-                )
-            ),
-            Format::Wave => gst::ElementFactory::make("wavenc", None).map(drop).map_err(|_|
-                gettext(
-                    "Missing `wavenc`\ncheck your gst-plugins-good install",
-                )
-            ),
+            Format::Flac => gst::ElementFactory::make("flacenc", None)
+                .map(drop)
+                .map_err(|_| gettext("Missing `flacenc`\ncheck your gst-plugins-good install")),
+            Format::Wave => gst::ElementFactory::make("wavenc", None)
+                .map(drop)
+                .map_err(|_| gettext("Missing `wavenc`\ncheck your gst-plugins-good install")),
             Format::Opus => gst::ElementFactory::make("opusenc", None)
-                .map_err(|_|
-                    gettext(
-                        "Missing `opusenc`\ncheck your gst-plugins-good install",
-                    )
-                )
+                .map_err(|_| gettext("Missing `opusenc`\ncheck your gst-plugins-good install"))
                 .and_then(|_| {
-                    gst::ElementFactory::make("oggmux", None).map(drop).map_err(|_|
-                        gettext(
-                            "Missing `oggmux`\ncheck your gst-plugins-good install",
-                        )
-                    )
+                    gst::ElementFactory::make("oggmux", None)
+                        .map(drop)
+                        .map_err(|_| {
+                            gettext("Missing `oggmux`\ncheck your gst-plugins-good install")
+                        })
                 }),
             Format::Vorbis => gst::ElementFactory::make("vorbisenc", None)
-                .map_err(|_|
-                    gettext(
-                        "Missing `opusenc`\ncheck your gst-plugins-good install",
-                    )
-                )
+                .map_err(|_| gettext("Missing `opusenc`\ncheck your gst-plugins-good install"))
                 .and_then(|_| {
-                    gst::ElementFactory::make("oggmux", None).map(drop).map_err(|_|
-                        gettext(
-                            "Missing `oggmux`\ncheck your gst-plugins-good install",
-                        )
-                    )
+                    gst::ElementFactory::make("oggmux", None)
+                        .map(drop)
+                        .map_err(|_| {
+                            gettext("Missing `oggmux`\ncheck your gst-plugins-good install")
+                        })
                 }),
             Format::MP3 => gst::ElementFactory::make("lamemp3enc", None)
-                .map_err(|_|
-                    gettext(
-                        "Missing `lamemp3enc`\ncheck your gst-plugins-good install",
-                    )
-                )
+                .map_err(|_| gettext("Missing `lamemp3enc`\ncheck your gst-plugins-good install"))
                 .and_then(|_| {
-                    gst::ElementFactory::make("id3v2mux", None).map(drop).map_err(|_|
-                        gettext(
-                            "Missing `id3v2mux`\ncheck your gst-plugins-good install",
-                        )
-                    )
+                    gst::ElementFactory::make("id3v2mux", None)
+                        .map(drop)
+                        .map_err(|_| {
+                            gettext("Missing `id3v2mux`\ncheck your gst-plugins-good install")
+                        })
                 }),
             _ => panic!(
                 "SplitterPipeline::check_requirements unsupported format: {:?}",
@@ -323,39 +307,43 @@ impl SplitterPipeline {
     // Uses sender to notify the UI controllers
     fn register_bus_inspector(&self, mut sender: async_mpsc::Sender<MediaEvent>) {
         let pipeline = self.pipeline.clone();
-        self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
-            match msg.view() {
-                gst::MessageView::Eos(..) => {
-                    if pipeline.set_state(gst::State::Null).is_err() {
-                        sender
-                            .try_send(MediaEvent::FailedToExport(gettext(
-                                "Failed to terminate properly. Check the resulting file.",
-                            )))
-                            .unwrap();
+        self.pipeline
+            .get_bus()
+            .unwrap()
+            .add_watch(move |_, msg| {
+                match msg.view() {
+                    gst::MessageView::Eos(..) => {
+                        if pipeline.set_state(gst::State::Null).is_err() {
+                            sender
+                                .try_send(MediaEvent::FailedToExport(gettext(
+                                    "Failed to terminate properly. Check the resulting file.",
+                                )))
+                                .unwrap();
+                        }
+                        sender.try_send(MediaEvent::Eos).unwrap();
+                        return glib::Continue(false);
                     }
-                    sender.try_send(MediaEvent::Eos).unwrap();
-                    return glib::Continue(false);
-                }
-                gst::MessageView::Error(err) => {
-                    let _ = sender.try_send(MediaEvent::FailedToExport(
-                        err.get_error().description().to_owned(),
-                    ));
-                    return glib::Continue(false);
-                }
-                gst::MessageView::AsyncDone(_) => {
-                    // Start splitting
-                    if pipeline.set_state(gst::State::Playing).is_err() {
-                        sender
-                            .try_send(MediaEvent::FailedToExport(gettext(
-                                "Failed to start splitting.",
-                            )))
-                            .unwrap();
+                    gst::MessageView::Error(err) => {
+                        let _ = sender.try_send(MediaEvent::FailedToExport(
+                            err.get_error().description().to_owned(),
+                        ));
+                        return glib::Continue(false);
                     }
+                    gst::MessageView::AsyncDone(_) => {
+                        // Start splitting
+                        if pipeline.set_state(gst::State::Playing).is_err() {
+                            sender
+                                .try_send(MediaEvent::FailedToExport(gettext(
+                                    "Failed to start splitting.",
+                                )))
+                                .unwrap();
+                        }
+                    }
+                    _ => (),
                 }
-                _ => (),
-            }
 
-            glib::Continue(true)
-        }).unwrap();
+                glib::Continue(true)
+            })
+            .unwrap();
     }
 }

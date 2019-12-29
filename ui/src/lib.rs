@@ -57,8 +57,11 @@ mod video_dispatcher;
 use self::video_dispatcher::VideoDispatcher;
 
 use futures::channel::mpsc as async_mpsc;
-
+use gio;
+use gio::prelude::*;
 use gstreamer as gst;
+use gtk;
+use log::warn;
 
 use std::{
     cell::RefCell,
@@ -68,8 +71,32 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use application::{CommandLineArguments, APP_ID};
 use media;
 use metadata;
+
+fn register_resource(resource: &[u8]) {
+    let gbytes = glib::Bytes::from(resource);
+    gio::Resource::new_from_data(&gbytes)
+        .and_then(|resource| {
+            gio::resources_register(&resource);
+            Ok(())
+        })
+        .unwrap_or_else(|err| {
+            warn!("unable to load resources: {:?}", err);
+        });
+}
+
+pub fn run(args: CommandLineArguments) {
+    register_resource(include_bytes!("../../target/resources/icons.gresource"));
+    register_resource(include_bytes!("../../target/resources/ui.gresource"));
+
+    let gtk_app = gtk::Application::new(Some(&APP_ID), gio::ApplicationFlags::empty())
+        .expect("Failed to initialize GtkApplication");
+
+    gtk_app.connect_activate(move |gtk_app| MainController::setup(gtk_app, &args));
+    gtk_app.run(&[]);
+}
 
 type MediaEventReceiver = async_mpsc::Receiver<media::MediaEvent>;
 

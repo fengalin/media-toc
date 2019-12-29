@@ -13,12 +13,24 @@ use std::fs::read_dir;
 #[cfg(target_family = "unix")]
 use std::io::Write;
 
+fn po_path() -> PathBuf {
+    PathBuf::from("..").join("po")
+}
+
+fn res_path() -> PathBuf {
+    PathBuf::from("..").join("res")
+}
+
+fn target_path() -> PathBuf {
+    PathBuf::from("..").join("target")
+}
+
 fn generate_resources() {
-    let target_path = PathBuf::from("target").join("resources");
-    create_dir_all(&target_path).unwrap();
+    let output_path = target_path().join("resources");
+    create_dir_all(&output_path).unwrap();
 
     // Icons
-    let input_path = PathBuf::from("res").join("icons").join("hicolor");
+    let input_path = res_path().join("icons").join("hicolor");
 
     let mut compile_res = Command::new("glib-compile-resources");
     compile_res
@@ -26,7 +38,7 @@ fn generate_resources() {
         .arg(format!("--sourcedir={}", input_path.to_str().unwrap()))
         .arg(format!(
             "--target={}",
-            target_path.join("icons.gresource").to_str().unwrap(),
+            output_path.join("icons.gresource").to_str().unwrap(),
         ))
         .arg(input_path.join("icons.gresource.xml").to_str().unwrap());
 
@@ -48,7 +60,7 @@ fn generate_resources() {
     }
 
     // UI
-    let input_path = PathBuf::from("res").join("ui");
+    let input_path = res_path().join("ui");
 
     let mut compile_res = Command::new("glib-compile-resources");
     compile_res
@@ -56,7 +68,7 @@ fn generate_resources() {
         .arg(format!("--sourcedir={}", input_path.to_str().unwrap()))
         .arg(format!(
             "--target={}",
-            target_path.join("ui.gresource").to_str().unwrap(),
+            output_path.join("ui.gresource").to_str().unwrap(),
         ))
         .arg(input_path.join("ui.gresource.xml").to_str().unwrap());
 
@@ -79,14 +91,14 @@ fn generate_resources() {
 }
 
 fn generate_translations() {
-    if let Ok(mut linguas_file) = File::open(&PathBuf::from("po").join("LINGUAS")) {
+    if let Ok(mut linguas_file) = File::open(&po_path().join("LINGUAS")) {
         let mut linguas = String::new();
         linguas_file
             .read_to_string(&mut linguas)
             .expect("Couldn't read po/LINGUAS as string");
 
         for lingua in linguas.lines() {
-            let mo_path = PathBuf::from("target")
+            let mo_path = target_path()
                 .join("locale")
                 .join(lingua)
                 .join("LC_MESSAGES");
@@ -98,7 +110,7 @@ fn generate_translations() {
                     "--output-file={}",
                     mo_path.join("media-toc.mo").to_str().unwrap()
                 ))
-                .arg("--directory=po")
+                .arg(format!("--directory={}", po_path().to_str().unwrap()))
                 .arg(format!("{}.po", lingua));
 
             match msgfmt.status() {
@@ -132,7 +144,7 @@ fn generate_install_script() {
         let app_data_dir = project_dirs.data_dir();
         let data_dir = app_data_dir.parent().unwrap();
 
-        match File::create(&PathBuf::from("target").join("install")) {
+        match File::create(&target_path().join("install")) {
             Ok(mut install_file) => {
                 install_file
                     .write_all(
@@ -142,9 +154,7 @@ fn generate_install_script() {
                     .unwrap();
 
                 install_file.write_all(b"\n# Install executable\n").unwrap();
-                let exe_source_path = PathBuf::from("target")
-                    .join("release")
-                    .join(env!("CARGO_PKG_NAME"));
+                let exe_source_path = target_path().join("release").join(env!("CARGO_PKG_NAME"));
                 install_file
                     .write_all(format!("mkdir -p {}\n", exe_dir.to_str().unwrap()).as_bytes())
                     .unwrap();
@@ -161,8 +171,7 @@ fn generate_install_script() {
 
                 install_file.write_all(b"\n# Install icons\n").unwrap();
                 let icon_target_dir = data_dir.join("icons").join("hicolor");
-                let entry_iter =
-                    read_dir(PathBuf::from("res").join("icons").join("hicolor")).unwrap();
+                let entry_iter = read_dir(res_path().join("icons").join("hicolor")).unwrap();
                 for entry in entry_iter {
                     let entry = entry.unwrap();
                     let entry_path = entry.path();
@@ -197,7 +206,7 @@ fn generate_install_script() {
                     .write_all(
                         format!(
                             "cp -r {} {}\n",
-                            PathBuf::from("target").join("locale").to_str().unwrap(),
+                            target_path().join("locale").to_str().unwrap(),
                             data_dir.to_str().unwrap(),
                         )
                         .as_bytes(),
@@ -217,7 +226,7 @@ fn generate_install_script() {
                     .write_all(
                         format!(
                             "cp {} {}\n",
-                            PathBuf::from("res")
+                            res_path()
                                 .join(&format!("org.fengalin.{}.desktop", env!("CARGO_PKG_NAME")))
                                 .to_str()
                                 .unwrap(),
@@ -242,7 +251,7 @@ fn generate_uninstall_script() {
         let app_data_dir = project_dirs.data_dir();
         let data_dir = app_data_dir.parent().unwrap();
 
-        match File::create(&PathBuf::from("target").join("uninstall")) {
+        match File::create(&target_path().join("uninstall")) {
             Ok(mut install_file) => {
                 install_file
                     .write_all(
@@ -269,8 +278,7 @@ fn generate_uninstall_script() {
 
                 install_file.write_all(b"\n# Uninstall icons\n").unwrap();
                 let icon_target_dir = data_dir.join("icons").join("hicolor");
-                let entry_iter =
-                    read_dir(PathBuf::from("res").join("icons").join("hicolor")).unwrap();
+                let entry_iter = read_dir(res_path().join("icons").join("hicolor")).unwrap();
                 for entry in entry_iter {
                     let entry = entry.unwrap();
                     let entry_path = entry.path();
@@ -304,7 +312,7 @@ fn generate_uninstall_script() {
                     }
                 }
 
-                if let Ok(mut linguas_file) = File::open(&PathBuf::from("po").join("LINGUAS")) {
+                if let Ok(mut linguas_file) = File::open(&po_path().join("LINGUAS")) {
                     let mut linguas = String::new();
                     linguas_file
                         .read_to_string(&mut linguas)

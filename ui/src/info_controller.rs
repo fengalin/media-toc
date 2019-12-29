@@ -8,8 +8,7 @@ use log::{info, warn};
 
 use std::{cell::RefCell, fs::File, rc::Rc};
 
-use crate::application::CONFIG;
-
+use application::CONFIG;
 use media::Timestamp;
 use metadata;
 use metadata::{Duration, MediaInfo, Timestamp4Humans};

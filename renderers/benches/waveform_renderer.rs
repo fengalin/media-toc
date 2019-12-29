@@ -16,8 +16,8 @@ use media::{
     AudioBuffer, AudioChannel, SampleExtractor, SampleIndex, SampleIndexRange, Timestamp,
     INLINE_CHANNELS,
 };
+use mediatocrenderers::WaveformRenderer;
 use metadata::Duration;
-use renderers::WaveformRenderer;
 
 const SAMPLE_RATE: u64 = 48_000;
 const SAMPLE_DURATION: Duration = Duration::from_frequency(SAMPLE_RATE);

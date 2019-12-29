@@ -1,19 +1,23 @@
 [package]
 authors = ["François Laignel <fengalin@free.fr>"]
-description = "metadata modules for media-toc"
+description = "Build a table of contents from a media file or split a media file into chapters"
 edition = '2018'
 homepage = "https://github.com/fengalin/media-toc"
 keywords = ["multimedia", "chapter", "table-of-contents", "gtk3", "gstreamer"]
 license = "MIT"
-name = "media-toc-metadata"
+name = "media-toc"
 readme = "README.md"
 repository = "https://github.com/fengalin/media-toc"
 version = "0.6.99"
 
+[[bin]]
+name = "media-toc"
+path = "src/main.rs"
+
 [dependencies]
+application = { path = "../application", package = "media-toc-application"  }
+env_logger = "0.7"
 gettext-rs = { version = "0.4", features = ["gettext-system"] }
-glib = "0.9"
-gstreamer = { version = "0.15", features = ["v1_10"] }
-lazy_static = "1"
+gtk = { version = "0.8", features = ["v3_20"] }
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
-nom = "5"
+ui = { path = "../ui", package = "media-toc-ui"  }

@@ -30,11 +30,9 @@ impl TocSetterPipeline {
         // available from gst-plugins-good 1.13.1
         let (major, minor, _micro, _nano) = gst::version();
         if major >= 1 && minor >= 14 {
-            gst::ElementFactory::make("matroskamux", None).map(drop).map_err(|_|
-                gettext(
-                    "Missing `matroskamux`\ncheck your gst-plugins-good install",
-                )
-            )
+            gst::ElementFactory::make("matroskamux", None)
+                .map(drop)
+                .map_err(|_| gettext("Missing `matroskamux`\ncheck your gst-plugins-good install"))
         } else {
             Err(gettext(
                 "Matroska export requires\ngst-plugins-good >= 1.14",
@@ -187,28 +185,32 @@ impl TocSetterPipeline {
     // Uses sender to notify the UI controllers about the inspection process
     fn register_bus_inspector(&self, mut sender: async_mpsc::Sender<MediaEvent>) {
         let mut init_done = false;
-        self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
-            match msg.view() {
-                gst::MessageView::Eos(..) => {
-                    sender.try_send(MediaEvent::Eos).unwrap();
-                    return glib::Continue(false);
-                }
-                gst::MessageView::Error(err) => {
-                    let _ = sender.try_send(MediaEvent::FailedToExport(
-                        err.get_error().description().to_owned(),
-                    ));
-                    return glib::Continue(false);
-                }
-                gst::MessageView::AsyncDone(_) => {
-                    if !init_done {
-                        init_done = true;
-                        sender.try_send(MediaEvent::InitDone).unwrap();
+        self.pipeline
+            .get_bus()
+            .unwrap()
+            .add_watch(move |_, msg| {
+                match msg.view() {
+                    gst::MessageView::Eos(..) => {
+                        sender.try_send(MediaEvent::Eos).unwrap();
+                        return glib::Continue(false);
                     }
+                    gst::MessageView::Error(err) => {
+                        let _ = sender.try_send(MediaEvent::FailedToExport(
+                            err.get_error().description().to_owned(),
+                        ));
+                        return glib::Continue(false);
+                    }
+                    gst::MessageView::AsyncDone(_) => {
+                        if !init_done {
+                            init_done = true;
+                            sender.try_send(MediaEvent::InitDone).unwrap();
+                        }
+                    }
+                    _ => (),
                 }
-                _ => (),
-            }
 
-            glib::Continue(true)
-        }).unwrap();
+                glib::Continue(true)
+            })
+            .unwrap();
     }
 }
