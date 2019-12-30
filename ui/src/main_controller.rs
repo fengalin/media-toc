@@ -450,7 +450,7 @@ impl MainController {
                 );
                 self.missing_plugins.insert(plugin);
             }
-            MediaEvent::ReadyForRefresh => match &self.state {
+            MediaEvent::ReadyToRefresh => match &self.state {
                 ControllerState::Playing => (),
                 ControllerState::Paused => {
                     self.refresh();

@@ -46,6 +46,6 @@ pub enum MediaEvent {
     GLSinkError,
     InitDone,
     MissingPlugin(String),
-    ReadyForRefresh,
+    ReadyToRefresh,
     StreamsSelected,
 }

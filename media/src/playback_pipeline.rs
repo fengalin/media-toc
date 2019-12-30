@@ -399,7 +399,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                     sender_mtx_cb
                         .lock()
                         .expect("waveform_sink::probe couldn't lock sender_mtx")
-                        .try_send(MediaEvent::ReadyForRefresh)
+                        .try_send(MediaEvent::ReadyToRefresh)
                         .expect("Failed to notify UI");
                 }
 
@@ -427,7 +427,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                         sender_mtx_cb
                             .lock()
                             .unwrap()
-                            .try_send(MediaEvent::ReadyForRefresh)
+                            .try_send(MediaEvent::ReadyToRefresh)
                             .unwrap();
                     }
                     gst::EventView::Segment(segment_evt) => {
@@ -585,7 +585,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                                             }
                                             pipeline_state =
                                                 PipelineState::Playable(PlaybackState::Paused);
-                                            sender.try_send(MediaEvent::ReadyForRefresh).unwrap();
+                                            sender.try_send(MediaEvent::ReadyToRefresh).unwrap();
                                         }
                                     }
                                     _ => unreachable!(format!(
