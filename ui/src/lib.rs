@@ -22,9 +22,6 @@ use self::info_controller::InfoController;
 mod info_dispatcher;
 use self::info_dispatcher::InfoDispatcher;
 
-#[macro_use]
-pub mod macros;
-
 mod main_controller;
 pub use self::main_controller::{ControllerState, MainController};
 mod main_dispatcher;
@@ -74,6 +71,13 @@ use std::{
 use application::{CommandLineArguments, APP_ID};
 use media;
 use metadata;
+
+#[macro_export]
+macro_rules! spawn {
+    ($future:expr) => {
+        glib::MainContext::ref_thread_default().spawn_local($future);
+    };
+}
 
 fn register_resource(resource: &[u8]) {
     let gbytes = glib::Bytes::from(resource);

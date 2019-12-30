@@ -4,6 +4,8 @@ use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};
 
+use crate::spawn;
+
 use super::{
     streams_controller::{EXPORT_FLAG_COL, STREAM_ID_COL},
     MainController, StreamsController, UIDispatcher, UIEventSender, UIFocusContext,

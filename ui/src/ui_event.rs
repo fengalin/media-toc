@@ -19,6 +19,8 @@ use std::{
 
 use media::Timestamp;
 
+use crate::spawn;
+
 use super::{
     AudioDispatcher, ExportDispatcher, InfoBarController, InfoDispatcher, MainController,
     PerspectiveDispatcher, SplitDispatcher, StreamsDispatcher, UIController, UIDispatcher,

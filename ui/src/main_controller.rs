@@ -13,9 +13,10 @@ use log::{debug, error};
 
 use std::{borrow::ToOwned, cell::RefCell, collections::HashSet, path::PathBuf, rc::Rc, sync::Arc};
 
+use application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG};
 use media::{MediaEvent, PlaybackState, Timestamp};
 
-use application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG};
+use crate::spawn;
 
 use super::{
     AudioController, ChaptersBoundaries, ExportController, InfoController, MainDispatcher,

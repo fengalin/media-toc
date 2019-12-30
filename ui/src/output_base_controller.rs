@@ -18,6 +18,8 @@ use media::MediaEvent;
 use metadata;
 use metadata::{Format, MediaInfo};
 
+use crate::spawn;
+
 use super::{MediaEventReceiver, PlaybackPipeline, UIController, UIEventSender, UIFocusContext};
 
 pub const MEDIA_EVENT_CHANNEL_CAPACITY: usize = 1;

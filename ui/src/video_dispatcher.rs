@@ -7,6 +7,8 @@ use log::error;
 
 use std::{cell::RefCell, rc::Rc};
 
+use crate::spawn;
+
 use super::{MainController, UIDispatcher, UIEventSender, VideoController};
 
 pub struct VideoDispatcher;

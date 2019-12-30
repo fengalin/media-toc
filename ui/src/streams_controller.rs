@@ -8,6 +8,8 @@ use std::sync::Arc;
 
 use metadata::Stream;
 
+use crate::spawn;
+
 use super::{PlaybackPipeline, UIController};
 
 const ALIGN_LEFT: f32 = 0f32;
