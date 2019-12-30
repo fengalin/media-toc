@@ -1,7 +1,7 @@
-extern crate directories;
-
 #[cfg(target_family = "unix")]
 use directories::{BaseDirs, ProjectDirs};
+
+use lazy_static::lazy_static;
 
 use std::fs::{create_dir_all, File};
 use std::io::{ErrorKind, Read};
@@ -12,6 +12,15 @@ use std::process::Command;
 use std::fs::read_dir;
 #[cfg(target_family = "unix")]
 use std::io::Write;
+
+lazy_static! {
+    // Remove "-application" from `CARGO_PKG_NAME`
+    pub static ref APP_NAME: String = env!("CARGO_PKG_NAME")
+        .rsplitn(2, '-')
+        .last()
+        .unwrap()
+        .to_string();
+}
 
 fn po_path() -> PathBuf {
     PathBuf::from("..").join("po")
@@ -140,30 +149,30 @@ fn generate_install_script() {
     let base_dirs = BaseDirs::new().unwrap();
     // Note: `base_dirs.executable_dir()` is `None` on macOS
     if let Some(exe_dir) = base_dirs.executable_dir() {
-        let project_dirs = ProjectDirs::from("org", "fengalin", env!("CARGO_PKG_NAME")).unwrap();
+        let project_dirs = ProjectDirs::from("org", "fengalin", &APP_NAME).unwrap();
         let app_data_dir = project_dirs.data_dir();
         let data_dir = app_data_dir.parent().unwrap();
 
         match File::create(&target_path().join("install")) {
             Ok(mut install_file) => {
                 install_file
-                    .write_all(
-                        format!("# User install script for {}\n", env!("CARGO_PKG_NAME"))
-                            .as_bytes(),
-                    )
+                    .write_all(format!("# User install script for {}\n", *APP_NAME).as_bytes())
                     .unwrap();
 
                 install_file.write_all(b"\n# Install executable\n").unwrap();
-                let exe_source_path = target_path().join("release").join(env!("CARGO_PKG_NAME"));
                 install_file
-                    .write_all(format!("mkdir -p {}\n", exe_dir.to_str().unwrap()).as_bytes())
+                    .write_all(format!("mkdir -p {:?}\n", exe_dir).as_bytes())
                     .unwrap();
                 install_file
                     .write_all(
                         format!(
-                            "cp {} {}\n",
-                            exe_source_path.to_str().unwrap(),
-                            exe_dir.join(env!("CARGO_PKG_NAME")).to_str().unwrap(),
+                            "cp {:?} {:?}\n",
+                            target_path()
+                                .canonicalize()
+                                .unwrap()
+                                .join("release")
+                                .join(&*APP_NAME),
+                            exe_dir.join(&*APP_NAME),
                         )
                         .as_bytes(),
                     )
@@ -178,16 +187,14 @@ fn generate_install_script() {
                     if entry_path.is_dir() {
                         let target_dir = icon_target_dir.join(&entry.file_name());
                         install_file
-                            .write_all(
-                                format!("mkdir -p {}\n", target_dir.to_str().unwrap()).as_bytes(),
-                            )
+                            .write_all(format!("mkdir -p {:?}\n", target_dir).as_bytes())
                             .unwrap();
 
                         install_file
                             .write_all(
                                 format!(
-                                    "cp -r {:?}/* {:?}\n",
-                                    entry_path.to_str().unwrap(),
+                                    "cp -r {:?} {:?}\n",
+                                    entry_path.canonicalize().unwrap().join("apps"),
                                     target_dir,
                                 )
                                 .as_bytes(),
@@ -200,14 +207,14 @@ fn generate_install_script() {
                     .write_all(b"\n# Install translations\n")
                     .unwrap();
                 install_file
-                    .write_all(format!("mkdir -p {}\n", data_dir.to_str().unwrap()).as_bytes())
+                    .write_all(format!("mkdir -p {:?}\n", data_dir).as_bytes())
                     .unwrap();
                 install_file
                     .write_all(
                         format!(
-                            "cp -r {} {}\n",
-                            target_path().join("locale").to_str().unwrap(),
-                            data_dir.to_str().unwrap(),
+                            "cp -r {:?} {:?}\n",
+                            target_path().join("locale").canonicalize().unwrap(),
+                            data_dir,
                         )
                         .as_bytes(),
                     )
@@ -218,19 +225,17 @@ fn generate_install_script() {
                     .unwrap();
                 let desktop_target_dir = data_dir.join("applications");
                 install_file
-                    .write_all(
-                        format!("mkdir -p {}\n", desktop_target_dir.to_str().unwrap()).as_bytes(),
-                    )
+                    .write_all(format!("mkdir -p {:?}\n", desktop_target_dir).as_bytes())
                     .unwrap();
                 install_file
                     .write_all(
                         format!(
-                            "cp {} {}\n",
+                            "cp {:?} {:?}\n",
                             res_path()
-                                .join(&format!("org.fengalin.{}.desktop", env!("CARGO_PKG_NAME")))
-                                .to_str()
+                                .join(&format!("org.fengalin.{}.desktop", *APP_NAME))
+                                .canonicalize()
                                 .unwrap(),
-                            desktop_target_dir.to_str().unwrap(),
+                            desktop_target_dir,
                         )
                         .as_bytes(),
                     )
@@ -247,33 +252,24 @@ fn generate_uninstall_script() {
     let base_dirs = BaseDirs::new().unwrap();
     // Note: `base_dirs.executable_dir()` is `None` on macOS
     if let Some(exe_dir) = base_dirs.executable_dir() {
-        let project_dirs = ProjectDirs::from("org", "fengalin", env!("CARGO_PKG_NAME")).unwrap();
+        let project_dirs = ProjectDirs::from("org", "fengalin", &APP_NAME).unwrap();
         let app_data_dir = project_dirs.data_dir();
         let data_dir = app_data_dir.parent().unwrap();
 
         match File::create(&target_path().join("uninstall")) {
             Ok(mut install_file) => {
                 install_file
-                    .write_all(
-                        format!("# User uninstall script for {}\n", env!("CARGO_PKG_NAME"))
-                            .as_bytes(),
-                    )
+                    .write_all(format!("# User uninstall script for {}\n", *APP_NAME).as_bytes())
                     .unwrap();
 
                 install_file
                     .write_all(b"\n# Uninstall executable\n")
                     .unwrap();
                 install_file
-                    .write_all(
-                        format!(
-                            "rm {}\n",
-                            exe_dir.join(env!("CARGO_PKG_NAME")).to_str().unwrap(),
-                        )
-                        .as_bytes(),
-                    )
+                    .write_all(format!("rm {:?}\n", exe_dir.join(&*APP_NAME)).as_bytes())
                     .unwrap();
                 install_file
-                    .write_all(format!("rmdir -p {}\n", exe_dir.to_str().unwrap()).as_bytes())
+                    .write_all(format!("rmdir -p {:?}\n", exe_dir).as_bytes())
                     .unwrap();
 
                 install_file.write_all(b"\n# Uninstall icons\n").unwrap();
@@ -292,11 +288,8 @@ fn generate_uninstall_script() {
                             install_file
                                 .write_all(
                                     format!(
-                                        "rm {}\n",
-                                        icon_target_dir
-                                            .join(icon_subdir_entry.file_name())
-                                            .to_str()
-                                            .unwrap(),
+                                        "rm {:?}\n",
+                                        icon_target_dir.join(icon_subdir_entry.file_name()),
                                     )
                                     .as_bytes(),
                                 )
@@ -304,10 +297,7 @@ fn generate_uninstall_script() {
                         }
 
                         install_file
-                            .write_all(
-                                format!("rmdir -p {}\n", icon_target_dir.to_str().unwrap())
-                                    .as_bytes(),
-                            )
+                            .write_all(format!("rmdir -p {:?}\n", icon_target_dir).as_bytes())
                             .unwrap();
                     }
                 }
@@ -327,20 +317,15 @@ fn generate_uninstall_script() {
                         install_file
                             .write_all(
                                 format!(
-                                    "rm {}\n",
-                                    lingua_dir
-                                        .join(&format!("{}.mo", env!("CARGO_PKG_NAME")))
-                                        .to_str()
-                                        .unwrap(),
+                                    "rm {:?}\n",
+                                    lingua_dir.join(&format!("{}.mo", *APP_NAME)),
                                 )
                                 .as_bytes(),
                             )
                             .unwrap();
 
                         install_file
-                            .write_all(
-                                format!("rmdir -p {}\n", lingua_dir.to_str().unwrap()).as_bytes(),
-                            )
+                            .write_all(format!("rmdir -p {:?}\n", lingua_dir).as_bytes())
                             .unwrap();
                     }
                 }
@@ -352,19 +337,14 @@ fn generate_uninstall_script() {
                 install_file
                     .write_all(
                         format!(
-                            "rm {}\n",
-                            desktop_target_dir
-                                .join(&format!("org.fengalin.{}.desktop", env!("CARGO_PKG_NAME")))
-                                .to_str()
-                                .unwrap(),
+                            "rm {:?}\n",
+                            desktop_target_dir.join(&format!("org.fengalin.{}.desktop", *APP_NAME)),
                         )
                         .as_bytes(),
                     )
                     .unwrap();
                 install_file
-                    .write_all(
-                        format!("rmdir -p {}\n", desktop_target_dir.to_str().unwrap()).as_bytes(),
-                    )
+                    .write_all(format!("rmdir -p {:?}\n", desktop_target_dir).as_bytes())
                     .unwrap();
             }
             Err(err) => panic!("Couldn't create file `target/uninstall`: {:?}", err),
