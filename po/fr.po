@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2019-07-24 12:34+0200\n"
-"PO-Revision-Date: 2019-07-01 10:37+0200\n"
+"POT-Creation-Date: 2019-12-30 19:46+0100\n"
+"PO-Revision-Date: 2019-12-30 19:46+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -19,11 +19,59 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "X-Generator: Gtranslator 3.30.1\n"
 
-#: media/src/playback_pipeline.rs:59
+#: application/src/command_line.rs:13 ui/src/main_controller.rs:174
+msgid ""
+"Build a table of contents from a media file\n"
+"or split a media file into chapters"
+msgstr ""
+"Construit une table des matières à partir d'un fichier multimédia\n"
+"ou découpe un fichier multimédia en chapitres"
+
+#: application/src/command_line.rs:14
+msgid "Display this message"
+msgstr "Affiche ce message"
+
+#: application/src/command_line.rs:15
+msgid "Print version information"
+msgstr "Affiche la version"
+
+#: application/src/command_line.rs:18
+msgid "MEDIA"
+msgstr "MÉDIA"
+
+#: application/src/command_line.rs:30
+msgid "Disable video rendering hardware acceleration"
+msgstr "Désactive l'accélération matérielle pour la vidéo"
+
+#: application/src/command_line.rs:34
+msgid "Path to the input media file"
+msgstr "Chemin du fichier multimédia"
+
+#: application/src/configuration.rs:69
+msgid "couldn't load configuration: {}"
+msgstr "impossible de charger la configuration : {}"
+
+#: application/src/configuration.rs:106
+msgid "couldn't write configuration: {}"
+msgstr "impossible d'écrire la configuration : {}"
+
+#: application/src/configuration.rs:117
+msgid "couldn't serialize configuration: {}"
+msgstr "impossible de sérialiser la configuration : {}"
+
+#: application/src/configuration.rs:129
+msgid "couldn't create configuration file: {}"
+msgstr "impossible de créer le fichier de configuration : {}"
+
+#: main/src/main.rs:20
+msgid "Failed to initialize GTK"
+msgstr "Impossible d'initialiser GTK"
+
+#: media/src/playback_pipeline.rs:61
 msgid "Opening {}..."
 msgstr "Ouverture de {}…"
 
-#: media/src/playback_pipeline.rs:80
+#: media/src/playback_pipeline.rs:82
 msgid ""
 "Missing `decodebin3`\n"
 "check your gst-plugins-base install"
@@ -43,19 +91,19 @@ msgstr "L'affichage vidéo sera désactivé."
 msgid "Please install {} or {}, depending on your distribution."
 msgstr "Veuillez installer {} ou {}, selon votre distribution."
 
-#: media/src/playback_pipeline.rs:128 media/src/toc_setter_pipeline.rs:77
+#: media/src/playback_pipeline.rs:126 media/src/toc_setter_pipeline.rs:76
 msgid "Could not set media in Playing mode"
 msgstr "Impossible de passer le média en mode lecture."
 
-#: media/src/playback_pipeline.rs:135
+#: media/src/playback_pipeline.rs:133
 msgid "Could not set media in Paused mode"
 msgstr "Impossible de passer le média en mode pause."
 
-#: media/src/playback_pipeline.rs:646
+#: media/src/playback_pipeline.rs:651
 msgid "No usable streams could be found."
 msgstr "Aucun flux exploitable n'a été trouvé."
 
-#: media/src/splitter_pipeline.rs:31
+#: media/src/splitter_pipeline.rs:33
 msgid ""
 "Missing `flacenc`\n"
 "check your gst-plugins-good install"
@@ -63,7 +111,7 @@ msgstr ""
 "`flacenc` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: media/src/splitter_pipeline.rs:37
+#: media/src/splitter_pipeline.rs:36
 msgid ""
 "Missing `wavenc`\n"
 "check your gst-plugins-good install"
@@ -71,7 +119,7 @@ msgstr ""
 "`wavenc` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: media/src/splitter_pipeline.rs:44 media/src/splitter_pipeline.rs:59
+#: media/src/splitter_pipeline.rs:38 media/src/splitter_pipeline.rs:47
 msgid ""
 "Missing `opusenc`\n"
 "check your gst-plugins-good install"
@@ -79,7 +127,7 @@ msgstr ""
 "`opusenc` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: media/src/splitter_pipeline.rs:51 media/src/splitter_pipeline.rs:66
+#: media/src/splitter_pipeline.rs:43 media/src/splitter_pipeline.rs:52
 msgid ""
 "Missing `oggmux`\n"
 "check your gst-plugins-good install"
@@ -87,7 +135,7 @@ msgstr ""
 "`oggmux` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: media/src/splitter_pipeline.rs:74
+#: media/src/splitter_pipeline.rs:56
 msgid ""
 "Missing `lamemp3enc`\n"
 "check your gst-plugins-good install"
@@ -95,7 +143,7 @@ msgstr ""
 "`lamemp3enc` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: media/src/splitter_pipeline.rs:81
+#: media/src/splitter_pipeline.rs:61
 msgid ""
 "Missing `id3v2mux`\n"
 "check your gst-plugins-good install"
@@ -103,28 +151,28 @@ msgstr ""
 "`id3v2mux` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: media/src/splitter_pipeline.rs:103
+#: media/src/splitter_pipeline.rs:81
 msgid "Splitting {}..."
 msgstr "Découpage de {}…"
 
-#: media/src/splitter_pipeline.rs:119 media/src/toc_setter_pipeline.rs:66
+#: media/src/splitter_pipeline.rs:97 media/src/toc_setter_pipeline.rs:65
 msgid "do you have permission to write the file?"
 msgstr "disposez-vous des permissions pour écrire le fichier ?"
 
-#: media/src/splitter_pipeline.rs:228
+#: media/src/splitter_pipeline.rs:210
 msgid "Failed to intialize the split"
 msgstr "Impossible d'initialiser le découpage"
 
-#: media/src/splitter_pipeline.rs:331
+#: media/src/splitter_pipeline.rs:319
 msgid "Failed to terminate properly. Check the resulting file."
 msgstr ""
 "Impossible de terminer correctement. Veuillez vérifiez le fichier généré."
 
-#: media/src/splitter_pipeline.rs:349
+#: media/src/splitter_pipeline.rs:337
 msgid "Failed to start splitting."
 msgstr "Impossible de démarrer le découpage."
 
-#: media/src/toc_setter_pipeline.rs:33
+#: media/src/toc_setter_pipeline.rs:35
 msgid ""
 "Missing `matroskamux`\n"
 "check your gst-plugins-good install"
@@ -132,7 +180,7 @@ msgstr ""
 "`matroskamux` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: media/src/toc_setter_pipeline.rs:39
+#: media/src/toc_setter_pipeline.rs:38
 msgid ""
 "Matroska export requires\n"
 "gst-plugins-good >= 1.14"
@@ -140,7 +188,7 @@ msgstr ""
 "L'export vers un conteneur Matroska nécessite\n"
 "gst-plugins-good >= 1.14"
 
-#: media/src/toc_setter_pipeline.rs:52
+#: media/src/toc_setter_pipeline.rs:51
 msgid "Exporting to {}..."
 msgstr "Export vers {}…"
 
@@ -397,87 +445,56 @@ msgstr "Affichage"
 msgid "Streams"
 msgstr "Flux"
 
-#: src/application/command_line.rs:13 src/ui/main_controller.rs:183
-msgid ""
-"Build a table of contents from a media file\n"
-"or split a media file into chapters"
-msgstr ""
-"Construit une table des matières à partir d'un fichier multimédia\n"
-"ou découpe un fichier multimédia en chapitres"
-
-#: src/application/command_line.rs:14
-msgid "Display this message"
-msgstr "Affiche ce message"
-
-#: src/application/command_line.rs:15
-msgid "Print version information"
-msgstr "Affiche la version"
-
-#: src/application/command_line.rs:18
-msgid "MEDIA"
-msgstr "MÉDIA"
-
-#: src/application/command_line.rs:30
-msgid "Disable video rendering hardware acceleration"
-msgstr "Désactive l'accélération matérielle pour la vidéo"
-
-#: src/application/command_line.rs:34
-msgid "Path to the input media file"
-msgstr "Chemin du fichier multimédia"
-
-#: src/application/configuration.rs:69
-msgid "couldn't load configuration: {}"
-msgstr "impossible de charger la configuration : {}"
-
-#: src/application/configuration.rs:106
-msgid "couldn't write configuration: {}"
-msgstr "impossible d'écrire la configuration : {}"
-
-#: src/application/configuration.rs:117
-msgid "couldn't serialize configuration: {}"
-msgstr "impossible de sérialiser la configuration : {}"
-
-#: src/application/configuration.rs:129
-msgid "couldn't create configuration file: {}"
-msgstr "impossible de créer le fichier de configuration : {}"
-
-#: src/main.rs:19
-msgid "Failed to initialize GTK"
-msgstr "Impossible d'initialiser GTK"
-
-#: src/ui/chapter_tree_manager.rs:567
+#: ui/src/chapter_tree_manager.rs:568
 msgid "Title"
 msgstr "Titre"
 
-#: src/ui/chapter_tree_manager.rs:573
+#: ui/src/chapter_tree_manager.rs:574
 msgid "Start"
 msgstr "Début"
 
-#: src/ui/chapter_tree_manager.rs:577
+#: ui/src/chapter_tree_manager.rs:578
 msgid "End"
 msgstr "Fin"
 
-#: src/ui/export_controller.rs:140
+#: ui/src/export_controller.rs:143
 msgid "Table of contents exported succesfully"
 msgstr "Table des matières exportée avec succès"
 
-#: src/ui/export_controller.rs:168
+#: ui/src/export_controller.rs:171
 msgid "Failed to create the file for the table of contents"
 msgstr "Échec à la création du fichier de table des matières"
 
-#: src/ui/export_controller.rs:194
+#: ui/src/export_controller.rs:197
 msgid "Failed to prepare for export. {}"
 msgstr "Échec à la préparation de l'export : {}"
 
-#: src/ui/export_controller.rs:254 src/ui/export_controller.rs:265
+#: ui/src/export_controller.rs:254 ui/src/export_controller.rs:265
 msgid "Failed to export media. {}"
 msgstr "Échec à l'export du média. {}"
 
-#: src/ui/info_controller.rs:107
+#: ui/src/info_bar_controller.rs:32
+msgid "Yes"
+msgstr "Oui"
+
+#: ui/src/info_bar_controller.rs:34
+msgid "No"
+msgstr "Non"
+
+#: ui/src/info_bar_controller.rs:35
+msgid "Yes to all"
+msgstr "Oui pour tous"
+
+#: ui/src/info_bar_controller.rs:36 ui/src/main_controller.rs:89
+#: ui/src/output_base_controller.rs:187
+msgid "Cancel"
+msgstr "Annuler"
+
+#: ui/src/info_controller.rs:106
 msgid "No toc in file \"{}\""
 msgstr "Aucune table des matières dans le fichier «{}»"
 
-#: src/ui/info_controller.rs:118
+#: ui/src/info_controller.rs:117
 msgid ""
 "Error opening toc file \"{}\":\n"
 "{}"
@@ -485,46 +502,37 @@ msgstr ""
 "Erreur à l'ouverture du fichier «{}» :\n"
 "{}"
 
-#: src/ui/info_controller.rs:132
+#: ui/src/info_controller.rs:131
 msgid "Failed to open toc file."
 msgstr "Impossible d'ouvrir le fichier de table des matières."
 
-#: src/ui/main_controller.rs:91
-msgid "Yes"
-msgstr "Oui"
+#: ui/src/main_controller.rs:85
+msgid "Open a media file"
+msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:93
-msgid "No"
-msgstr "Non"
+#: ui/src/main_controller.rs:88
+msgid "Open"
+msgstr "Ouvrir"
 
-#: src/ui/main_controller.rs:94
-msgid "Yes to all"
-msgstr "Oui pour tous"
-
-#: src/ui/main_controller.rs:95 src/ui/main_dispatcher.rs:131
-#: src/ui/output_base_controller.rs:258
-msgid "Cancel"
-msgstr "Annuler"
-
-#: src/ui/main_controller.rs:185
+#: ui/src/main_controller.rs:176
 msgid "© 2017–2019 François Laignel"
 msgstr "© 2017–2019 François Laignel"
 
-#: src/ui/main_controller.rs:186
+#: ui/src/main_controller.rs:177
 msgid "translator-credits"
 msgstr "François Laignel"
 
-#: src/ui/main_controller.rs:190
+#: ui/src/main_controller.rs:181
 msgid "Learn more about media-toc"
 msgstr "En apprendre plus sur media-toc"
 
-#: src/ui/main_controller.rs:449 src/ui/main_controller.rs:514
+#: ui/src/main_controller.rs:380 ui/src/main_controller.rs:449
 msgid "Missing plugin: {}"
 msgid_plural "Missing plugins: {}"
 msgstr[0] "Greffon manquant : {}"
 msgstr[1] "Greffons manquants : {}"
 
-#: src/ui/main_controller.rs:562 src/ui/main_controller.rs:660
+#: ui/src/main_controller.rs:497 ui/src/main_controller.rs:573
 msgid ""
 "Error opening file.\n"
 "\n"
@@ -534,7 +542,7 @@ msgstr ""
 "\n"
 "{}"
 
-#: src/ui/main_controller.rs:581
+#: ui/src/main_controller.rs:516
 msgid ""
 "Video rendering hardware acceleration seems broken and has been disabled.\n"
 "Please restart the application."
@@ -543,31 +551,23 @@ msgstr ""
 "car elle ne semble pas fonctionner correctement.\n"
 "Veuillez relancer l'application."
 
-#: src/ui/main_dispatcher.rs:48
+#: ui/src/main_dispatcher.rs:44
 msgid "About"
 msgstr "À propos"
 
-#: src/ui/main_dispatcher.rs:59
+#: ui/src/main_dispatcher.rs:53
 msgid "Quit"
 msgstr "Quitter"
 
-#: src/ui/main_dispatcher.rs:115
+#: ui/src/main_dispatcher.rs:113
 msgid "Open media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_dispatcher.rs:127
-msgid "Open a media file"
-msgstr "Ouvrir un fichier multimédia"
-
-#: src/ui/main_dispatcher.rs:132
-msgid "Open"
-msgstr "Ouvrir"
-
-#: src/ui/main_dispatcher.rs:205
+#: ui/src/main_dispatcher.rs:134
 msgid "Failed to initialize GStreamer, the application can't be used."
 msgstr "Échec à l'initialisation de GStreamer, l'application est inutilisable."
 
-#: src/ui/output_base_controller.rs:216
+#: ui/src/output_base_dispatcher.rs:176
 msgid ""
 "{output_file}\n"
 "already exists. Overwrite?"
@@ -575,59 +575,59 @@ msgstr ""
 "{output_file}\n"
 "existe déjà. Écraser ?"
 
-#: src/ui/split_controller.rs:274
+#: ui/src/split_controller.rs:282
 msgid "Media split succesfully"
 msgstr "Média découpé avec succès"
 
-#: src/ui/split_controller.rs:342
+#: ui/src/split_controller.rs:350
 msgid "Failed to prepare for split. {}"
 msgstr "Échec à la préparation du découpage : {}"
 
-#: src/ui/split_controller.rs:374
+#: ui/src/split_controller.rs:382
 msgid "Failed to split media. {}"
 msgstr "Échec lors du découpage du média. {}"
 
-#: src/ui/streams_controller.rs:206
+#: ui/src/streams_controller.rs:210
 msgid "unknown"
 msgstr "inconnu"
 
-#: src/ui/streams_controller.rs:247
+#: ui/src/streams_controller.rs:256
 msgid "Export?"
 msgstr "Exporter ?"
 
-#: src/ui/streams_controller.rs:248
+#: ui/src/streams_controller.rs:257
 msgid "Stream id"
 msgstr "Id. du flux"
 
-#: src/ui/streams_controller.rs:249
+#: ui/src/streams_controller.rs:258
 msgid "Language"
 msgstr "Langue"
 
-#: src/ui/streams_controller.rs:250
+#: ui/src/streams_controller.rs:259
 msgid "Codec"
 msgstr "Codec"
 
-#: src/ui/streams_controller.rs:251
+#: ui/src/streams_controller.rs:260
 msgid "Comment"
 msgstr "Commentaire"
 
-#: src/ui/streams_controller.rs:278
+#: ui/src/streams_controller.rs:287
 msgid "Width"
 msgstr "Largeur"
 
-#: src/ui/streams_controller.rs:285
+#: ui/src/streams_controller.rs:294
 msgid "Height"
 msgstr "Hauteur"
 
-#: src/ui/streams_controller.rs:324
+#: ui/src/streams_controller.rs:333
 msgid "Rate"
 msgstr "Débit"
 
-#: src/ui/streams_controller.rs:331
+#: ui/src/streams_controller.rs:340
 msgid "Channels"
 msgstr "Canaux"
 
-#: src/ui/streams_controller.rs:369
+#: ui/src/streams_controller.rs:378
 msgid "Format"
 msgstr "Format"
 
