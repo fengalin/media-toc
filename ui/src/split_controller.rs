@@ -243,7 +243,7 @@ impl MediaProcessor for SplitControllerImpl {
             unreachable!("`SplitController`: unknown split type");
         };
 
-        // Split button is not sensible when no audio
+        // Split button is not sensitive when no audio
         // stream is selected (see `streams_changed`)
         debug_assert!(self.selected_audio.is_some());
 

@@ -220,6 +220,11 @@ impl UIController for InfoController {
                 self.chapter_treeview
                     .set_cursor(&sel_path, None::<&gtk::TreeViewColumn>, false);
                 self.chapter_treeview.grab_default();
+
+                self.repeat_btn.set_sensitive(true);
+
+                self.del_chapter_btn.set_sensitive(true);
+                self.del_chapter_action.set_enabled(true);
             }
             None => {
                 // Set the cursor to an uninitialized path to unselect
@@ -228,8 +233,16 @@ impl UIController for InfoController {
                     None::<&gtk::TreeViewColumn>,
                     false,
                 );
+
+                self.del_chapter_btn.set_sensitive(false);
+                self.del_chapter_action.set_enabled(false);
             }
         }
+
+        self.add_chapter_btn.set_sensitive(true);
+        self.add_chapter_action.set_enabled(true);
+
+        self.chapter_treeview.set_sensitive(true);
     }
 }
 
@@ -292,6 +305,15 @@ impl InfoController {
         ctrl.show_chapters_btn.set_sensitive(true);
 
         ctrl
+    }
+
+    pub fn loose_focus(&self) {
+        self.chapter_treeview.set_sensitive(false);
+
+        self.add_chapter_btn.set_sensitive(false);
+        self.add_chapter_action.set_enabled(false);
+        self.del_chapter_btn.set_sensitive(false);
+        self.del_chapter_action.set_enabled(false);
     }
 
     pub fn draw_thumbnail(&mut self, drawingarea: &gtk::DrawingArea, cairo_ctx: &cairo::Context) {

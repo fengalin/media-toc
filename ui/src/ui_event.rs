@@ -29,7 +29,7 @@ use super::{
 
 const UI_EVENT_CHANNEL_CAPACITY: usize = 4;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum UIFocusContext {
     ExportPage,
     InfoBar,
@@ -173,7 +173,7 @@ pub struct UIEventHandler {
     window: gtk::ApplicationWindow,
     main_ctrl: Option<Rc<RefCell<MainController>>>,
     info_bar_ctrl: InfoBarController,
-    saved_context: Option<UIFocusContext>,
+    saved_focus: Option<UIFocusContext>,
     focus: UIFocusContext,
 }
 
@@ -188,7 +188,7 @@ impl UIEventHandler {
             window: builder.get_object("application-window").unwrap(),
             main_ctrl: None,
             info_bar_ctrl: InfoBarController::new(app, builder, &ui_event_sender),
-            saved_context: None,
+            saved_focus: None,
             focus: UIFocusContext::PlaybackPage,
         };
 
@@ -251,7 +251,7 @@ impl UIEventHandler {
                 self.save_context();
                 self.bind_accels_for(focus_ctx);
             }
-            UIEvent::UpdateFocus => self.update_focus(),
+            UIEvent::UpdateFocus => self.update_focus(self.focus),
         }
 
         Ok(())
@@ -334,29 +334,37 @@ impl UIEventHandler {
         StreamsDispatcher::bind_accels_for(ctx, &self.app);
     }
 
-    fn update_focus(&self) {
-        let main_ctrl = self.main_ctrl();
-        match self.focus {
-            UIFocusContext::ExportPage => main_ctrl.export_ctrl.grab_focus(),
-            UIFocusContext::PlaybackPage => main_ctrl.info_ctrl.grab_focus(),
-            UIFocusContext::SplitPage => main_ctrl.split_ctrl.grab_focus(),
-            UIFocusContext::StreamsPage => main_ctrl.streams_ctrl.grab_focus(),
-            _ => (),
+    fn update_focus(&mut self, ctx: UIFocusContext) {
+        {
+            let main_ctrl = self.main_ctrl();
+
+            if self.focus == UIFocusContext::PlaybackPage && ctx != UIFocusContext::PlaybackPage {
+                main_ctrl.info_ctrl.loose_focus();
+            }
+
+            match ctx {
+                UIFocusContext::ExportPage => main_ctrl.export_ctrl.grab_focus(),
+                UIFocusContext::PlaybackPage => main_ctrl.info_ctrl.grab_focus(),
+                UIFocusContext::SplitPage => main_ctrl.split_ctrl.grab_focus(),
+                UIFocusContext::StreamsPage => main_ctrl.streams_ctrl.grab_focus(),
+                _ => (),
+            }
         }
+
+        self.focus = ctx;
     }
 
     fn switch_to(&mut self, ctx: UIFocusContext) {
-        self.focus = ctx;
         self.bind_accels_for(ctx);
-        self.update_focus();
+        self.update_focus(ctx);
     }
 
     fn save_context(&mut self) {
-        self.saved_context = Some(self.focus);
+        self.saved_focus = Some(self.focus);
     }
 
     fn restore_context(&mut self) {
-        if let Some(focus_ctx) = self.saved_context.take() {
+        if let Some(focus_ctx) = self.saved_focus.take() {
             self.switch_to(focus_ctx);
         }
     }
