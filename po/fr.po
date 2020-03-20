@@ -1,8 +1,8 @@
 # French translations for media-toc package
 # Traductions françaises du paquet media-toc.
-# Copyright (C) 2018-2019 François Laignel
+# Copyright (C) 2018-2020 François Laignel
 # This file is distributed under the same license as the media-toc package.
-# François Laignel <fengalin@free.fr>, 2018-2019.
+# François Laignel <fengalin@free.fr>, 2018-2020.
 #
 msgid ""
 msgstr ""
@@ -515,8 +515,8 @@ msgid "Open"
 msgstr "Ouvrir"
 
 #: ui/src/main_controller.rs:176
-msgid "© 2017–2019 François Laignel"
-msgstr "© 2017–2019 François Laignel"
+msgid "© 2017–2020 François Laignel"
+msgstr "© 2017–2020 François Laignel"
 
 #: ui/src/main_controller.rs:177
 msgid "translator-credits"

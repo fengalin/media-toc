@@ -173,7 +173,7 @@ impl MainController {
         dialog.set_comments(Some(&gettext(
             "Build a table of contents from a media file\nor split a media file into chapters",
         )));
-        dialog.set_copyright(Some(&gettext("© 2017–2019 François Laignel")));
+        dialog.set_copyright(Some(&gettext("© 2017–2020 François Laignel")));
         dialog.set_translator_credits(Some(&gettext("translator-credits")));
         dialog.set_license_type(gtk::License::MitX11);
         dialog.set_version(Some(env!("CARGO_PKG_VERSION")));

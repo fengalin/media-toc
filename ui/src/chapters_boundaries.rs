@@ -44,7 +44,7 @@ pub struct Chapter {
 
 impl PartialEq for Chapter {
     fn eq(&self, other: &Chapter) -> bool {
-        (self.title == other.title && self.ts.start == other.ts.start)
+        self.title == other.title && self.ts.start == other.ts.start
     }
 }
 

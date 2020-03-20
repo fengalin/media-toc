@@ -10,7 +10,6 @@ use glib;
 use log::{debug, error, info, warn};
 
 use std::{
-    error::Error,
     path::Path,
     sync::{Arc, Mutex},
 };
@@ -324,9 +323,8 @@ impl SplitterPipeline {
                         return glib::Continue(false);
                     }
                     gst::MessageView::Error(err) => {
-                        let _ = sender.try_send(MediaEvent::FailedToExport(
-                            err.get_error().description().to_owned(),
-                        ));
+                        let _ = sender
+                            .try_send(MediaEvent::FailedToExport(err.get_error().to_string()));
                         return glib::Continue(false);
                     }
                     gst::MessageView::AsyncDone(_) => {

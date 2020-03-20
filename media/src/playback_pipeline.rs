@@ -13,7 +13,6 @@ use log::{debug, info, warn};
 
 use std::{
     convert::AsRef,
-    error::Error,
     path::Path,
     sync::{Arc, Mutex, RwLock},
 };
@@ -507,7 +506,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                         } else {
                             sender
                                 .try_send(MediaEvent::FailedToOpenMedia(
-                                    err.get_error().description().to_owned(),
+                                    err.get_error().to_string(),
                                 ))
                                 .unwrap();
                         }

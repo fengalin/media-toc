@@ -98,6 +98,7 @@ pub struct OutputBaseController<Impl> {
     media_event_abort_handle: Option<AbortHandle>,
     pub(super) new_progress_updater: Option<Box<dyn Fn() -> LocalBoxFuture<'static, ()>>>,
 
+    #[allow(clippy::type_complexity)]
     pub(super) new_processing_state_handler:
         Option<Box<dyn Fn(ProcessingStateResult) -> LocalBoxFuture<'static, Result<(), ()>>>>,
 
