@@ -88,9 +88,7 @@ impl UIEventSender {
             response_sender,
         });
 
-        response_receiver
-            .await
-            .expect("UI failed to receive response")
+        response_receiver.await.unwrap_or(gtk::ResponseType::Cancel)
     }
 
     pub fn cancel_select_media(&self) {

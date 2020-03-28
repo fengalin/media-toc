@@ -190,6 +190,9 @@ impl MainController {
         }
         self.abort_media_event_handler();
 
+        self.export_ctrl.cancel();
+        self.split_ctrl.cancel();
+
         {
             let size = self.window.get_size();
             let paned_pos = self.playback_paned.get_position();
