@@ -295,13 +295,6 @@ impl SplitterPipeline {
             let structure = caps.get_structure(0).unwrap();
             let name = structure.get_name();
 
-            let queue = gst::ElementFactory::make("queue", None).unwrap();
-            pipeline_cb.add(&queue).unwrap();
-            let queue_sink_pad = queue.get_static_pad("sink").unwrap();
-            pad.link(&queue_sink_pad).unwrap();
-            queue.sync_state_with_parent().unwrap();
-            let queue_src_pad = queue.get_static_pad("src").unwrap();
-
             if name.starts_with("audio/")
                 && pipeline_cb.get_by_name("audioconvert").is_none()
                 && stream_id
@@ -312,14 +305,16 @@ impl SplitterPipeline {
                 let audio_conv =
                     gst::ElementFactory::make("audioconvert", Some("audioconvert")).unwrap();
                 pipeline_cb.add(&audio_conv).unwrap();
-                gst::Element::link_many(&[&queue, &audio_conv, &audio_enc]).unwrap();
+                let audio_conv_sink_pad = audio_conv.get_static_pad("sink").unwrap();
+                pad.link(&audio_conv_sink_pad).unwrap();
+                gst::Element::link_many(&[&audio_conv, &audio_enc]).unwrap();
                 audio_conv.sync_state_with_parent().unwrap();
                 audio_enc.sync_state_with_parent().unwrap();
             } else {
                 let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
                 pipeline_cb.add(&fakesink).unwrap();
                 let fakesink_sink_pad = fakesink.get_static_pad("sink").unwrap();
-                queue_src_pad.link(&fakesink_sink_pad).unwrap();
+                pad.link(&fakesink_sink_pad).unwrap();
                 fakesink.sync_state_with_parent().unwrap();
             }
         });
