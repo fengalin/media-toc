@@ -3,6 +3,7 @@ use futures::future::{abortable, AbortHandle, LocalBoxFuture};
 use futures::prelude::*;
 
 use gettextrs::gettext;
+use gio;
 use glib;
 use gtk;
 use gtk::prelude::*;
@@ -89,7 +90,7 @@ pub struct OutputBaseController<Impl> {
     btn_default_label: glib::GString,
 
     perspective_selector: gtk::MenuButton,
-    open_btn: gtk::Button,
+    pub(super) open_action: Option<gio::SimpleAction>,
     pub(super) page: gtk::Widget,
 
     pub(super) is_busy: bool,
@@ -123,7 +124,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
             progress_bar: builder.get_object(Impl::PROGRESS_BAR_NAME).unwrap(),
 
             perspective_selector: builder.get_object("perspective-menu-btn").unwrap(),
-            open_btn: builder.get_object("open-btn").unwrap(),
+            open_action: None,
             page,
 
             is_busy: false,
@@ -188,7 +189,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
         self.btn.set_label(&gettext("Cancel"));
 
         self.perspective_selector.set_sensitive(false);
-        self.open_btn.set_sensitive(false);
+        self.open_action.as_ref().unwrap().set_enabled(false);
 
         self.ui_event.set_cursor_waiting();
 
@@ -203,7 +204,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
         self.btn.set_label(self.btn_default_label.as_str());
 
         self.perspective_selector.set_sensitive(true);
-        self.open_btn.set_sensitive(true);
+        self.open_action.as_ref().unwrap().set_enabled(true);
 
         self.ui_event.reset_cursor();
     }

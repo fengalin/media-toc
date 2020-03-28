@@ -6,6 +6,9 @@ use glib::clone;
 use gtk;
 use gtk::prelude::*;
 
+use gio;
+use gio::prelude::*;
+
 use log::debug;
 
 use std::{
@@ -51,7 +54,7 @@ where
     fn setup(
         ctrl: &mut Self::Controller,
         main_ctrl_rc: &Rc<RefCell<MainController>>,
-        _app: &gtk::Application,
+        app: &gtk::Application,
         ui_event: &UIEventSender,
     ) {
         let ui_event_clone = ui_event.clone();
@@ -224,5 +227,12 @@ where
                 }.boxed_local()
             }
         )));
+
+        ctrl.open_action = Some(
+            app.lookup_action("open")
+                .unwrap()
+                .downcast::<gio::SimpleAction>()
+                .unwrap(),
+        );
     }
 }

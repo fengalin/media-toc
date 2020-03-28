@@ -61,19 +61,6 @@ impl MainDispatcher {
 
         let ui_event = main_ctrl.ui_event().clone();
         if gstreamer::init().is_ok() {
-            PerspectiveDispatcher::setup(
-                &mut main_ctrl.perspective_ctrl,
-                main_ctrl_rc,
-                &app,
-                &ui_event,
-            );
-            VideoDispatcher::setup(&mut main_ctrl.video_ctrl, main_ctrl_rc, &app, &ui_event);
-            InfoDispatcher::setup(&mut main_ctrl.info_ctrl, main_ctrl_rc, &app, &ui_event);
-            AudioDispatcher::setup(&mut main_ctrl.audio_ctrl, main_ctrl_rc, &app, &ui_event);
-            ExportDispatcher::setup(&mut main_ctrl.export_ctrl, main_ctrl_rc, &app, &ui_event);
-            SplitDispatcher::setup(&mut main_ctrl.split_ctrl, main_ctrl_rc, &app, &ui_event);
-            StreamsDispatcher::setup(&mut main_ctrl.streams_ctrl, main_ctrl_rc, &app, &ui_event);
-
             main_ctrl.new_media_event_handler =
                 Some(Box::new(clone!(@strong main_ctrl_rc => move |receiver| {
                     let main_ctrl_rc = Rc::clone(&main_ctrl_rc);
@@ -127,6 +114,19 @@ impl MainDispatcher {
             main_ctrl.display_page.connect_map(move |_| {
                 ui_event_clone.switch_to(UIFocusContext::PlaybackPage);
             });
+
+            PerspectiveDispatcher::setup(
+                &mut main_ctrl.perspective_ctrl,
+                main_ctrl_rc,
+                &app,
+                &ui_event,
+            );
+            VideoDispatcher::setup(&mut main_ctrl.video_ctrl, main_ctrl_rc, &app, &ui_event);
+            InfoDispatcher::setup(&mut main_ctrl.info_ctrl, main_ctrl_rc, &app, &ui_event);
+            AudioDispatcher::setup(&mut main_ctrl.audio_ctrl, main_ctrl_rc, &app, &ui_event);
+            ExportDispatcher::setup(&mut main_ctrl.export_ctrl, main_ctrl_rc, &app, &ui_event);
+            SplitDispatcher::setup(&mut main_ctrl.split_ctrl, main_ctrl_rc, &app, &ui_event);
+            StreamsDispatcher::setup(&mut main_ctrl.streams_ctrl, main_ctrl_rc, &app, &ui_event);
 
             ui_event.switch_to(UIFocusContext::PlaybackPage);
         } else {
