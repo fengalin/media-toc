@@ -201,7 +201,12 @@ impl SplitControllerImpl {
                     .and_then(|tag| tag.get().map(ToString::to_string))
             })
             .unwrap_or_else(get_default_chapter_title);
-        split_name += &format!(". {}", track_title);
+
+        if !split_name.is_empty() {
+            split_name += ". ";
+        }
+
+        split_name += &track_title;
 
         let lang = self.selected_audio.as_ref().and_then(|stream| {
             stream
