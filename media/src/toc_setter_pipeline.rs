@@ -31,7 +31,13 @@ impl TocSetterPipeline {
         if major >= 1 && minor >= 14 {
             gst::ElementFactory::make("matroskamux", None)
                 .map(drop)
-                .map_err(|_| gettext("Missing `matroskamux`\ncheck your gst-plugins-good install"))
+                .map_err(|_| {
+                    gettext("Missing `{element}`\ncheck your gst-plugins-good install").replacen(
+                        "{element}",
+                        "matroskamux",
+                        1,
+                    )
+                })
         } else {
             Err(gettext(
                 "Matroska export requires\ngst-plugins-good >= 1.14",

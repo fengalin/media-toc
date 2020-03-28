@@ -27,39 +27,67 @@ pub struct SplitterPipeline {
 impl SplitterPipeline {
     pub fn check_requirements(format: Format) -> Result<(), String> {
         match format {
-            Format::Flac => gst::ElementFactory::make("flacenc", None)
-                .map(drop)
-                .map_err(|_| gettext("Missing `flacenc`\ncheck your gst-plugins-good install")),
-            Format::Wave => gst::ElementFactory::make("wavenc", None)
-                .map(drop)
-                .map_err(|_| gettext("Missing `wavenc`\ncheck your gst-plugins-good install")),
-            Format::Opus => gst::ElementFactory::make("opusenc", None)
-                .map_err(|_| gettext("Missing `opusenc`\ncheck your gst-plugins-good install"))
-                .and_then(|_| {
-                    gst::ElementFactory::make("oggmux", None)
-                        .map(drop)
-                        .map_err(|_| {
-                            gettext("Missing `oggmux`\ncheck your gst-plugins-good install")
-                        })
-                }),
-            Format::Vorbis => gst::ElementFactory::make("vorbisenc", None)
-                .map_err(|_| gettext("Missing `opusenc`\ncheck your gst-plugins-good install"))
-                .and_then(|_| {
-                    gst::ElementFactory::make("oggmux", None)
-                        .map(drop)
-                        .map_err(|_| {
-                            gettext("Missing `oggmux`\ncheck your gst-plugins-good install")
-                        })
-                }),
-            Format::MP3 => gst::ElementFactory::make("lamemp3enc", None)
-                .map_err(|_| gettext("Missing `lamemp3enc`\ncheck your gst-plugins-good install"))
-                .and_then(|_| {
-                    gst::ElementFactory::make("id3v2mux", None)
-                        .map(drop)
-                        .map_err(|_| {
-                            gettext("Missing `id3v2mux`\ncheck your gst-plugins-good install")
-                        })
-                }),
+            Format::Flac => {
+                gst::ElementFactory::make("flacenc", None)
+                    .map(drop)
+                    .map_err(|_| {
+                        gettext("Missing `{element}`\ncheck your gst-plugins-good install")
+                            .replacen("{element}", "flacenc", 1)
+                    })
+            }
+            Format::Wave => {
+                gst::ElementFactory::make("wavenc", None)
+                    .map(drop)
+                    .map_err(|_| {
+                        gettext("Missing `{element}`\ncheck your gst-plugins-good install")
+                            .replacen("{element}", "wavenc", 1)
+                    })
+            }
+            Format::Opus => {
+                gst::ElementFactory::make("opusenc", None)
+                    .map_err(|_| {
+                        gettext("Missing `{element}`\ncheck your gst-plugins-good install")
+                            .replacen("{element}", "opusenc", 1)
+                    })
+                    .and_then(|_| {
+                        gst::ElementFactory::make("oggmux", None)
+                            .map(drop)
+                            .map_err(|_| {
+                                gettext("Missing `{element}`\ncheck your gst-plugins-good install")
+                                    .replacen("{element}", "oggmux", 1)
+                            })
+                    })
+            }
+            Format::Vorbis => {
+                gst::ElementFactory::make("vorbisenc", None)
+                    .map_err(|_| {
+                        gettext("Missing `{element}`\ncheck your gst-plugins-good install")
+                            .replacen("{element}", "vorbisenc", 1)
+                    })
+                    .and_then(|_| {
+                        gst::ElementFactory::make("oggmux", None)
+                            .map(drop)
+                            .map_err(|_| {
+                                gettext("Missing `{element}`\ncheck your gst-plugins-good install")
+                                    .replacen("{element}", "oggmux", 1)
+                            })
+                    })
+            }
+            Format::MP3 => {
+                gst::ElementFactory::make("lamemp3enc", None)
+                    .map_err(|_| {
+                        gettext("Missing `{element}`\ncheck your gst-plugins-good install")
+                            .replacen("{element}", "lamemp3enc", 1)
+                    })
+                    .and_then(|_| {
+                        gst::ElementFactory::make("id3v2mux", None)
+                            .map(drop)
+                            .map_err(|_| {
+                                gettext("Missing `{element}`\ncheck your gst-plugins-good install")
+                                    .replacen("{element}", "id3v2mux", 1)
+                            })
+                    })
+            }
             _ => panic!(
                 "SplitterPipeline::check_requirements unsupported format: {:?}",
                 format

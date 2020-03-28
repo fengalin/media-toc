@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc master\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2019-12-30 19:46+0100\n"
-"PO-Revision-Date: 2019-12-30 19:46+0200\n"
+"POT-Creation-Date: 2020-03-28 19:07+0100\n"
+"PO-Revision-Date: 2020-03-28 19:07+0100\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -67,11 +67,11 @@ msgstr "impossible de créer le fichier de configuration : {}"
 msgid "Failed to initialize GTK"
 msgstr "Impossible d'initialiser GTK"
 
-#: media/src/playback_pipeline.rs:61
+#: media/src/playback_pipeline.rs:60
 msgid "Opening {}..."
 msgstr "Ouverture de {}…"
 
-#: media/src/playback_pipeline.rs:82
+#: media/src/playback_pipeline.rs:81
 msgid ""
 "Missing `decodebin3`\n"
 "check your gst-plugins-base install"
@@ -79,108 +79,64 @@ msgstr ""
 "`decodebin3` manquant\n"
 "Vérifiez l'installation de gst-plugin-base"
 
-#: media/src/playback_pipeline.rs:97
+#: media/src/playback_pipeline.rs:96
 msgid "Couldn't find GStreamer GTK video sink."
 msgstr "Impossible de trouver l'élément « GTK video sink »."
 
-#: media/src/playback_pipeline.rs:98
+#: media/src/playback_pipeline.rs:97
 msgid "Video playback will be disabled."
 msgstr "L'affichage vidéo sera désactivé."
 
-#: media/src/playback_pipeline.rs:99
+#: media/src/playback_pipeline.rs:98
 msgid "Please install {} or {}, depending on your distribution."
 msgstr "Veuillez installer {} ou {}, selon votre distribution."
 
-#: media/src/playback_pipeline.rs:126 media/src/toc_setter_pipeline.rs:76
+#: media/src/playback_pipeline.rs:125 media/src/toc_setter_pipeline.rs:81
 msgid "Could not set media in Playing mode"
 msgstr "Impossible de passer le média en mode lecture."
 
-#: media/src/playback_pipeline.rs:133
+#: media/src/playback_pipeline.rs:132
 msgid "Could not set media in Paused mode"
 msgstr "Impossible de passer le média en mode pause."
 
-#: media/src/playback_pipeline.rs:651
+#: media/src/playback_pipeline.rs:650
 msgid "No usable streams could be found."
 msgstr "Aucun flux exploitable n'a été trouvé."
 
-#: media/src/splitter_pipeline.rs:33
+#: media/src/splitter_pipeline.rs:34 media/src/splitter_pipeline.rs:42
+#: media/src/splitter_pipeline.rs:49 media/src/splitter_pipeline.rs:56
+#: media/src/splitter_pipeline.rs:64 media/src/splitter_pipeline.rs:71
+#: media/src/splitter_pipeline.rs:79 media/src/splitter_pipeline.rs:86
+#: media/src/toc_setter_pipeline.rs:35
 msgid ""
-"Missing `flacenc`\n"
+"Missing `{element}`\n"
 "check your gst-plugins-good install"
 msgstr ""
-"`flacenc` manquant\n"
+"`{element}` manquant\n"
 "Vérifiez l'installation de gst-plugin-good"
 
-#: media/src/splitter_pipeline.rs:36
-msgid ""
-"Missing `wavenc`\n"
-"check your gst-plugins-good install"
-msgstr ""
-"`wavenc` manquant\n"
-"Vérifiez l'installation de gst-plugin-good"
-
-#: media/src/splitter_pipeline.rs:38 media/src/splitter_pipeline.rs:47
-msgid ""
-"Missing `opusenc`\n"
-"check your gst-plugins-good install"
-msgstr ""
-"`opusenc` manquant\n"
-"Vérifiez l'installation de gst-plugin-good"
-
-#: media/src/splitter_pipeline.rs:43 media/src/splitter_pipeline.rs:52
-msgid ""
-"Missing `oggmux`\n"
-"check your gst-plugins-good install"
-msgstr ""
-"`oggmux` manquant\n"
-"Vérifiez l'installation de gst-plugin-good"
-
-#: media/src/splitter_pipeline.rs:56
-msgid ""
-"Missing `lamemp3enc`\n"
-"check your gst-plugins-good install"
-msgstr ""
-"`lamemp3enc` manquant\n"
-"Vérifiez l'installation de gst-plugin-good"
-
-#: media/src/splitter_pipeline.rs:61
-msgid ""
-"Missing `id3v2mux`\n"
-"check your gst-plugins-good install"
-msgstr ""
-"`id3v2mux` manquant\n"
-"Vérifiez l'installation de gst-plugin-good"
-
-#: media/src/splitter_pipeline.rs:81
+#: media/src/splitter_pipeline.rs:108
 msgid "Splitting {}..."
 msgstr "Découpage de {}…"
 
-#: media/src/splitter_pipeline.rs:97 media/src/toc_setter_pipeline.rs:65
+#: media/src/splitter_pipeline.rs:124 media/src/toc_setter_pipeline.rs:70
 msgid "do you have permission to write the file?"
 msgstr "disposez-vous des permissions pour écrire le fichier ?"
 
-#: media/src/splitter_pipeline.rs:210
+#: media/src/splitter_pipeline.rs:237
 msgid "Failed to intialize the split"
 msgstr "Impossible d'initialiser le découpage"
 
-#: media/src/splitter_pipeline.rs:319
+#: media/src/splitter_pipeline.rs:346
 msgid "Failed to terminate properly. Check the resulting file."
 msgstr ""
 "Impossible de terminer correctement. Veuillez vérifiez le fichier généré."
 
-#: media/src/splitter_pipeline.rs:337
+#: media/src/splitter_pipeline.rs:363
 msgid "Failed to start splitting."
 msgstr "Impossible de démarrer le découpage."
 
-#: media/src/toc_setter_pipeline.rs:35
-msgid ""
-"Missing `matroskamux`\n"
-"check your gst-plugins-good install"
-msgstr ""
-"`matroskamux` manquant\n"
-"Vérifiez l'installation de gst-plugin-good"
-
-#: media/src/toc_setter_pipeline.rs:38
+#: media/src/toc_setter_pipeline.rs:43
 msgid ""
 "Matroska export requires\n"
 "gst-plugins-good >= 1.14"
@@ -188,7 +144,7 @@ msgstr ""
 "L'export vers un conteneur Matroska nécessite\n"
 "gst-plugins-good >= 1.14"
 
-#: media/src/toc_setter_pipeline.rs:51
+#: media/src/toc_setter_pipeline.rs:56
 msgid "Exporting to {}..."
 msgstr "Export vers {}…"
 
@@ -486,7 +442,7 @@ msgid "Yes to all"
 msgstr "Oui pour tous"
 
 #: ui/src/info_bar_controller.rs:36 ui/src/main_controller.rs:89
-#: ui/src/output_base_controller.rs:187
+#: ui/src/output_base_controller.rs:189
 msgid "Cancel"
 msgstr "Annuler"
 
@@ -526,13 +482,13 @@ msgstr "François Laignel"
 msgid "Learn more about media-toc"
 msgstr "En apprendre plus sur media-toc"
 
-#: ui/src/main_controller.rs:380 ui/src/main_controller.rs:449
+#: ui/src/main_controller.rs:383 ui/src/main_controller.rs:452
 msgid "Missing plugin: {}"
 msgid_plural "Missing plugins: {}"
 msgstr[0] "Greffon manquant : {}"
 msgstr[1] "Greffons manquants : {}"
 
-#: ui/src/main_controller.rs:497 ui/src/main_controller.rs:573
+#: ui/src/main_controller.rs:500 ui/src/main_controller.rs:576
 msgid ""
 "Error opening file.\n"
 "\n"
@@ -542,7 +498,7 @@ msgstr ""
 "\n"
 "{}"
 
-#: ui/src/main_controller.rs:516
+#: ui/src/main_controller.rs:519
 msgid ""
 "Video rendering hardware acceleration seems broken and has been disabled.\n"
 "Please restart the application."
@@ -559,7 +515,7 @@ msgstr "À propos"
 msgid "Quit"
 msgstr "Quitter"
 
-#: ui/src/main_dispatcher.rs:113
+#: ui/src/main_dispatcher.rs:100
 msgid "Open media file"
 msgstr "Ouvrir un fichier multimédia"
 
@@ -567,7 +523,7 @@ msgstr "Ouvrir un fichier multimédia"
 msgid "Failed to initialize GStreamer, the application can't be used."
 msgstr "Échec à l'initialisation de GStreamer, l'application est inutilisable."
 
-#: ui/src/output_base_dispatcher.rs:176
+#: ui/src/output_base_dispatcher.rs:179
 msgid ""
 "{output_file}\n"
 "already exists. Overwrite?"
@@ -575,15 +531,15 @@ msgstr ""
 "{output_file}\n"
 "existe déjà. Écraser ?"
 
-#: ui/src/split_controller.rs:282
+#: ui/src/split_controller.rs:314
 msgid "Media split succesfully"
 msgstr "Média découpé avec succès"
 
-#: ui/src/split_controller.rs:350
+#: ui/src/split_controller.rs:362
 msgid "Failed to prepare for split. {}"
 msgstr "Échec à la préparation du découpage : {}"
 
-#: ui/src/split_controller.rs:382
+#: ui/src/split_controller.rs:394
 msgid "Failed to split media. {}"
 msgstr "Échec lors du découpage du média. {}"
 
