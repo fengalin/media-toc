@@ -102,8 +102,10 @@ impl Writer for CueSheetFormat {
                     "    INDEX 01 {:02}:{:02}:{:02}\n",
                     start_ts.h * 60 + start_ts.m,
                     start_ts.s,
-                    (f64::from((start_ts.ms * 1_000 + start_ts.us) * 1_000 + start_ts.nano)
-                        / 1_000_000_000f64
+                    (f64::from(
+                        (start_ts.ms as u32 * 1_000 + start_ts.us as u32) * 1_000
+                            + start_ts.nano as u32
+                    ) / 1_000_000_000f64
                         * 75f64)
                         .round() // frame nb (75 frames/s for Cue Sheets)
                 );
