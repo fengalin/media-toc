@@ -191,7 +191,7 @@ impl SplitControllerImpl {
         }
 
         if self.toc_visitor.is_some() {
-            split_name += &format!("{:02}", self.idx);
+            split_name += &format!("{:02}. ", self.idx);
         }
 
         let track_title = chapter
@@ -201,10 +201,6 @@ impl SplitControllerImpl {
                     .and_then(|tag| tag.get().map(ToString::to_string))
             })
             .unwrap_or_else(get_default_chapter_title);
-
-        if !split_name.is_empty() {
-            split_name += ". ";
-        }
 
         split_name += &track_title;
 
