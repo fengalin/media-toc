@@ -276,39 +276,46 @@ impl MediaProcessor for SplitControllerImpl {
 
     fn next(&mut self) -> Result<ProcessingState, String> {
         let chapter = match self.toc_visitor.as_mut() {
-            Some(toc_visitor) => match toc_visitor.next_chapter() {
-                Some(chapter) => {
-                    self.idx += 1;
-                    chapter
-                }
-                None => {
-                    self.split_file_info = None;
-                    return Ok(ProcessingState::AllComplete(gettext(
-                        "Media split succesfully",
-                    )));
-                }
-            },
+            Some(toc_visitor) => toc_visitor.next_chapter().map(|chapter| {
+                self.idx += 1;
+                chapter
+            }),
             None => {
                 // No chapter defined => build a fake chapter corresponding to the whole file
-                self.idx += 1;
+                if self.idx == 0 {
+                    self.idx += 1;
 
-                let src_info = self.src_info.as_ref().unwrap().read().unwrap();
-                let mut toc_entry = gst::TocEntry::new(gst::TocEntryType::Chapter, &"".to_owned());
-                toc_entry
-                    .get_mut()
-                    .unwrap()
-                    .set_start_stop_times(0, src_info.duration.as_i64());
+                    let src_info = self.src_info.as_ref().unwrap().read().unwrap();
+                    let mut toc_entry =
+                        gst::TocEntry::new(gst::TocEntryType::Chapter, &"".to_owned());
+                    toc_entry
+                        .get_mut()
+                        .unwrap()
+                        .set_start_stop_times(0, src_info.duration.as_i64());
 
-                let mut tag_list = gst::TagList::new();
-                tag_list.get_mut().unwrap().add::<gst::tags::Title>(
-                    &src_info.path.file_stem().unwrap().to_str().unwrap(),
-                    gst::TagMergeMode::Replace,
-                );
-                toc_entry.get_mut().unwrap().set_tags(tag_list);
+                    let mut tag_list = gst::TagList::new();
+                    tag_list.get_mut().unwrap().add::<gst::tags::Title>(
+                        &src_info.path.file_stem().unwrap().to_str().unwrap(),
+                        gst::TagMergeMode::Replace,
+                    );
+                    toc_entry.get_mut().unwrap().set_tags(tag_list);
 
-                toc_entry
+                    Some(toc_entry)
+                } else {
+                    None
+                }
             }
         };
+
+        if chapter.is_none() {
+            self.split_file_info = None;
+
+            return Ok(ProcessingState::AllComplete(gettext(
+                "Media split succesfully",
+            )));
+        }
+
+        let chapter = chapter.as_ref().unwrap();
 
         self.current_chapter = Some(
             self.src_info
@@ -316,10 +323,10 @@ impl MediaProcessor for SplitControllerImpl {
                 .unwrap()
                 .read()
                 .unwrap()
-                .get_chapter_with_track_tags(&chapter, self.idx),
+                .get_chapter_with_track_tags(chapter, self.idx),
         );
 
-        let split_path = self.get_split_path(&chapter);
+        let split_path = self.get_split_path(chapter);
         self.current_path = Some(Rc::clone(&split_path));
 
         Ok(ProcessingState::WouldOutputTo(split_path))
