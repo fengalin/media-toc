@@ -330,22 +330,31 @@ impl MediaProcessor for SplitControllerImpl {
     fn process(&mut self, output_path: &Path) -> Result<ProcessingState, String> {
         let res = {
             let src_info = self.src_info.as_ref().unwrap().read().unwrap();
-            let split_file_info = self.split_file_info.as_ref().expect(
-                "SplitControllerImpl: split_file_info not defined in `next()`, did you call `init()`?"
-            );
+            let split_file_info = self
+                .split_file_info
+                .as_ref()
+                .expect("split_file_info not defined in `next()`, did you call `init()`?");
+
+            let stream_id = if src_info.streams.audio.len() > 1 {
+                Some(self.selected_audio.as_ref().unwrap().id.to_string())
+            } else {
+                // Some single stream decoders advertise a random id at each invocation
+                // so don't be explicit when only one audio stream is available
+                None
+            };
+
             SplitterPipeline::try_new(
                 &src_info.path,
                 output_path,
-                &self.selected_audio.as_ref().unwrap().id,
+                stream_id,
                 split_file_info.format,
-                self.current_chapter.take().expect(concat!(
-                    "SplitControllerImpl: no current_chapter ",
-                    "in `process_current_chapter()`",
-                )),
+                self.current_chapter
+                    .take()
+                    .expect("no current_chapter in `process_current_chapter()`"),
                 self.media_event_sender
                     .as_ref()
                     .expect(concat!(
-                        "SplitControllerImpl: no media_event_sender in `process_current_chapter()` ",
+                        "no media_event_sender in `process_current_chapter()` ",
                         "did you call `init()`?",
                     ))
                     .clone(),

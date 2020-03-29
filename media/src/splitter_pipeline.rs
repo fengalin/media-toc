@@ -98,7 +98,7 @@ impl SplitterPipeline {
     pub fn try_new(
         input_path: &Path,
         output_path: &Path,
-        stream_id: &str,
+        stream_id: Option<String>,
         format: Format,
         chapter: gst::TocEntry,
         sender: async_mpsc::Sender<MediaEvent>,
@@ -107,7 +107,7 @@ impl SplitterPipeline {
             "{}",
             gettext("Splitting {}...").replacen("{}", output_path.to_str().unwrap(), 1)
         );
-        debug!("stream id {}", &stream_id);
+        debug!("stream id {:?}", stream_id);
 
         let mut this = SplitterPipeline {
             pipeline: gst::Pipeline::new(Some("splitter_pipeline")),
@@ -139,7 +139,10 @@ impl SplitterPipeline {
         }
     }
 
-    fn build_pipeline(&mut self, input_path: &Path, output_path: &Path, stream_id: &str) {
+    /// Builds the pipeline for split.
+    ///
+    /// If the `stream_id` is `None`, all the audio streams are used.
+    fn build_pipeline(&mut self, input_path: &Path, output_path: &Path, stream_id: Option<String>) {
         /* There are multiple showstoppers to implementing something ideal
          * to export splitted chapters with audio and video (and subtitles):
          * 1. matroska-mux drops seek events explicitly (a message states: "discard for now").
@@ -289,19 +292,19 @@ impl SplitterPipeline {
         outsink.sync_state_with_parent().unwrap();
 
         let pipeline_cb = self.pipeline.clone();
-        let stream_id = stream_id.to_owned();
         decodebin.connect_pad_added(move |_element, pad| {
             let caps = pad.get_current_caps().unwrap();
             let structure = caps.get_structure(0).unwrap();
             let name = structure.get_name();
 
-            if name.starts_with("audio/")
-                && pipeline_cb.get_by_name("audioconvert").is_none()
-                && stream_id
+            let is_selected_stream_id = stream_id.as_ref().map_or(true, |stream_id| {
+                stream_id.as_str()
                     == pad
                         .get_stream_id()
                         .expect("SplitterPipeline::build_pipeline no stream_id for audio src pad")
-            {
+            });
+
+            if name.starts_with("audio/") && is_selected_stream_id {
                 let audio_conv =
                     gst::ElementFactory::make("audioconvert", Some("audioconvert")).unwrap();
                 pipeline_cb.add(&audio_conv).unwrap();
