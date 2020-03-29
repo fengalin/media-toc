@@ -271,15 +271,13 @@ impl MediaProcessor for SplitControllerImpl {
     }
 
     fn next(&mut self) -> Result<ProcessingState, String> {
-        let chapter = match self.toc_visitor.as_mut() {
-            Some(toc_visitor) => toc_visitor.next_chapter().map(|chapter| {
-                self.idx += 1;
-                chapter
-            }),
-            None => {
-                // No chapter defined => build a fake chapter corresponding to the whole file
+        let chapter = self
+            .toc_visitor
+            .as_mut()
+            .and_then(TocVisitor::next_chapter)
+            .or_else(|| {
                 if self.idx == 0 {
-                    self.idx += 1;
+                    // No chapter defined => build a fake chapter corresponding to the whole file
 
                     let src_info = self.src_info.as_ref().unwrap().read().unwrap();
                     let mut toc_entry =
@@ -300,8 +298,7 @@ impl MediaProcessor for SplitControllerImpl {
                 } else {
                     None
                 }
-            }
-        };
+            });
 
         if chapter.is_none() {
             self.split_file_info = None;
@@ -312,6 +309,8 @@ impl MediaProcessor for SplitControllerImpl {
         }
 
         let chapter = chapter.as_ref().unwrap();
+
+        self.idx += 1;
 
         self.current_chapter = Some(
             self.src_info
