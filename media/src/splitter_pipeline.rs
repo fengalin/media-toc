@@ -307,8 +307,12 @@ impl SplitterPipeline {
                 pipeline_cb.add(&audio_conv).unwrap();
                 let audio_conv_sink_pad = audio_conv.get_static_pad("sink").unwrap();
                 pad.link(&audio_conv_sink_pad).unwrap();
-                gst::Element::link_many(&[&audio_conv, &audio_enc]).unwrap();
+                let audio_resample =
+                    gst::ElementFactory::make("audioresample", Some("audioresample")).unwrap();
+                pipeline_cb.add(&audio_resample).unwrap();
+                gst::Element::link_many(&[&audio_conv, &audio_resample, &audio_enc]).unwrap();
                 audio_conv.sync_state_with_parent().unwrap();
+                audio_resample.sync_state_with_parent().unwrap();
                 audio_enc.sync_state_with_parent().unwrap();
             } else {
                 let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
