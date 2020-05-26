@@ -209,7 +209,7 @@ sudo dnf install gcc gtk3-devel glib2-devel gstreamer1-devel \
 ```
 sudo apt-get install gcc libgtk-3-dev libgstreamer1.0-dev \
 	libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-{good,bad,ugly} \
-	gstreamer1.0-libav
+	gstreamer1.0-gtk3 gstreamer1.0-libav
 ```
 
 ### macOS
