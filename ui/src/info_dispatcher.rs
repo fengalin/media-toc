@@ -108,9 +108,10 @@ impl UIDispatcher for InfoDispatcher {
             .add_chapter_action
             .connect_activate(clone!(@strong main_ctrl_rc => move |_, _| {
                 let mut main_ctrl = main_ctrl_rc.borrow_mut();
-                let ts = main_ctrl.get_current_ts();
-                main_ctrl.info_ctrl.add_chapter(ts);
-                main_ctrl.ui_event().update_focus();
+                if let Some(ts) = main_ctrl.get_current_ts() {
+                    main_ctrl.info_ctrl.add_chapter(ts);
+                    main_ctrl.ui_event().update_focus();
+                }
             }));
 
         // Register remove chapter action
@@ -160,30 +161,31 @@ impl UIDispatcher for InfoDispatcher {
         info_ctrl.previous_chapter_action.connect_activate(clone!(
             @strong main_ctrl_rc => move |_, _| {
                 let mut main_ctrl = main_ctrl_rc.borrow_mut();
-                let cur_ts = main_ctrl.get_current_ts();
-                let cur_start = main_ctrl
-                    .info_ctrl
-                    .chapter_manager
-                    .selected()
-                    .map(|sel_chapter| sel_chapter.start());
-                let prev_start = main_ctrl
-                    .info_ctrl
-                    .chapter_manager
-                    .pick_previous()
-                    .map(|prev_chapter| prev_chapter.start());
+                if let Some(cur_ts) = main_ctrl.get_current_ts() {
+                    let cur_start = main_ctrl
+                        .info_ctrl
+                        .chapter_manager
+                        .selected()
+                        .map(|sel_chapter| sel_chapter.start());
+                    let prev_start = main_ctrl
+                        .info_ctrl
+                        .chapter_manager
+                        .pick_previous()
+                        .map(|prev_chapter| prev_chapter.start());
 
-                let seek_ts = match (cur_start, prev_start) {
-                    (Some(cur_start), prev_start_opt) => {
-                        if cur_ts > cur_start + GO_TO_PREV_CHAPTER_THRESHOLD {
-                            Some(cur_start)
-                        } else {
-                            prev_start_opt
+                    let seek_ts = match (cur_start, prev_start) {
+                        (Some(cur_start), prev_start_opt) => {
+                            if cur_ts > cur_start + GO_TO_PREV_CHAPTER_THRESHOLD {
+                                Some(cur_start)
+                            } else {
+                                prev_start_opt
+                            }
                         }
-                    }
-                    (None, prev_start_opt) => prev_start_opt,
-                };
+                        (None, prev_start_opt) => prev_start_opt,
+                    };
 
-                main_ctrl.seek(seek_ts.unwrap_or_else(Timestamp::default), gst::SeekFlags::ACCURATE);
+                    main_ctrl.seek(seek_ts.unwrap_or_else(Timestamp::default), gst::SeekFlags::ACCURATE);
+                }
             }
         ));
     }

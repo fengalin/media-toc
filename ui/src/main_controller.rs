@@ -305,7 +305,7 @@ impl MainController {
         }
     }
 
-    pub fn get_current_ts(&mut self) -> Timestamp {
+    pub fn get_current_ts(&mut self) -> Option<Timestamp> {
         self.pipeline.as_mut().unwrap().get_current_ts()
     }
 
