@@ -18,7 +18,7 @@ directories = "2"
 gettext-rs = { version = "0.4", features = ["gettext-system"] }
 lazy_static = "1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
-ron = "0.5"
+ron = "0.6"
 serde = "1"
 serde_derive = "1"
 

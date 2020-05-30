@@ -26,12 +26,12 @@ lazy_static = "1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 media = { path = "../media", package = "media-toc-media"  }
 metadata = { path = "../metadata", package = "media-toc-metadata"  }
-pango = "0.7"
+pango = "0.8"
 renderers = { path = "../renderers", package = "media-toc-renderers"  }
-ron = "0.5"
+ron = "0.6"
 serde = "1"
 serde_derive = "1"
 
 [dev-dependencies]
 byteorder = "1"
-smallvec = "0.6"
+smallvec = "1"

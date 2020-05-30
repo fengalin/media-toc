@@ -19,7 +19,7 @@ cairo-rs = "0.8"
 gstreamer = { version = "0.15", features = ["v1_10"] }
 media = { path = "../media", package = "media-toc-media"  }
 metadata = { path = "../metadata", package = "media-toc-metadata" }
-image = "0.22"
+image = "0.23"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 smallvec = "1"
 
