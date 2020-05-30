@@ -4,9 +4,7 @@ use futures::prelude::*;
 
 use gettextrs::{gettext, ngettext};
 
-use glib;
 use gstreamer as gst;
-use gtk;
 use gtk::prelude::*;
 
 use log::{debug, error};

@@ -2,10 +2,8 @@ use futures::channel::oneshot;
 
 use gettextrs::gettext;
 
-use gio;
 use gio::prelude::*;
 use glib::clone;
-use gtk;
 use gtk::prelude::*;
 
 use log::{error, info};

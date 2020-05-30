@@ -1,13 +1,7 @@
-use cairo;
 use futures::future::LocalBoxFuture;
-use gdk;
-use gio;
-use glib;
 use gstreamer as gst;
-use gtk;
 use gtk::prelude::*;
 use log::{debug, trace};
-use pango;
 
 use std::{
     boxed::Box,

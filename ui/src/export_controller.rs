@@ -1,7 +1,6 @@
 use futures::channel::mpsc as async_mpsc;
 
 use gettextrs::gettext;
-use gtk;
 use gtk::prelude::*;
 use log::warn;
 
@@ -13,7 +12,6 @@ use std::{
 };
 
 use media::{MediaEvent, TocSetterPipeline};
-use metadata;
 use metadata::{Duration, Exporter, Format, MatroskaTocFormat, MediaInfo};
 
 use super::{PlaybackPipeline, UIController, UIEventSender, UIFocusContext};

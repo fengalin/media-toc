@@ -6,7 +6,6 @@ use gstreamer as gst;
 
 use gstreamer::{prelude::*, ClockTime};
 
-use glib;
 use glib::{Cast, ObjectExt};
 
 use log::{debug, info, warn};

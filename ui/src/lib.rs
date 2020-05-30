@@ -54,10 +54,8 @@ mod video_dispatcher;
 use self::video_dispatcher::VideoDispatcher;
 
 use futures::channel::mpsc as async_mpsc;
-use gio;
 use gio::prelude::*;
 use gstreamer as gst;
-use gtk;
 use log::warn;
 
 use std::{
@@ -69,8 +67,6 @@ use std::{
 };
 
 use application::{CommandLineArguments, APP_ID};
-use media;
-use metadata;
 
 #[macro_export]
 macro_rules! spawn {

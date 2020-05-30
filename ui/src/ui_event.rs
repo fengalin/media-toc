@@ -3,9 +3,7 @@ use futures::channel::oneshot;
 use futures::prelude::*;
 
 use gdk::{Cursor, CursorType, WindowExt};
-use glib;
 use gstreamer as gst;
-use gtk;
 use gtk::prelude::*;
 
 use log::debug;

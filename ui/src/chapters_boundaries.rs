@@ -1,4 +1,3 @@
-use gtk;
 use log::debug;
 
 use std::{collections::BTreeMap, fmt, ops::Deref};

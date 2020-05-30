@@ -5,9 +5,6 @@ use glib::GString;
 use gettextrs::gettext;
 use gstreamer as gst;
 
-use glib;
-
-use gtk;
 use gtk::prelude::*;
 
 use std::{borrow::Cow, cell::RefCell, rc::Rc, string::ToString};

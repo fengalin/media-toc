@@ -1,10 +1,8 @@
 use futures::prelude::*;
 
-use gio;
 use gio::prelude::*;
 use glib::clone;
 use gstreamer as gst;
-use gtk;
 use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};

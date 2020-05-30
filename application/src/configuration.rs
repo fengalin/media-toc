@@ -2,7 +2,6 @@ use directories::ProjectDirs;
 use gettextrs::gettext;
 use lazy_static::lazy_static;
 use log::{debug, error};
-use ron;
 use serde::{Deserialize, Serialize};
 
 use std::{

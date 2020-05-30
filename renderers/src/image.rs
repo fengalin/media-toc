@@ -1,6 +1,3 @@
-use cairo;
-use image;
-
 use std::{cell::RefCell, rc::Rc};
 
 // This is from https://github.com/gtk-rs/examples/blob/master/src/bin/cairo_threads.rs

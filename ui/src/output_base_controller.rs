@@ -3,9 +3,6 @@ use futures::future::{abortable, AbortHandle, LocalBoxFuture};
 use futures::prelude::*;
 
 use gettextrs::gettext;
-use gio;
-use glib;
-use gtk;
 use gtk::prelude::*;
 
 use std::{
@@ -16,7 +13,6 @@ use std::{
 };
 
 use media::MediaEvent;
-use metadata;
 use metadata::{Format, MediaInfo};
 
 use crate::spawn;

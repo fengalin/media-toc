@@ -1,5 +1,4 @@
 use glib::{clone, GString};
-use gtk;
 use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};

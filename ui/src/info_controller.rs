@@ -1,8 +1,5 @@
-use cairo;
 use gettextrs::gettext;
-use gio;
 use gstreamer as gst;
-use gtk;
 use gtk::prelude::*;
 use log::{info, warn};
 
@@ -10,7 +7,6 @@ use std::{cell::RefCell, fs::File, rc::Rc};
 
 use application::CONFIG;
 use media::Timestamp;
-use metadata;
 use metadata::{Duration, MediaInfo, Timestamp4Humans};
 use renderers::Image;
 

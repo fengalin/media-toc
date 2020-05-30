@@ -1,10 +1,7 @@
-use gtk;
-
 use gettextrs::gettext;
 use log::error;
 
 use application::{get_command_line, init_locale};
-use ui;
 
 fn main() {
     env_logger::init();

@@ -1,4 +1,3 @@
-use cairo;
 use log::debug;
 use smallvec::{smallvec, SmallVec};
 

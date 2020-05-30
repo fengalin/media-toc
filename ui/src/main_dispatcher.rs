@@ -3,10 +3,8 @@ use futures::prelude::*;
 
 use gettextrs::gettext;
 
-use gio;
 use gio::prelude::*;
 use glib::clone;
-use gtk;
 use gtk::prelude::*;
 
 use log::debug;

@@ -5,7 +5,6 @@ use gettextrs::gettext;
 use gstreamer as gst;
 use gstreamer::prelude::*;
 
-use glib;
 use glib::ObjectExt;
 
 use log::{info, warn};

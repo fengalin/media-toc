@@ -1,7 +1,5 @@
-use gdk;
 use gettextrs::gettext;
 use glib::clone;
-use gtk;
 use gtk::prelude::*;
 use log::error;
 
