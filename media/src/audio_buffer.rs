@@ -789,7 +789,7 @@ mod tests {
 
         let mut audio_buffer = AudioBuffer::new(Duration::from_secs(1));
         audio_buffer.init(
-            gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, CHANNELS as u32)
+            gst_audio::AudioInfo::builder(AUDIO_FORMAT_S16, SAMPLE_RATE, CHANNELS as u32)
                 .build()
                 .unwrap(),
         );
@@ -881,7 +881,7 @@ mod tests {
 
         let mut audio_buffer = AudioBuffer::new(Duration::from_secs(1));
         audio_buffer.init(
-            gst_audio::AudioInfo::new(AUDIO_FORMAT_S16, SAMPLE_RATE, CHANNELS as u32)
+            gst_audio::AudioInfo::builder(AUDIO_FORMAT_S16, SAMPLE_RATE, CHANNELS as u32)
                 .build()
                 .unwrap(),
         );
