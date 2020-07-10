@@ -15,8 +15,8 @@ name = "mediatocrenderers"
 path = "src/lib.rs"
 
 [dependencies]
-cairo-rs = "0.8"
-gstreamer = { version = "0.15", features = ["v1_10"] }
+cairo-rs = "0.9"
+gstreamer = { version = "0.16", features = ["v1_10"] }
 media = { path = "../media", package = "media-toc-media"  }
 metadata = { path = "../metadata", package = "media-toc-metadata" }
 image = "0.23"
@@ -25,5 +25,5 @@ smallvec = "1"
 
 [dev-dependencies]
 byteorder = "1"
-cairo-rs = { version = "0.8", features = ["png"] }
-gstreamer-audio = { version = "0.15", features = ["v1_10"] }
+cairo-rs = { version = "0.9", features = ["png"] }
+gstreamer-audio = { version = "0.16", features = ["v1_10"] }

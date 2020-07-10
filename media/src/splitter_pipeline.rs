@@ -127,7 +127,7 @@ impl SplitterPipeline {
         // because we build a new pipeline for each split file.
         // When this happen, the ts position is negative so don't force it to 0
         // because we are most likely not at the begining of the source file.
-        let mut position_query = gst::Query::new_position(gst::Format::Time);
+        let mut position_query = gst::query::Position::new(gst::Format::Time);
         self.pipeline.query(&mut position_query);
         let position = position_query.get_result().get_value();
         if position >= 0 {

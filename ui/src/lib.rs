@@ -77,7 +77,7 @@ macro_rules! spawn {
 
 fn register_resource(resource: &[u8]) {
     let gbytes = glib::Bytes::from(resource);
-    gio::Resource::new_from_data(&gbytes)
+    gio::Resource::from_data(&gbytes)
         .and_then(|resource| {
             gio::resources_register(&resource);
             Ok(())

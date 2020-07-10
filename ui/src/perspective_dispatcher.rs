@@ -116,14 +116,8 @@ impl UIDispatcher for PerspectiveDispatcher {
 
             match button.get_action_name() {
                 Some(action_name) => {
-                    let accel_key = gtk_downcast!(button_box, 2, gtk::Label, button_name)
-                        .get_text()
-                        .unwrap_or_else(|| {
-                            panic!(
-                                "PerspectiveController no acceleration label for button {:?}",
-                                button_name,
-                            )
-                        });
+                    let accel_key =
+                        gtk_downcast!(button_box, 2, gtk::Label, button_name).get_text();
                     let action_splits: Vec<&str> = action_name.splitn(2, '.').collect();
                     if action_splits.len() != 2 {
                         panic!(

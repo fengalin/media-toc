@@ -81,7 +81,7 @@ impl TocSetterPipeline {
     }
 
     pub fn get_current_ts(&self) -> Timestamp {
-        let mut position_query = gst::Query::new_position(gst::Format::Time);
+        let mut position_query = gst::query::Position::new(gst::Format::Time);
         self.pipeline.query(&mut position_query);
         let position = position_query.get_result().get_value();
         if position >= 0 {

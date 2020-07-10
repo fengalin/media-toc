@@ -68,7 +68,7 @@ pub trait SampleExtractor: Send {
     fn get_current_sample(&mut self) -> Option<(Timestamp, SampleIndex)> {
         let state = &self.get_extraction_state();
 
-        let mut query = gst::Query::new_position(gst::Format::Time);
+        let mut query = gst::query::Position::new(gst::Format::Time);
         if !state.audio_ref.as_ref().unwrap().query(&mut query) {
             return None;
         }
