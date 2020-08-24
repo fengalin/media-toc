@@ -295,26 +295,27 @@ impl WaveformRenderer {
                                         Some(previous_sample) => {
                                             let previous_offset =
                                                 previous_sample - first_visible_sample_lock;
-                                            if self.cursor_sample > previous_sample {
-                                                let delta_cursor =
-                                                    self.cursor_sample - previous_sample;
-                                                let next_lower = self.image.lower.max(
-                                                    self.cursor_sample - previous_offset
-                                                        + delta_cursor,
-                                                );
+                                            match self.cursor_sample.checked_sub(previous_sample) {
+                                                Some(delta_cursor) => {
+                                                    let next_lower = self.image.lower.max(
+                                                        self.cursor_sample - previous_offset
+                                                            + delta_cursor,
+                                                    );
 
-                                                self.first_visible_sample_lock = Some((
-                                                    next_lower,
-                                                    LockState::PlayingSecondHalf,
-                                                ));
-                                                Some(next_lower)
-                                            } else {
-                                                // cursor jumped before previous sample (seek)
-                                                // render the available range
-                                                self.first_visible_sample_lock = None;
-                                                self.previous_sample = None;
+                                                    self.first_visible_sample_lock = Some((
+                                                        next_lower,
+                                                        LockState::PlayingSecondHalf,
+                                                    ));
+                                                    Some(next_lower)
+                                                }
+                                                None => {
+                                                    // cursor jumped before previous sample (seek)
+                                                    // render the available range
+                                                    self.first_visible_sample_lock = None;
+                                                    self.previous_sample = None;
 
-                                                Some(self.image.lower)
+                                                    Some(self.image.lower)
+                                                }
                                             }
                                         }
                                         None => {
@@ -601,22 +602,23 @@ impl WaveformRenderer {
             ts: first_visible_sample.get_ts(sample_duration),
         };
 
-        let cursor = if self.cursor_sample >= first_visible_sample
-            && self.cursor_sample <= first_visible_sample + self.req_sample_window
-        {
-            let delta_index =
-                (self.cursor_sample - first_visible_sample).get_step_range(self.image.sample_step);
-            Some(SamplePosition {
-                x: delta_index as f64 * self.image.x_step_f,
-                ts: self.cursor_ts,
-            })
-        } else {
-            None
-        };
+        let cursor = self
+            .cursor_sample
+            .checked_sub(first_visible_sample)
+            .and_then(|range_to_cursor| {
+                if range_to_cursor <= self.req_sample_window {
+                    let delta_index = range_to_cursor.get_step_range(self.image.sample_step);
+                    Some(SamplePosition {
+                        x: delta_index as f64 * self.image.x_step_f,
+                        ts: self.cursor_ts,
+                    })
+                } else {
+                    None
+                }
+            });
 
-        assert!(first_visible_sample < self.image.upper);
         let last = {
-            let visible_sample_range = self.image.upper - first_visible_sample;
+            let visible_sample_range = self.image.upper.checked_sub(first_visible_sample).unwrap();
             if visible_sample_range > self.req_sample_window {
                 SamplePosition {
                     x: self.width_f,

@@ -48,6 +48,11 @@ impl SampleIndex {
     pub fn inc(&mut self) {
         *self = SampleIndex(self.0 + 1);
     }
+
+    #[must_use = "this returns the result of the operation, without modifying the original"]
+    pub fn checked_sub(self, rhs: Self) -> Option<SampleIndexRange> {
+        self.0.checked_sub(rhs.0).map(SampleIndexRange::new)
+    }
 }
 
 impl From<usize> for SampleIndex {
