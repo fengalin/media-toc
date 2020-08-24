@@ -14,7 +14,7 @@ use std::{
 };
 
 use media::{MediaEvent, SplitterPipeline};
-use metadata::{get_default_chapter_title, Duration, Format, MediaInfo, Stream, TocVisitor};
+use metadata::{default_chapter_title, Duration, Format, MediaInfo, Stream, TocVisitor};
 
 use super::{PlaybackPipeline, UIController, UIEventSender, UIFocusContext};
 
@@ -169,22 +169,22 @@ impl SplitControllerImpl {
         self.current_path = None;
     }
 
-    fn get_split_path(&self, chapter: &gst::TocEntry) -> Rc<Path> {
+    fn split_path(&self, chapter: &gst::TocEntry) -> Rc<Path> {
         let mut split_name = String::new();
 
         let src_info = self.src_info.as_ref().unwrap().read().unwrap();
 
         // TODO: make format customisable
         let artist = src_info
-            .get_media_artist_sortname()
-            .or_else(|| src_info.get_media_artist());
+            .media_artist_sortname()
+            .or_else(|| src_info.media_artist());
         if let Some(artist) = artist {
             split_name += &format!("{} - ", artist);
         }
 
         let album_title = src_info
-            .get_media_title_sortname()
-            .or_else(|| src_info.get_media_title());
+            .media_title_sortname()
+            .or_else(|| src_info.media_title());
         if let Some(album_title) = album_title {
             split_name += &format!("{} - ", album_title);
         }
@@ -199,7 +199,7 @@ impl SplitControllerImpl {
                 tags.get::<gst::tags::Title>()
                     .and_then(|tag| tag.get().map(ToString::to_string))
             })
-            .unwrap_or_else(get_default_chapter_title);
+            .unwrap_or_else(default_chapter_title);
 
         split_name += &track_title;
 
@@ -215,7 +215,7 @@ impl SplitControllerImpl {
         }
 
         let split_file_info = self.split_file_info.as_ref().expect(concat!(
-            "SplitControllerImpl: split_file_info not defined in `get_split_path()`, ",
+            "SplitControllerImpl: split_file_info not defined in `split_path()`, ",
             "did you call `init()`?"
         ));
 
@@ -317,10 +317,10 @@ impl MediaProcessor for SplitControllerImpl {
                 .unwrap()
                 .read()
                 .unwrap()
-                .get_chapter_with_track_tags(chapter, self.idx),
+                .chapter_with_track_tags(chapter, self.idx),
         );
 
-        let split_path = self.get_split_path(chapter);
+        let split_path = self.split_path(chapter);
         self.current_path = Some(Rc::clone(&split_path));
 
         Ok(ProcessingState::WouldOutputTo(split_path))
@@ -408,7 +408,7 @@ impl MediaProcessor for SplitControllerImpl {
             if let Some(ts) = self
                 .splitter_pipeline
                 .as_ref()
-                .and_then(SplitterPipeline::get_current_ts)
+                .and_then(SplitterPipeline::current_ts)
             {
                 self.last_progress = ts.as_f64() / duration.as_f64()
             }

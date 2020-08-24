@@ -20,7 +20,7 @@ macro_rules! on_stream_selected(
                     let streams_ctrl = &mut main_ctrl.streams_ctrl;
 
                     if let Some(iter) = streams_ctrl.$store.get_iter(&cursor_path) {
-                        let stream = streams_ctrl.get_stream_at(&streams_ctrl.$store, &iter);
+                        let stream = streams_ctrl.stream_at(&streams_ctrl.$store, &iter);
                         let stream_to_select = match streams_ctrl.$selected {
                             Some(ref stream_id) => {
                                 if stream_id != &stream {
@@ -34,7 +34,7 @@ macro_rules! on_stream_selected(
                         };
                         if let Some(new_stream) = stream_to_select {
                             streams_ctrl.$selected = Some(new_stream);
-                            let streams = streams_ctrl.get_selected_streams();
+                            let streams = streams_ctrl.selected_streams();
 
                             // Asynchronoulsy notify the main controller
                             let main_ctrl_rc = Rc::clone(&main_ctrl_rc_cb);
@@ -135,7 +135,7 @@ impl UIDispatcher for StreamsDispatcher {
             main_ctrl_rc,
             video_treeview,
             video_store,
-            get_video_mut
+            video
         );
 
         // Audio stream export toggled
@@ -144,17 +144,11 @@ impl UIDispatcher for StreamsDispatcher {
             main_ctrl_rc,
             audio_treeview,
             audio_store,
-            get_audio_mut
+            audio
         );
 
         // Text stream export toggled
-        register_on_export_toggled!(
-            streams_ctrl,
-            main_ctrl_rc,
-            text_treeview,
-            text_store,
-            get_text_mut
-        );
+        register_on_export_toggled!(streams_ctrl, main_ctrl_rc, text_treeview, text_store, text);
 
         let ui_event = ui_event.clone();
         streams_ctrl.page.connect_map(move |_| {

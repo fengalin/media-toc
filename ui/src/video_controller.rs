@@ -21,7 +21,7 @@ pub struct VideoController {
 
 impl UIController for VideoController {
     fn cleanup(&mut self) {
-        if let Some(video_widget) = self.get_video_widget() {
+        if let Some(video_widget) = self.video_widget() {
             if self.cleaner_id.is_none() {
                 self.cleaner_id = Some(video_widget.connect_draw(|widget, cr| {
                     let allocation = widget.get_allocation();
@@ -120,13 +120,13 @@ impl VideoController {
         video_ctrl
     }
 
-    pub fn get_video_sink(&self) -> Option<gst::Element> {
+    pub fn video_sink(&self) -> Option<gst::Element> {
         self.video_output
             .as_ref()
             .map(|video_output| video_output.sink.clone())
     }
 
-    fn get_video_widget(&self) -> Option<gtk::Widget> {
+    fn video_widget(&self) -> Option<gtk::Widget> {
         self.video_output
             .as_ref()
             .map(|video_output| video_output.widget.clone())

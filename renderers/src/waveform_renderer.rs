@@ -126,16 +126,16 @@ impl WaveformRenderer {
         self.image.cleanup_sample_conditions();
     }
 
-    pub fn get_limits_as_ts(&self) -> (Timestamp, Timestamp) {
+    pub fn limits_as_ts(&self) -> (Timestamp, Timestamp) {
         (
-            self.image.lower.get_ts(self.state.sample_duration),
-            self.image.upper.get_ts(self.state.sample_duration),
+            self.image.lower.as_ts(self.state.sample_duration),
+            self.image.upper.as_ts(self.state.sample_duration),
         )
     }
 
-    pub fn get_half_window_duration(&self) -> Duration {
+    pub fn half_window_duration(&self) -> Duration {
         self.half_req_sample_window
-            .get_duration(self.state.sample_duration)
+            .duration(self.state.sample_duration)
     }
 
     pub fn seek(&mut self, target: Timestamp) {
@@ -144,7 +144,7 @@ impl WaveformRenderer {
         }
 
         let sought_sample = SampleIndex::from_ts(target, self.state.sample_duration)
-            .get_aligned(self.image.sample_step);
+            .snap_to(self.image.sample_step);
 
         debug!(
             concat!(
@@ -230,7 +230,7 @@ impl WaveformRenderer {
         match self.first_visible_sample_lock {
             Some((_first_visible_sample_lock, LockState::Seeking)) => (),
             _ => {
-                if let Some((ts, mut sample)) = self.get_current_sample() {
+                if let Some((ts, mut sample)) = self.current_sample() {
                     self.previous_sample = Some(self.cursor_sample);
 
                     if self.image.contains_eos && sample >= self.image.upper {
@@ -480,7 +480,7 @@ impl WaveformRenderer {
                 self.first_visible_sample = match self.first_visible_sample {
                     Some(first_visible_sample) => {
                         let new_first_visible_sample = first_visible_sample
-                            + self.req_sample_window.get_scaled(scale_num, scale_denom);
+                            + self.req_sample_window.scale(scale_num, scale_denom);
 
                         if new_first_visible_sample > self.image.sample_step {
                             let lower = self.image.lower;
@@ -579,16 +579,13 @@ impl WaveformRenderer {
     }
 
     // Get the waveform as an image in current conditions.
-    pub fn get_image(&mut self) -> Option<(&mut Image, ImagePositions)> {
+    pub fn image(&mut self) -> Option<(&mut Image, ImagePositions)> {
         self.update_first_visible_sample();
 
         let first_visible_sample = match self.first_visible_sample {
             Some(first_visible_sample) => first_visible_sample,
             None => {
-                debug!(
-                    "{}_get_image first_visible_sample not available",
-                    self.image.id
-                );
+                debug!("{}_image first_visible_sample not available", self.image.id);
                 return None;
             }
         };
@@ -596,10 +593,10 @@ impl WaveformRenderer {
         let sample_duration = self.state.sample_duration;
 
         let first_index =
-            (first_visible_sample - self.image.lower).get_step_range(self.image.sample_step);
+            (first_visible_sample - self.image.lower).step_range(self.image.sample_step);
         let first = SamplePosition {
             x: first_index as f64 * self.image.x_step_f,
-            ts: first_visible_sample.get_ts(sample_duration),
+            ts: first_visible_sample.as_ts(sample_duration),
         };
 
         let cursor = self
@@ -607,7 +604,7 @@ impl WaveformRenderer {
             .checked_sub(first_visible_sample)
             .and_then(|range_to_cursor| {
                 if range_to_cursor <= self.req_sample_window {
-                    let delta_index = range_to_cursor.get_step_range(self.image.sample_step);
+                    let delta_index = range_to_cursor.step_range(self.image.sample_step);
                     Some(SamplePosition {
                         x: delta_index as f64 * self.image.x_step_f,
                         ts: self.cursor_ts,
@@ -623,13 +620,13 @@ impl WaveformRenderer {
                 SamplePosition {
                     x: self.width_f,
                     ts: (first_visible_sample + self.req_sample_window)
-                        .get_ts(self.state.sample_duration),
+                        .as_ts(self.state.sample_duration),
                 }
             } else {
-                let delta_index = visible_sample_range.get_step_range(self.image.sample_step);
+                let delta_index = visible_sample_range.step_range(self.image.sample_step);
                 SamplePosition {
                     x: delta_index as f64 * self.image.x_step_f,
-                    ts: self.image.upper.get_ts(self.state.sample_duration),
+                    ts: self.image.upper.as_ts(self.state.sample_duration),
                 }
             }
         };
@@ -637,7 +634,7 @@ impl WaveformRenderer {
         let sample_step = self.image.sample_step_f;
 
         Some((
-            self.image.get_image(),
+            self.image.image(),
             ImagePositions {
                 first,
                 cursor,
@@ -860,15 +857,15 @@ impl WaveformRenderer {
 }
 
 impl SampleExtractor for WaveformRenderer {
-    fn get_extraction_state(&self) -> &SampleExtractionState {
+    fn extraction_state(&self) -> &SampleExtractionState {
         &self.state
     }
 
-    fn get_extraction_state_mut(&mut self) -> &mut SampleExtractionState {
+    fn extraction_state_mut(&mut self) -> &mut SampleExtractionState {
         &mut self.state
     }
 
-    fn get_lower(&self) -> SampleIndex {
+    fn lower(&self) -> SampleIndex {
         self.first_visible_sample
             .map_or(self.image.lower, |sample| {
                 if sample > self.half_req_sample_window {
@@ -879,7 +876,7 @@ impl SampleExtractor for WaveformRenderer {
             })
     }
 
-    fn get_requested_sample_window(&self) -> Option<SampleIndexRange> {
+    fn req_sample_window(&self) -> Option<SampleIndexRange> {
         if self.req_sample_window == SampleIndexRange::default() {
             None
         } else {

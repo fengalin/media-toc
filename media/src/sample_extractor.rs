@@ -35,27 +35,27 @@ impl SampleExtractionState {
 }
 
 pub trait SampleExtractor: Send {
-    fn get_extraction_state(&self) -> &SampleExtractionState;
-    fn get_extraction_state_mut(&mut self) -> &mut SampleExtractionState;
+    fn extraction_state(&self) -> &SampleExtractionState;
+    fn extraction_state_mut(&mut self) -> &mut SampleExtractionState;
 
     fn cleanup(&mut self);
 
     fn set_state(&mut self, new_state: gst::State) {
-        let state = self.get_extraction_state_mut();
+        let state = self.extraction_state_mut();
         state.state = new_state;
     }
 
     fn set_time_ref(&mut self, audio_ref: &gst::Element) {
-        self.get_extraction_state_mut().audio_ref = Some(audio_ref.clone());
+        self.extraction_state_mut().audio_ref = Some(audio_ref.clone());
     }
 
     fn set_channels(&mut self, channels: &[AudioChannel]);
 
     fn set_sample_duration(&mut self, per_sample: Duration, per_1000_samples: Duration);
 
-    fn get_lower(&self) -> SampleIndex;
+    fn lower(&self) -> SampleIndex;
 
-    fn get_requested_sample_window(&self) -> Option<SampleIndexRange>;
+    fn req_sample_window(&self) -> Option<SampleIndexRange>;
 
     fn switch_to_paused(&mut self);
 
@@ -65,8 +65,8 @@ pub trait SampleExtractor: Send {
     // extraction process by keeping conditions between frames
     fn update_concrete_state(&mut self, other: &mut Self);
 
-    fn get_current_sample(&mut self) -> Option<(Timestamp, SampleIndex)> {
-        let state = &self.get_extraction_state();
+    fn current_sample(&mut self) -> Option<(Timestamp, SampleIndex)> {
+        let state = &self.extraction_state();
 
         let mut query = gst::query::Position::new(gst::Format::Time);
         if !state.audio_ref.as_ref().unwrap().query(&mut query) {
@@ -74,7 +74,7 @@ pub trait SampleExtractor: Send {
         }
 
         let ts = Timestamp::new(query.get_result().get_value() as u64);
-        Some((ts, ts.get_sample_index(state.sample_duration)))
+        Some((ts, ts.sample_index(state.sample_duration)))
     }
 
     // Update the extractions taking account new

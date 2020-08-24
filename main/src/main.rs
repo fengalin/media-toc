@@ -1,7 +1,7 @@
 use gettextrs::gettext;
 use log::error;
 
-use application::{get_command_line, init_locale};
+use application::{command_line, init_locale};
 
 fn main() {
     env_logger::init();
@@ -12,7 +12,7 @@ fn main() {
     let is_gtk_ok = gtk::init().is_ok();
 
     if is_gtk_ok {
-        ui::run(get_command_line());
+        ui::run(command_line());
     } else {
         error!("{}", gettext("Failed to initialize GTK"));
     }

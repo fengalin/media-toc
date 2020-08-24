@@ -10,7 +10,7 @@ use gtk::prelude::*;
 use std::{borrow::Cow, cell::RefCell, rc::Rc, string::ToString};
 
 use media::Timestamp;
-use metadata::{get_default_chapter_title, Duration, Timestamp4Humans, TocVisitor};
+use metadata::{default_chapter_title, Duration, Timestamp4Humans, TocVisitor};
 
 use super::{ChapterTimestamps, ChaptersBoundaries};
 
@@ -393,7 +393,7 @@ impl ChapterTree {
             }
         };
 
-        let default_title = get_default_chapter_title();
+        let default_title = default_chapter_title();
         self.store.set(
             &new_iter,
             &[TITLE_COL, START_COL, START_STR_COL, END_COL, END_STR_COL],
@@ -653,7 +653,7 @@ impl ChapterTreeManager {
                             tags.get::<gst::tags::Title>()
                                 .and_then(|tag| tag.get().map(ToString::to_string))
                         })
-                        .unwrap_or_else(get_default_chapter_title);
+                        .unwrap_or_else(default_chapter_title);
 
                     let iter = self.tree.add_unchecked(ts, &title);
                     self.boundaries.borrow_mut().add_chapter(ts, title, &iter);
@@ -678,7 +678,7 @@ impl ChapterTreeManager {
         self.tree.add(target, duration).map(|new_chapter| {
             self.boundaries.borrow_mut().add_chapter(
                 ChapterTimestamps::new(target, new_chapter.end),
-                &get_default_chapter_title(),
+                &default_chapter_title(),
                 &new_chapter.iter,
             );
 
@@ -755,7 +755,7 @@ impl ChapterTreeManager {
     }
 
     // FIXME: handle hierarchical Tocs
-    pub fn get_toc(&self) -> Option<(gst::Toc, usize)> {
+    pub fn toc(&self) -> Option<(gst::Toc, usize)> {
         let mut count = 0;
         let mut toc_edition = gst::TocEntry::new(gst::TocEntryType::Edition, "");
         for chapter in self.iter() {

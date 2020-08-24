@@ -169,7 +169,7 @@ impl AudioController {
         boundaries: Rc<RefCell<ChaptersBoundaries>>,
     ) -> Self {
         let dbl_waveform = DoubleWaveformRenderer::new_dbl_audio_buffer(BUFFER_DURATION);
-        let waveform_renderer_mtx = dbl_waveform.get_exposed_buffer_mtx();
+        let waveform_renderer_mtx = dbl_waveform.exposed_buffer_mtx();
 
         let mut ctrl = AudioController {
             ui_event,
@@ -218,15 +218,11 @@ impl AudioController {
         self.drawingarea.queue_draw();
     }
 
-    pub fn get_seek_back_1st_ts(&self, target: Timestamp) -> Option<Timestamp> {
+    pub fn first_ts_for_seek_back(&self, target: Timestamp) -> Option<Timestamp> {
         let (lower_ts, upper_ts, half_window_duration) = {
             let waveform_renderer = self.waveform_renderer_mtx.lock().unwrap();
-            let limits = waveform_renderer.get_limits_as_ts();
-            (
-                limits.0,
-                limits.1,
-                waveform_renderer.get_half_window_duration(),
-            )
+            let limits = waveform_renderer.limits_as_ts();
+            (limits.0, limits.1, waveform_renderer.half_window_duration())
         };
 
         // don't step back more than the pipeline queues can handle
@@ -317,7 +313,7 @@ impl AudioController {
         }));
     }
 
-    fn get_ts_at(&self, x: f64) -> Option<Timestamp> {
+    fn ts_at(&self, x: f64) -> Option<Timestamp> {
         if x >= 0f64 && x <= self.area_width {
             let ts = self.positions.first.ts
                 + self.positions.sample_duration
@@ -332,8 +328,8 @@ impl AudioController {
         }
     }
 
-    pub fn get_boundary_at(&self, x: f64) -> Option<Timestamp> {
-        let ts = match self.get_ts_at(x) {
+    pub fn boundary_at(&self, x: f64) -> Option<Timestamp> {
+        let ts = match self.ts_at(x) {
             Some(ts) => ts,
             None => return None,
         };
@@ -456,7 +452,7 @@ impl AudioController {
             let waveform_renderer = &mut *self.waveform_renderer_mtx.lock().unwrap();
             self.playback_needs_refresh = waveform_renderer.playback_needs_refresh;
 
-            let (image, positions) = match waveform_renderer.get_image() {
+            let (image, positions) = match waveform_renderer.image() {
                 Some(image_and_positions) => image_and_positions,
                 None => return None,
             };
@@ -600,16 +596,16 @@ impl AudioController {
         match self.state {
             ControllerState::Playing => (),
             ControllerState::MovingBoundary(boundary) => {
-                return self.get_ts_at(x).map(|position| (boundary, position));
+                return self.ts_at(x).map(|position| (boundary, position));
             }
             ControllerState::Paused => {
-                if let Some(boundary) = self.get_boundary_at(x) {
+                if let Some(boundary) = self.boundary_at(x) {
                     self.state = ControllerState::CursorAboveBoundary(boundary);
                     self.ui_event.set_cursor_double_arrow();
                 }
             }
             ControllerState::CursorAboveBoundary(_) => {
-                if let Some(boundary) = self.get_boundary_at(x) {
+                if let Some(boundary) = self.boundary_at(x) {
                     self.state = ControllerState::CursorAboveBoundary(boundary);
                 } else {
                     self.state = ControllerState::Paused;
@@ -638,7 +634,7 @@ impl AudioController {
         match event_button.get_button() {
             1 => {
                 // left button
-                if let Some(ts) = self.get_ts_at(event_button.get_position().0) {
+                if let Some(ts) = self.ts_at(event_button.get_position().0) {
                     match self.state {
                         ControllerState::Playing | ControllerState::Paused => {
                             self.ui_event.seek(ts, gst::SeekFlags::ACCURATE);
@@ -655,7 +651,7 @@ impl AudioController {
                 if self.state == ControllerState::Paused {
                     if let Some(cursor) = &self.positions.cursor {
                         let cursor_ts = cursor.ts;
-                        if let Some(start) = self.get_ts_at(event_button.get_position().0) {
+                        if let Some(start) = self.ts_at(event_button.get_position().0) {
                             let end =
                                 start + MIN_RANGE_DURATION.max(self.positions.last.ts - start);
                             self.ui_event.play_range(start, end, cursor_ts);

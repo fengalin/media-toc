@@ -78,9 +78,8 @@ macro_rules! spawn {
 fn register_resource(resource: &[u8]) {
     let gbytes = glib::Bytes::from(resource);
     gio::Resource::from_data(&gbytes)
-        .and_then(|resource| {
+        .map(|resource| {
             gio::resources_register(&resource);
-            Ok(())
         })
         .unwrap_or_else(|err| {
             warn!("unable to load resources: {:?}", err);

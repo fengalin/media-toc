@@ -106,7 +106,7 @@ impl UIDispatcher for InfoDispatcher {
             .add_chapter_action
             .connect_activate(clone!(@strong main_ctrl_rc => move |_, _| {
                 let mut main_ctrl = main_ctrl_rc.borrow_mut();
-                if let Some(ts) = main_ctrl.get_current_ts() {
+                if let Some(ts) = main_ctrl.current_ts() {
                     main_ctrl.info_ctrl.add_chapter(ts);
                     main_ctrl.ui_event().update_focus();
                 }
@@ -159,7 +159,7 @@ impl UIDispatcher for InfoDispatcher {
         info_ctrl.previous_chapter_action.connect_activate(clone!(
             @strong main_ctrl_rc => move |_, _| {
                 let mut main_ctrl = main_ctrl_rc.borrow_mut();
-                if let Some(cur_ts) = main_ctrl.get_current_ts() {
+                if let Some(cur_ts) = main_ctrl.current_ts() {
                     let cur_start = main_ctrl
                         .info_ctrl
                         .chapter_manager

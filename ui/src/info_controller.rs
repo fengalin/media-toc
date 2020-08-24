@@ -54,7 +54,7 @@ pub struct InfoController {
 
 impl UIController for InfoController {
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
-        let toc_extensions = metadata::Factory::get_extensions();
+        let toc_extensions = metadata::Factory::extensions();
 
         {
             let info = pipeline.info.read().unwrap();
@@ -79,7 +79,7 @@ impl UIController for InfoController {
             self.duration_lbl
                 .set_label(&Timestamp4Humans::from_duration(info.duration).to_string());
 
-            self.thumbnail = info.get_media_image().and_then(|image| {
+            self.thumbnail = info.media_image().and_then(|image| {
                 image.get_buffer().and_then(|image_buffer| {
                     image_buffer.map_readable().ok().and_then(|image_map| {
                         Image::from_unknown(image_map.as_slice())
@@ -90,13 +90,13 @@ impl UIController for InfoController {
             });
 
             self.container_lbl
-                .set_label(info.get_container().unwrap_or(EMPTY_REPLACEMENT));
+                .set_label(info.container().unwrap_or(EMPTY_REPLACEMENT));
 
             let extern_toc = toc_candidates
                 .next()
                 .and_then(|(toc_path, format)| match File::open(toc_path.clone()) {
                     Ok(mut toc_file) => {
-                        match metadata::Factory::get_reader(format).read(&info, &mut toc_file) {
+                        match metadata::Factory::reader(format).read(&info, &mut toc_file) {
                             Ok(Some(toc)) => Some(toc),
                             Ok(None) => {
                                 let msg = gettext("No toc in file \"{}\"").replacen(
@@ -193,19 +193,19 @@ impl UIController for InfoController {
     }
 
     fn streams_changed(&mut self, info: &MediaInfo) {
-        match info.get_media_artist() {
+        match info.media_artist() {
             Some(artist) => self.artist_lbl.set_label(&artist),
             None => self.artist_lbl.set_label(EMPTY_REPLACEMENT),
         }
-        match info.get_media_title() {
+        match info.media_title() {
             Some(title) => self.title_lbl.set_label(&title),
             None => self.title_lbl.set_label(EMPTY_REPLACEMENT),
         }
 
         self.audio_codec_lbl
-            .set_label(info.streams.get_audio_codec().unwrap_or(EMPTY_REPLACEMENT));
+            .set_label(info.streams.audio_codec().unwrap_or(EMPTY_REPLACEMENT));
         self.video_codec_lbl
-            .set_label(info.streams.get_video_codec().unwrap_or(EMPTY_REPLACEMENT));
+            .set_label(info.streams.video_codec().unwrap_or(EMPTY_REPLACEMENT));
     }
 
     fn grab_focus(&self) {
@@ -445,7 +445,7 @@ impl InfoController {
     }
 
     pub fn export_chapters(&self, info: &mut MediaInfo) {
-        if let Some((toc, count)) = self.chapter_manager.get_toc() {
+        if let Some((toc, count)) = self.chapter_manager.toc() {
             info.toc = Some(toc);
             info.chapter_count = Some(count);
         }

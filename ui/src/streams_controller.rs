@@ -60,7 +60,7 @@ impl UIController for StreamsController {
                 .collect::<Vec<Arc<str>>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let stream = info.streams.get_video_mut(stream_id).unwrap();
+                let stream = info.streams.video(stream_id).unwrap();
                 stream.must_export = true;
                 let iter = self.add_stream(&self.video_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
@@ -86,7 +86,7 @@ impl UIController for StreamsController {
                 .collect::<Vec<Arc<str>>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let stream = info.streams.get_audio_mut(stream_id).unwrap();
+                let stream = info.streams.audio(stream_id).unwrap();
                 stream.must_export = true;
                 let iter = self.add_stream(&self.audio_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
@@ -112,7 +112,7 @@ impl UIController for StreamsController {
                 .collect::<Vec<Arc<str>>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let stream = info.streams.get_text_mut(stream_id).unwrap();
+                let stream = info.streams.text(stream_id).unwrap();
                 let iter = self.add_stream(&self.text_store, stream);
                 // FIXME: discard text stream export for now as it hangs the export
                 // (see https://github.com/fengalin/media-toc/issues/136)
@@ -129,17 +129,17 @@ impl UIController for StreamsController {
 
         self.video_selected = self.video_store.get_iter_first().map(|ref iter| {
             self.video_treeview.get_selection().select_iter(iter);
-            self.get_stream_at(&self.video_store, iter)
+            self.stream_at(&self.video_store, iter)
         });
 
         self.audio_selected = self.audio_store.get_iter_first().map(|ref iter| {
             self.audio_treeview.get_selection().select_iter(iter);
-            self.get_stream_at(&self.audio_store, iter)
+            self.stream_at(&self.audio_store, iter)
         });
 
         self.text_selected = self.text_store.get_iter_first().map(|ref iter| {
             self.text_treeview.get_selection().select_iter(iter);
-            self.get_stream_at(&self.text_store, iter)
+            self.stream_at(&self.text_store, iter)
         });
     }
 
@@ -186,7 +186,7 @@ impl StreamsController {
         ctrl
     }
 
-    pub fn get_selected_streams(&self) -> Vec<Arc<str>> {
+    pub fn selected_streams(&self) -> Vec<Arc<str>> {
         let mut streams: Vec<Arc<str>> = Vec::new();
         if let Some(stream) = self.video_selected.as_ref() {
             streams.push(Arc::clone(stream));
@@ -240,7 +240,7 @@ impl StreamsController {
         iter
     }
 
-    pub fn get_stream_at(&self, store: &gtk::ListStore, iter: &gtk::TreeIter) -> Arc<str> {
+    pub fn stream_at(&self, store: &gtk::ListStore, iter: &gtk::TreeIter) -> Arc<str> {
         store
             .get_value(iter, STREAM_ID_COL as i32)
             .get::<String>()

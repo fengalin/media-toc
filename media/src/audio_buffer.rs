@@ -104,7 +104,7 @@ impl StreamState {
         debug!(
             "have_gst_segment {} ({})",
             segment_start,
-            segment_start.get_sample_index(self.sample_duration),
+            segment_start.sample_index(self.sample_duration),
         );
 
         match self.segment_start {
@@ -522,14 +522,14 @@ impl<'slice> SampleConverterIter<'slice> {
             two_x_bytes_per_channel: 2 * bytes_per_channel,
             output_channels,
             extra_positions,
-            convert: SampleConverterIter::get_convert(audio_buffer.stream_state.format),
+            convert: SampleConverterIter::convert_fn(audio_buffer.stream_state.format),
             first: lower,
             idx: None,
             last: upper,
         })
     }
 
-    fn get_convert(format: gst_audio::AudioFormat) -> ConvertFn {
+    fn convert_fn(format: gst_audio::AudioFormat) -> ConvertFn {
         let convert: ConvertFn = match format {
             AudioFormat::S8 => |rdr| to_sample_value!(rdr.read_i8()),
             AudioFormat::U8 => |rdr| to_sample_value!(rdr.read_u8()),
@@ -722,7 +722,7 @@ mod tests {
     // if all samples are rendered in the range [0:SAMPLE_RATE]
     fn build_buffer(lower_value: usize, upper_value: usize) -> gst::Buffer {
         let lower: SampleIndex = lower_value.into();
-        let pts = Timestamp::new(lower.get_ts(SAMPLE_DURATION).as_u64() + 1);
+        let pts = Timestamp::new(lower.as_ts(SAMPLE_DURATION).as_u64() + 1);
         let samples_u8_len = (upper_value - lower_value) * CHANNELS * 2;
 
         let mut buffer = gst::Buffer::with_size(samples_u8_len).unwrap();

@@ -122,8 +122,8 @@ impl SplitterPipeline {
             .map_err(|_| gettext("do you have permission to write the file?"))
     }
 
-    pub fn get_current_ts(&self) -> Option<Timestamp> {
-        // `get_current_ts` might be called when the pipeline is not ready yet
+    pub fn current_ts(&self) -> Option<Timestamp> {
+        // `current_ts` might be called when the pipeline is not ready yet
         // because we build a new pipeline for each split file.
         // When this happen, the ts position is negative so don't force it to 0
         // because we are most likely not at the begining of the source file.

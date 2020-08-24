@@ -68,7 +68,7 @@ impl<SE: SampleExtractor + 'static> DoubleAudioBuffer<SE> {
     }
 
     // Get a reference on the exposed buffer mutex.
-    pub fn get_exposed_buffer_mtx(&self) -> Arc<Mutex<Box<SE>>> {
+    pub fn exposed_buffer_mtx(&self) -> Arc<Mutex<Box<SE>>> {
         Arc::clone(&self.exposed_buffer_mtx)
     }
 
@@ -229,9 +229,9 @@ impl<SE: SampleExtractor + 'static> DoubleAudioBuffer<SE> {
             mem::swap(exposed_buffer_box, &mut working_buffer);
         }
 
-        self.lower_to_keep = working_buffer.get_lower();
+        self.lower_to_keep = working_buffer.lower();
         self.sample_window = working_buffer
-            .get_requested_sample_window()
+            .req_sample_window()
             .map(|req_sample_window| req_sample_window.min(self.max_sample_window));
 
         self.working_buffer = Some(working_buffer);
@@ -259,7 +259,7 @@ impl<SE: SampleExtractor + 'static> DoubleAudioBuffer<SE> {
             mem::swap(exposed_buffer_box, &mut working_buffer);
         }
 
-        self.lower_to_keep = working_buffer.get_lower();
+        self.lower_to_keep = working_buffer.lower();
 
         self.working_buffer = Some(working_buffer);
         // self.working_buffer is now the buffer previously in

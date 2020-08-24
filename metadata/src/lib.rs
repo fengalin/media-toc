@@ -16,7 +16,7 @@ mod matroska_toc_format;
 pub use self::matroska_toc_format::MatroskaTocFormat;
 
 mod media_info;
-pub use self::media_info::{get_default_chapter_title, MediaInfo, Stream, Streams};
+pub use self::media_info::{default_chapter_title, MediaInfo, Stream, Streams};
 
 mod mkvmerge_text_format;
 pub use self::mkvmerge_text_format::MKVMergeTextFormat;

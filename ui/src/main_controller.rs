@@ -214,7 +214,7 @@ impl MainController {
         };
 
         if self.state != ControllerState::EOS {
-            match pipeline.get_state() {
+            match pipeline.state() {
                 gst::State::Paused => {
                     self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
                     self.state = ControllerState::Playing;
@@ -253,7 +253,7 @@ impl MainController {
             ControllerState::Playing => ControllerState::Seeking,
             ControllerState::Paused => {
                 flags = gst::SeekFlags::ACCURATE;
-                let seek_1st_step = self.audio_ctrl.get_seek_back_1st_ts(target);
+                let seek_1st_step = self.audio_ctrl.first_ts_for_seek_back(target);
                 match seek_1st_step {
                     Some(seek_1st_step) => {
                         seek_ts = seek_1st_step;
@@ -303,8 +303,8 @@ impl MainController {
         }
     }
 
-    pub fn get_current_ts(&mut self) -> Option<Timestamp> {
-        self.pipeline.as_mut().unwrap().get_current_ts()
+    pub fn current_ts(&mut self) -> Option<Timestamp> {
+        self.pipeline.as_mut().unwrap().current_ts()
     }
 
     pub fn refresh(&mut self) {
@@ -562,7 +562,7 @@ impl MainController {
         match PlaybackPipeline::try_new(
             path.as_ref(),
             &dbl_buffer_mtx,
-            &self.video_ctrl.get_video_sink(),
+            &self.video_ctrl.video_sink(),
             sender,
         ) {
             Ok(pipeline) => {

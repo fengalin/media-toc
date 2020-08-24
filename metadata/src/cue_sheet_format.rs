@@ -5,19 +5,21 @@ use log::error;
 
 use std::{io::Write, string::ToString};
 
-use super::{get_default_chapter_title, MediaInfo, Timestamp4Humans, TocVisitor, Writer};
+use super::{default_chapter_title, MediaInfo, Timestamp4Humans, TocVisitor, Writer};
 
 static EXTENSION: &str = "cue";
 
 pub struct CueSheetFormat {}
 
 impl CueSheetFormat {
-    pub fn get_extension() -> &'static str {
+    pub fn extension() -> &'static str {
         EXTENSION
     }
+}
 
-    pub fn new_as_boxed() -> Box<Self> {
-        Box::new(CueSheetFormat {})
+impl Default for CueSheetFormat {
+    fn default() -> Self {
+        CueSheetFormat {}
     }
 }
 
@@ -39,32 +41,29 @@ impl Writer for CueSheetFormat {
             return Err(msg);
         }
 
-        let media_title = info.get_media_title();
+        let media_title = info.media_title();
         if let Some(title) = &media_title {
             write_fmt!(destination, "TITLE \"{}\"\n", title);
         }
 
-        let media_artist = info.get_media_artist();
+        let media_artist = info.media_artist();
         if let Some(artist) = &media_artist {
             write_fmt!(destination, "PERFORMER \"{}\"\n", artist);
         }
 
-        let audio_codec = info
-            .streams
-            .get_audio_codec()
-            .map_or("WAVE", |audio_codec| {
-                if audio_codec.to_lowercase().find("mp3").is_some() {
-                    "MP3"
-                } else if audio_codec.to_lowercase().find("aiff").is_some() {
-                    "AIFF"
-                } else {
-                    "WAVE"
-                }
-            });
+        let audio_codec = info.streams.audio_codec().map_or("WAVE", |audio_codec| {
+            if audio_codec.to_lowercase().find("mp3").is_some() {
+                "MP3"
+            } else if audio_codec.to_lowercase().find("aiff").is_some() {
+                "AIFF"
+            } else {
+                "WAVE"
+            }
+        });
         write_fmt!(
             destination,
             "FILE \"{}\" {}\n",
-            info.get_file_name(),
+            info.file_name(),
             audio_codec
         );
 
@@ -82,7 +81,7 @@ impl Writer for CueSheetFormat {
                         .and_then(|value| value.get().map(ToString::to_string))
                 })
                 .or_else(|| media_title.clone())
-                .unwrap_or_else(get_default_chapter_title);
+                .unwrap_or_else(default_chapter_title);
             write_fmt!(destination, "    TITLE \"{}\"\n", &title);
 
             let artist = chapter
@@ -92,7 +91,7 @@ impl Writer for CueSheetFormat {
                         .and_then(|value| value.get().map(ToString::to_string))
                 })
                 .or_else(|| media_artist.clone())
-                .unwrap_or_else(get_default_chapter_title);
+                .unwrap_or_else(default_chapter_title);
             write_fmt!(destination, "    PERFORMER \"{}\"\n", &artist);
 
             if let Some((start, _end)) = chapter.get_start_stop_times() {

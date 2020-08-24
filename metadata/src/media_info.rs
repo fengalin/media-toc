@@ -14,7 +14,7 @@ use std::{
 
 use super::{Duration, Format, MediaContent};
 
-pub fn get_default_chapter_title() -> String {
+pub fn default_chapter_title() -> String {
     gettext("untitled")
 }
 
@@ -77,7 +77,7 @@ macro_rules! add_first_str_tag (
 macro_rules! add_stream_str_tags_if_empty (
     ($info:expr, $tags_dest:expr, $primary_tag:ty, $secondary_tag:ty) => {
         if $info.tags.get::<$primary_tag>().is_none() {
-            let artist_stream_tags = $info.streams.get_tag_list::<$primary_tag>();
+            let artist_stream_tags = $info.streams.tag_list::<$primary_tag>();
             add_first_str_tag!(artist_stream_tags, $tags_dest, $primary_tag);
             add_first_str_tag!(artist_stream_tags, $tags_dest, $secondary_tag, gst::TagMergeMode::ReplaceAll);
         }
@@ -111,8 +111,8 @@ macro_rules! get_tag_list_for_chapter (
                     None
                 }
             })
-            .or_else(|| $info.streams.get_tag_list::<$tag_type>())
-            .or_else(|| $info.get_tag_list::<$tag_type>())
+            .or_else(|| $info.streams.tag_list::<$tag_type>())
+            .or_else(|| $info.tag_list::<$tag_type>())
     };
 );
 
@@ -128,12 +128,12 @@ macro_rules! get_tag_for_display (
     ($info:expr, $primary_tag:ty, $secondary_tag:ty) => {
         #[allow(clippy::redundant_closure)]
         $info
-            .get_tag_list::<$primary_tag>()
-            .or_else(|| $info.get_tag_list::<$secondary_tag>())
+            .tag_list::<$primary_tag>()
+            .or_else(|| $info.tag_list::<$secondary_tag>())
             .or_else(|| {
                 $info.streams
-                    .get_tag_list::<$primary_tag>()
-                    .or_else(|| $info.streams.get_tag_list::<$secondary_tag>())
+                    .tag_list::<$primary_tag>()
+                    .or_else(|| $info.streams.tag_list::<$secondary_tag>())
             })
             .and_then(|tag_list| {
                 tag_list
@@ -257,15 +257,15 @@ impl Streams {
             .map(|stream_id| &self.text[stream_id])
     }
 
-    pub fn get_audio_mut<S: AsRef<str>>(&mut self, id: S) -> Option<&mut Stream> {
+    pub fn audio<S: AsRef<str>>(&mut self, id: S) -> Option<&mut Stream> {
         self.audio.get_mut(id.as_ref())
     }
 
-    pub fn get_video_mut<S: AsRef<str>>(&mut self, id: S) -> Option<&mut Stream> {
+    pub fn video<S: AsRef<str>>(&mut self, id: S) -> Option<&mut Stream> {
         self.video.get_mut(id.as_ref())
     }
 
-    pub fn get_text_mut<S: AsRef<str>>(&mut self, id: S) -> Option<&mut Stream> {
+    pub fn text<S: AsRef<str>>(&mut self, id: S) -> Option<&mut Stream> {
         self.text.get_mut(id.as_ref())
     }
 
@@ -312,17 +312,17 @@ impl Streams {
         }
     }
 
-    pub fn get_audio_codec(&self) -> Option<&str> {
+    pub fn audio_codec(&self) -> Option<&str> {
         self.selected_audio()
             .map(|stream| stream.codec_printable.as_str())
     }
 
-    pub fn get_video_codec(&self) -> Option<&str> {
+    pub fn video_codec(&self) -> Option<&str> {
         self.selected_video()
             .map(|stream| stream.codec_printable.as_str())
     }
 
-    pub fn get_ids_to_export(&self, format: Format) -> (HashSet<String>, MediaContent) {
+    pub fn ids_to_export(&self, format: Format) -> (HashSet<String>, MediaContent) {
         let mut streams = HashSet::<String>::new();
         let mut content = MediaContent::Undefined;
 
@@ -353,7 +353,7 @@ impl Streams {
         (streams, content)
     }
 
-    fn get_tag_list<'a, T: gst::Tag<'a>>(&self) -> Option<gst::TagList> {
+    fn tag_list<'a, T: gst::Tag<'a>>(&self) -> Option<gst::TagList> {
         self.selected_audio()
             .and_then(|selected_audio| {
                 if selected_audio.tags.get_size::<T>() > 0 {
@@ -409,11 +409,11 @@ impl MediaInfo {
         self.tags = self.tags.merge(tags, gst::TagMergeMode::Keep);
     }
 
-    pub fn get_file_name(&self) -> &str {
+    pub fn file_name(&self) -> &str {
         &self.file_name
     }
 
-    fn get_tag_list<'a, T: gst::Tag<'a>>(&self) -> Option<gst::TagList> {
+    fn tag_list<'a, T: gst::Tag<'a>>(&self) -> Option<gst::TagList> {
         if self.tags.get_size::<T>() > 0 {
             Some(self.tags.clone())
         } else {
@@ -423,7 +423,7 @@ impl MediaInfo {
 
     /// Fill missing tags for global scope
     #[allow(clippy::cognitive_complexity)]
-    pub fn get_fixed_tags(&self) -> gst::TagList {
+    pub fn fixed_tags(&self) -> gst::TagList {
         let mut tags = gst::TagList::new();
         {
             let tags = tags.get_mut().unwrap();
@@ -442,13 +442,13 @@ impl MediaInfo {
             add_stream_str_tags_if_empty!(self, tags, gst::tags::Title, gst::tags::TitleSortname);
 
             if self.tags.get::<gst::tags::Image>().is_none() {
-                let image_stream_tags = self.streams.get_tag_list::<gst::tags::Image>();
+                let image_stream_tags = self.streams.tag_list::<gst::tags::Image>();
                 add_all_tags!(image_stream_tags, tags, gst::tags::Image);
                 add_all_tags!(image_stream_tags, tags, gst::tags::ImageOrientation);
             }
 
             if self.tags.get::<gst::tags::PreviewImage>().is_none() {
-                let image_stream_tags = self.streams.get_tag_list::<gst::tags::PreviewImage>();
+                let image_stream_tags = self.streams.tag_list::<gst::tags::PreviewImage>();
                 add_all_tags!(image_stream_tags, tags, gst::tags::PreviewImage);
             }
         }
@@ -457,7 +457,7 @@ impl MediaInfo {
     }
 
     #[allow(clippy::cognitive_complexity)]
-    pub fn get_chapter_with_track_tags(
+    pub fn chapter_with_track_tags(
         &self,
         chapter: &gst::TocEntry,
         track_number: usize,
@@ -509,16 +509,16 @@ impl MediaInfo {
                 add_first_str_tag!(title_tags, tags, gst::tags::TitleSortname);
             } else {
                 tags.add::<gst::tags::Title>(
-                    &get_default_chapter_title().as_str(),
+                    &default_chapter_title().as_str(),
                     gst::TagMergeMode::Append,
                 );
             }
 
             // Use the media Title as the track Album (which folds back to Album)
-            if let Some(track_album) = self.get_media_title() {
+            if let Some(track_album) = self.media_title() {
                 tags.add::<gst::tags::Album>(&track_album.as_str(), gst::TagMergeMode::Append);
             }
-            if let Some(track_album) = self.get_media_title_sortname() {
+            if let Some(track_album) = self.media_title_sortname() {
                 tags.add::<gst::tags::AlbumSortname>(
                     &track_album.as_str(),
                     gst::TagMergeMode::Append,
@@ -576,11 +576,11 @@ impl MediaInfo {
         track_chapter
     }
 
-    pub fn get_media_artist(&self) -> Option<String> {
+    pub fn media_artist(&self) -> Option<String> {
         get_tag_for_display!(self, gst::tags::Artist, gst::tags::AlbumArtist)
     }
 
-    pub fn get_media_artist_sortname(&self) -> Option<String> {
+    pub fn media_artist_sortname(&self) -> Option<String> {
         get_tag_for_display!(
             self,
             gst::tags::ArtistSortname,
@@ -588,23 +588,23 @@ impl MediaInfo {
         )
     }
 
-    pub fn get_media_title(&self) -> Option<String> {
+    pub fn media_title(&self) -> Option<String> {
         get_tag_for_display!(self, gst::tags::Title, gst::tags::Album)
     }
 
-    pub fn get_media_title_sortname(&self) -> Option<String> {
+    pub fn media_title_sortname(&self) -> Option<String> {
         get_tag_for_display!(self, gst::tags::TitleSortname, gst::tags::AlbumSortname)
     }
 
-    pub fn get_media_image(&self) -> Option<gst::Sample> {
+    pub fn media_image(&self) -> Option<gst::Sample> {
         get_tag_for_display!(self, gst::tags::Image, gst::tags::PreviewImage)
     }
 
-    pub fn get_container(&self) -> Option<&str> {
+    pub fn container(&self) -> Option<&str> {
         // in case of an mp3 audio file, container comes as `ID3 label`
         // => bypass it
-        if let Some(audio_codec) = self.streams.get_audio_codec() {
-            if self.streams.get_video_codec().is_none()
+        if let Some(audio_codec) = self.streams.audio_codec() {
+            if self.streams.video_codec().is_none()
                 && audio_codec.to_lowercase().find("mp3").is_some()
             {
                 return None;

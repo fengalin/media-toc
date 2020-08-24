@@ -183,7 +183,7 @@ impl WaveformImage {
         self.shareable_state_changed = true;
     }
 
-    pub fn get_image(&mut self) -> &mut Image {
+    pub fn image(&mut self) -> &mut Image {
         self.exposed_image.as_mut().unwrap()
     }
 
@@ -226,12 +226,12 @@ impl WaveformImage {
             return;
         }
 
-        // Align requested lower and upper sample bounds in order to keep
+        // Snap requested lower and upper sample bounds to sample_step in order to keep
         // a steady offset between redraws. This allows using the same samples
         // for a given req_step_duration and avoiding flickering
         // between redraws.
-        let mut lower = lower.get_aligned(self.sample_step);
-        let upper = upper.get_aligned(self.sample_step);
+        let mut lower = lower.snap_to(self.sample_step);
+        let upper = upper.snap_to(self.sample_step);
         if audio_buffer.contains_eos() && upper + self.sample_step > audio_buffer.upper
             || self.contains_eos
                 && (upper == self.upper || (!self.force_redraw && lower >= self.lower))
@@ -298,10 +298,9 @@ impl WaveformImage {
         let (exposed_image, secondary_image) = {
             let target_width = if self.image_width > 0 {
                 self.image_width
-                    .max(((upper - lower).get_step_range(self.sample_step) * self.x_step) as i32)
+                    .max(((upper - lower).step_range(self.sample_step) * self.x_step) as i32)
             } else {
-                INIT_WIDTH
-                    .max(((upper - lower).get_step_range(self.sample_step) * self.x_step) as i32)
+                INIT_WIDTH.max(((upper - lower).step_range(self.sample_step) * self.x_step) as i32)
             };
             if (target_width == self.image_width && self.req_height == self.image_height)
                 || (self.force_redraw
@@ -399,9 +398,9 @@ impl WaveformImage {
         lower: SampleIndex,
         upper: SampleIndex,
     ) {
-        let x_offset = ((lower - self.lower).get_step_range(self.sample_step) * self.x_step) as f64;
+        let x_offset = ((lower - self.lower).step_range(self.sample_step) * self.x_step) as f64;
 
-        let x_range_to_draw = (upper - self.upper).get_step_range(self.sample_step) * self.x_step;
+        let x_range_to_draw = (upper - self.upper).step_range(self.sample_step) * self.x_step;
         let must_translate = self.last.x as usize + x_range_to_draw >= self.image_width as usize;
 
         if must_translate {
@@ -639,7 +638,7 @@ mod tests {
         mut buffer: gst::Buffer,
         segment_lower: SampleIndex,
     ) {
-        let pts = segment_lower.get_ts(SAMPLE_DURATION);
+        let pts = segment_lower.as_ts(SAMPLE_DURATION);
         {
             let buffer_mut = buffer.get_mut().unwrap();
             buffer_mut.set_pts(gst::ClockTime::from_nseconds(pts.as_u64()));
@@ -700,7 +699,7 @@ mod tests {
 
         let lower = waveform.lower;
         let upper = waveform.upper;
-        let image = waveform.get_image();
+        let image = waveform.image();
 
         let mut output_file = File::create(format!(
             "{}/waveform_image_{}_{}_{}.png",

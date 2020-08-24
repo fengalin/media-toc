@@ -101,7 +101,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
             })
     }
 
-    pub fn get_current_ts(&self) -> Option<Timestamp> {
+    pub fn current_ts(&self) -> Option<Timestamp> {
         let mut position_query = gst::query::Position::new(gst::Format::Time);
         self.pipeline.query(&mut position_query);
         let position = position_query.get_result().get_value();
@@ -112,7 +112,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
         }
     }
 
-    pub fn get_state(&self) -> gst::State {
+    pub fn state(&self) -> gst::State {
         let (_, current, _) = self.pipeline.get_state(ClockTime::from(10_000_000));
         current
     }

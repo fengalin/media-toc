@@ -170,7 +170,7 @@ impl MediaProcessor for ExportControllerImpl {
                     .and_then(|mut output_file| {
                         let res = {
                             let src_info = self.src_info.as_ref().unwrap().read().unwrap();
-                            metadata::Factory::get_writer(format).write(&src_info, &mut output_file)
+                            metadata::Factory::writer(format).write(&src_info, &mut output_file)
                         };
                         res.map(|_| {
                             self.export_file_info = None;
@@ -242,7 +242,7 @@ impl MediaProcessor for ExportControllerImpl {
 
                 let exporter = MatroskaTocFormat::new();
                 {
-                    let muxer = toc_setter_pipeline.get_muxer().unwrap();
+                    let muxer = toc_setter_pipeline.muxer().unwrap();
                     let src_info = self.src_info.as_ref().unwrap().read().unwrap();
                     exporter.export(&src_info, muxer);
                 }
@@ -271,7 +271,7 @@ impl MediaProcessor for ExportControllerImpl {
         if duration > Duration::default() {
             self.toc_setter_pipeline
                 .as_ref()
-                .map(TocSetterPipeline::get_current_ts)
+                .map(TocSetterPipeline::current_ts)
                 .map_or(0f64, |ts| ts.as_f64() / duration.as_f64())
         } else {
             0f64

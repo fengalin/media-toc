@@ -22,7 +22,7 @@ const CHANNELS: usize = 2;
 
 fn build_buffer(lower_value: usize, upper_value: usize) -> gst::Buffer {
     let lower: SampleIndex = lower_value.into();
-    let pts = Timestamp::new(lower.get_ts(SAMPLE_DURATION).as_u64() + 1);
+    let pts = Timestamp::new(lower.as_ts(SAMPLE_DURATION).as_u64() + 1);
     let samples_u8_len = (upper_value - lower_value) * CHANNELS * 2;
 
     let mut buffer = gst::Buffer::with_size(samples_u8_len).unwrap();

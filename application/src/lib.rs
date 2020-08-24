@@ -21,7 +21,7 @@ lazy_static! {
 }
 
 mod command_line;
-pub use self::command_line::{get_command_line, CommandLineArguments};
+pub use self::command_line::{command_line, CommandLineArguments};
 
 mod configuration;
 pub use self::configuration::CONFIG;

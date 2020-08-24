@@ -69,7 +69,7 @@ impl TocSetterPipeline {
             .map_err(|_| gettext("do you have permission to write the file?"))
     }
 
-    pub fn get_muxer(&self) -> Option<&gst::Element> {
+    pub fn muxer(&self) -> Option<&gst::Element> {
         self.muxer.as_ref()
     }
 
@@ -80,7 +80,7 @@ impl TocSetterPipeline {
             .map_err(|_| gettext("Could not set media in Playing mode"))
     }
 
-    pub fn get_current_ts(&self) -> Timestamp {
+    pub fn current_ts(&self) -> Timestamp {
         let mut position_query = gst::query::Position::new(gst::Format::Time);
         self.pipeline.query(&mut position_query);
         let position = position_query.get_result().get_value();

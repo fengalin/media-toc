@@ -12,16 +12,16 @@ static AUDIO_EXTENSION: &str = "toc.mka";
 pub struct MatroskaTocFormat;
 
 impl MatroskaTocFormat {
-    pub fn get_extension() -> &'static str {
+    pub fn new() -> Self {
+        MatroskaTocFormat
+    }
+
+    pub fn extension() -> &'static str {
         EXTENSION
     }
 
-    pub fn get_audio_extension() -> &'static str {
+    pub fn audio_extension() -> &'static str {
         AUDIO_EXTENSION
-    }
-
-    pub fn new() -> Self {
-        MatroskaTocFormat
     }
 }
 
@@ -33,7 +33,7 @@ impl Exporter for MatroskaTocFormat {
                 .dynamic_cast::<gst::TagSetter>()
                 .expect("MatroskaTocFormat::export muxer is not a TagSetter");
 
-            tag_setter.merge_tags(&info.get_fixed_tags(), gst::TagMergeMode::Replace)
+            tag_setter.merge_tags(&info.fixed_tags(), gst::TagMergeMode::Replace)
         }
 
         if let Some(ref toc) = info.toc {
