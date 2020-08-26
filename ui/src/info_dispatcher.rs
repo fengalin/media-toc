@@ -32,7 +32,7 @@ impl UIDispatcher for InfoDispatcher {
         });
 
         info_ctrl.show_chapters_btn.connect_toggled(clone!(
-            @strong main_ctrl_rc => move |toggle_button| {
+            @weak main_ctrl_rc => move |toggle_button| {
                 let main_ctrl = main_ctrl_rc.borrow();
                 let info_ctrl = &main_ctrl.info_ctrl;
                 if toggle_button.get_active() {
@@ -47,7 +47,7 @@ impl UIDispatcher for InfoDispatcher {
 
         // Draw thumnail image
         info_ctrl.drawingarea.connect_draw(clone!(
-            @strong main_ctrl_rc => move |drawingarea, cairo_ctx| {
+            @weak main_ctrl_rc => @default-panic, move |drawingarea, cairo_ctx| {
                 let mut main_ctrl = main_ctrl_rc.borrow_mut();
                 main_ctrl.info_ctrl.draw_thumbnail(drawingarea, cairo_ctx);
                 Inhibit(true)
@@ -56,7 +56,7 @@ impl UIDispatcher for InfoDispatcher {
 
         // Scale seek
         info_ctrl.timeline_scale.connect_change_value(
-            clone!(@strong main_ctrl_rc => move |_, _, value| {
+            clone!(@weak main_ctrl_rc => @default-panic, move |_, _, value| {
                 let mut main_ctrl = main_ctrl_rc.borrow_mut();
                 main_ctrl.seek((value as u64).into(), gst::SeekFlags::KEY_UNIT);
                 Inhibit(true)
@@ -65,7 +65,7 @@ impl UIDispatcher for InfoDispatcher {
 
         // TreeView seek
         info_ctrl.chapter_treeview.connect_row_activated(
-            clone!(@strong main_ctrl_rc => move |_, tree_path, _| {
+            clone!(@weak main_ctrl_rc => move |_, tree_path, _| {
                 let mut main_ctrl = main_ctrl_rc.borrow_mut();
                 let info_ctrl = &mut main_ctrl.info_ctrl;
                 if let Some(chapter) = &info_ctrl.chapter_manager.chapter_from_path(tree_path) {
@@ -87,7 +87,7 @@ impl UIDispatcher for InfoDispatcher {
             });
 
             title_renderer.connect_edited(clone!(
-                @strong main_ctrl_rc => move |_, _tree_path, new_title| {
+                @weak main_ctrl_rc => move |_, _tree_path, new_title| {
                     let mut main_ctrl = main_ctrl_rc.borrow_mut();
                     main_ctrl
                         .info_ctrl
@@ -104,7 +104,7 @@ impl UIDispatcher for InfoDispatcher {
         app.add_action(&info_ctrl.add_chapter_action);
         info_ctrl
             .add_chapter_action
-            .connect_activate(clone!(@strong main_ctrl_rc => move |_, _| {
+            .connect_activate(clone!(@weak main_ctrl_rc => move |_, _| {
                 let mut main_ctrl = main_ctrl_rc.borrow_mut();
                 if let Some(ts) = main_ctrl.current_ts() {
                     main_ctrl.info_ctrl.add_chapter(ts);
@@ -116,7 +116,7 @@ impl UIDispatcher for InfoDispatcher {
         app.add_action(&info_ctrl.del_chapter_action);
         info_ctrl
             .del_chapter_action
-            .connect_activate(clone!(@strong main_ctrl_rc => move |_, _| {
+            .connect_activate(clone!(@weak main_ctrl_rc => move |_, _| {
                 let mut main_ctrl = main_ctrl_rc.borrow_mut();
                 main_ctrl.info_ctrl.remove_chapter();
                 main_ctrl.ui_event().update_focus();
@@ -132,15 +132,16 @@ impl UIDispatcher for InfoDispatcher {
 
         info_ctrl
             .repeat_btn
-            .connect_clicked(clone!(@strong main_ctrl_rc => move |button| {
+            .connect_clicked(clone!(@weak main_ctrl_rc => move |button| {
                 let mut main_ctrl = main_ctrl_rc.borrow_mut();
                 main_ctrl.info_ctrl.repeat_chapter = button.get_active();
             }));
 
         // Register next chapter action
         app.add_action(&info_ctrl.next_chapter_action);
-        info_ctrl.next_chapter_action.connect_activate(
-            clone!(@strong main_ctrl_rc => move |_, _| {
+        info_ctrl
+            .next_chapter_action
+            .connect_activate(clone!(@weak main_ctrl_rc => move |_, _| {
                 let mut main_ctrl = main_ctrl_rc.borrow_mut();
                 let seek_pos = main_ctrl
                     .info_ctrl
@@ -151,13 +152,12 @@ impl UIDispatcher for InfoDispatcher {
                 if let Some(seek_pos) = seek_pos {
                     main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
                 }
-            }),
-        );
+            }));
 
         // Register previous chapter action
         app.add_action(&info_ctrl.previous_chapter_action);
         info_ctrl.previous_chapter_action.connect_activate(clone!(
-            @strong main_ctrl_rc => move |_, _| {
+            @weak main_ctrl_rc => move |_, _| {
                 let mut main_ctrl = main_ctrl_rc.borrow_mut();
                 if let Some(cur_ts) = main_ctrl.current_ts() {
                     let cur_start = main_ctrl

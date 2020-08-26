@@ -65,15 +65,14 @@ impl InfoBarController {
             self.close_info_bar_action
                 .connect_activate(move |_, _| info_bar.emit_close());
         } else {
-            self.close_info_bar_action.connect_activate(
-                clone!(@strong main_ctrl_rc => move |_, _| {
-                    main_ctrl_rc.borrow_mut().quit()
-                }),
-            );
+            self.close_info_bar_action
+                .connect_activate(clone!(@weak main_ctrl_rc => move |_, _| {
+                    main_ctrl_rc.borrow_mut().quit();
+                }));
 
             self.info_bar
-                .connect_response(clone!(@strong main_ctrl_rc => move |_, _| {
-                    main_ctrl_rc.borrow_mut().quit()
+                .connect_response(clone!(@weak main_ctrl_rc => move |_, _| {
+                    main_ctrl_rc.borrow_mut().quit();
                 }));
         }
     }

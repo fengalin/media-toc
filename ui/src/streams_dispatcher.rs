@@ -63,7 +63,7 @@ macro_rules! register_on_export_toggled(
                 .unwrap()
                 .downcast::<gtk::CellRendererToggle>()
                 .expect("Unexpected `CellRenderer` type for `export` column")
-                .connect_toggled(clone!(@strong main_ctrl_rc => move |_, tree_path| {
+                .connect_toggled(clone!(@weak main_ctrl_rc => move |_, tree_path| {
                     let mut main_ctrl = main_ctrl_rc.borrow_mut();
                     let store = main_ctrl.streams_ctrl.$store.clone();
 

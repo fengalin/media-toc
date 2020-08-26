@@ -60,7 +60,7 @@ where
             ui_event_clone.switch_to(Impl::CtrlImpl::FOCUS_CONTEXT);
         });
 
-        ctrl.btn.connect_clicked(clone!(@strong main_ctrl_rc => move |_| {
+        ctrl.btn.connect_clicked(clone!(@weak main_ctrl_rc => move |_| {
             let mut main_ctrl = main_ctrl_rc.borrow_mut();
             main_ctrl.pause_and_callback(Box::new(|main_ctrl: &mut MainController| {
                 if !Impl::ctrl_mut(main_ctrl).is_busy {
@@ -75,7 +75,7 @@ where
         }));
 
         ctrl.new_media_event_handler = Some(Box::new(
-            clone!(@strong main_ctrl_rc => move |receiver| {
+            clone!(@weak main_ctrl_rc => @default-panic, move |receiver| {
                 let main_ctrl_rc = Rc::clone(&main_ctrl_rc);
                 async move {
                     let mut receiver = receiver;
@@ -96,22 +96,24 @@ where
             }),
         ));
 
-        ctrl.new_progress_updater = Some(Box::new(clone!(@strong main_ctrl_rc => move || {
-            let main_ctrl_rc = Rc::clone(&main_ctrl_rc);
-            async move {
-                let mut stream = glib::interval_stream(PROGRESS_TIMER_PERIOD);
-                loop {
-                    let _ = stream.next().await;
-                    if Impl::ctrl_ref_mut(&main_ctrl_rc).update_progress().is_err() {
-                        break;
+        ctrl.new_progress_updater = Some(Box::new(
+            clone!(@weak main_ctrl_rc => @default-panic, move || {
+                let main_ctrl_rc = Rc::clone(&main_ctrl_rc);
+                async move {
+                    let mut stream = glib::interval_stream(PROGRESS_TIMER_PERIOD);
+                    loop {
+                        let _ = stream.next().await;
+                        if Impl::ctrl_ref_mut(&main_ctrl_rc).update_progress().is_err() {
+                            break;
+                        }
                     }
-                }
-            }.boxed_local()
-        })));
+                }.boxed_local()
+            }),
+        ));
 
         let btn = ctrl.btn.clone();
         ctrl.new_processing_state_handler = Some(Box::new(clone!(
-            @strong main_ctrl_rc, @strong ui_event => move |state| {
+            @weak main_ctrl_rc, @strong ui_event => @default-panic, move |state| {
                 let main_ctrl_rc = Rc::clone(&main_ctrl_rc);
                 let ui_event = ui_event.clone();
                 let btn = btn.clone();

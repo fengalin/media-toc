@@ -27,7 +27,7 @@ impl UIDispatcher for VideoDispatcher {
                     .set_events(gdk::EventMask::BUTTON_PRESS_MASK);
 
                 video_ctrl.container.connect_button_press_event(
-                    clone!(@strong main_ctrl_rc => move |_, _| {
+                    clone!(@weak main_ctrl_rc => @default-panic, move |_, _| {
                         main_ctrl_rc.borrow_mut().play_pause();
                         Inhibit(true)
                     }),
