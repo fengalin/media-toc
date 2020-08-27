@@ -29,6 +29,7 @@ const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
 pub enum ControllerState {
     EOS,
     Paused,
+    PausedPlayingRange(Timestamp),
     PendingPaused,
     PendingSelectMedia,
     PendingSelectMediaDecision,
@@ -213,27 +214,33 @@ impl MainController {
             }
         };
 
-        if self.state != ControllerState::EOS {
-            match pipeline.state() {
-                gst::State::Paused => {
-                    self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
-                    self.state = ControllerState::Playing;
-                    self.audio_ctrl.switch_to_playing();
-                    pipeline.play().unwrap();
-                }
-                gst::State::Playing => {
-                    pipeline.pause().unwrap();
-                    self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
-                    self.state = ControllerState::Paused;
-                    self.audio_ctrl.switch_to_not_playing();
-                }
-                _ => {
-                    self.select_media();
-                }
-            };
-        } else {
-            // Restart the stream from the begining
-            self.seek(Timestamp::default(), gst::SeekFlags::ACCURATE);
+        match self.state {
+            ControllerState::Paused => {
+                self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
+                self.state = ControllerState::Playing;
+                self.audio_ctrl.switch_to_playing();
+                pipeline.play().unwrap();
+            }
+            ControllerState::PlayingRange(to_restore) => {
+                pipeline.pause().unwrap();
+                self.state = ControllerState::PausedPlayingRange(to_restore);
+            }
+            ControllerState::Playing => {
+                pipeline.pause().unwrap();
+                self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
+                self.state = ControllerState::Paused;
+                self.audio_ctrl.switch_to_not_playing();
+            }
+            ControllerState::PausedPlayingRange(to_restore) => {
+                pipeline.play().unwrap();
+                self.state = ControllerState::PlayingRange(to_restore);
+            }
+            ControllerState::EOS => {
+                // Restart the stream from the begining
+                self.seek(Timestamp::default(), gst::SeekFlags::ACCURATE);
+            }
+            ControllerState::Stopped => self.select_media(),
+            _ => (),
         }
     }
 
