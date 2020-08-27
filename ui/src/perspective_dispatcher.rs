@@ -10,11 +10,7 @@ macro_rules! gtk_downcast(
     ($source:expr, $target_type:ty, $item_name:expr) => {
         $source.clone()
             .downcast::<$target_type>()
-            .expect(&format!(concat!("PerspectiveController ",
-                    "unexpected type for perspective item {:?}",
-                ),
-                $item_name,
-            ))
+            .unwrap_or_else(|_| panic!("Unexpected type for perspective item {:?}", $item_name))
     };
     ($source:expr, $item_index:expr, $target_type:ty, $item_name:expr) => {
         $source.get_children()
@@ -25,11 +21,7 @@ macro_rules! gtk_downcast(
             ))
             .clone()
             .downcast::<$target_type>()
-            .expect(&format!(concat!("PerspectiveController ",
-                    "unexpected type for perspective item {:?}",
-                ),
-                $item_name,
-            ))
+            .unwrap_or_else(|_| panic!("Unexpected type for perspective item {:?}", $item_name))
     };
 );
 
@@ -55,9 +47,8 @@ impl UIDispatcher for PerspectiveDispatcher {
 
         let popover_box = gtk_downcast!(perspective_ctrl.popover, 0, gtk::Box, "popover");
 
-        let mut index = 0;
         let stack_children = perspective_ctrl.stack.get_children();
-        for perspective_box_child in popover_box.get_children() {
+        for (index, perspective_box_child) in popover_box.get_children().iter().enumerate() {
             let stack_child = stack_children.get(index).unwrap_or_else(|| {
                 panic!("PerspectiveController no stack child for index {:?}", index)
             });
@@ -135,8 +126,6 @@ impl UIDispatcher for PerspectiveDispatcher {
                     button.connect_clicked(move |_| event());
                 }
             }
-
-            index += 1;
         }
     }
 }
