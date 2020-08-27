@@ -48,6 +48,7 @@ pub enum ControllerState {
     CursorAboveBoundary(Timestamp),
     MovingBoundary(Timestamp),
     Playing,
+    PlayingRange(Timestamp),
     Paused,
 }
 
@@ -218,7 +219,10 @@ impl AudioController {
         self.drawingarea.queue_draw();
     }
 
-    pub fn first_ts_for_seek_back(&self, target: Timestamp) -> Option<Timestamp> {
+    /// Finds the first timestamp for a seek in Paused state.
+    ///
+    /// This is used as an attempt to center the waveform on the target timestamp.
+    pub fn first_ts_for_paused_seek(&self, target: Timestamp) -> Option<Timestamp> {
         let (lower_ts, upper_ts, half_window_duration) = {
             let waveform_renderer = self.waveform_renderer_mtx.lock().unwrap();
             let limits = waveform_renderer.limits_as_ts();
@@ -235,7 +239,7 @@ impl AudioController {
                 None
             }
         } else {
-            Some(Timestamp::default())
+            None
         }
     }
 
@@ -270,8 +274,10 @@ impl AudioController {
         }
     }
 
-    pub fn start_play_range(&mut self) {
+    pub fn start_play_range(&mut self, to_restore: Timestamp) {
         if self.state != ControllerState::Disabled {
+            self.state = ControllerState::PlayingRange(to_restore);
+
             self.waveform_renderer_mtx
                 .lock()
                 .unwrap()
@@ -283,6 +289,7 @@ impl AudioController {
 
     pub fn stop_play_range(&mut self) {
         if self.state != ControllerState::Disabled {
+            self.state = ControllerState::Paused;
             self.remove_tick_callback();
         }
     }
@@ -639,6 +646,10 @@ impl AudioController {
                         ControllerState::Playing | ControllerState::Paused => {
                             self.ui_event.seek(ts, gst::SeekFlags::ACCURATE);
                         }
+                        ControllerState::PlayingRange(_) => {
+                            self.stop_play_range();
+                            self.ui_event.seek(ts, gst::SeekFlags::ACCURATE);
+                        }
                         ControllerState::CursorAboveBoundary(boundary) => {
                             self.state = ControllerState::MovingBoundary(boundary);
                         }
@@ -647,15 +658,19 @@ impl AudioController {
                 }
             }
             3 => {
-                // right button => segment playback in Paused state
-                if self.state == ControllerState::Paused {
-                    if let Some(cursor) = &self.positions.cursor {
-                        let cursor_ts = cursor.ts;
-                        if let Some(start) = self.ts_at(event_button.get_position().0) {
-                            let end =
-                                start + MIN_RANGE_DURATION.max(self.positions.last.ts - start);
-                            self.ui_event.play_range(start, end, cursor_ts);
+                // right button => range playback in Paused state
+                if let Some(start) = self.ts_at(event_button.get_position().0) {
+                    let to_restore = match self.state {
+                        ControllerState::Paused => {
+                            self.positions.cursor.as_ref().map(|cursor| cursor.ts)
                         }
+                        ControllerState::PlayingRange(to_restore) => Some(to_restore),
+                        _ => None,
+                    };
+
+                    if let Some(to_restore) = to_restore {
+                        let end = start + MIN_RANGE_DURATION.max(self.positions.last.ts - start);
+                        self.ui_event.play_range(start, end, to_restore);
                     }
                 }
             }

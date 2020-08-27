@@ -245,19 +245,23 @@ impl MainController {
         self.info_ctrl.move_chapter_boundary(boundary, target)
     }
 
-    pub fn seek(&mut self, target: Timestamp, flags: gst::SeekFlags) {
-        let mut seek_ts = target;
-        let mut flags = flags;
+    pub fn seek(&mut self, mut ts: Timestamp, mut flags: gst::SeekFlags) {
         let mut must_update_info = false;
         self.state = match self.state {
             ControllerState::Playing => ControllerState::Seeking,
-            ControllerState::Paused => {
+            ControllerState::Paused | ControllerState::PlayingRange(_) => {
+                if let ControllerState::PlayingRange(_) = self.state {
+                    self.pipeline.as_ref().unwrap().pause().unwrap();
+                    self.audio_ctrl.stop_play_range();
+                }
+
                 flags = gst::SeekFlags::ACCURATE;
-                let seek_1st_step = self.audio_ctrl.first_ts_for_seek_back(target);
+                let seek_1st_step = self.audio_ctrl.first_ts_for_paused_seek(ts);
                 match seek_1st_step {
                     Some(seek_1st_step) => {
-                        seek_ts = seek_1st_step;
-                        ControllerState::TwoStepsSeek(target)
+                        let seek_2s_step = ts;
+                        ts = seek_1st_step;
+                        ControllerState::TwoStepsSeek(seek_2s_step)
                     }
                     None => {
                         must_update_info = true;
@@ -272,7 +276,7 @@ impl MainController {
                 // Currently, I think it is better to favor completing the in-progress
                 // `TwoStepsSeek` (which purpose is to center the cursor on the waveform)
                 // than reaching for the latest seeked position
-                seek_ts = target;
+                ts = target;
                 must_update_info = true;
                 ControllerState::Seeking
             }
@@ -283,23 +287,26 @@ impl MainController {
             _ => return,
         };
 
-        debug!("seek {} {:?}", seek_ts, self.state);
+        debug!("seek {} {:?}", ts, self.state);
 
         if must_update_info {
-            self.info_ctrl.seek(seek_ts);
+            self.info_ctrl.seek(ts);
         }
 
-        self.audio_ctrl.seek(seek_ts);
+        self.audio_ctrl.seek(ts);
 
-        self.pipeline.as_ref().unwrap().seek(seek_ts, flags);
+        self.pipeline.as_ref().unwrap().seek(ts, flags);
     }
 
     pub fn play_range(&mut self, start: Timestamp, end: Timestamp, to_restore: Timestamp) {
-        if self.state == ControllerState::Paused {
-            self.audio_ctrl.start_play_range();
+        match self.state {
+            ControllerState::Paused | ControllerState::PlayingRange(_) => {
+                self.audio_ctrl.start_play_range(to_restore);
 
-            self.state = ControllerState::PlayingRange(to_restore);
-            self.pipeline.as_ref().unwrap().seek_range(start, end);
+                self.state = ControllerState::PlayingRange(to_restore);
+                self.pipeline.as_ref().unwrap().seek_range(start, end);
+            }
+            _ => (),
         }
     }
 
@@ -414,8 +421,9 @@ impl MainController {
                         PlaybackState::Playing => ControllerState::Playing,
                         PlaybackState::Paused => ControllerState::Paused,
                     };
+
+                    self.audio_ctrl.seek_complete();
                 }
-                self.audio_ctrl.seek_complete();
             }
             MediaEvent::InitDone => {
                 debug!("received `InitDone`");
