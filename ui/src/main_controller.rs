@@ -33,6 +33,7 @@ pub enum ControllerState {
     PendingPaused,
     PendingSelectMedia,
     PendingSelectMediaDecision,
+    PendingSeek(Timestamp),
     Playing,
     PlayingRange(Timestamp),
     Seeking,
@@ -256,12 +257,7 @@ impl MainController {
         let mut must_update_info = false;
         self.state = match self.state {
             ControllerState::Playing => ControllerState::Seeking,
-            ControllerState::Paused | ControllerState::PlayingRange(_) => {
-                if let ControllerState::PlayingRange(_) = self.state {
-                    self.pipeline.as_ref().unwrap().pause().unwrap();
-                    self.audio_ctrl.stop_play_range();
-                }
-
+            ControllerState::Paused => {
                 flags = gst::SeekFlags::ACCURATE;
                 let seek_1st_step = self.audio_ctrl.first_ts_for_paused_seek(ts);
                 match seek_1st_step {
@@ -275,6 +271,13 @@ impl MainController {
                         ControllerState::Seeking
                     }
                 }
+            }
+            ControllerState::PlayingRange(_) => {
+                self.pipeline.as_ref().unwrap().pause().unwrap();
+                self.audio_ctrl.stop_play_range();
+
+                self.state = ControllerState::PendingSeek(ts);
+                return;
             }
             ControllerState::TwoStepsSeek(target) => {
                 // seeked position and target might be different if the user
@@ -466,14 +469,17 @@ impl MainController {
                 );
                 self.missing_plugins.insert(plugin);
             }
-            MediaEvent::ReadyToRefresh => match &self.state {
+            MediaEvent::ReadyToRefresh => match self.state {
                 ControllerState::Playing => (),
                 ControllerState::Paused => {
                     self.refresh();
                 }
                 ControllerState::TwoStepsSeek(target) => {
-                    let target = *target; // let go the reference on `self.state`
                     self.seek(target, gst::SeekFlags::ACCURATE);
+                }
+                ControllerState::PendingSeek(ts) => {
+                    self.state = ControllerState::Paused;
+                    self.seek(ts, gst::SeekFlags::ACCURATE);
                 }
                 ControllerState::PendingSelectMedia => {
                     self.select_media();
