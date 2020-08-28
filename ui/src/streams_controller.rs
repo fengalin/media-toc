@@ -144,12 +144,18 @@ impl UIController for StreamsController {
     }
 
     fn cleanup(&mut self) {
-        self.video_store.clear();
         self.video_selected = None;
-        self.audio_store.clear();
+        self.video_treeview
+            .set_cursor(&gtk::TreePath::new(), None::<&gtk::TreeViewColumn>, false);
+        self.video_store.clear();
         self.audio_selected = None;
-        self.text_store.clear();
+        self.audio_treeview
+            .set_cursor(&gtk::TreePath::new(), None::<&gtk::TreeViewColumn>, false);
+        self.audio_store.clear();
         self.text_selected = None;
+        self.text_treeview
+            .set_cursor(&gtk::TreePath::new(), None::<&gtk::TreeViewColumn>, false);
+        self.text_store.clear();
     }
 
     fn grab_focus(&self) {

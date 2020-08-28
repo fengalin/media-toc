@@ -600,10 +600,11 @@ impl MainController {
 
     pub fn cancel_select_media(&mut self) {
         if self.state == ControllerState::PendingSelectMediaDecision {
-            self.state = self
-                .pipeline
-                .as_ref()
-                .map_or(ControllerState::Stopped, |_| ControllerState::Paused);
+            self.state = if self.pipeline.is_some() {
+                ControllerState::Paused
+            } else {
+                ControllerState::Stopped
+            };
         }
     }
 }
