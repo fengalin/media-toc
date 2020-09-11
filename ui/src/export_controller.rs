@@ -2,10 +2,10 @@ use futures::channel::mpsc as async_mpsc;
 
 use gettextrs::gettext;
 use gtk::prelude::*;
-use log::warn;
+use log::{error, warn};
 
 use std::{
-    fs::File,
+    fs,
     path::Path,
     rc::Rc,
     sync::{Arc, RwLock},
@@ -164,18 +164,26 @@ impl MediaProcessor for ExportControllerImpl {
             .format;
         let res = match format {
             Format::MKVMergeText | Format::CueSheet => {
+                self.export_file_info = None;
+
+                let src_info = self.src_info.as_ref().unwrap().read().unwrap();
+                if src_info.toc.is_none() {
+                    let msg = gettext("The table of contents is empty");
+                    error!("{}", msg);
+                    return Err(msg);
+                }
+
                 // export toc as a standalone file
-                File::create(&path)
+                fs::File::create(&path)
                     .map_err(|_| gettext("Failed to create the file for the table of contents"))
                     .and_then(|mut output_file| {
-                        let res = {
-                            let src_info = self.src_info.as_ref().unwrap().read().unwrap();
-                            metadata::Factory::writer(format).write(&src_info, &mut output_file)
-                        };
-                        res.map(|_| {
-                            self.export_file_info = None;
-                            ProcessingState::DoneWithCurrent
-                        })
+                        metadata::Factory::writer(format)
+                            .write(&src_info, &mut output_file)
+                            .map(|_| ProcessingState::DoneWithCurrent)
+                            .map_err(|msg| {
+                                let _ = fs::remove_file(&path);
+                                msg
+                            })
                     })
             }
             Format::Matroska => {

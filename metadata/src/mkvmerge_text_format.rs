@@ -240,12 +240,6 @@ macro_rules! write_fmt(
 
 impl Writer for MKVMergeTextFormat {
     fn write(&self, info: &MediaInfo, destination: &mut dyn Write) -> Result<(), String> {
-        if info.toc.is_none() {
-            let msg = gettext("The table of contents is empty");
-            error!("{}", msg);
-            return Err(msg);
-        }
-
         let mut index = 0;
         let mut toc_visitor = TocVisitor::new(info.toc.as_ref().unwrap());
         while let Some(chapter) = toc_visitor.next_chapter() {

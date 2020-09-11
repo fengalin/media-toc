@@ -35,12 +35,6 @@ macro_rules! write_fmt(
 
 impl Writer for CueSheetFormat {
     fn write(&self, info: &MediaInfo, destination: &mut dyn Write) -> Result<(), String> {
-        if info.toc.is_none() {
-            let msg = gettext("The table of contents is empty");
-            error!("{}", msg);
-            return Err(msg);
-        }
-
         let media_title = info.media_title();
         if let Some(title) = &media_title {
             write_fmt!(destination, "TITLE \"{}\"\n", title);
