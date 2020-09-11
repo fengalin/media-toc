@@ -133,10 +133,9 @@ impl MainController {
         }));
 
         ui_event_handler.have_main_ctrl(&main_ctrl_rc);
-        ui_event_handler.spawn();
-
         let mut main_ctrl = main_ctrl_rc.borrow_mut();
         MainDispatcher::setup(&mut main_ctrl, &main_ctrl_rc, app);
+        ui_event_handler.spawn();
 
         if gst_init_res.is_ok() {
             {
@@ -255,8 +254,8 @@ impl MainController {
 
     pub fn seek(&mut self, mut ts: Timestamp, mut flags: gst::SeekFlags) {
         let mut must_update_info = false;
-        self.state = match self.state {
-            ControllerState::Playing => ControllerState::Seeking,
+        match self.state {
+            ControllerState::Playing => self.state = ControllerState::Seeking,
             ControllerState::Paused => {
                 flags = gst::SeekFlags::ACCURATE;
                 let seek_1st_step = self.audio_ctrl.first_ts_for_paused_seek(ts);
@@ -264,11 +263,11 @@ impl MainController {
                     Some(seek_1st_step) => {
                         let seek_2s_step = ts;
                         ts = seek_1st_step;
-                        ControllerState::TwoStepsSeek(seek_2s_step)
+                        self.state = ControllerState::TwoStepsSeek(seek_2s_step)
                     }
                     None => {
                         must_update_info = true;
-                        ControllerState::Seeking
+                        self.state = ControllerState::Seeking
                     }
                 }
             }
@@ -288,14 +287,14 @@ impl MainController {
                 // than reaching for the latest seeked position
                 ts = target;
                 must_update_info = true;
-                ControllerState::Seeking
+                self.state = ControllerState::Seeking;
             }
             ControllerState::EOS => {
                 self.audio_ctrl.switch_to_playing();
-                ControllerState::Seeking
+                self.state = ControllerState::Seeking;
             }
             _ => return,
-        };
+        }
 
         debug!("seek {} {:?}", ts, self.state);
 
@@ -422,11 +421,31 @@ impl MainController {
     }
 
     pub fn handle_media_event(&mut self, event: MediaEvent) -> Result<(), ()> {
-        let mut keep_going = true;
-
-        match event {
-            MediaEvent::AsyncDone(playback_state) => {
-                if let ControllerState::Seeking = self.state {
+        match self.state {
+            ControllerState::Playing => match event {
+                MediaEvent::Eos => {
+                    self.state = ControllerState::EOS;
+                    self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
+                    self.audio_ctrl.switch_to_not_playing();
+                }
+                // FIXME select_stream might be eligible for an async impl
+                MediaEvent::StreamsSelected => self.streams_selected(),
+                _ => (),
+            },
+            ControllerState::PlayingRange(pos_to_restore) => match event {
+                MediaEvent::Eos => {
+                    // end of range => pause and seek back to pos_to_restore
+                    self.pipeline.as_ref().unwrap().pause().unwrap();
+                    self.state = ControllerState::Paused;
+                    self.audio_ctrl.stop_play_range();
+                    self.seek(pos_to_restore, gst::SeekFlags::ACCURATE);
+                }
+                // FIXME select_stream might be eligible for an async impl
+                MediaEvent::StreamsSelected => self.streams_selected(),
+                _ => (),
+            },
+            ControllerState::Seeking => {
+                if let MediaEvent::AsyncDone(playback_state) = event {
                     self.state = match playback_state {
                         PlaybackState::Playing => ControllerState::Playing,
                         PlaybackState::Paused => ControllerState::Paused,
@@ -435,118 +454,112 @@ impl MainController {
                     self.audio_ctrl.seek_complete();
                 }
             }
-            MediaEvent::InitDone => {
-                debug!("received `InitDone`");
-                {
-                    let pipeline = self.pipeline.as_ref().unwrap();
-
-                    self.header_bar
-                        .set_subtitle(Some(pipeline.info.read().unwrap().file_name.as_str()));
-
-                    self.audio_ctrl.new_media(&pipeline);
-                    self.export_ctrl.new_media(&pipeline);
-                    self.info_ctrl.new_media(&pipeline);
-                    self.perspective_ctrl.new_media(&pipeline);
-                    self.split_ctrl.new_media(&pipeline);
-                    self.streams_ctrl.new_media(&pipeline);
-                    self.video_ctrl.new_media(&pipeline);
-                }
-
-                self.streams_selected();
-
-                if let Some(message) = self.check_missing_plugins() {
-                    self.ui_event.show_error(message);
-                }
-
-                self.audio_ctrl.switch_to_not_playing();
-                self.ui_event.reset_cursor();
-                self.state = ControllerState::Paused;
-            }
-            MediaEvent::MissingPlugin(plugin) => {
-                error!(
-                    "{}",
-                    gettext("Missing plugin: {}").replacen("{}", &plugin, 1)
-                );
-                self.missing_plugins.insert(plugin);
-            }
-            MediaEvent::ReadyToRefresh => match self.state {
-                ControllerState::Playing => (),
-                ControllerState::Paused => {
-                    self.refresh();
-                }
-                ControllerState::TwoStepsSeek(target) => {
+            ControllerState::TwoStepsSeek(target) => {
+                if let MediaEvent::ReadyToRefresh = event {
                     self.seek(target, gst::SeekFlags::ACCURATE);
                 }
-                ControllerState::PendingSeek(ts) => {
+            }
+            ControllerState::Paused => match event {
+                MediaEvent::ReadyToRefresh => self.refresh(),
+                // FIXME select_stream might be eligible for an async impl
+                MediaEvent::StreamsSelected => self.streams_selected(),
+                _ => (),
+            },
+            ControllerState::EOS | ControllerState::PausedPlayingRange(_) => {
+                if let MediaEvent::StreamsSelected = event {
+                    // FIXME select_stream might be eligible for an async impl
+                    self.streams_selected();
+                }
+            }
+            // FIXME Pending states seem to be eligible for async implementations
+            ControllerState::PendingSeek(ts) => {
+                if let MediaEvent::ReadyToRefresh = event {
                     self.state = ControllerState::Paused;
                     self.seek(ts, gst::SeekFlags::ACCURATE);
                 }
-                ControllerState::PendingSelectMedia => {
-                    self.select_media();
-                }
-                ControllerState::PendingPaused => {
+            }
+            ControllerState::PendingPaused => {
+                if let MediaEvent::ReadyToRefresh = event {
                     self.state = ControllerState::Paused;
                     if let Some(callback) = self.callback_when_paused.take() {
                         callback(self)
                     }
                 }
+            }
+            ControllerState::PendingSelectMedia => {
+                if let MediaEvent::ReadyToRefresh = event {
+                    self.select_media();
+                }
+            }
+            ControllerState::Stopped | ControllerState::PendingSelectMediaDecision => match event {
+                MediaEvent::InitDone => {
+                    debug!("received `InitDone`");
+                    {
+                        let pipeline = self.pipeline.as_ref().unwrap();
+
+                        self.header_bar
+                            .set_subtitle(Some(pipeline.info.read().unwrap().file_name.as_str()));
+
+                        self.audio_ctrl.new_media(&pipeline);
+                        self.export_ctrl.new_media(&pipeline);
+                        self.info_ctrl.new_media(&pipeline);
+                        self.perspective_ctrl.new_media(&pipeline);
+                        self.split_ctrl.new_media(&pipeline);
+                        self.streams_ctrl.new_media(&pipeline);
+                        self.video_ctrl.new_media(&pipeline);
+                    }
+
+                    self.streams_selected();
+
+                    if let Some(message) = self.check_missing_plugins() {
+                        self.ui_event.show_error(message);
+                    }
+
+                    self.audio_ctrl.switch_to_not_playing();
+                    self.ui_event.reset_cursor();
+                    self.state = ControllerState::Paused;
+                }
+                MediaEvent::MissingPlugin(plugin) => {
+                    error!(
+                        "{}",
+                        gettext("Missing plugin: {}").replacen("{}", &plugin, 1)
+                    );
+                    self.missing_plugins.insert(plugin);
+                }
+                MediaEvent::FailedToOpenMedia(error) => {
+                    self.pipeline = None;
+                    self.state = ControllerState::Stopped;
+                    self.ui_event.reset_cursor();
+
+                    let mut error = gettext("Error opening file.\n\n{}").replacen("{}", &error, 1);
+                    if let Some(message) = self.check_missing_plugins() {
+                        error += "\n\n";
+                        error += &message;
+                    }
+                    self.ui_event.show_error(error);
+
+                    return Err(());
+                }
+                MediaEvent::GLSinkError => {
+                    self.pipeline = None;
+                    self.state = ControllerState::Stopped;
+                    self.ui_event.reset_cursor();
+
+                    let mut config = CONFIG.write().expect("Failed to get CONFIG as mut");
+                    config.media.is_gl_disabled = true;
+                    config.save();
+
+                    self.ui_event.show_error(gettext(
+    "Video rendering hardware acceleration seems broken and has been disabled.\nPlease restart the application.",
+                    ));
+
+                    return Err(());
+                }
                 _ => (),
             },
-            MediaEvent::StreamsSelected => self.streams_selected(),
-            MediaEvent::Eos => {
-                match self.state {
-                    ControllerState::PlayingRange(pos_to_restore) => {
-                        // end of range => pause and seek back to pos_to_restore
-                        self.pipeline.as_ref().unwrap().pause().unwrap();
-                        self.state = ControllerState::Paused;
-                        self.audio_ctrl.stop_play_range();
-                        self.seek(pos_to_restore, gst::SeekFlags::ACCURATE);
-                    }
-                    _ => {
-                        self.state = ControllerState::EOS;
-                        self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
-                        self.audio_ctrl.switch_to_not_playing();
-                    }
-                }
-            }
-            MediaEvent::FailedToOpenMedia(error) => {
-                self.pipeline = None;
-                self.state = ControllerState::Stopped;
-                self.ui_event.reset_cursor();
-
-                keep_going = false;
-
-                let mut error = gettext("Error opening file.\n\n{}").replacen("{}", &error, 1);
-                if let Some(message) = self.check_missing_plugins() {
-                    error += "\n\n";
-                    error += &message;
-                }
-                self.ui_event.show_error(error);
-            }
-            MediaEvent::GLSinkError => {
-                self.pipeline = None;
-                self.state = ControllerState::Stopped;
-                self.ui_event.reset_cursor();
-
-                let mut config = CONFIG.write().expect("Failed to get CONFIG as mut");
-                config.media.is_gl_disabled = true;
-                config.save();
-
-                keep_going = false;
-
-                self.ui_event.show_error(gettext(
-"Video rendering hardware acceleration seems broken and has been disabled.\nPlease restart the application.",
-                ));
-            }
-            _ => (),
         }
 
-        if keep_going {
-            Ok(())
-        } else {
-            self.audio_ctrl.switch_to_not_playing();
-            Err(())
-        }
+        Ok(())
     }
 
     pub fn select_media(&mut self) {
