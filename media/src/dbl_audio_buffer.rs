@@ -245,10 +245,6 @@ impl<SE: SampleExtractor + 'static> DoubleAudioBuffer<SE> {
         {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
 
-            if self.state != gst::State::Playing {
-                exposed_buffer_box.switch_to_paused();
-            }
-
             // get latest state from the previously exposed buffer
             working_buffer.update_concrete_state(exposed_buffer_box.as_mut());
 

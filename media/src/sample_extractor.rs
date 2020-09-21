@@ -57,19 +57,17 @@ pub trait SampleExtractor: Send {
 
     fn req_sample_window(&self) -> Option<SampleIndexRange>;
 
-    fn switch_to_paused(&mut self);
-
     // update self with concrete state of other
     // which is expected to be the same concrete type
     // this update is intended at smoothening the specific
     // extraction process by keeping conditions between frames
     fn update_concrete_state(&mut self, other: &mut Self);
 
-    fn current_sample(&mut self) -> Option<(Timestamp, SampleIndex)> {
+    fn current_sample(&self) -> Option<(Timestamp, SampleIndex)> {
         let state = &self.extraction_state();
 
         let mut query = gst::query::Position::new(gst::Format::Time);
-        if !state.audio_ref.as_ref().unwrap().query(&mut query) {
+        if !state.audio_ref.as_ref()?.query(&mut query) {
             return None;
         }
 

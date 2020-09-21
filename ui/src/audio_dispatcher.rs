@@ -59,7 +59,7 @@ impl UIDispatcher for AudioDispatcher {
                         main_ctrl.move_chapter_boundary(boundary, position)
                     {
                         main_ctrl.audio_ctrl.state = ControllerState::MovingBoundary(position);
-                        main_ctrl.audio_ctrl.redraw();
+                        main_ctrl.audio_ctrl.drawingarea.queue_draw();
                     }
                 }
                 Inhibit(true)

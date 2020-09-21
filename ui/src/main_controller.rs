@@ -27,6 +27,7 @@ const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ControllerState {
+    CompletePlayRange(Timestamp),
     EOS,
     Paused,
     PausedPlayingRange(Timestamp),
@@ -218,22 +219,26 @@ impl MainController {
             ControllerState::Paused => {
                 self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
                 self.state = ControllerState::Playing;
-                self.audio_ctrl.switch_to_playing();
+                self.audio_ctrl.play();
+                pipeline.play().unwrap();
+            }
+            ControllerState::PausedPlayingRange(to_restore) => {
+                self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
+                self.state = ControllerState::PlayingRange(to_restore);
+                self.audio_ctrl.play();
                 pipeline.play().unwrap();
             }
             ControllerState::PlayingRange(to_restore) => {
-                pipeline.pause().unwrap();
+                self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
                 self.state = ControllerState::PausedPlayingRange(to_restore);
+                pipeline.pause().unwrap();
+                self.audio_ctrl.pause();
             }
             ControllerState::Playing => {
-                pipeline.pause().unwrap();
                 self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
                 self.state = ControllerState::Paused;
-                self.audio_ctrl.switch_to_not_playing();
-            }
-            ControllerState::PausedPlayingRange(to_restore) => {
-                pipeline.play().unwrap();
-                self.state = ControllerState::PlayingRange(to_restore);
+                self.audio_ctrl.pause();
+                pipeline.pause().unwrap();
             }
             ControllerState::EOS => {
                 // Restart the stream from the begining
@@ -253,28 +258,31 @@ impl MainController {
     }
 
     pub fn seek(&mut self, mut ts: Timestamp, mut flags: gst::SeekFlags) {
-        let mut must_update_info = false;
         match self.state {
-            ControllerState::Playing => self.state = ControllerState::Seeking,
-            ControllerState::Paused => {
+            ControllerState::Playing => {
+                self.state = ControllerState::Seeking;
+                self.audio_ctrl.seek();
+            }
+            ControllerState::Paused | ControllerState::PausedPlayingRange(_) => {
                 flags = gst::SeekFlags::ACCURATE;
                 let seek_1st_step = self.audio_ctrl.first_ts_for_paused_seek(ts);
                 match seek_1st_step {
                     Some(seek_1st_step) => {
-                        let seek_2s_step = ts;
+                        let seek_2d_step = ts;
                         ts = seek_1st_step;
-                        self.state = ControllerState::TwoStepsSeek(seek_2s_step)
+                        self.info_ctrl.seek(seek_2d_step);
+                        self.audio_ctrl.seek();
+                        self.state = ControllerState::TwoStepsSeek(seek_2d_step)
                     }
                     None => {
-                        must_update_info = true;
+                        self.info_ctrl.seek(ts);
+                        self.audio_ctrl.seek();
                         self.state = ControllerState::Seeking
                     }
                 }
             }
             ControllerState::PlayingRange(_) => {
                 self.pipeline.as_ref().unwrap().pause().unwrap();
-                self.audio_ctrl.stop_play_range();
-
                 self.state = ControllerState::PendingSeek(ts);
                 return;
             }
@@ -286,30 +294,27 @@ impl MainController {
                 // `TwoStepsSeek` (which purpose is to center the cursor on the waveform)
                 // than reaching for the latest seeked position
                 ts = target;
-                must_update_info = true;
                 self.state = ControllerState::Seeking;
             }
             ControllerState::EOS => {
-                self.audio_ctrl.switch_to_playing();
+                self.audio_ctrl.play();
                 self.state = ControllerState::Seeking;
+                self.audio_ctrl.seek();
             }
             _ => return,
         }
 
-        debug!("seek {} {:?}", ts, self.state);
-
-        if must_update_info {
-            self.info_ctrl.seek(ts);
-        }
-
-        self.audio_ctrl.seek(ts);
+        debug!("triggerging seek {} {:?}", ts, self.state);
 
         self.pipeline.as_ref().unwrap().seek(ts, flags);
     }
 
     pub fn play_range(&mut self, start: Timestamp, end: Timestamp, to_restore: Timestamp) {
         match self.state {
-            ControllerState::Paused | ControllerState::PlayingRange(_) => {
+            ControllerState::Paused
+            | ControllerState::PlayingRange(_)
+            | ControllerState::PausedPlayingRange(_) => {
+                self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
                 self.audio_ctrl.start_play_range(to_restore);
 
                 self.state = ControllerState::PlayingRange(to_restore);
@@ -323,7 +328,7 @@ impl MainController {
         self.pipeline.as_mut().unwrap().current_ts()
     }
 
-    pub fn refresh(&mut self) {
+    pub fn redraw(&mut self) {
         self.audio_ctrl.redraw();
     }
 
@@ -355,7 +360,7 @@ impl MainController {
 
     pub fn hold(&mut self) {
         self.ui_event.set_cursor_waiting();
-        self.audio_ctrl.switch_to_not_playing();
+        self.audio_ctrl.pause();
         self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
 
         if let Some(pipeline) = self.pipeline.as_mut() {
@@ -364,7 +369,7 @@ impl MainController {
     }
 
     pub fn pause_and_callback(&mut self, callback: Box<dyn Fn(&mut MainController)>) {
-        self.audio_ctrl.switch_to_not_playing();
+        self.audio_ctrl.pause();
         self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
 
         if let Some(pipeline) = self.pipeline.as_mut() {
@@ -426,7 +431,7 @@ impl MainController {
                 MediaEvent::Eos => {
                     self.state = ControllerState::EOS;
                     self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
-                    self.audio_ctrl.switch_to_not_playing();
+                    self.audio_ctrl.pause();
                 }
                 // FIXME select_stream might be eligible for an async impl
                 MediaEvent::StreamsSelected => self.streams_selected(),
@@ -436,22 +441,34 @@ impl MainController {
                 MediaEvent::Eos => {
                     // end of range => pause and seek back to pos_to_restore
                     self.pipeline.as_ref().unwrap().pause().unwrap();
-                    self.state = ControllerState::Paused;
-                    self.audio_ctrl.stop_play_range();
-                    self.seek(pos_to_restore, gst::SeekFlags::ACCURATE);
+                    self.state = ControllerState::CompletePlayRange(pos_to_restore);
                 }
                 // FIXME select_stream might be eligible for an async impl
                 MediaEvent::StreamsSelected => self.streams_selected(),
                 _ => (),
             },
+            ControllerState::CompletePlayRange(pos_to_restore) => match event {
+                MediaEvent::ReadyToRefresh => {
+                    self.pipeline
+                        .as_ref()
+                        .unwrap()
+                        .seek(pos_to_restore, gst::SeekFlags::ACCURATE);
+                }
+                MediaEvent::AsyncDone(_) => {
+                    self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
+                    self.state = ControllerState::Paused;
+                    self.audio_ctrl.stop_play_range();
+                }
+                _ => (),
+            },
             ControllerState::Seeking => {
                 if let MediaEvent::AsyncDone(playback_state) = event {
-                    self.state = match playback_state {
-                        PlaybackState::Playing => ControllerState::Playing,
-                        PlaybackState::Paused => ControllerState::Paused,
-                    };
+                    match playback_state {
+                        PlaybackState::Playing => self.state = ControllerState::Playing,
+                        PlaybackState::Paused => self.state = ControllerState::Paused,
+                    }
 
-                    self.audio_ctrl.seek_complete();
+                    self.audio_ctrl.seek_done();
                 }
             }
             ControllerState::TwoStepsSeek(target) => {
@@ -460,7 +477,7 @@ impl MainController {
                 }
             }
             ControllerState::Paused => match event {
-                MediaEvent::ReadyToRefresh => self.refresh(),
+                MediaEvent::ReadyToRefresh => self.audio_ctrl.refresh(),
                 // FIXME select_stream might be eligible for an async impl
                 MediaEvent::StreamsSelected => self.streams_selected(),
                 _ => (),
@@ -515,7 +532,7 @@ impl MainController {
                         self.ui_event.show_error(message);
                     }
 
-                    self.audio_ctrl.switch_to_not_playing();
+                    self.audio_ctrl.pause();
                     self.ui_event.reset_cursor();
                     self.state = ControllerState::Paused;
                 }

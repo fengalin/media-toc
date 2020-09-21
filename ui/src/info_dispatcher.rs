@@ -94,7 +94,7 @@ impl UIDispatcher for InfoDispatcher {
                         .chapter_manager
                         .rename_selected(new_title);
                     // reflect title modification in other parts of the UI (audio waveform)
-                    main_ctrl.refresh();
+                    main_ctrl.redraw();
                     main_ctrl.ui_event().restore_context();
                 }
             ));

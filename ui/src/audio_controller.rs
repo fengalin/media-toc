@@ -45,11 +45,15 @@ const CURSOR_TEXT_H: &str = "00:00:00.000.000";
 #[derive(Debug, PartialEq)]
 pub enum ControllerState {
     Disabled,
+    // FIXME those two are more cursor specific than Controller specific
     CursorAboveBoundary(Timestamp),
     MovingBoundary(Timestamp),
     Playing,
     PlayingRange(Timestamp),
     Paused,
+    PausedPlayingRange(Timestamp),
+    SeekingPaused,
+    SeekingPlaying,
 }
 
 #[derive(Default)]
@@ -145,7 +149,7 @@ impl UIController for AudioController {
         // clearing it is under the responsiblity of ChapterTreeManager
         self.text_metrics = TextMetrics::default();
         self.update_conditions();
-        self.redraw();
+        self.refresh();
     }
 
     fn streams_changed(&mut self, info: &MediaInfo) {
@@ -219,6 +223,18 @@ impl AudioController {
         self.drawingarea.queue_draw();
     }
 
+    pub fn refresh(&self) {
+        self.refresh_buffer();
+
+        {
+            let mut waveform_renderer = self.waveform_renderer_mtx.lock().unwrap();
+            waveform_renderer.refresh_cursor();
+            waveform_renderer.refresh_window();
+        }
+
+        self.redraw();
+    }
+
     /// Finds the first timestamp for a seek in Paused state.
     ///
     /// This is used as an attempt to center the waveform on the target timestamp.
@@ -239,64 +255,100 @@ impl AudioController {
                 None
             }
         } else {
-            None
+            Some(Timestamp::default())
         }
     }
 
-    pub fn seek(&mut self, target: Timestamp) {
-        if self.state == ControllerState::Disabled {
-            return;
+    pub fn pause(&mut self) {
+        match self.state {
+            ControllerState::Playing => {
+                self.state = ControllerState::Paused;
+            }
+            ControllerState::PlayingRange(ts) => {
+                self.state = ControllerState::PausedPlayingRange(ts);
+            }
+            _ => return,
         }
 
-        self.waveform_renderer_mtx.lock().unwrap().seek(target);
+        self.waveform_renderer_mtx.lock().unwrap().freeze();
 
-        if self.state != ControllerState::Playing {
-            // refresh the buffer in order to render the waveform
-            // with samples that might not be rendered in current WaveformImage yet
-            self.dbl_renderer_mtx.lock().unwrap().refresh();
-        }
+        self.refresh_buffer();
+        self.remove_tick_callback();
         self.redraw();
     }
 
-    pub fn switch_to_not_playing(&mut self) {
-        if self.state != ControllerState::Disabled {
-            self.state = ControllerState::Paused;
-            self.refresh_buffer();
-            self.remove_tick_callback();
-            self.redraw();
+    pub fn play(&mut self) {
+        match self.state {
+            ControllerState::Paused => {
+                self.state = ControllerState::Playing;
+            }
+            ControllerState::PausedPlayingRange(ts) => {
+                self.state = ControllerState::PlayingRange(ts);
+            }
+            _ => return,
         }
+
+        self.waveform_renderer_mtx.lock().unwrap().release();
+        self.register_tick_callback();
     }
 
-    pub fn switch_to_playing(&mut self) {
-        if self.state != ControllerState::Disabled {
-            self.state = ControllerState::Playing;
-            self.register_tick_callback();
+    pub fn seek(&mut self) {
+        match self.state {
+            ControllerState::Playing => self.state = ControllerState::SeekingPlaying,
+            ControllerState::Paused => self.state = ControllerState::SeekingPaused,
+            ControllerState::PlayingRange(_) => {
+                self.remove_tick_callback();
+                self.state = ControllerState::SeekingPaused;
+            }
+            ControllerState::PausedPlayingRange(_) => {
+                self.state = ControllerState::SeekingPaused;
+            }
+            ControllerState::Disabled => return,
+            _ => (),
         }
+
+        self.waveform_renderer_mtx.lock().unwrap().seek();
+    }
+
+    pub fn seek_done(&mut self) {
+        match self.state {
+            ControllerState::SeekingPlaying => {
+                self.state = ControllerState::Playing;
+            }
+            ControllerState::SeekingPaused => {
+                self.state = ControllerState::Paused;
+                self.waveform_renderer_mtx.lock().unwrap().seek_done();
+                self.refresh_buffer();
+                self.waveform_renderer_mtx.lock().unwrap().refresh_window()
+            }
+            _ => unreachable!("seek_done in {:?}", self.state),
+        }
+
+        self.last_other_ui_refresh = Timestamp::default();
+        self.redraw();
     }
 
     pub fn start_play_range(&mut self, to_restore: Timestamp) {
-        if self.state != ControllerState::Disabled {
-            self.state = ControllerState::PlayingRange(to_restore);
-
-            self.waveform_renderer_mtx
-                .lock()
-                .unwrap()
-                .start_play_range();
-
-            self.register_tick_callback();
+        match self.state {
+            ControllerState::PlayingRange(_) => {
+                self.state = ControllerState::PlayingRange(to_restore);
+            }
+            ControllerState::Paused | ControllerState::PausedPlayingRange(_) => {
+                self.state = ControllerState::PlayingRange(to_restore);
+                self.register_tick_callback();
+            }
+            _ => unreachable!("start_play_range in {:?}", self.state),
         }
     }
 
     pub fn stop_play_range(&mut self) {
-        if self.state != ControllerState::Disabled {
-            self.state = ControllerState::Paused;
-            self.remove_tick_callback();
+        match self.state {
+            ControllerState::PlayingRange(_) => {
+                self.remove_tick_callback();
+                self.state = ControllerState::Paused;
+            }
+            _ => unreachable!("stop_play_range in {:?}", self.state),
         }
-    }
-
-    pub fn seek_complete(&mut self) {
-        self.waveform_renderer_mtx.lock().unwrap().seek_complete();
-        self.last_other_ui_refresh = Timestamp::default();
     }
 
     fn remove_tick_callback(&mut self) {
@@ -406,8 +458,7 @@ impl AudioController {
                 );
             }
 
-            self.refresh_buffer();
-            self.redraw();
+            self.refresh();
         }
     }
 
@@ -441,23 +492,34 @@ impl AudioController {
             self.refresh_buffer();
         }
 
-        self.redraw();
+        if let ControllerState::Playing | ControllerState::PlayingRange(_) = self.state {
+            self.redraw();
+        }
     }
 
     pub fn draw(&mut self, _da: &gtk::DrawingArea, cr: &cairo::Context) -> Option<Timestamp> {
         cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
         cr.paint();
 
-        if self.state == ControllerState::Disabled {
+        if ControllerState::Disabled == self.state {
             // Not active yet, don't display
-            debug!("draw still disabled, not drawing");
+            debug!("draw still disabled => not drawing");
             return None;
         }
 
         // Get waveform and timestamps
         self.positions = {
             let waveform_renderer = &mut *self.waveform_renderer_mtx.lock().unwrap();
-            self.playback_needs_refresh = waveform_renderer.playback_needs_refresh;
+            self.playback_needs_refresh = waveform_renderer.playback_needs_refresh();
+
+            match self.state {
+                ControllerState::Playing => {
+                    waveform_renderer.refresh_cursor();
+                    waveform_renderer.refresh_window();
+                }
+                ControllerState::PlayingRange(_) => waveform_renderer.refresh_cursor(),
+                _ => (),
+            }
 
             let (image, positions) = match waveform_renderer.image() {
                 Some(image_and_positions) => image_and_positions,
@@ -643,11 +705,10 @@ impl AudioController {
                 // left button
                 if let Some(ts) = self.ts_at(event_button.get_position().0) {
                     match self.state {
-                        ControllerState::Playing | ControllerState::Paused => {
-                            self.ui_event.seek(ts, gst::SeekFlags::ACCURATE);
-                        }
-                        ControllerState::PlayingRange(_) => {
-                            self.stop_play_range();
+                        ControllerState::Playing
+                        | ControllerState::PlayingRange(_)
+                        | ControllerState::Paused
+                        | ControllerState::PausedPlayingRange(_) => {
                             self.ui_event.seek(ts, gst::SeekFlags::ACCURATE);
                         }
                         ControllerState::CursorAboveBoundary(boundary) => {
@@ -664,7 +725,8 @@ impl AudioController {
                         ControllerState::Paused => {
                             self.positions.cursor.as_ref().map(|cursor| cursor.ts)
                         }
-                        ControllerState::PlayingRange(to_restore) => Some(to_restore),
+                        ControllerState::PlayingRange(to_restore)
+                        | ControllerState::PausedPlayingRange(to_restore) => Some(to_restore),
                         _ => None,
                     };
 
