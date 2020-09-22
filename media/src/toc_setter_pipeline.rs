@@ -135,7 +135,7 @@ impl TocSetterPipeline {
 
         let pipeline_cb = self.pipeline.clone();
         parsebin.connect_pad_added(move |_element, pad| {
-            let queue = gst::ElementFactory::make("queue", None).unwrap();
+            let queue = gst::ElementFactory::make("queue2", None).unwrap();
             pipeline_cb.add(&queue).unwrap();
             let queue_sink_pad = queue.get_static_pad("sink").unwrap();
             pad.link(&queue_sink_pad).unwrap();

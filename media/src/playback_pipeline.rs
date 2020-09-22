@@ -320,7 +320,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
         sender_mtx: &Arc<Mutex<async_mpsc::Sender<MediaEvent>>>,
     ) {
         let playback_queue =
-            gst::ElementFactory::make("queue", Some("audio_playback_queue")).unwrap();
+            gst::ElementFactory::make("queue2", Some("audio_playback_queue")).unwrap();
         PlaybackPipeline::<SE>::setup_queue(&playback_queue);
 
         let playback_convert =
@@ -460,7 +460,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
         src_pad: &gst::Pad,
         video_sink: &gst::Element,
     ) {
-        let queue = gst::ElementFactory::make("queue", Some("video_queue")).unwrap();
+        let queue = gst::ElementFactory::make("queue2", Some("video_queue")).unwrap();
         PlaybackPipeline::<SE>::setup_queue(&queue);
         let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
         let scale = gst::ElementFactory::make("videoscale", None).unwrap();
