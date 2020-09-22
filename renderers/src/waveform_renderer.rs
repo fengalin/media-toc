@@ -529,7 +529,7 @@ impl WaveformRenderer {
     }
 
     // Get the waveform as an image in current conditions.
-    pub fn image(&mut self) -> Option<(&mut Image, ImagePositions)> {
+    pub fn image(&mut self) -> Option<(&Image, ImagePositions)> {
         let (req_sample_window, width_f) = {
             let dim = self.dimensions.read().unwrap();
             (dim.req_sample_window, dim.width_f)

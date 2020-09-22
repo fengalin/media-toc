@@ -313,7 +313,7 @@ impl InfoController {
     }
 
     pub fn draw_thumbnail(&mut self, drawingarea: &gtk::DrawingArea, cairo_ctx: &cairo::Context) {
-        if let Some(image) = self.thumbnail.as_mut() {
+        if let Some(image) = self.thumbnail.as_ref() {
             let allocation = drawingarea.get_allocation();
             let alloc_width_f: f64 = allocation.width.into();
             let alloc_height_f: f64 = allocation.height.into();

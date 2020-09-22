@@ -361,7 +361,7 @@ impl WaveformImage {
     // Redraw the whole sample range on a clean image
     fn redraw(
         &mut self,
-        mut exposed_image: Image,
+        exposed_image: Image,
         secondary_image: Image,
         audio_buffer: &AudioBuffer,
         lower: SampleIndex,
@@ -392,8 +392,8 @@ impl WaveformImage {
 
     fn append_right(
         &mut self,
-        mut exposed_image: Image,
-        mut secondary_image: Image,
+        exposed_image: Image,
+        secondary_image: Image,
         audio_buffer: &AudioBuffer,
         lower: SampleIndex,
         upper: SampleIndex,
