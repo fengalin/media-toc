@@ -261,7 +261,7 @@ impl MainController {
         match self.state {
             ControllerState::Playing => {
                 self.state = ControllerState::Seeking;
-                self.audio_ctrl.seek();
+                self.audio_ctrl.seek(ts);
             }
             ControllerState::Paused | ControllerState::PausedPlayingRange(_) => {
                 flags = gst::SeekFlags::ACCURATE;
@@ -270,20 +270,20 @@ impl MainController {
                     Some(seek_1st_step) => {
                         let seek_2d_step = ts;
                         ts = seek_1st_step;
+                        self.state = ControllerState::TwoStepsSeek(seek_2d_step);
                         self.info_ctrl.seek(seek_2d_step);
-                        self.audio_ctrl.seek();
-                        self.state = ControllerState::TwoStepsSeek(seek_2d_step)
+                        self.audio_ctrl.seek(seek_2d_step);
                     }
                     None => {
+                        self.state = ControllerState::Seeking;
                         self.info_ctrl.seek(ts);
-                        self.audio_ctrl.seek();
-                        self.state = ControllerState::Seeking
+                        self.audio_ctrl.seek(ts);
                     }
                 }
             }
             ControllerState::PlayingRange(_) => {
-                self.pipeline.as_ref().unwrap().pause().unwrap();
                 self.state = ControllerState::PendingSeek(ts);
+                self.pipeline.as_ref().unwrap().pause().unwrap();
                 return;
             }
             ControllerState::TwoStepsSeek(target) => {
@@ -297,9 +297,10 @@ impl MainController {
                 self.state = ControllerState::Seeking;
             }
             ControllerState::EOS => {
-                self.audio_ctrl.play();
                 self.state = ControllerState::Seeking;
-                self.audio_ctrl.seek();
+                self.info_ctrl.seek(ts);
+                self.audio_ctrl.play();
+                self.audio_ctrl.seek(ts);
             }
             _ => return,
         }

@@ -69,7 +69,6 @@ impl Default for Mode {
 #[derive(Debug, Default)]
 pub struct SharedState {
     mode: Mode,
-    hold_rendering: bool,
 
     pub cursor_sample: SampleIndex, // The sample idx currently under the cursor (might be different from
     // current sample idx during seeks)
@@ -121,8 +120,6 @@ pub struct WaveformRenderer {
     state: SampleExtractionState,
     pub image: WaveformImage,
 
-    // FIXME maybe a Mutex would be more appropriate
-    // check if most contentions happen in write mode
     shared_state: Arc<RwLock<SharedState>>,
     dimensions: Arc<RwLock<Dimensions>>,
 }
@@ -183,18 +180,11 @@ impl WaveformRenderer {
         self.shared_state.write().unwrap().mode = Mode::Scrollable(CursorDirection::Forward);
     }
 
-    pub fn seek(&mut self) {
-        // FIXME see if we could keep the image displayed until seek_done
-        // e.g. by setting cursor_sample to None
-        // This might also require to be taken care of in render
-    }
-
-    /// Adapts to a discontinuation in the audio stream.
-    pub fn seek_done(&mut self) {
+    pub fn seek(&mut self, ts: Timestamp) {
         let mut shared_state = self.shared_state.write().unwrap();
-        shared_state.hold_rendering = false;
 
-        self.refresh_cursor_priv(&mut shared_state);
+        shared_state.cursor_sample = ts.sample_index(self.state.sample_duration);
+        shared_state.cursor_ts = ts;
 
         let first_visible_sample = match shared_state.first_visible_sample {
             Some(first_visible_sample) => first_visible_sample,
@@ -206,12 +196,7 @@ impl WaveformRenderer {
             (dim.req_sample_window, dim.half_req_sample_window)
         };
 
-        let upper_visible_sample = self
-            .image
-            .upper
-            .min(first_visible_sample + req_sample_window);
-
-        if shared_state.cursor_sample >= upper_visible_sample
+        if shared_state.cursor_sample >= first_visible_sample + req_sample_window
             || shared_state.cursor_sample < first_visible_sample
         {
             // Cursor no longer in current window => recompute
@@ -230,11 +215,11 @@ impl WaveformRenderer {
             Mode::Frozen => {
                 // Attempt to center cursor
                 shared_state.first_visible_sample = None;
-                return;
             }
         }
     }
 
+    /// Refreshes cursor position.
     pub fn refresh_cursor(&mut self) {
         let mut shared_state = self.shared_state.write().unwrap();
         self.refresh_cursor_priv(&mut shared_state);
@@ -254,8 +239,10 @@ impl WaveformRenderer {
         }
     }
 
-    // Computes the first sample to display depending on current mode.
-    pub fn refresh_window(&mut self) {
+    /// Refreshes waveform position.
+    ///
+    /// Refreshes the cursor and computes the first sample to display depending on current mode.
+    pub fn refresh(&mut self) {
         let mut shared_state = self.shared_state.write().unwrap();
 
         if !self.image.is_ready {
@@ -267,6 +254,8 @@ impl WaveformRenderer {
             shared_state.first_visible_sample = None;
             return;
         }
+
+        self.refresh_cursor_priv(&mut shared_state);
 
         let (req_sample_window, half_req_sample_window) = {
             let dim = self.dimensions.read().unwrap();
@@ -548,53 +537,50 @@ impl WaveformRenderer {
 
         let shared_state = self.shared_state.read().unwrap();
 
-        let first_visible_sample = match shared_state.first_visible_sample {
+        let first_sample = match shared_state.first_visible_sample {
             Some(first_visible_sample) => {
                 if first_visible_sample > self.image.upper
                     || first_visible_sample < self.image.lower
                 {
-                    return None;
+                    self.image.lower
+                } else {
+                    first_visible_sample
                 }
-
-                first_visible_sample
             }
-            None => {
-                debug!("{}_image first_visible_sample not available", self.image.id);
-                return None;
-            }
+            None => self.image.lower,
         };
 
         let sample_duration = self.state.sample_duration;
 
-        let first_index =
-            (first_visible_sample - self.image.lower).step_range(self.image.sample_step);
+        let first_index = (first_sample - self.image.lower).step_range(self.image.sample_step);
         let first = SamplePosition {
             x: first_index as f64 * self.image.x_step_f,
-            ts: first_visible_sample.as_ts(sample_duration),
+            ts: first_sample.as_ts(sample_duration),
         };
 
+        // Only display cursor if first_visible_sample is known
         let cursor = shared_state
-            .cursor_sample
-            .checked_sub(first_visible_sample)
-            .and_then(|range_to_cursor| {
-                if range_to_cursor <= req_sample_window {
-                    let delta_index = range_to_cursor.step_range(self.image.sample_step);
-                    Some(SamplePosition {
-                        x: delta_index as f64 * self.image.x_step_f,
-                        ts: shared_state.cursor_ts,
+            .first_visible_sample
+            .and_then(|first_visible_sample| {
+                shared_state
+                    .cursor_sample
+                    .checked_sub(first_visible_sample)
+                    .filter(|range_to_cursor| *range_to_cursor <= req_sample_window)
+                    .map(|range_to_cursor| {
+                        let delta_index = range_to_cursor.step_range(self.image.sample_step);
+                        SamplePosition {
+                            x: delta_index as f64 * self.image.x_step_f,
+                            ts: shared_state.cursor_ts,
+                        }
                     })
-                } else {
-                    None
-                }
             });
 
         let last = {
-            let visible_sample_range = self.image.upper - first_visible_sample;
+            let visible_sample_range = self.image.upper - first_sample;
             if visible_sample_range > req_sample_window {
                 SamplePosition {
                     x: width_f,
-                    ts: (first_visible_sample + req_sample_window)
-                        .as_ts(self.state.sample_duration),
+                    ts: (first_sample + req_sample_window).as_ts(self.state.sample_duration),
                 }
             } else {
                 let delta_index = visible_sample_range.step_range(self.image.sample_step);
@@ -622,10 +608,6 @@ impl WaveformRenderer {
     fn render(&mut self, audio_buffer: &AudioBuffer) {
         let (cursor_sample, first_visible_sample) = {
             let shared_state = self.shared_state.read().unwrap();
-
-            if shared_state.hold_rendering {
-                return;
-            }
 
             (
                 shared_state.cursor_sample,

@@ -223,16 +223,12 @@ impl AudioController {
         self.drawingarea.queue_draw();
     }
 
-    pub fn refresh(&self) {
+    pub fn refresh(&mut self) {
         self.refresh_buffer();
+        self.waveform_renderer_mtx.lock().unwrap().refresh();
 
-        {
-            let mut waveform_renderer = self.waveform_renderer_mtx.lock().unwrap();
-            waveform_renderer.refresh_cursor();
-            waveform_renderer.refresh_window();
-        }
-
-        self.redraw();
+        self.last_other_ui_refresh = Timestamp::default();
+        self.drawingarea.queue_draw();
     }
 
     /// Finds the first timestamp for a seek in Paused state.
@@ -292,7 +288,7 @@ impl AudioController {
         self.register_tick_callback();
     }
 
-    pub fn seek(&mut self) {
+    pub fn seek(&mut self, ts: Timestamp) {
         match self.state {
             ControllerState::Playing => self.state = ControllerState::SeekingPlaying,
             ControllerState::Paused => self.state = ControllerState::SeekingPaused,
@@ -307,25 +303,21 @@ impl AudioController {
             _ => (),
         }
 
-        self.waveform_renderer_mtx.lock().unwrap().seek();
+        self.waveform_renderer_mtx.lock().unwrap().seek(ts);
     }
 
     pub fn seek_done(&mut self) {
         match self.state {
             ControllerState::SeekingPlaying => {
                 self.state = ControllerState::Playing;
+                self.last_other_ui_refresh = Timestamp::default();
             }
             ControllerState::SeekingPaused => {
                 self.state = ControllerState::Paused;
-                self.waveform_renderer_mtx.lock().unwrap().seek_done();
-                self.refresh_buffer();
-                self.waveform_renderer_mtx.lock().unwrap().refresh_window()
+                self.refresh();
             }
             _ => unreachable!("seek_done in {:?}", self.state),
         }
-
-        self.last_other_ui_refresh = Timestamp::default();
-        self.redraw();
     }
 
     pub fn start_play_range(&mut self, to_restore: Timestamp) {
@@ -513,10 +505,7 @@ impl AudioController {
             self.playback_needs_refresh = waveform_renderer.playback_needs_refresh();
 
             match self.state {
-                ControllerState::Playing => {
-                    waveform_renderer.refresh_cursor();
-                    waveform_renderer.refresh_window();
-                }
+                ControllerState::Playing => waveform_renderer.refresh(),
                 ControllerState::PlayingRange(_) => waveform_renderer.refresh_cursor(),
                 _ => (),
             }
