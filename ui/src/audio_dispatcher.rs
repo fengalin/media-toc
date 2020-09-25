@@ -9,6 +9,8 @@ use std::{cell::RefCell, rc::Rc};
 
 use media::Timestamp;
 
+use crate::spawn;
+
 use super::{
     audio_controller::ControllerState, AudioController, MainController, PositionStatus,
     UIDispatcher, UIEventSender, UIFocusContext,
@@ -43,7 +45,7 @@ impl UIDispatcher for AudioDispatcher {
                     let mut audio_ctrl = &mut main_ctrl.audio_ctrl;
                     audio_ctrl.area_height = f64::from(alloc.height);
                     audio_ctrl.area_width = f64::from(alloc.width);
-                    audio_ctrl.update_conditions();
+                    audio_ctrl.update_conditions_async.as_ref().unwrap()();
                 }
             }),
         );
@@ -151,10 +153,11 @@ impl UIDispatcher for AudioDispatcher {
         audio_ctrl.update_conditions_async = Some(Box::new(
             clone!(@weak main_ctrl_rc => @default-panic, move || {
                 let main_ctrl_rc = Rc::clone(&main_ctrl_rc);
-                async move {
+                spawn!(async move {
                     let mut main_ctrl = main_ctrl_rc.borrow_mut();
+                    main_ctrl.audio_ctrl.pending_update_conditions = false;
                     main_ctrl.audio_ctrl.update_conditions();
-                }.boxed_local()
+                }.boxed_local());
             }),
         ));
 

@@ -1,9 +1,10 @@
 use gstreamer_audio as gst_audio;
 use gstreamer_audio::AudioChannelPosition as Position;
 
-// Inline length for `SmallVec`s with channels.
+/// Inline length for `SmallVec`s with channels.
 pub const INLINE_CHANNELS: usize = 5 + 1;
 
+#[derive(Debug)]
 pub enum AudioChannelSide {
     Center,
     Left,
@@ -17,7 +18,7 @@ pub struct AudioChannel {
 }
 
 impl AudioChannel {
-    pub fn new(position: gst_audio::AudioChannelPosition) -> Self {
+    pub fn new(position: &gst_audio::AudioChannelPosition) -> Self {
         let (side, factor) = match position {
             Position::Mono => (AudioChannelSide::Left, 0.9f64),
             Position::FrontLeft => (AudioChannelSide::Left, 0.9f64),

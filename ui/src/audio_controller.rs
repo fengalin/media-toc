@@ -1,4 +1,3 @@
-use futures::future::LocalBoxFuture;
 use gstreamer as gst;
 use gtk::prelude::*;
 use log::{debug, trace};
@@ -16,7 +15,6 @@ use metadata::{Duration, MediaInfo};
 use renderers::{DoubleWaveformRenderer, ImagePositions, WaveformRenderer, BACKGROUND_COLOR};
 
 use super::{ChaptersBoundaries, PlaybackPipeline, UIController, UIEventSender};
-use crate::spawn;
 
 const BUFFER_DURATION: Duration = Duration::from_secs(60);
 const INIT_REQ_DURATION_FOR_1000PX: Duration = Duration::from_secs(4);
@@ -88,6 +86,7 @@ pub struct AudioController {
 
     pub(super) area_height: f64,
     pub(super) area_width: f64,
+    pub(super) pending_update_conditions: bool,
 
     pub(super) state: ControllerState,
     playback_needs_refresh: bool,
@@ -101,7 +100,7 @@ pub struct AudioController {
     waveform_renderer_mtx: Arc<Mutex<Box<WaveformRenderer>>>,
     pub dbl_renderer_mtx: Arc<Mutex<DoubleAudioBuffer<WaveformRenderer>>>,
 
-    pub(super) update_conditions_async: Option<Box<dyn Fn() -> LocalBoxFuture<'static, ()>>>,
+    pub(super) update_conditions_async: Option<Box<dyn Fn()>>,
 
     pub(super) tick_cb: Option<Rc<dyn Fn(&gtk::DrawingArea, &gdk::FrameClock)>>,
     tick_cb_id: Option<gtk::TickCallbackId>,
@@ -119,7 +118,7 @@ impl UIController for AudioController {
 
             // Refresh conditions asynchronously so that
             // all widgets are arranged to their target positions
-            spawn!(self.update_conditions_async.as_ref().unwrap()());
+            self.update_conditions_async();
         }
 
         // FIXME: step forward / back actions should probably be
@@ -194,6 +193,7 @@ impl AudioController {
 
             area_height: 0f64,
             area_width: 0f64,
+            pending_update_conditions: false,
 
             state: ControllerState::Disabled,
             playback_needs_refresh: false,
@@ -288,9 +288,11 @@ impl AudioController {
         self.register_tick_callback();
     }
 
-    pub fn seek(&mut self, ts: Timestamp) {
+    pub fn seek(&mut self) {
         match self.state {
-            ControllerState::Playing => self.state = ControllerState::SeekingPlaying,
+            ControllerState::Playing => {
+                self.state = ControllerState::SeekingPlaying;
+            }
             ControllerState::Paused => self.state = ControllerState::SeekingPaused,
             ControllerState::PlayingRange(_) => {
                 self.remove_tick_callback();
@@ -299,21 +301,20 @@ impl AudioController {
             ControllerState::PausedPlayingRange(_) => {
                 self.state = ControllerState::SeekingPaused;
             }
-            ControllerState::Disabled => return,
             _ => (),
         }
-
-        self.waveform_renderer_mtx.lock().unwrap().seek(ts);
     }
 
-    pub fn seek_done(&mut self) {
+    pub fn seek_done(&mut self, ts: Timestamp) {
         match self.state {
             ControllerState::SeekingPlaying => {
                 self.state = ControllerState::Playing;
+                self.waveform_renderer_mtx.lock().unwrap().seek_done(ts);
                 self.last_other_ui_refresh = Timestamp::default();
             }
             ControllerState::SeekingPaused => {
                 self.state = ControllerState::Paused;
+                self.waveform_renderer_mtx.lock().unwrap().seek_done(ts);
                 self.refresh();
             }
             _ => unreachable!("seek_done in {:?}", self.state),
@@ -366,7 +367,7 @@ impl AudioController {
 
     fn ts_at(&self, x: f64) -> Option<Timestamp> {
         if x >= 0f64 && x <= self.area_width {
-            let ts = self.positions.first.ts
+            let ts = self.positions.offset.ts
                 + self.positions.sample_duration
                     * ((x * self.positions.sample_step).round() as u64);
             if ts <= self.positions.last.ts {
@@ -448,10 +449,25 @@ impl AudioController {
                     self.area_width as i32,
                     self.area_height as i32,
                 );
+                waveform_renderer.refresh();
             }
 
-            self.refresh();
+            self.refresh_buffer();
+            self.drawingarea.queue_draw();
         }
+    }
+
+    /// Refreshes conditions asynchronously.
+    ///
+    /// This ensures all widgets are arranged to their target positions.
+    #[inline]
+    pub fn update_conditions_async(&mut self) {
+        if self.pending_update_conditions {
+            return;
+        }
+
+        self.pending_update_conditions = true;
+        self.update_conditions_async.as_ref().unwrap()();
     }
 
     pub fn zoom_in(&mut self) {
@@ -512,11 +528,14 @@ impl AudioController {
 
             let (image, positions) = match waveform_renderer.image() {
                 Some(image_and_positions) => image_and_positions,
-                None => return None,
+                None => {
+                    debug!("draw got no image");
+                    return None;
+                }
             };
 
             image.with_surface_external_context(cr, |cr, surface| {
-                cr.set_source_surface(surface, -positions.first.x, 0f64);
+                cr.set_source_surface(surface, -positions.offset.x, 0f64);
                 cr.paint();
             });
 
@@ -529,8 +548,8 @@ impl AudioController {
         self.adjust_waveform_text_width(cr);
 
         // first position
-        let first_text = self.positions.first.ts.for_humans().to_string();
-        let first_text_end = if self.positions.first.ts < ONE_HOUR {
+        let first_text = self.positions.offset.ts.for_humans().to_string();
+        let first_text_end = if self.positions.offset.ts < ONE_HOUR {
             2f64 + self.text_metrics.limit_mn_width
         } else {
             2f64 + self.text_metrics.limit_h_width
@@ -558,7 +577,7 @@ impl AudioController {
         let boundaries = self.boundaries.borrow();
 
         let chapter_range = boundaries.range((
-            Included(&self.positions.first.ts),
+            Included(&self.positions.offset.ts),
             Included(&self.positions.last.ts),
         ));
 
@@ -568,9 +587,9 @@ impl AudioController {
         let text_base = self.area_height - self.text_metrics.half_font_size;
 
         for (boundary, chapters) in chapter_range {
-            if *boundary >= self.positions.first.ts {
+            if *boundary >= self.positions.offset.ts {
                 let x = SampleIndexRange::from_duration(
-                    *boundary - self.positions.first.ts,
+                    *boundary - self.positions.offset.ts,
                     self.positions.sample_duration,
                 )
                 .as_f64()

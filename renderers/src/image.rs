@@ -39,8 +39,8 @@ impl AsMut<[u8]> for ImageHolder {
 pub struct Image {
     // Use a Cell to hide internal implementation details due to Cairo surface ownership
     pixels: Cell<Option<Box<[u8]>>>,
-    width: i32,
-    height: i32,
+    pub width: i32,
+    pub height: i32,
     stride: i32,
 }
 

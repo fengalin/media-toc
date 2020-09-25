@@ -56,6 +56,11 @@ impl SampleIndex {
     pub fn checked_sub(self, rhs: Self) -> Option<SampleIndexRange> {
         self.0.checked_sub(rhs.0).map(SampleIndexRange::new)
     }
+
+    #[must_use = "this returns the result of the operation, without modifying the original"]
+    pub fn saturating_sub_range(self, rhs: SampleIndexRange) -> SampleIndex {
+        SampleIndex::new(self.0.saturating_sub(rhs.as_usize()))
+    }
 }
 
 impl From<usize> for SampleIndex {

@@ -3,8 +3,6 @@ use gstreamer_audio as gst_audio;
 
 use log::{debug, info};
 
-use smallvec::SmallVec;
-
 use std::{
     mem,
     sync::{Arc, Mutex},
@@ -76,6 +74,8 @@ impl<SE: SampleExtractor + 'static> DoubleAudioBuffer<SE> {
         self.reset();
         self.audio_buffer.cleanup();
 
+        // FIXME cleanup image shared_state / what about WaveformRender shared_state?
+
         {
             let exposed_buffer = &mut self.exposed_buffer_mtx.lock().unwrap();
             exposed_buffer.cleanup();
@@ -98,11 +98,7 @@ impl<SE: SampleExtractor + 'static> DoubleAudioBuffer<SE> {
     pub fn set_state(&mut self, state: gst::State) {
         debug!("changing state from {:?} to {:?}", self.state, state);
         self.state = state;
-        {
-            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
-            exposed_buffer_box.set_state(state);
-        }
-        self.working_buffer.as_mut().unwrap().set_state(state);
+        self.working_buffer.as_mut().unwrap().set_gst_state(state);
         if state == gst::State::Paused {
             self.refresh();
         }
@@ -119,38 +115,28 @@ impl<SE: SampleExtractor + 'static> DoubleAudioBuffer<SE> {
         self.reset();
 
         let rate = u64::from(audio_info.rate());
-        let channels = audio_info.channels() as usize;
 
         let sample_duration = Duration::from_frequency(rate);
         self.max_sample_window = SampleIndexRange::from_duration(QUEUE_SIZE, sample_duration);
         let duration_per_1000_samples = Duration::from_nanos(1_000_000_000_000u64 / rate);
 
-        let mut channels: SmallVec<[AudioChannel; INLINE_CHANNELS]> =
-            SmallVec::with_capacity(channels);
-        if let Some(positions) = audio_info.positions() {
-            for position in positions.iter().take(INLINE_CHANNELS) {
-                channels.push(AudioChannel::new(*position));
-            }
-        };
+        self.audio_buffer.init(&audio_info);
 
-        self.audio_buffer.init(audio_info);
+        let mut positions_opt = audio_info.positions().map(|positions| positions.iter());
+        let channels = positions_opt
+            .iter_mut()
+            .flatten()
+            .take(INLINE_CHANNELS)
+            .map(|position| AudioChannel::new(position));
 
-        {
-            let exposed_buffer = &mut self.exposed_buffer_mtx.lock().unwrap();
-            exposed_buffer.set_sample_duration(sample_duration, duration_per_1000_samples);
-            exposed_buffer.set_channels(&channels);
-        }
-
+        // Apply changes using the exposed buffer so that
+        // it won't render obsolete samples.
         let working_buffer = self.working_buffer.as_mut().unwrap();
         working_buffer.set_sample_duration(sample_duration, duration_per_1000_samples);
-        working_buffer.set_channels(&channels);
+        working_buffer.set_channels(channels);
     }
 
     pub fn set_ref(&mut self, audio_ref: &gst::Element) {
-        {
-            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
-            exposed_buffer_box.set_time_ref(audio_ref);
-        }
         self.working_buffer
             .as_mut()
             .unwrap()
@@ -169,11 +155,11 @@ impl<SE: SampleExtractor + 'static> DoubleAudioBuffer<SE> {
         if self.can_handle_eos {
             self.audio_buffer.handle_eos();
             // extract last samples and swap
-            self.extract_samples();
+            self.refresh();
             // do it again to update second extractor too
             // this is required in case of a subsequent seek
             // in the extractors' range
-            self.extract_samples();
+            self.refresh();
         }
         self.sample_gauge = None
     }
@@ -208,24 +194,21 @@ impl<SE: SampleExtractor + 'static> DoubleAudioBuffer<SE> {
 
         if must_notify || self.samples_since_last_extract >= EXTRACTION_THRESHOLD {
             // extract new samples and swap
-            self.extract_samples();
+            self.refresh();
             self.samples_since_last_extract = SampleIndex::default();
         }
 
         must_notify
     }
 
-    // Update the working extractor with new samples and swap.
-    fn extract_samples(&mut self) {
+    /// Refreshes the working extractor with new samples and swap.
+    pub fn refresh(&mut self) {
         let mut working_buffer = self.working_buffer.take().unwrap();
         working_buffer.extract_samples(&self.audio_buffer);
 
         // swap buffers
         {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
-            // get latest state from the previously exposed buffer
-            // in order to smoothen rendering between frames
-            working_buffer.update_concrete_state(exposed_buffer_box.as_mut());
             mem::swap(exposed_buffer_box, &mut working_buffer);
         }
 
@@ -233,29 +216,6 @@ impl<SE: SampleExtractor + 'static> DoubleAudioBuffer<SE> {
         self.sample_window = working_buffer
             .req_sample_window()
             .map(|req_sample_window| req_sample_window.min(self.max_sample_window));
-
-        self.working_buffer = Some(working_buffer);
-        // self.working_buffer is now the buffer previously in
-        // self.exposed_buffer_mtx
-    }
-
-    pub fn refresh(&mut self) {
-        // refresh with current conditions
-        let mut working_buffer = self.working_buffer.take().unwrap();
-        {
-            let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
-
-            // get latest state from the previously exposed buffer
-            working_buffer.update_concrete_state(exposed_buffer_box.as_mut());
-
-            // refresh working buffer
-            working_buffer.refresh(&self.audio_buffer);
-
-            // swap buffers
-            mem::swap(exposed_buffer_box, &mut working_buffer);
-        }
-
-        self.lower_to_keep = working_buffer.lower();
 
         self.working_buffer = Some(working_buffer);
         // self.working_buffer is now the buffer previously in

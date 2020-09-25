@@ -21,8 +21,8 @@ impl SampleIndexRange {
     }
 
     #[track_caller]
-    pub fn scale<T: Into<usize>>(self, num: T, denom: T) -> Self {
-        SampleIndexRange(num.into() / denom.into() * self.0)
+    pub fn scale(self, num: SampleIndexRange, denom: SampleIndexRange) -> Self {
+        SampleIndexRange(self.0 * num.0 / denom.0)
     }
 
     #[track_caller]

@@ -5,7 +5,9 @@ use media::{
     AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex, SampleIndexRange, INLINE_CHANNELS,
 };
 
-use super::Image;
+use std::sync::{Arc, Mutex};
+
+use super::{waveform::Dimensions, Image};
 
 pub const BACKGROUND_COLOR: (f64, f64, f64) = (0.2f64, 0.2235f64, 0.2314f64);
 pub const AXIS_COLOR: (f64, f64, f64) = (0.5f64, 0.5f64, 0f64);
@@ -26,27 +28,27 @@ pub struct WaveformSample {
     pub y_values: SmallVec<[f64; INLINE_CHANNELS]>,
 }
 
+#[derive(Debug)]
+pub struct ChannelColors(SmallVec<[(f64, f64, f64); INLINE_CHANNELS]>);
+
+impl Default for ChannelColors {
+    fn default() -> Self {
+        ChannelColors(SmallVec::<[(f64, f64, f64); INLINE_CHANNELS]>::with_capacity(0))
+    }
+}
+
 #[derive(Default)]
 pub struct WaveformImage {
     pub id: usize,
-    pub is_initialized: bool,
     pub is_ready: bool,
-    pub shareable_state_changed: bool,
 
-    channel_colors: SmallVec<[(f64, f64, f64); INLINE_CHANNELS]>,
-
-    exposed_image: Option<Image>,
-    secondary_image: Option<Image>,
     image_width: i32,
     image_width_f: f64,
+
     image_height: i32,
     half_range_y: f64,
     full_range_y: f64,
     sample_display_scale: f64,
-
-    req_width: i32,
-    req_height: i32,
-    force_redraw: bool,
 
     pub lower: SampleIndex,
     pub upper: SampleIndex,
@@ -55,22 +57,36 @@ pub struct WaveformImage {
 
     last: WaveformSample,
 
-    pub sample_step_f: f64,
-    pub sample_step: SampleIndexRange,
-    pub x_step_f: f64,
-    pub x_step: usize,
+    channel_colors: Arc<Mutex<ChannelColors>>,
+
+    exposed_image: Option<Image>,
+    // This one is only used by the working WaveformImage (the one on which we execute render).
+    // Locking the Mutex should be cheap since there shouldn't be any contention.
+    secondary_image: Arc<Mutex<Option<Image>>>,
 }
 
 impl WaveformImage {
-    pub fn new(id: usize) -> Self {
+    pub fn new(
+        id: usize,
+        channel_colors: Arc<Mutex<ChannelColors>>,
+        secondary_image: Arc<Mutex<Option<Image>>>,
+    ) -> Self {
+        let exposed_image =
+            Some(Image::try_new(INIT_WIDTH, INIT_HEIGHT).expect("Default `WaveformImage`"));
+
+        {
+            let mut secondary_image_opt = secondary_image.lock().unwrap();
+            if secondary_image_opt.is_none() {
+                *secondary_image_opt =
+                    Some(Image::try_new(INIT_WIDTH, INIT_HEIGHT).expect("Default `WaveformImage`"));
+            }
+        }
+
         WaveformImage {
             id,
-            exposed_image: Some(
-                Image::try_new(INIT_WIDTH, INIT_HEIGHT).expect("Default `WaveformImage`"),
-            ),
-            secondary_image: Some(
-                Image::try_new(INIT_WIDTH, INIT_HEIGHT).expect("Default `WaveformImage`"),
-            ),
+            exposed_image,
+            secondary_image,
+            channel_colors,
             ..WaveformImage::default()
         }
     }
@@ -81,7 +97,6 @@ impl WaveformImage {
 
         // self.exposed_image & self.secondary_image
         // will be cleaned on next with draw
-        self.is_initialized = false;
         self.image_width = 0;
         self.image_width_f = 0f64;
         self.image_height = 0;
@@ -89,18 +104,12 @@ impl WaveformImage {
         self.full_range_y = 0f64;
         self.sample_display_scale = 0f64;
 
-        self.req_width = 0;
-        self.req_height = 0;
-
         self.cleanup_sample_conditions();
     }
 
     pub fn cleanup_sample_conditions(&mut self) {
         debug!("{}_cleanup_sample_conditions", self.id);
         self.is_ready = false;
-        self.force_redraw = false;
-
-        self.channel_colors.clear();
 
         self.lower = SampleIndex::default();
         self.upper = SampleIndex::default();
@@ -108,18 +117,15 @@ impl WaveformImage {
         self.contains_eos = false;
 
         self.last = WaveformSample::default();
-
-        self.sample_step_f = 0f64;
-        self.sample_step = SampleIndexRange::default();
-        self.x_step_f = 0f64;
-        self.x_step = 0;
     }
 
-    pub fn set_channels(&mut self, channels: &[AudioChannel]) {
-        debug!("{}_set_channels {}", self.id, channels.len());
+    pub fn set_channels(&self, channels: impl Iterator<Item = AudioChannel>) {
+        let mut channel_colors = self.channel_colors.lock().unwrap();
 
+        channel_colors.0.clear();
         for channel in channels {
-            self.channel_colors.push(match channel.side {
+            debug!("{}_set_channels {:?}", self.id, channel.side);
+            channel_colors.0.push(match channel.side {
                 AudioChannelSide::Center => (0f64, channel.factor, 0f64),
                 AudioChannelSide::Left => (channel.factor, channel.factor, channel.factor),
                 AudioChannelSide::NotLocalized => (0f64, 0f64, channel.factor),
@@ -128,88 +134,8 @@ impl WaveformImage {
         }
     }
 
-    pub fn update_width(&mut self, width: i32) -> Option<i32> {
-        if width != self.req_width {
-            self.force_redraw = true;
-            self.shareable_state_changed = true;
-            self.is_initialized = self.sample_step != SampleIndexRange::default();
-
-            debug!(
-                "{}_update_width prev. force_redraw {}, width {}, sample_step_f {}",
-                self.id, self.force_redraw, self.req_width, self.sample_step_f
-            );
-
-            let prev_width = self.req_width;
-            self.req_width = width;
-
-            Some(prev_width)
-        } else {
-            None
-        }
-    }
-
-    pub fn update_height(&mut self, height: i32) -> Option<i32> {
-        if height != self.req_height {
-            self.force_redraw = true;
-            self.shareable_state_changed = true;
-
-            debug!(
-                "{}_update_height prev. force_redraw {}, height {}",
-                self.id, self.force_redraw, self.req_height
-            );
-
-            let prev_height = self.req_height;
-            self.req_height = height;
-
-            Some(prev_height)
-        } else {
-            None
-        }
-    }
-
-    pub fn update_sample_step(&mut self, sample_step_f: f64) {
-        self.force_redraw |= (self.sample_step_f - sample_step_f).abs() > 0.01f64;
-        self.is_initialized = self.force_redraw && (self.req_width != 0);
-
-        self.sample_step_f = sample_step_f;
-        self.sample_step = (sample_step_f as usize).max(1).into();
-        self.x_step_f = if sample_step_f < 1f64 {
-            (1f64 / sample_step_f).round()
-        } else {
-            1f64
-        };
-        self.x_step = self.x_step_f as usize;
-
-        self.shareable_state_changed = true;
-    }
-
-    pub fn image(&mut self) -> &mut Image {
-        self.exposed_image.as_mut().unwrap()
-    }
-
-    pub fn update_from_other(&mut self, other: &mut WaveformImage) {
-        if other.shareable_state_changed {
-            debug!("{}_update_from_other shareable_state_changed", self.id);
-            if self.sample_step != other.sample_step || self.x_step != other.x_step {
-                self.sample_step_f = other.sample_step_f;
-                self.sample_step = other.sample_step;
-                self.x_step_f = other.x_step_f;
-                self.x_step = other.x_step;
-                self.is_initialized = other.is_initialized;
-                self.force_redraw = true;
-            }
-
-            if self.req_width != other.req_width {
-                self.req_width = other.req_width;
-                self.force_redraw = true;
-            }
-            if self.req_height != other.req_height {
-                self.req_height = other.req_height;
-                self.force_redraw = true;
-            }
-
-            other.shareable_state_changed = false;
-        }
+    pub fn image(&self) -> &Image {
+        self.exposed_image.as_ref().unwrap()
     }
 
     // Render the waveform within the provided limits.
@@ -220,9 +146,15 @@ impl WaveformImage {
     // images since none of them is exposed at this very moment.
     // The rendering process reuses the previously rendered image
     // whenever possible.
-    pub fn render(&mut self, audio_buffer: &AudioBuffer, lower: SampleIndex, upper: SampleIndex) {
-        if self.req_width == 0 {
-            debug!("{}_render not ready yet (self.req_width == 0)", self.id);
+    pub fn render(
+        &mut self,
+        d: Dimensions,
+        audio_buffer: &AudioBuffer,
+        lower: SampleIndex,
+        upper: SampleIndex,
+    ) {
+        if d.sample_step == SampleIndexRange::default() {
+            debug!("{}_render not ready yet {:#?}", self.id, d);
             return;
         }
 
@@ -230,11 +162,15 @@ impl WaveformImage {
         // a steady offset between redraws. This allows using the same samples
         // for a given req_step_duration and avoiding flickering
         // between redraws.
-        let mut lower = lower.snap_to(self.sample_step);
-        let upper = upper.snap_to(self.sample_step);
-        if audio_buffer.contains_eos() && upper + self.sample_step > audio_buffer.upper
-            || self.contains_eos
-                && (upper == self.upper || (!self.force_redraw && lower >= self.lower))
+        let mut lower = lower.snap_to(d.sample_step);
+        let upper = upper.snap_to(d.sample_step);
+        let mut force_redraw = if self.id == 1 {
+            d.force_redraw_1
+        } else {
+            d.force_redraw_2
+        };
+        if audio_buffer.contains_eos() && upper + d.sample_step > audio_buffer.upper
+            || self.contains_eos && (upper == self.upper || (!force_redraw && lower >= self.lower))
         {
             // reached eos or image already contains eos and won't change
             if !self.contains_eos {
@@ -243,7 +179,7 @@ impl WaveformImage {
                         "{}_render setting contains_eos. ",
                         "Requested [{}, {}], current [{}, {}], force_redraw: {}",
                     ),
-                    self.id, lower, upper, self.lower, self.upper, self.force_redraw,
+                    self.id, lower, upper, self.lower, self.upper, force_redraw,
                 );
 
                 self.contains_eos = true;
@@ -262,7 +198,7 @@ impl WaveformImage {
                 upper,
                 self.lower,
                 self.upper,
-                self.force_redraw,
+                force_redraw,
                 audio_buffer.contains_eos(),
             );
         }
@@ -270,24 +206,24 @@ impl WaveformImage {
         if lower < audio_buffer.lower {
             // first sample might be smaller than audio_buffer.lower
             // due to alignement on sample_step
-            lower += self.sample_step;
+            lower += d.sample_step;
         }
 
-        if upper < lower + self.sample_step {
+        if upper < lower + d.sample_step {
             debug!(
                 "{}_render range [{}, {}] too small for sample_step: {}",
-                self.id, lower, upper, self.sample_step,
+                self.id, lower, upper, d.sample_step,
             );
             return;
         }
 
-        self.force_redraw |= !self.is_ready;
+        force_redraw |= !self.is_ready;
 
-        if !self.force_redraw && lower >= self.lower && upper <= self.upper {
+        if !force_redraw && lower >= self.lower && upper <= self.upper {
             // target extraction fits in previous extraction
             return;
         } else if upper < self.lower || lower > self.upper || lower < self.lower {
-            self.force_redraw = true;
+            force_redraw = true;
 
             debug!(
                 "{}_render forcing redraw image [{}, {}], requested [{}, {}] ",
@@ -298,61 +234,84 @@ impl WaveformImage {
         let (exposed_image, secondary_image) = {
             let target_width = if self.image_width > 0 {
                 self.image_width
-                    .max(((upper - lower).step_range(self.sample_step) * self.x_step) as i32)
+                    .max(((upper - lower).step_range(d.sample_step) * d.x_step) as i32)
             } else {
-                INIT_WIDTH.max(((upper - lower).step_range(self.sample_step) * self.x_step) as i32)
+                INIT_WIDTH.max(((upper - lower).step_range(d.sample_step) * d.x_step) as i32)
             };
-            if (target_width == self.image_width && self.req_height == self.image_height)
-                || (self.force_redraw
+            if (target_width == self.image_width && d.req_height == self.image_height)
+                || (force_redraw
                     && target_width <= self.image_width
-                    && self.req_height == self.image_height)
+                    && d.req_height == self.image_height)
             {
                 // expected dimensions fit in current image => reuse it
                 (
                     self.exposed_image.take().unwrap(),
-                    self.secondary_image.take().unwrap(),
+                    self.secondary_image.lock().unwrap().take().unwrap(),
                 )
             } else {
                 // can't reuse => create new images and force redraw
-                self.force_redraw = true;
+                force_redraw = true;
                 self.image_width = target_width;
                 self.image_width_f = f64::from(target_width);
-                self.image_height = self.req_height;
-                self.full_range_y = f64::from(self.req_height);
+                self.image_height = d.req_height;
+                self.full_range_y = f64::from(d.req_height);
                 self.half_range_y = self.full_range_y / 2f64;
                 self.sample_display_scale = self.full_range_y / SAMPLE_RANGE;
 
                 debug!(
                     "{}_render new images w {}, h {}",
-                    self.id, target_width, self.req_height
+                    self.id, target_width, d.req_height
                 );
 
-                (
-                    // exposed_image
-                    Image::try_new(target_width, self.req_height).unwrap_or_else(|err| {
+                // Release previous exposed image
+                let _ = self.exposed_image.take().unwrap();
+                // then, build a new one
+                let exposed_image =
+                    Image::try_new(target_width, d.req_height).unwrap_or_else(|err| {
                         panic!(
                             "WaveformBuffer.render creating {}x{} image: {}",
-                            target_width, self.req_height, err,
+                            target_width, d.req_height, err,
                         )
-                    }),
-                    // will be used as secondary_image
-                    Image::try_new(target_width, self.req_height).unwrap_or_else(|err| {
-                        panic!(
-                            "WaveformBuffer.render creating {}x{} image: {}",
-                            target_width, self.req_height, err,
-                        )
-                    }),
-                )
+                    });
+
+                // Secondary image might have already been resized by the other WaveformImage
+                let mut secondary_image = self.secondary_image.lock().unwrap().take().unwrap();
+                if secondary_image.width != target_width || secondary_image.height != d.req_height {
+                    secondary_image =
+                        Image::try_new(target_width, d.req_height).unwrap_or_else(|err| {
+                            panic!(
+                                "WaveformBuffer.render creating {}x{} image: {}",
+                                target_width, d.req_height, err,
+                            )
+                        })
+                }
+
+                (exposed_image, secondary_image)
             }
         };
 
-        if !self.force_redraw {
+        if !force_redraw {
             // append samples after previous last sample
             // shift previous image to the left (if necessary)
             // and append missing samples to the right
-            self.append_right(exposed_image, secondary_image, audio_buffer, lower, upper);
+            self.append_right(
+                &d,
+                exposed_image,
+                secondary_image,
+                audio_buffer,
+                lower,
+                upper,
+            );
         } else {
-            self.redraw(exposed_image, secondary_image, audio_buffer, lower, upper);
+            self.redraw(
+                &d,
+                exposed_image,
+                secondary_image,
+                audio_buffer,
+                lower,
+                upper,
+            );
+            // the appropriate `p.force_redraw_n` flag was reset in caller.
         }
 
         self.is_ready = true;
@@ -361,6 +320,7 @@ impl WaveformImage {
     // Redraw the whole sample range on a clean image
     fn redraw(
         &mut self,
+        d: &Dimensions,
         exposed_image: Image,
         secondary_image: Image,
         audio_buffer: &AudioBuffer,
@@ -376,31 +336,31 @@ impl WaveformImage {
             cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
             cr.paint();
 
-            self.draw_samples(&cr, audio_buffer, lower, upper);
+            self.draw_samples(d, &cr, audio_buffer, lower, upper);
         });
 
         debug!(
             "{}_redraw smpl_stp {}, lower {}, upper {}",
-            self.id, self.sample_step, self.lower, self.upper
+            self.id, d.sample_step, self.lower, self.upper
         );
 
         self.exposed_image = Some(exposed_image);
-        self.secondary_image = Some(secondary_image);
-        self.force_redraw = false;
+        *self.secondary_image.lock().unwrap() = Some(secondary_image);
         self.lower = lower;
     }
 
     fn append_right(
         &mut self,
+        d: &Dimensions,
         exposed_image: Image,
         secondary_image: Image,
         audio_buffer: &AudioBuffer,
         lower: SampleIndex,
         upper: SampleIndex,
     ) {
-        let x_offset = ((lower - self.lower).step_range(self.sample_step) * self.x_step) as f64;
+        let x_offset = ((lower - self.lower).step_range(d.sample_step) * d.x_step) as f64;
 
-        let x_range_to_draw = (upper - self.upper).step_range(self.sample_step) * self.x_step;
+        let x_range_to_draw = (upper - self.upper).step_range(d.sample_step) * d.x_step;
         let must_translate = self.last.x as usize + x_range_to_draw >= self.image_width as usize;
 
         if must_translate {
@@ -419,34 +379,36 @@ impl WaveformImage {
                 self.last.x -= x_offset;
                 self.clear_area(&cr, self.last.x, self.image_width_f);
 
-                self.draw_samples(&cr, audio_buffer, self.upper, upper)
+                self.draw_samples(d, &cr, audio_buffer, self.upper, upper)
             });
 
             self.exposed_image = Some(secondary_image);
-            self.secondary_image = Some(exposed_image);
+            *self.secondary_image.lock().unwrap() = Some(exposed_image);
         } else {
             // Don't translate => reuse exposed image
             exposed_image.with_surface(|exposed_surface| {
                 let cr = cairo::Context::new(&exposed_surface);
-                self.draw_samples(&cr, audio_buffer, self.upper, upper)
+                self.draw_samples(d, &cr, audio_buffer, self.upper, upper)
             });
 
             self.exposed_image = Some(exposed_image);
-            self.secondary_image = Some(secondary_image);
+            *self.secondary_image.lock().unwrap() = Some(secondary_image);
         }
     }
 
-    // Draw samples from sample_iter starting at first_x.
+    /// Draws samples from sample_iter starting at first_x.
+    #[allow(clippy::many_single_char_names)]
     fn draw_samples(
         &mut self,
+        d: &Dimensions,
         cr: &cairo::Context,
         audio_buffer: &AudioBuffer,
         lower: SampleIndex,
         upper: SampleIndex,
     ) {
-        if self.x_step == 1 {
+        if d.x_step == 1 {
             cr.set_line_width(1f64);
-        } else if self.x_step < 4 {
+        } else if d.x_step < 4 {
             cr.set_line_width(1.5f64);
         } else {
             cr.set_line_width(2f64);
@@ -457,8 +419,8 @@ impl WaveformImage {
             // in test mode, draw marks at
             // the start and end of each chunk
             cr.set_source_rgb(0f64, 0f64, 1f64);
-            cr.move_to(self.last.x + self.x_step_f, 0f64);
-            cr.line_to(self.last.x + self.x_step_f, 0.5f64 * self.half_range_y);
+            cr.move_to(self.last.x + d.x_step_f, 0f64);
+            cr.line_to(self.last.x + d.x_step_f, 0.5f64 * self.half_range_y);
             cr.stroke();
         }
 
@@ -477,19 +439,21 @@ impl WaveformImage {
 
         let sample_display_scale = self.sample_display_scale;
         let samples_iter = audio_buffer
-            .try_iter(lower, upper, self.sample_step)
+            .try_iter(lower, upper, d.sample_step)
             .unwrap_or_else(|err| panic!("{}_draw_samples: {}", self.id, err));
         let start_x = self.last.x;
+
+        let channel_colors = self.channel_colors.lock().unwrap();
 
         for samples in samples_iter {
             let y_iter = samples.iter().map(|sample| {
                 f64::from(i32::from(sample.as_i16()) - SAMPLE_AMPLITUDE) * sample_display_scale
             });
 
-            let x = self.last.x + self.x_step_f;
+            let x = self.last.x + d.x_step_f;
             for (channel, y) in y_iter.enumerate() {
-                let (r, g, b) = self
-                    .channel_colors
+                let (r, g, b) = channel_colors
+                    .0
                     .get(channel)
                     .unwrap_or_else(|| panic!("no color for channel {}", channel));
                 cr.set_source_rgb(*r, *g, *b);
@@ -503,6 +467,8 @@ impl WaveformImage {
 
             self.last.x = x;
         }
+
+        drop(channel_colors);
 
         #[cfg(test)]
         {
@@ -543,13 +509,16 @@ mod tests {
     use gstreamer_audio::AUDIO_FORMAT_S16;
     use log::info;
 
-    use std::fs::{create_dir, File};
-    use std::io::ErrorKind;
+    use std::{
+        fs::{create_dir, File},
+        io::ErrorKind,
+        sync::{Arc, Mutex},
+    };
 
     use media::{AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex, SampleIndexRange};
     use metadata::Duration;
 
-    use super::WaveformImage;
+    use super::*;
 
     const OUT_DIR: &str = "../target/test";
     const SAMPLE_RATE: u32 = 300;
@@ -566,7 +535,7 @@ mod tests {
         });
     }
 
-    fn init(sample_step_f: f64, width: i32) -> (AudioBuffer, WaveformImage) {
+    fn init(sample_step_f: f64, width: i32) -> (AudioBuffer, WaveformImage, Dimensions) {
         //env_logger::init();
         gst::init().unwrap();
 
@@ -575,14 +544,18 @@ mod tests {
         // AudioBuffer
         let mut audio_buffer = AudioBuffer::new(Duration::from_secs(1));
         audio_buffer.init(
-            gst_audio::AudioInfo::builder(AUDIO_FORMAT_S16, SAMPLE_RATE, CHANNELS as u32)
+            &gst_audio::AudioInfo::builder(AUDIO_FORMAT_S16, SAMPLE_RATE, CHANNELS as u32)
                 .build()
                 .unwrap(),
         );
 
         // WaveformImage
-        let mut waveform = WaveformImage::new(0);
-        waveform.set_channels(&[
+        let waveform = WaveformImage::new(
+            0,
+            Arc::new(Mutex::new(ChannelColors::default())),
+            Arc::new(Mutex::new(None)),
+        );
+        let channels = vec![
             AudioChannel {
                 side: AudioChannelSide::Left,
                 factor: 1f64,
@@ -591,12 +564,24 @@ mod tests {
                 side: AudioChannelSide::Right,
                 factor: 1f64,
             },
-        ]);
-        waveform.update_width(width);
-        waveform.update_height(SAMPLE_DYN);
-        waveform.update_sample_step(sample_step_f); // 1 sample / px
+        ];
+        waveform.set_channels(channels.into_iter());
 
-        (audio_buffer, waveform)
+        let dimensions = Dimensions {
+            sample_step: (sample_step_f as usize).max(1).into(),
+            sample_step_f,
+
+            x_step_f: 1f64,
+            x_step: 1,
+
+            req_width: width,
+            req_width_f: width as f64,
+            req_height: SAMPLE_DYN,
+
+            ..Dimensions::default()
+        };
+
+        (audio_buffer, waveform, dimensions)
     }
 
     // Build a buffer with 2 channels in the specified range
@@ -651,6 +636,7 @@ mod tests {
     fn render(
         prefix: &str,
         waveform: &mut WaveformImage,
+        d: Dimensions,
         audio_buffer: &mut AudioBuffer,
         buffer: gst::Buffer,
         lower: SampleIndex,
@@ -695,7 +681,7 @@ mod tests {
             "rendering: [{}, {}] incoming [{}, {}]",
             lower_to_extract, upper_to_extract, incoming_lower, incoming_upper
         );
-        waveform.render(&audio_buffer, lower_to_extract, upper_to_extract);
+        waveform.render(d, &audio_buffer, lower_to_extract, upper_to_extract);
 
         let lower = waveform.lower;
         let upper = waveform.upper;
@@ -713,11 +699,12 @@ mod tests {
 
     #[test]
     fn additive_draws() {
-        let (mut audio_buffer, mut waveform) = init(3f64, 250);
+        let (mut audio_buffer, mut waveform, d) = init(3f64, 250);
 
         render(
             "additive_0 init",
             &mut waveform,
+            d.clone(),
             &mut audio_buffer,
             build_buffer(100, 200),
             SampleIndex::new(100),
@@ -725,6 +712,7 @@ mod tests {
         render(
             "additive_1 overlap on the left and on the right",
             &mut waveform,
+            d.clone(),
             &mut audio_buffer,
             build_buffer(50, 250),
             SampleIndex::new(50),
@@ -732,6 +720,7 @@ mod tests {
         render(
             "additive_2 overlap on the left",
             &mut waveform,
+            d.clone(),
             &mut audio_buffer,
             build_buffer(0, 100),
             SampleIndex::new(0),
@@ -739,6 +728,7 @@ mod tests {
         render(
             "additive_3 scrolling and overlap on the right",
             &mut waveform,
+            d.clone(),
             &mut audio_buffer,
             build_buffer(150, 340),
             SampleIndex::new(150),
@@ -746,6 +736,7 @@ mod tests {
         render(
             "additive_4 scrolling and overlaping on the right",
             &mut waveform,
+            d.clone(),
             &mut audio_buffer,
             build_buffer(0, 200),
             SampleIndex::new(250),
@@ -754,11 +745,12 @@ mod tests {
 
     #[test]
     fn link_between_draws() {
-        let (mut audio_buffer, mut waveform) = init(1f64 / 5f64, 1480);
+        let (mut audio_buffer, mut waveform, d) = init(1f64 / 5f64, 1480);
 
         render(
             "link_0",
             &mut waveform,
+            d.clone(),
             &mut audio_buffer,
             build_buffer(100, 200),
             SampleIndex::new(100),
@@ -767,6 +759,7 @@ mod tests {
         render(
             "link_1",
             &mut waveform,
+            d.clone(),
             &mut audio_buffer,
             build_buffer(25, 125),
             SampleIndex::new(0),
@@ -775,6 +768,7 @@ mod tests {
         render(
             "link_2",
             &mut waveform,
+            d.clone(),
             &mut audio_buffer,
             build_buffer(175, 275),
             SampleIndex::new(200),
@@ -783,11 +777,12 @@ mod tests {
 
     #[test]
     fn seek() {
-        let (mut audio_buffer, mut waveform) = init(1f64, 300);
+        let (mut audio_buffer, mut waveform, d) = init(1f64, 300);
 
         render(
             "seek_0",
             &mut waveform,
+            d.clone(),
             &mut audio_buffer,
             build_buffer(0, 100),
             SampleIndex::new(100),
@@ -796,6 +791,7 @@ mod tests {
         render(
             "seek_1",
             &mut waveform,
+            d.clone(),
             &mut audio_buffer,
             build_buffer(0, 100),
             SampleIndex::new(500),
@@ -804,6 +800,7 @@ mod tests {
         render(
             "seek_2",
             &mut waveform,
+            d.clone(),
             &mut audio_buffer,
             build_buffer(100, 200),
             SampleIndex::new(600),
@@ -812,6 +809,7 @@ mod tests {
         render(
             "seek_3",
             &mut waveform,
+            d.clone(),
             &mut audio_buffer,
             build_buffer(200, 300),
             SampleIndex::new(700),
@@ -820,11 +818,12 @@ mod tests {
 
     #[test]
     fn oveflow() {
-        let (mut audio_buffer, mut waveform) = init(1f64 / 5f64, 1500);
+        let (mut audio_buffer, mut waveform, d) = init(1f64 / 5f64, 1500);
 
         render(
             "oveflow_0",
             &mut waveform,
+            d.clone(),
             &mut audio_buffer,
             build_buffer(0, 200),
             SampleIndex::new(250),
@@ -833,6 +832,7 @@ mod tests {
         render(
             "oveflow_1",
             &mut waveform,
+            d.clone(),
             &mut audio_buffer,
             build_buffer(0, 300),
             SampleIndex::new(0),
@@ -841,6 +841,7 @@ mod tests {
         render(
             "oveflow_2",
             &mut waveform,
+            d.clone(),
             &mut audio_buffer,
             build_buffer(0, 100),
             SampleIndex::new(400),

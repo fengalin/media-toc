@@ -413,8 +413,8 @@ impl InfoController {
         self.chapter_manager.move_chapter_boundary(boundary, target)
     }
 
-    pub fn seek(&mut self, target: Timestamp) {
-        self.tick(target, ControllerState::Seeking);
+    pub fn seek_done(&mut self, target: Timestamp) {
+        self.tick(target, ControllerState::Seeking(target));
     }
 
     pub fn add_chapter(&mut self, ts: Timestamp) {

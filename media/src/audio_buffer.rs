@@ -5,7 +5,7 @@ use gstreamer as gst;
 use gstreamer_audio as gst_audio;
 use gstreamer_audio::AudioFormat;
 
-use log::debug;
+use log::{debug, trace};
 
 use sample::Sample;
 
@@ -17,9 +17,6 @@ use std::{
 use metadata::Duration;
 
 use super::{SampleIndex, SampleIndexRange, SampleValue, Timestamp, INLINE_CHANNELS};
-
-#[cfg(test)]
-use log::trace;
 
 pub struct StreamState {
     format: gst_audio::AudioFormat,
@@ -182,13 +179,13 @@ impl AudioBuffer {
     }
 
     // FIXME: find more explicite names and rationalize `init`, `cleanup`, `reset`, ...
-    pub fn init(&mut self, audio_info: gst_audio::AudioInfo) {
+    pub fn init(&mut self, audio_info: &gst_audio::AudioInfo) {
         // assert_eq!(layout, Interleaved);
 
         // changing caps
         self.cleanup();
 
-        self.stream_state.init(&audio_info);
+        self.stream_state.init(audio_info);
         self.channels = INLINE_CHANNELS.min(self.stream_state.channels);
         self.capacity = SampleIndexRange::from_duration(
             self.buffer_duration,
@@ -291,7 +288,6 @@ impl AudioBuffer {
             // not initializing
             if incoming_lower == self.upper {
                 // 1. append incoming gst_buffer to the end of internal storage
-                #[cfg(test)]
                 trace!("case 1. appending to the end (full)");
                 // self.lower unchanged
                 self.upper = incoming_upper;
@@ -789,7 +785,7 @@ mod tests {
 
         let mut audio_buffer = AudioBuffer::new(Duration::from_secs(1));
         audio_buffer.init(
-            gst_audio::AudioInfo::builder(AUDIO_FORMAT_S16, SAMPLE_RATE, CHANNELS as u32)
+            &gst_audio::AudioInfo::builder(AUDIO_FORMAT_S16, SAMPLE_RATE, CHANNELS as u32)
                 .build()
                 .unwrap(),
         );
@@ -881,7 +877,7 @@ mod tests {
 
         let mut audio_buffer = AudioBuffer::new(Duration::from_secs(1));
         audio_buffer.init(
-            gst_audio::AudioInfo::builder(AUDIO_FORMAT_S16, SAMPLE_RATE, CHANNELS as u32)
+            &gst_audio::AudioInfo::builder(AUDIO_FORMAT_S16, SAMPLE_RATE, CHANNELS as u32)
                 .build()
                 .unwrap(),
         );

@@ -37,7 +37,7 @@ pub enum ControllerState {
     PendingSeek(Timestamp),
     Playing,
     PlayingRange(Timestamp),
-    Seeking,
+    Seeking(Timestamp),
     Stopped,
     TwoStepsSeek(Timestamp),
 }
@@ -260,8 +260,8 @@ impl MainController {
     pub fn seek(&mut self, mut ts: Timestamp, mut flags: gst::SeekFlags) {
         match self.state {
             ControllerState::Playing => {
-                self.state = ControllerState::Seeking;
-                self.audio_ctrl.seek(ts);
+                self.state = ControllerState::Seeking(ts);
+                self.audio_ctrl.seek();
             }
             ControllerState::Paused | ControllerState::PausedPlayingRange(_) => {
                 flags = gst::SeekFlags::ACCURATE;
@@ -271,13 +271,11 @@ impl MainController {
                         let seek_2d_step = ts;
                         ts = seek_1st_step;
                         self.state = ControllerState::TwoStepsSeek(seek_2d_step);
-                        self.info_ctrl.seek(seek_2d_step);
-                        self.audio_ctrl.seek(seek_2d_step);
+                        self.audio_ctrl.seek();
                     }
                     None => {
-                        self.state = ControllerState::Seeking;
-                        self.info_ctrl.seek(ts);
-                        self.audio_ctrl.seek(ts);
+                        self.state = ControllerState::Seeking(ts);
+                        self.audio_ctrl.seek();
                     }
                 }
             }
@@ -294,13 +292,12 @@ impl MainController {
                 // `TwoStepsSeek` (which purpose is to center the cursor on the waveform)
                 // than reaching for the latest seeked position
                 ts = target;
-                self.state = ControllerState::Seeking;
+                self.state = ControllerState::Seeking(ts);
             }
             ControllerState::EOS => {
-                self.state = ControllerState::Seeking;
-                self.info_ctrl.seek(ts);
+                self.state = ControllerState::Seeking(ts);
                 self.audio_ctrl.play();
-                self.audio_ctrl.seek(ts);
+                self.audio_ctrl.seek();
             }
             _ => return,
         }
@@ -335,7 +332,7 @@ impl MainController {
 
     pub fn refresh_info(&mut self, ts: Timestamp) {
         match self.state {
-            ControllerState::Seeking => (),
+            ControllerState::Seeking(_) => (),
             _ => self.info_ctrl.tick(ts, self.state),
         }
     }
@@ -462,14 +459,15 @@ impl MainController {
                 }
                 _ => (),
             },
-            ControllerState::Seeking => {
+            ControllerState::Seeking(ts) => {
                 if let MediaEvent::AsyncDone(playback_state) = event {
                     match playback_state {
                         PlaybackState::Playing => self.state = ControllerState::Playing,
                         PlaybackState::Paused => self.state = ControllerState::Paused,
                     }
 
-                    self.audio_ctrl.seek_done();
+                    self.info_ctrl.seek_done(ts);
+                    self.audio_ctrl.seek_done(ts);
                 }
             }
             ControllerState::TwoStepsSeek(target) => {
