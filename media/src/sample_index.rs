@@ -16,14 +16,17 @@ impl SampleIndex {
         SampleIndex(value)
     }
 
+    #[track_caller]
     pub fn from_ts(ts: Timestamp, sample_duration: Duration) -> Self {
         SampleIndex((ts.as_u64() / sample_duration.as_u64()) as usize)
     }
 
+    #[track_caller]
     pub fn snap_to(self, sample_step: SampleIndexRange) -> SampleIndex {
         SampleIndex(self.0 / sample_step.as_usize() * sample_step.as_usize())
     }
 
+    #[track_caller]
     pub fn as_ts(self, sample_duration: Duration) -> Timestamp {
         Timestamp::new(self.0 as u64 * sample_duration.as_u64())
     }
@@ -76,6 +79,7 @@ impl From<SampleIndexRange> for SampleIndex {
 impl Sub for SampleIndex {
     type Output = SampleIndexRange;
 
+    #[track_caller]
     fn sub(self, rhs: SampleIndex) -> SampleIndexRange {
         SampleIndexRange::new(self.0 - rhs.0)
     }
@@ -84,12 +88,14 @@ impl Sub for SampleIndex {
 impl Add<SampleIndexRange> for SampleIndex {
     type Output = SampleIndex;
 
+    #[track_caller]
     fn add(self, rhs: SampleIndexRange) -> SampleIndex {
         SampleIndex(self.0 + rhs.as_usize())
     }
 }
 
 impl AddAssign<SampleIndexRange> for SampleIndex {
+    #[track_caller]
     fn add_assign(&mut self, rhs: SampleIndexRange) {
         *self = SampleIndex(self.0 + rhs.as_usize());
     }
@@ -98,6 +104,7 @@ impl AddAssign<SampleIndexRange> for SampleIndex {
 impl Sub<SampleIndexRange> for SampleIndex {
     type Output = SampleIndex;
 
+    #[track_caller]
     fn sub(self, rhs: SampleIndexRange) -> SampleIndex {
         SampleIndex(self.0 - rhs.as_usize())
     }

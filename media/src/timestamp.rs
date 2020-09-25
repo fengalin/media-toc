@@ -20,10 +20,12 @@ impl Timestamp {
         Timestamp4Humans::from_nano(self.0)
     }
 
+    #[track_caller]
     pub fn halfway_to(self, other: Timestamp) -> Timestamp {
         Timestamp((self.0 + other.0) / 2)
     }
 
+    #[track_caller]
     pub fn sample_index(self, sample_duration: Duration) -> SampleIndex {
         SampleIndex::new((self.0 / sample_duration.as_u64()) as usize)
     }
@@ -62,6 +64,7 @@ impl From<Duration> for Timestamp {
 impl Sub for Timestamp {
     type Output = Duration;
 
+    #[track_caller]
     fn sub(self, rhs: Timestamp) -> Duration {
         Duration::from_nanos(self.0 - rhs.0)
     }
@@ -70,6 +73,7 @@ impl Sub for Timestamp {
 impl Add<Duration> for Timestamp {
     type Output = Timestamp;
 
+    #[track_caller]
     fn add(self, rhs: Duration) -> Timestamp {
         Timestamp(self.0 + rhs.as_u64())
     }
@@ -78,6 +82,7 @@ impl Add<Duration> for Timestamp {
 impl Sub<Duration> for Timestamp {
     type Output = Timestamp;
 
+    #[track_caller]
     fn sub(self, rhs: Duration) -> Timestamp {
         Timestamp(self.0 - rhs.as_u64())
     }

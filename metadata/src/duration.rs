@@ -13,14 +13,17 @@ impl Duration {
         Duration(nanos)
     }
 
+    #[track_caller]
     pub const fn from_secs(secs: u64) -> Self {
         Duration(secs * 1_000_000_000u64)
     }
 
+    #[track_caller]
     pub const fn from_millis(millis: u64) -> Self {
         Duration(millis * 1_000_000u64)
     }
 
+    #[track_caller]
     pub const fn from_frequency(freq: u64) -> Self {
         Duration(1_000_000_000u64 / freq)
     }
@@ -51,6 +54,7 @@ impl Into<u64> for Duration {
 impl Div for Duration {
     type Output = Duration;
 
+    #[track_caller]
     fn div(self, rhs: Duration) -> Self::Output {
         Duration(self.0 / rhs.0)
     }
@@ -59,12 +63,14 @@ impl Div for Duration {
 impl Div<u64> for Duration {
     type Output = Duration;
 
+    #[track_caller]
     fn div(self, rhs: u64) -> Self::Output {
         Duration(self.0 / rhs)
     }
 }
 
 impl DivAssign<u64> for Duration {
+    #[track_caller]
     fn div_assign(&mut self, rhs: u64) {
         *self = Duration(self.0 / rhs);
     }
@@ -73,12 +79,14 @@ impl DivAssign<u64> for Duration {
 impl Mul<u64> for Duration {
     type Output = Duration;
 
+    #[track_caller]
     fn mul(self, rhs: u64) -> Self::Output {
         Duration(self.0 * rhs)
     }
 }
 
 impl MulAssign<u64> for Duration {
+    #[track_caller]
     fn mul_assign(&mut self, rhs: u64) {
         *self = Duration(self.0 * rhs);
     }

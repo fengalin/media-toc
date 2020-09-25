@@ -10,18 +10,22 @@ impl SampleIndexRange {
         SampleIndexRange(value)
     }
 
+    #[track_caller]
     pub fn from_duration(duration: Duration, sample_duration: Duration) -> Self {
         SampleIndexRange((duration / sample_duration).as_usize())
     }
 
+    #[track_caller]
     pub fn duration(self, sample_duration: Duration) -> Duration {
         sample_duration * (self.0 as u64)
     }
 
+    #[track_caller]
     pub fn scale<T: Into<usize>>(self, num: T, denom: T) -> Self {
         SampleIndexRange(num.into() / denom.into() * self.0)
     }
 
+    #[track_caller]
     pub fn step_range(self, sample_step: SampleIndexRange) -> usize {
         self.0 / sample_step.0
     }
