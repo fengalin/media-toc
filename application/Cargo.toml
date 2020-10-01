@@ -15,7 +15,7 @@ build = "build.rs"
 [dependencies]
 clap = "2"
 directories = "3"
-gettext-rs = { version = "0.4", features = ["gettext-system"] }
+gettext-rs = { version = "0.5", features = ["gettext-system"] }
 lazy_static = "1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 ron = "0.6"

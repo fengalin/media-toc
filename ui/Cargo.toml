@@ -16,7 +16,7 @@ bitflags = "1"
 cairo-rs = "0.9"
 futures = "0.3"
 gdk = "0.13"
-gettext-rs = { version = "0.4", features = ["gettext-system"] }
+gettext-rs = { version = "0.5", features = ["gettext-system"] }
 gio = "0.9"
 glib = "0.10"
 gstreamer = { version = "0.16", features = ["v1_10"] }

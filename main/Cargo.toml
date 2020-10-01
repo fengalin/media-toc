@@ -17,7 +17,7 @@ path = "src/main.rs"
 [dependencies]
 application = { path = "../application", package = "media-toc-application"  }
 env_logger = "0.7"
-gettext-rs = { version = "0.4", features = ["gettext-system"] }
+gettext-rs = { version = "0.5", features = ["gettext-system"] }
 gtk = { version = "0.9", features = ["v3_20"] }
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 ui = { path = "../ui", package = "media-toc-ui"  }
