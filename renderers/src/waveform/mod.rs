@@ -30,6 +30,16 @@ pub struct Dimensions {
 
 impl Dimensions {
     pub(super) fn reset(&mut self) {
-        *self = Self::default();
+        *self = Default::default();
+    }
+
+    pub(super) fn reset_sample_conditions(&mut self) {
+        self.sample_duration = Default::default();
+        self.sample_step = Default::default();
+        self.sample_step_f = 0f64;
+        self.x_step_f = 0f64;
+        self.x_step = 0;
+        self.force_redraw_1 = true;
+        self.force_redraw_2 = true;
     }
 }

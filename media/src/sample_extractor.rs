@@ -48,6 +48,8 @@ pub trait SampleExtractor: Send {
 
     fn set_sample_duration(&mut self, per_sample: Duration, per_1000_samples: Duration);
 
+    fn reset_sample_conditions(&mut self);
+
     fn lower(&self) -> SampleIndex;
 
     fn req_sample_window(&self) -> Option<SampleIndexRange>;

@@ -74,8 +74,6 @@ impl<SE: SampleExtractor + 'static> DoubleAudioBuffer<SE> {
         self.reset();
         self.audio_buffer.cleanup();
 
-        // FIXME cleanup image shared_state / what about WaveformRender shared_state?
-
         {
             let exposed_buffer = &mut self.exposed_buffer_mtx.lock().unwrap();
             exposed_buffer.cleanup();
@@ -129,8 +127,11 @@ impl<SE: SampleExtractor + 'static> DoubleAudioBuffer<SE> {
             .take(INLINE_CHANNELS)
             .map(|position| AudioChannel::new(position));
 
-        // Apply changes using the exposed buffer so that
-        // it won't render obsolete samples.
+        self.exposed_buffer_mtx
+            .lock()
+            .unwrap()
+            .reset_sample_conditions();
+
         let working_buffer = self.working_buffer.as_mut().unwrap();
         working_buffer.set_sample_duration(sample_duration, duration_per_1000_samples);
         working_buffer.set_channels(channels);

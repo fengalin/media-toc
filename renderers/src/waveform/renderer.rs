@@ -147,13 +147,6 @@ impl WaveformRenderer {
         self.image.cleanup();
     }
 
-    fn reset_sample_conditions(&mut self) {
-        debug!("{}_reset_sample_conditions", self.image.id);
-
-        self.dimensions.write().unwrap().reset();
-        self.image.cleanup_sample_conditions();
-    }
-
     pub fn limits_as_ts(&self) -> (Timestamp, Timestamp) {
         let sample_duration = self.dimensions.read().unwrap().sample_duration;
 
@@ -892,7 +885,7 @@ impl SampleExtractor for WaveformRenderer {
     }
 
     fn set_sample_duration(&mut self, per_sample: Duration, per_1000_samples: Duration) {
-        self.reset_sample_conditions();
+        self.image.cleanup_sample_conditions();
 
         let mut d = self.dimensions.write().unwrap();
 
@@ -901,6 +894,13 @@ impl SampleExtractor for WaveformRenderer {
 
         self.update_sample_step(&mut d);
         self.update_sample_window(&mut d);
+    }
+
+    fn reset_sample_conditions(&mut self) {
+        debug!("{}_reset_sample_conditions", self.image.id);
+
+        self.dimensions.write().unwrap().reset_sample_conditions();
+        self.image.cleanup_sample_conditions();
     }
 
     fn set_channels(&mut self, channels: impl Iterator<Item = AudioChannel>) {
