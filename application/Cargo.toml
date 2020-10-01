@@ -8,7 +8,7 @@ license = "MIT"
 name = "media-toc-application"
 readme = "README.md"
 repository = "https://github.com/fengalin/media-toc"
-version = "0.6.99"
+version = "0.7.0"
 
 build = "build.rs"
 

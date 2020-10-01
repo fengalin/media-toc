@@ -280,7 +280,7 @@ When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
 This will retrieve the last release.
 
   ```
-  git clone --branch v0.6.0 https://github.com/fengalin/media-toc
+  git clone --branch v0.7.0 https://github.com/fengalin/media-toc
   cd media-toc
   ```
 
