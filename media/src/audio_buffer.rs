@@ -160,6 +160,7 @@ pub struct AudioBuffer {
 
     pub lower: SampleIndex,
     pub upper: SampleIndex,
+    // FIXME we probably no longer need a VecDeque
     pub samples: VecDeque<SampleValue>,
 }
 
@@ -383,7 +384,7 @@ impl AudioBuffer {
         // and iteration).
         // Don't drain samples if they might be used by the extractor
         // (limit known as argument lower_to_keep).
-        if !ins.append_after
+        if ins.append_after
             && self.samples.len()
                 + (ins.upper_to_add_rel - ins.lower_to_add_rel).as_usize() * self.channels
                 > self.capacity
