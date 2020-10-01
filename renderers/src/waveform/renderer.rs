@@ -122,7 +122,7 @@ pub struct WaveformRenderer {
 }
 
 impl WaveformRenderer {
-    fn new(
+    pub fn new(
         id: usize,
         shared_state: Arc<RwLock<SharedState>>,
         dimensions: Arc<RwLock<Dimensions>>,

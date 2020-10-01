@@ -67,7 +67,7 @@ fn bench_append_samples(b: &mut Bencher) {
 
     let mut audio_buffer = AudioBuffer::new(Duration::from_secs(10));
     audio_buffer.init(
-        gst_audio::AudioInfo::new(gst_audio::AUDIO_FORMAT_S16, SAMPLE_RATE, CHANNELS as u32)
+        &gst_audio::AudioInfo::builder(gst_audio::AUDIO_FORMAT_S16, SAMPLE_RATE, CHANNELS as u32)
             .build()
             .unwrap(),
     );

@@ -10,13 +10,16 @@ use cairo;
 use gstreamer as gst;
 use gstreamer_audio as gst_audio;
 
-use smallvec::SmallVec;
+use std::sync::{Arc, Mutex, RwLock};
 
 use media::{
-    AudioBuffer, AudioChannel, SampleExtractor, SampleIndex, SampleIndexRange, Timestamp,
-    INLINE_CHANNELS,
+    sample_extractor, AudioBuffer, AudioChannel, AudioChannelSide, SampleExtractor, SampleIndex,
+    SampleIndexRange, Timestamp,
 };
-use mediatocrenderers::WaveformRenderer;
+use mediatocrenderers::{
+    waveform::{image::ChannelColors, renderer::SharedState, Dimensions},
+    WaveformRenderer,
+};
 use metadata::Duration;
 
 const SAMPLE_RATE: u64 = 48_000;
@@ -37,7 +40,7 @@ const DISPLAY_HEIGHT: i32 = 500;
 
 fn build_buffer(lower_value: usize, upper_value: usize) -> gst::Buffer {
     let lower: SampleIndex = lower_value.into();
-    let pts = Timestamp::new(lower.get_ts(SAMPLE_DURATION).as_u64() + 1);
+    let pts = Timestamp::new(lower.as_ts(SAMPLE_DURATION).as_u64() + 1);
     let samples_u8_len = (upper_value - lower_value) * CHANNELS * 2;
 
     let mut buffer = gst::Buffer::with_size(samples_u8_len).unwrap();
@@ -76,14 +79,10 @@ fn push_test_buffer(audio_buffer: &mut AudioBuffer, buffer: &gst::Buffer, is_new
     audio_buffer.push_gst_buffer(buffer, SampleIndex::default()); // never drain buffer in this test
 }
 
-fn prepare_buffers() -> (
-    AudioBuffer,
-    WaveformRenderer,
-    SmallVec<[AudioChannel; INLINE_CHANNELS]>,
-) {
+fn prepare_buffers() -> (AudioBuffer, WaveformRenderer, Arc<RwLock<SharedState>>) {
     let mut audio_buffer = AudioBuffer::new(Duration::from_secs(10));
     audio_buffer.init(
-        gst_audio::AudioInfo::new(
+        &gst_audio::AudioInfo::builder(
             gst_audio::AUDIO_FORMAT_S16,
             SAMPLE_RATE as u32,
             CHANNELS as u32,
@@ -98,36 +97,56 @@ fn prepare_buffers() -> (
         true,
     );
 
-    let mut channels: SmallVec<[AudioChannel; INLINE_CHANNELS]> = SmallVec::with_capacity(CHANNELS);
-    channels.push(AudioChannel::new(
-        gst_audio::AudioChannelPosition::FrontLeft,
-    ));
-    channels.push(AudioChannel::new(
-        gst_audio::AudioChannelPosition::FrontRight,
-    ));
+    let shared_state = Arc::new(RwLock::new(SharedState::default()));
 
-    (audio_buffer, WaveformRenderer::new(1), channels)
+    (
+        audio_buffer,
+        WaveformRenderer::new(
+            1,
+            Arc::clone(&shared_state),
+            Arc::new(RwLock::new(Dimensions::default())),
+            Arc::new(RwLock::new(sample_extractor::State::default())),
+            Arc::new(Mutex::new(ChannelColors::default())),
+            Arc::new(Mutex::new(None)),
+        ),
+        shared_state,
+    )
 }
 
 fn render_buffers(
     audio_buffer: &mut AudioBuffer,
     waveform_renderer: &mut WaveformRenderer,
-    channels: &SmallVec<[AudioChannel; INLINE_CHANNELS]>,
-    mut extra_op: Option<&mut FnMut(usize, &mut WaveformRenderer)>,
+    shared_state: &Arc<RwLock<SharedState>>,
+    mut extra_op: Option<&mut dyn FnMut(usize, &mut WaveformRenderer)>,
 ) {
     // start with enough overhead in audio buffer
     audio_buffer.upper = BUFFER_OVERHEAD.into();
 
     waveform_renderer.reset();
     waveform_renderer.set_sample_duration(SAMPLE_DURATION, DURATION_FOR_1000);
-    waveform_renderer.set_channels(&channels);
-    waveform_renderer.set_state(gst::State::Playing);
+    waveform_renderer.set_channels(
+        vec![
+            AudioChannel {
+                side: AudioChannelSide::Left,
+                factor: 1f64,
+            },
+            AudioChannel {
+                side: AudioChannelSide::Right,
+                factor: 1f64,
+            },
+        ]
+        .into_iter(),
+    );
+    waveform_renderer.release();
     waveform_renderer.update_conditions(DURATION_FOR_1000PX, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 
     for idx in 0..BUFFER_COUNT {
         let first_visible = idx * SAMPLES_PER_BUFFER;
-        waveform_renderer.first_visible_sample = Some(first_visible.into());
-        waveform_renderer.cursor_sample = (first_visible + SAMPLES_PER_BUFFER / 2).into();
+        {
+            let mut shared_state = shared_state.write().unwrap();
+            shared_state.first_visible_sample = Some(first_visible.into());
+            shared_state.cursor_sample = (first_visible + SAMPLES_PER_BUFFER / 2).into();
+        }
 
         waveform_renderer.extract_samples(&audio_buffer);
 
@@ -145,10 +164,15 @@ fn render_buffers(
 fn bench_render_buffers(b: &mut Bencher) {
     gst::init().unwrap();
 
-    let (mut audio_buffer, mut waveform_renderer, channels) = prepare_buffers();
+    let (mut audio_buffer, mut waveform_renderer, shared_state) = prepare_buffers();
 
     b.iter(|| {
-        render_buffers(&mut audio_buffer, &mut waveform_renderer, &channels, None);
+        render_buffers(
+            &mut audio_buffer,
+            &mut waveform_renderer,
+            &shared_state,
+            None,
+        );
     });
 }
 
@@ -156,7 +180,7 @@ fn bench_render_buffers(b: &mut Bencher) {
 fn bench_render_buffers_and_display(b: &mut Bencher) {
     gst::init().unwrap();
 
-    let (mut audio_buffer, mut waveform_renderer, channels) = prepare_buffers();
+    let (mut audio_buffer, mut waveform_renderer, shared_state) = prepare_buffers();
 
     let display_surface =
         cairo::ImageSurface::create(cairo::Format::Rgb24, DISPLAY_WIDTH, DISPLAY_HEIGHT)
@@ -167,7 +191,7 @@ fn bench_render_buffers_and_display(b: &mut Bencher) {
 
         waveform_renderer
             .image
-            .get_image()
+            .image()
             .with_surface_external_context(&cr, |cr, surface| {
                 cr.set_source_surface(surface, -((idx % 20) as f64), 0f64);
                 cr.paint();
@@ -178,7 +202,7 @@ fn bench_render_buffers_and_display(b: &mut Bencher) {
         render_buffers(
             &mut audio_buffer,
             &mut waveform_renderer,
-            &channels,
+            &shared_state,
             Some(&mut render_to_display),
         );
     });

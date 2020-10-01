@@ -125,7 +125,7 @@ impl<SE: SampleExtractor + 'static> DoubleAudioBuffer<SE> {
             .iter_mut()
             .flatten()
             .take(INLINE_CHANNELS)
-            .map(|position| AudioChannel::new(position));
+            .map(|position| AudioChannel::new(*position));
 
         self.exposed_buffer_mtx
             .lock()
