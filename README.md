@@ -21,6 +21,7 @@ a media player with a table of contents.
   * [Use `mkvmerge` to add the toc to an existing Matrsoka media](#use-mkvmerge)
 - [Technologies](#technologies)
 - [Build environment](#build-env)
+- [Get the sources](#get-sources)
 - [Build and run](#build-run)
 - [Troubleshooting](#troubleshooting)
 
@@ -235,13 +236,6 @@ toolchain.
   source $HOME/.bashrc
   ```
 
-- Get the sources for last release:
-
-  ```
-  git clone --branch v0.6.0 https://github.com/fengalin/media-toc
-  cd media-toc
-  ```
-
 - Install dependencies:
 
   ```
@@ -250,12 +244,6 @@ toolchain.
   brew install --with-flac --with-gtk+3 --with-libpng --with-taglib gst-plugins-good
   brew install --with-srt gst-plugins-bad
   brew install --with-libmpeg2 --with-x264 gst-plugins-ugly
-  ```
-
-- Build & run:
-
-  ```
-  cargo run --release
   ```
 
 Use the following command to build and generate locales:
@@ -286,6 +274,15 @@ When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
       ```
 
   - Restart the MSYS2 MinGW 32 or 64 shell before using `cargo`.
+
+# <a name='get-sources'></a>Get the sources
+
+This will retrieve the last release.
+
+  ```
+  git clone --branch v0.6.0 https://github.com/fengalin/media-toc
+  cd media-toc
+  ```
 
 # <a name='build-run'></a>Build and run
 
