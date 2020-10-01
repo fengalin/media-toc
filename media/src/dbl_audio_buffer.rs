@@ -205,18 +205,19 @@ impl<SE: SampleExtractor + 'static> DoubleAudioBuffer<SE> {
     /// Refreshes the working extractor with new samples and swap.
     pub fn refresh(&mut self) {
         let mut working_buffer = self.working_buffer.take().unwrap();
-        working_buffer.extract_samples(&self.audio_buffer);
+        match working_buffer.extract_samples(&self.audio_buffer) {
+            Some(status) => {
+                self.lower_to_keep = status.lower;
+                self.sample_window = Some(status.req_sample_window.min(self.max_sample_window));
+            }
+            None => self.sample_window = None,
+        }
 
         // swap buffers
         {
             let exposed_buffer_box = &mut *self.exposed_buffer_mtx.lock().unwrap();
             mem::swap(exposed_buffer_box, &mut working_buffer);
         }
-
-        self.lower_to_keep = working_buffer.lower();
-        self.sample_window = working_buffer
-            .req_sample_window()
-            .map(|req_sample_window| req_sample_window.min(self.max_sample_window));
 
         self.working_buffer = Some(working_buffer);
         // self.working_buffer is now the buffer previously in

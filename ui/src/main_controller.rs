@@ -466,6 +466,7 @@ impl MainController {
                         PlaybackState::Paused => self.state = ControllerState::Paused,
                     }
 
+                    debug!("seek to {} done", ts);
                     self.info_ctrl.seek_done(ts);
                     self.audio_ctrl.seek_done(ts);
                 }

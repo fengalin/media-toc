@@ -850,32 +850,6 @@ impl SampleExtractor for WaveformRenderer {
         f(&mut extract_state)
     }
 
-    fn lower(&self) -> SampleIndex {
-        self.shared_state
-            .read()
-            .unwrap()
-            .first_visible_sample
-            .map_or(self.image.lower, |sample| {
-                let dim = self.dimensions.read().unwrap();
-
-                if sample > dim.half_req_sample_window {
-                    sample - dim.half_req_sample_window
-                } else {
-                    sample
-                }
-            })
-    }
-
-    fn req_sample_window(&self) -> Option<SampleIndexRange> {
-        let d = self.dimensions.read().unwrap();
-
-        if d.req_sample_window == SampleIndexRange::default() {
-            None
-        } else {
-            Some(d.req_sample_window)
-        }
-    }
-
     fn cleanup(&mut self) {
         // clear for reuse
         debug!("{}_cleanup", self.image.id);
@@ -912,10 +886,18 @@ impl SampleExtractor for WaveformRenderer {
     // since last extraction and adapts to the evolving conditions of
     // the playback position and target rendering dimensions and
     // resolution.
-    fn extract_samples(&mut self, audio_buffer: &AudioBuffer) {
-        if self.dimensions.read().unwrap().req_sample_window == SampleIndexRange::default() {
+    fn extract_samples(
+        &mut self,
+        audio_buffer: &AudioBuffer,
+    ) -> Option<sample_extractor::ExtractionStatus> {
+        let (req_sample_window, half_req_sample_window) = {
+            let d = self.dimensions.read().unwrap();
+            (d.req_sample_window, d.half_req_sample_window)
+        };
+
+        if req_sample_window == SampleIndexRange::default() {
             // conditions not defined yet
-            return;
+            return None;
         }
 
         self.render(audio_buffer);
@@ -941,5 +923,21 @@ impl SampleExtractor for WaveformRenderer {
             }
             shared_state.playback_needs_refresh = false;
         }
+
+        let first_visible_sample = shared_state.first_visible_sample;
+        drop(shared_state);
+
+        let lower = first_visible_sample.map_or(self.image.lower, |first_sample| {
+            if first_sample > half_req_sample_window {
+                first_sample - half_req_sample_window
+            } else {
+                first_sample
+            }
+        });
+
+        Some(sample_extractor::ExtractionStatus {
+            lower,
+            req_sample_window,
+        })
     }
 }

@@ -30,6 +30,11 @@ impl State {
     }
 }
 
+pub struct ExtractionStatus {
+    pub lower: SampleIndex,
+    pub req_sample_window: SampleIndexRange,
+}
+
 pub trait SampleExtractor: Send {
     fn with_state<Out>(&self, f: impl FnOnce(&State) -> Out) -> Out;
     fn with_state_mut<Out>(&mut self, f: impl FnOnce(&mut State) -> Out) -> Out;
@@ -50,10 +55,6 @@ pub trait SampleExtractor: Send {
 
     fn reset_sample_conditions(&mut self);
 
-    fn lower(&self) -> SampleIndex;
-
-    fn req_sample_window(&self) -> Option<SampleIndexRange>;
-
     fn current_ts(&self) -> Option<Timestamp> {
         self.with_state(|state| {
             let mut query = gst::query::Position::new(gst::Format::Time);
@@ -68,5 +69,5 @@ pub trait SampleExtractor: Send {
     // Update the extractions taking account new
     // samples added to the buffer and possibly a
     // different timestamps
-    fn extract_samples(&mut self, audio_buffer: &AudioBuffer);
+    fn extract_samples(&mut self, audio_buffer: &AudioBuffer) -> Option<ExtractionStatus>;
 }

@@ -201,9 +201,7 @@ impl UIEventHandler {
         spawn!(async move {
             while let Some(event) = self.receiver.next().await {
                 debug!("handling event {:?}", event);
-                if self.handle(event).is_err() {
-                    break;
-                }
+                self.handle(event);
             }
         });
     }
@@ -218,7 +216,7 @@ impl UIEventHandler {
         self.main_ctrl.as_ref().unwrap().borrow_mut()
     }
 
-    fn handle(&mut self, event: UIEvent) -> Result<(), ()> {
+    fn handle(&mut self, event: UIEvent) {
         match event {
             UIEvent::AskQuestion {
                 question,
@@ -249,8 +247,6 @@ impl UIEventHandler {
             }
             UIEvent::UpdateFocus => self.update_focus(self.focus),
         }
-
-        Ok(())
     }
 
     pub fn show_all(&self) {
