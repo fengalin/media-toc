@@ -17,10 +17,8 @@ use std::{
 
 use media::Timestamp;
 
-use crate::spawn;
-
 use super::{
-    AudioDispatcher, ExportDispatcher, InfoBarController, InfoDispatcher, MainController,
+    spawn, AudioDispatcher, ExportDispatcher, InfoBarController, InfoDispatcher, MainController,
     PerspectiveDispatcher, SplitDispatcher, StreamsDispatcher, UIController, UIDispatcher,
     VideoDispatcher,
 };
@@ -198,7 +196,7 @@ impl UIEventHandler {
 
     pub fn spawn(mut self) {
         assert!(self.main_ctrl.is_some());
-        spawn!(async move {
+        spawn(async move {
             while let Some(event) = self.receiver.next().await {
                 debug!("handling event {:?}", event);
                 self.handle(event);

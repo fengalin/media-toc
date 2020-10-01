@@ -14,10 +14,8 @@ use std::{borrow::ToOwned, cell::RefCell, collections::HashSet, path::PathBuf, r
 use application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG};
 use media::{MediaEvent, PlaybackState, Timestamp};
 
-use crate::spawn;
-
 use super::{
-    AudioController, ChaptersBoundaries, ExportController, InfoController, MainDispatcher,
+    spawn, AudioController, ChaptersBoundaries, ExportController, InfoController, MainDispatcher,
     MediaEventReceiver, PerspectiveController, PlaybackPipeline, PositionStatus, SplitController,
     StreamsController, UIController, UIEventHandler, UIEventSender, VideoController,
 };
@@ -411,7 +409,7 @@ impl MainController {
 
         let (abortable_event_handler, abort_handle) =
             abortable(self.new_media_event_handler.as_ref().unwrap()(receiver));
-        spawn!(abortable_event_handler.map(drop));
+        spawn(abortable_event_handler.map(drop));
         self.media_event_abort_handle = Some(abort_handle);
 
         sender

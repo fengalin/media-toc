@@ -15,9 +15,9 @@ use std::{
 use media::MediaEvent;
 use metadata::{Format, MediaInfo};
 
-use crate::spawn;
-
-use super::{MediaEventReceiver, PlaybackPipeline, UIController, UIEventSender, UIFocusContext};
+use super::{
+    spawn, MediaEventReceiver, PlaybackPipeline, UIController, UIEventSender, UIFocusContext,
+};
 
 pub const MEDIA_EVENT_CHANNEL_CAPACITY: usize = 1;
 
@@ -150,15 +150,15 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
                 let (abortable_handler, abort_handle) =
                     abortable(self.new_media_event_handler.as_ref().unwrap()(receiver));
                 self.media_event_abort_handle = Some(abort_handle);
-                spawn!(abortable_handler.map(drop));
+                spawn(abortable_handler.map(drop));
 
-                spawn!(self.new_progress_updater.as_ref().unwrap()());
+                spawn(self.new_progress_updater.as_ref().unwrap()());
             }
         }
 
-        spawn!(
+        spawn(
             self.new_processing_state_handler.as_ref().unwrap()(Ok(ProcessingState::Start))
-                .map(drop)
+                .map(drop),
         );
     }
 

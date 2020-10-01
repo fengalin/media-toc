@@ -60,6 +60,7 @@ use log::warn;
 
 use std::{
     cell::RefCell,
+    future::Future,
     ops::{Deref, DerefMut},
     path::Path,
     rc::Rc,
@@ -68,11 +69,8 @@ use std::{
 
 use application::{CommandLineArguments, APP_ID};
 
-#[macro_export]
-macro_rules! spawn {
-    ($future:expr) => {
-        glib::MainContext::ref_thread_default().spawn_local($future);
-    };
+pub fn spawn<Fut: Future<Output = ()> + 'static>(fut: Fut) {
+    glib::MainContext::ref_thread_default().spawn_local(fut);
 }
 
 fn register_resource(resource: &[u8]) {

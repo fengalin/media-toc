@@ -7,9 +7,7 @@ use std::sync::Arc;
 
 use metadata::Stream;
 
-use crate::spawn;
-
-use super::{PlaybackPipeline, UIController};
+use super::{spawn, PlaybackPipeline, UIController};
 
 const ALIGN_LEFT: f32 = 0f32;
 const ALIGN_CENTER: f32 = 0.5f32;
@@ -162,7 +160,7 @@ impl UIController for StreamsController {
         // grab focus asynchronoulsy because it triggers the `cursor_changed` signal
         // which needs to check if the stream has changed
         let audio_treeview = self.audio_treeview.clone();
-        spawn!(async move {
+        spawn(async move {
             audio_treeview.grab_focus();
         });
     }

@@ -5,9 +5,7 @@ use log::error;
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::spawn;
-
-use super::{MainController, UIDispatcher, UIEventSender, VideoController};
+use super::{spawn, MainController, UIDispatcher, UIEventSender, VideoController};
 
 pub struct VideoDispatcher;
 impl UIDispatcher for VideoDispatcher {
@@ -36,7 +34,7 @@ impl UIDispatcher for VideoDispatcher {
             None => {
                 error!("{}", gettext("Couldn't find GStreamer GTK video sink."));
                 let container = video_ctrl.container.clone();
-                spawn!(async move {
+                spawn(async move {
                     container.hide();
                 });
             }

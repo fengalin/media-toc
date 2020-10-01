@@ -1,5 +1,3 @@
-use futures::prelude::*;
-
 use gio::prelude::*;
 use glib::clone;
 use gstreamer as gst;
@@ -9,10 +7,8 @@ use std::{cell::RefCell, rc::Rc};
 
 use media::Timestamp;
 
-use crate::spawn;
-
 use super::{
-    audio_controller::ControllerState, AudioController, MainController, PositionStatus,
+    audio_controller::ControllerState, spawn, AudioController, MainController, PositionStatus,
     UIDispatcher, UIEventSender, UIFocusContext,
 };
 
@@ -153,11 +149,11 @@ impl UIDispatcher for AudioDispatcher {
         audio_ctrl.update_conditions_async = Some(Box::new(
             clone!(@weak main_ctrl_rc => @default-panic, move || {
                 let main_ctrl_rc = Rc::clone(&main_ctrl_rc);
-                spawn!(async move {
+                spawn(async move {
                     let mut main_ctrl = main_ctrl_rc.borrow_mut();
                     main_ctrl.audio_ctrl.pending_update_conditions = false;
                     main_ctrl.audio_ctrl.update_conditions();
-                }.boxed_local());
+                });
             }),
         ));
 
