@@ -7,7 +7,7 @@ use media::{
 
 use std::sync::{Arc, Mutex};
 
-use super::{waveform::Dimensions, Image};
+use super::{super::Image, Dimensions};
 
 pub const BACKGROUND_COLOR: (f64, f64, f64) = (0.2f64, 0.2235f64, 0.2314f64);
 pub const AXIS_COLOR: (f64, f64, f64) = (0.5f64, 0.5f64, 0f64);

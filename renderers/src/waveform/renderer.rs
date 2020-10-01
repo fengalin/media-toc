@@ -9,7 +9,11 @@ use media::{
 
 use metadata::Duration;
 
-use super::{waveform::Dimensions, waveform_image, Image, WaveformImage};
+use super::{
+    super::Image,
+    image::{ChannelColors, WaveformImage},
+    Dimensions,
+};
 
 pub struct DoubleWaveformRenderer;
 
@@ -18,7 +22,7 @@ impl DoubleWaveformRenderer {
         let shared_state = Arc::new(RwLock::new(SharedState::default()));
         let dimensions = Arc::new(RwLock::new(Dimensions::default()));
         let extract_state = Arc::new(RwLock::new(sample_extractor::State::default()));
-        let channel_colors = Arc::new(Mutex::new(waveform_image::ChannelColors::default()));
+        let channel_colors = Arc::new(Mutex::new(ChannelColors::default()));
         let secondary_image = Arc::new(Mutex::new(None));
 
         DoubleAudioBuffer::new(
@@ -123,7 +127,7 @@ impl WaveformRenderer {
         shared_state: Arc<RwLock<SharedState>>,
         dimensions: Arc<RwLock<Dimensions>>,
         extract_state: Arc<RwLock<sample_extractor::State>>,
-        channel_colors: Arc<Mutex<waveform_image::ChannelColors>>,
+        channel_colors: Arc<Mutex<ChannelColors>>,
         secondary_image: Arc<Mutex<Option<Image>>>,
     ) -> Self {
         WaveformRenderer {

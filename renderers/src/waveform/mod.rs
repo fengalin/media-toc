@@ -1,3 +1,6 @@
+pub mod image;
+pub mod renderer;
+
 use media::SampleIndexRange;
 use metadata::Duration;
 
