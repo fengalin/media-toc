@@ -8,7 +8,7 @@ license = "MIT"
 name = "media-toc-renderers"
 readme = "README.md"
 repository = "https://github.com/fengalin/media-toc"
-version = "0.7.0"
+version = "0.7.99"
 
 [lib]
 name = "mediatocrenderers"

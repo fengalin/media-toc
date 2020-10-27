@@ -8,7 +8,7 @@ license = "MIT"
 name = "media-toc"
 readme = "README.md"
 repository = "https://github.com/fengalin/media-toc"
-version = "0.7.0"
+version = "0.7.99"
 
 [[bin]]
 name = "media-toc"

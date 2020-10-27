@@ -361,6 +361,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
             // TODO remove this temporary workaround.
             // Since GStreamer 1.18.0, the response to the Allocation Query hangs from times to times,
             // and downstream doesn't seem to respond properly anyway.
+            /*
             playback_sink_pad.add_probe(
                 gst::PadProbeType::QUERY_DOWNSTREAM,
                 move |_pad, probe_info| {
@@ -373,6 +374,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                     gst::PadProbeReturn::Ok
                 },
             );
+            */
 
             let tee_waveform_src_pad = tee.get_request_pad("src_%u").unwrap();
             tee_waveform_src_pad.link(&waveform_sink_pad).unwrap();
