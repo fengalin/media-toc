@@ -3,8 +3,6 @@ use futures::future::{abortable, AbortHandle, LocalBoxFuture};
 use futures::prelude::*;
 
 use gettextrs::{gettext, ngettext};
-
-use gstreamer as gst;
 use gtk::prelude::*;
 
 use log::{debug, error};
@@ -15,9 +13,9 @@ use application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG};
 use media::{MediaEvent, PlaybackState, Timestamp};
 
 use super::{
-    spawn, AudioController, ChaptersBoundaries, ExportController, InfoController, MainDispatcher,
-    MediaEventReceiver, PerspectiveController, PlaybackPipeline, PositionStatus, SplitController,
-    StreamsController, UIController, UIEventHandler, UIEventSender, VideoController,
+    spawn, ui_event, AudioController, ChaptersBoundaries, ExportController, InfoController,
+    MainDispatcher, MediaEventReceiver, PerspectiveController, PlaybackPipeline, PositionStatus,
+    SplitController, StreamsController, UIController, UIEventSender, VideoController,
 };
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
@@ -42,6 +40,7 @@ pub enum ControllerState {
 
 pub struct MainController {
     pub(super) window: gtk::ApplicationWindow,
+    pub(super) window_delete_id: Option<glib::signal::SignalHandlerId>,
 
     header_bar: gtk::HeaderBar,
     pub(super) open_btn: gtk::Button,
@@ -50,7 +49,7 @@ pub struct MainController {
     pub(super) play_pause_btn: gtk::ToolButton,
     file_dlg: gtk::FileChooserNative,
 
-    ui_event: UIEventSender,
+    pub(super) ui_event: UIEventSender,
 
     pub(super) perspective_ctrl: PerspectiveController,
     pub(super) video_ctrl: VideoController,
@@ -77,7 +76,7 @@ impl MainController {
         let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
         window.set_application(Some(app));
 
-        let (mut ui_event_handler, ui_event) = UIEventHandler::new_pair(&app, &builder);
+        let (ui_event, ui_event_receiver) = ui_event::new_pair();
         let chapters_boundaries = Rc::new(RefCell::new(ChaptersBoundaries::new()));
 
         let file_dlg = gtk::FileChooserNativeBuilder::new()
@@ -100,7 +99,9 @@ impl MainController {
         let gst_init_res = gst::init();
 
         let main_ctrl_rc = Rc::new(RefCell::new(MainController {
-            window,
+            window: window.clone(),
+            window_delete_id: None,
+
             header_bar: builder.get_object("header-bar").unwrap(),
             open_btn: builder.get_object("open-btn").unwrap(),
             display_page: builder.get_object("display-box").unwrap(),
@@ -131,10 +132,15 @@ impl MainController {
             callback_when_paused: None,
         }));
 
-        ui_event_handler.have_main_ctrl(&main_ctrl_rc);
         let mut main_ctrl = main_ctrl_rc.borrow_mut();
-        MainDispatcher::setup(&mut main_ctrl, &main_ctrl_rc, app);
-        ui_event_handler.spawn();
+        MainDispatcher::setup(
+            &mut main_ctrl,
+            &main_ctrl_rc,
+            app,
+            &window,
+            &builder,
+            ui_event_receiver,
+        );
 
         if gst_init_res.is_ok() {
             {
@@ -191,7 +197,7 @@ impl MainController {
         self.export_ctrl.cancel();
         self.split_ctrl.cancel();
 
-        {
+        if let Some(window_delete_id) = self.window_delete_id.take() {
             let size = self.window.get_size();
             let paned_pos = self.playback_paned.get_position();
             let mut config = CONFIG.write().unwrap();
@@ -199,6 +205,9 @@ impl MainController {
             config.ui.height = size.1;
             config.ui.paned_pos = paned_pos;
             config.save();
+
+            // Restore default delete handler
+            glib::signal::signal_handler_disconnect(&self.window, window_delete_id);
         }
 
         self.window.close();

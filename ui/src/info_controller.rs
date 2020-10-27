@@ -1,5 +1,4 @@
 use gettextrs::gettext;
-use gstreamer as gst;
 use gtk::prelude::*;
 use log::{info, warn};
 

@@ -19,8 +19,8 @@ gdk = "0.13"
 gettext-rs = { version = "0.5", features = ["gettext-system"] }
 gio = "0.9"
 glib = "0.10"
-gstreamer = { version = "0.16", features = ["v1_10"] }
-gstreamer-audio = { version = "0.16", features = ["v1_10"] }
+gst = { package = "gstreamer", version = "0.16", features = ["v1_10"] }
+gst-audio = { package = "gstreamer-audio", version = "0.16", features = ["v1_10"] }
 gtk = { version = "0.9", features = ["v3_20"] }
 lazy_static = "1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }

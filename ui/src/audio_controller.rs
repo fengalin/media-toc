@@ -1,4 +1,3 @@
-use gstreamer as gst;
 use gtk::prelude::*;
 use log::{debug, trace};
 

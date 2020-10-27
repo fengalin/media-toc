@@ -1,5 +1,4 @@
 use glib::{signal::SignalHandlerId, ObjectExt, ToValue};
-use gstreamer as gst;
 use gtk::prelude::*;
 use log::debug;
 

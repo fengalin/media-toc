@@ -25,7 +25,7 @@ use self::info_dispatcher::InfoDispatcher;
 mod main_controller;
 pub use self::main_controller::{ControllerState, MainController};
 mod main_dispatcher;
-pub use self::main_dispatcher::MainDispatcher;
+use self::main_dispatcher::MainDispatcher;
 
 mod output_base_controller;
 mod output_base_dispatcher;
@@ -46,7 +46,7 @@ mod split_dispatcher;
 use self::split_dispatcher::SplitDispatcher;
 
 mod ui_event;
-use self::ui_event::{UIEventHandler, UIEventSender, UIFocusContext};
+use self::ui_event::{UIEventSender, UIFocusContext};
 
 mod video_controller;
 use self::video_controller::VideoController;
@@ -55,7 +55,6 @@ use self::video_dispatcher::VideoDispatcher;
 
 use futures::channel::mpsc as async_mpsc;
 use gio::prelude::*;
-use gstreamer as gst;
 use log::warn;
 
 use std::{

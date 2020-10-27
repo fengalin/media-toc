@@ -1,6 +1,5 @@
 use gio::prelude::*;
 use glib::clone;
-use gstreamer as gst;
 use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};

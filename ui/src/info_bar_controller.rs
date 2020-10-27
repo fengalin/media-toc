@@ -8,9 +8,9 @@ use gtk::prelude::*;
 
 use log::{error, info};
 
-use std::{cell::RefCell, rc::Rc};
+use std::cell::RefCell;
 
-use super::{MainController, UIEventSender, UIFocusContext};
+use super::{UIEventSender, UIFocusContext};
 
 pub struct InfoBarController {
     info_bar: gtk::InfoBar,
@@ -20,7 +20,6 @@ pub struct InfoBarController {
     btn_box: gtk::ButtonBox,
     response_src: Option<glib::signal::SignalHandlerId>,
     ui_event: UIEventSender,
-    close_info_bar_action: gio::SimpleAction,
 }
 
 impl InfoBarController {
@@ -46,6 +45,19 @@ impl InfoBarController {
             ui_event_clone.restore_context();
         });
 
+        if gst::init().is_ok() {
+            close_info_bar_action
+                .connect_activate(clone!(@strong info_bar => move |_, _| info_bar.emit_close()));
+        } else {
+            close_info_bar_action.connect_activate(clone!(@strong ui_event => move |_, _| {
+                ui_event.quit();
+            }));
+
+            info_bar.connect_response(clone!(@strong ui_event => move |_, _| {
+                ui_event.quit();
+            }));
+        }
+
         let ui_event = ui_event.clone();
         InfoBarController {
             info_bar,
@@ -55,25 +67,6 @@ impl InfoBarController {
             btn_box: builder.get_object("info_bar-btnbox").unwrap(),
             response_src: None,
             ui_event,
-            close_info_bar_action,
-        }
-    }
-
-    pub fn have_main_ctrl(&self, main_ctrl_rc: &Rc<RefCell<MainController>>) {
-        if gstreamer::init().is_ok() {
-            let info_bar = self.info_bar.clone();
-            self.close_info_bar_action
-                .connect_activate(move |_, _| info_bar.emit_close());
-        } else {
-            self.close_info_bar_action
-                .connect_activate(clone!(@weak main_ctrl_rc => move |_, _| {
-                    main_ctrl_rc.borrow_mut().quit();
-                }));
-
-            self.info_bar
-                .connect_response(clone!(@weak main_ctrl_rc => move |_, _| {
-                    main_ctrl_rc.borrow_mut().quit();
-                }));
         }
     }
 

@@ -1,7 +1,6 @@
 use futures::channel::mpsc as async_mpsc;
 
 use gettextrs::gettext;
-use gstreamer as gst;
 use gtk::prelude::*;
 use log::warn;
 

@@ -1,10 +1,7 @@
 use bitflags::bitflags;
 
-use glib::GString;
-
 use gettextrs::gettext;
-use gstreamer as gst;
-
+use glib::GString;
 use gtk::prelude::*;
 
 use std::{borrow::Cow, cell::RefCell, rc::Rc, string::ToString};
