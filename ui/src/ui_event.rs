@@ -23,13 +23,16 @@ pub(crate) enum UIEvent {
         response_sender: oneshot::Sender<gtk::ResponseType>,
     },
     CancelSelectMedia,
+    ChapterClicked(gtk::TreePath),
     HideInfoBar,
+    NextChapter,
     OpenMedia(PathBuf),
     PlayRange {
         start: Timestamp,
         end: Timestamp,
         ts_to_restore: Timestamp,
     },
+    PreviousChapter,
     Quit,
     ResetCursor,
     RestoreContext,
@@ -37,14 +40,24 @@ pub(crate) enum UIEvent {
         target: Timestamp,
         flags: gst::SeekFlags,
     },
-    ShowAll,
     SetCursorWaiting,
     SetCursorDoubleArrow,
+    ShowAll,
     ShowError(Cow<'static, str>),
     ShowInfo(Cow<'static, str>),
+    StepBack,
+    StepForward,
     SwitchTo(UIFocusContext),
     TemporarilySwitchTo(UIFocusContext),
+    Tick,
+    ToggleChapterList(bool),
+    ToggleRepeat(bool),
+    UpdateAudioRenderingCndt {
+        dimensions: Option<(f64, f64)>,
+    },
     UpdateFocus,
+    ZoomIn,
+    ZoomOut,
 }
 
 #[derive(Clone)]
@@ -78,6 +91,10 @@ impl UIEventSender {
         self.reset_cursor();
     }
 
+    pub fn chapter_clicked(&self, tree_path: gtk::TreePath) {
+        self.send(UIEvent::ChapterClicked(tree_path));
+    }
+
     pub fn hide_info_bar(&self) {
         self.send(UIEvent::HideInfoBar);
     }
@@ -87,12 +104,20 @@ impl UIEventSender {
         self.send(UIEvent::OpenMedia(path));
     }
 
+    pub fn next_chapter(&self) {
+        self.send(UIEvent::NextChapter);
+    }
+
     pub fn play_range(&self, start: Timestamp, end: Timestamp, ts_to_restore: Timestamp) {
         self.send(UIEvent::PlayRange {
             start,
             end,
             ts_to_restore,
         });
+    }
+
+    pub fn previous_chapter(&self) {
+        self.send(UIEvent::PreviousChapter);
     }
 
     pub fn quit(&self) {
@@ -107,10 +132,6 @@ impl UIEventSender {
         self.send(UIEvent::RestoreContext);
     }
 
-    pub fn show_all(&self) {
-        self.send(UIEvent::ShowAll);
-    }
-
     pub fn seek(&self, target: Timestamp, flags: gst::SeekFlags) {
         self.send(UIEvent::Seek { target, flags });
     }
@@ -121,6 +142,10 @@ impl UIEventSender {
 
     pub fn set_cursor_waiting(&self) {
         self.send(UIEvent::SetCursorWaiting);
+    }
+
+    pub fn show_all(&self) {
+        self.send(UIEvent::ShowAll);
     }
 
     pub fn show_error<Msg>(&self, msg: Msg)
@@ -137,6 +162,14 @@ impl UIEventSender {
         self.send(UIEvent::ShowInfo(msg.into()));
     }
 
+    pub fn step_back(&self) {
+        self.send(UIEvent::StepBack);
+    }
+
+    pub fn step_forward(&self) {
+        self.send(UIEvent::StepForward);
+    }
+
     pub fn switch_to(&self, ctx: UIFocusContext) {
         self.send(UIEvent::SwitchTo(ctx));
     }
@@ -146,8 +179,32 @@ impl UIEventSender {
         self.send(UIEvent::TemporarilySwitchTo(ctx));
     }
 
+    pub fn tick(&self) {
+        self.send(UIEvent::Tick);
+    }
+
+    pub fn toggle_chapter_list(&self, must_show: bool) {
+        self.send(UIEvent::ToggleChapterList(must_show));
+    }
+
+    pub fn toggle_repeat(&self, must_repeat: bool) {
+        self.send(UIEvent::ToggleRepeat(must_repeat));
+    }
+
+    pub fn update_audio_rendering_cndt(&self, dimensions: Option<(f64, f64)>) {
+        self.send(UIEvent::UpdateAudioRenderingCndt { dimensions });
+    }
+
     pub fn update_focus(&self) {
         self.send(UIEvent::UpdateFocus);
+    }
+
+    pub fn zoom_in(&self) {
+        self.send(UIEvent::ZoomIn);
+    }
+
+    pub fn zoom_out(&self) {
+        self.send(UIEvent::ZoomOut);
     }
 }
 

@@ -11,7 +11,7 @@ use log::debug;
 
 use std::{cell::RefCell, rc::Rc};
 
-use media::MediaEvent;
+use media::{MediaEvent, Timestamp};
 
 use super::{
     main_controller::ControllerState, spawn, ui_event::UIEvent, AudioDispatcher, ExportDispatcher,
@@ -181,8 +181,32 @@ impl MainDispatcher {
                 response_sender,
             } => self.info_bar_ctrl.ask_question(&question, response_sender),
             CancelSelectMedia => self.main_ctrl.borrow_mut().cancel_select_media(),
+            ChapterClicked(tree_path) => {
+                let mut main_ctrl = self.main_ctrl.borrow_mut();
+                let seek_ts = main_ctrl
+                    .info_ctrl
+                    .chapter_manager
+                    .chapter_from_path(&tree_path)
+                    .map(|chapter| chapter.start());
+
+                if let Some(seek_ts) = seek_ts {
+                    let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
+                }
+            }
             HideInfoBar => self.info_bar_ctrl.hide(),
             OpenMedia(path) => self.main_ctrl.borrow_mut().open_media(path),
+            NextChapter => {
+                let mut main_ctrl = self.main_ctrl.borrow_mut();
+                let seek_ts = main_ctrl
+                    .info_ctrl
+                    .chapter_manager
+                    .pick_next()
+                    .map(|next_chapter| next_chapter.start());
+
+                if let Some(seek_ts) = seek_ts {
+                    let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
+                }
+            }
             PlayRange {
                 start,
                 end,
@@ -192,24 +216,76 @@ impl MainDispatcher {
                     .borrow_mut()
                     .play_range(start, end, ts_to_restore);
             }
+            PreviousChapter => {
+                let mut main_ctrl = self.main_ctrl.borrow_mut();
+                let seek_ts = main_ctrl
+                    .current_ts()
+                    .and_then(|cur_ts| main_ctrl.info_ctrl.previous_chapter(cur_ts));
+
+                let _ = main_ctrl.seek(
+                    seek_ts.unwrap_or_else(Timestamp::default),
+                    gst::SeekFlags::ACCURATE,
+                );
+            }
             Quit => {
                 self.main_ctrl.borrow_mut().quit();
                 return Err(());
             }
             ResetCursor => self.reset_cursor(),
             RestoreContext => self.restore_context(),
-            ShowAll => self.show_all(),
             Seek { target, flags } => self.main_ctrl.borrow_mut().seek(target, flags),
             SetCursorDoubleArrow => self.set_cursor_double_arrow(),
             SetCursorWaiting => self.set_cursor_waiting(),
+            ShowAll => self.show_all(),
             ShowError(msg) => self.info_bar_ctrl.show_error(&msg),
             ShowInfo(msg) => self.info_bar_ctrl.show_info(&msg),
+            StepBack => {
+                let mut main_ctrl = self.main_ctrl.borrow_mut();
+                if let Some(current_ts) = main_ctrl.current_ts() {
+                    let seek_ts = {
+                        let seek_step = main_ctrl.audio_ctrl.seek_step;
+                        if current_ts > seek_step {
+                            current_ts - seek_step
+                        } else {
+                            Timestamp::default()
+                        }
+                    };
+                    let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
+                }
+            }
+            StepForward => {
+                let mut main_ctrl = self.main_ctrl.borrow_mut();
+                if let Some(current_ts) = main_ctrl.current_ts() {
+                    let seek_ts = current_ts + main_ctrl.audio_ctrl.seek_step;
+                    let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
+                }
+            }
             SwitchTo(focus_ctx) => self.switch_to(focus_ctx),
             TemporarilySwitchTo(focus_ctx) => {
                 self.save_context();
                 self.bind_accels_for(focus_ctx);
             }
-            UIEvent::UpdateFocus => self.update_focus(self.focus),
+            Tick => self.main_ctrl.borrow_mut().audio_ctrl.tick(),
+            ToggleChapterList(must_show) => self
+                .main_ctrl
+                .borrow()
+                .info_ctrl
+                .toggle_chapter_list(must_show),
+            ToggleRepeat(must_repeat) => {
+                self.main_ctrl.borrow_mut().info_ctrl.repeat_chapter = must_repeat
+            }
+            UpdateAudioRenderingCndt { dimensions } => {
+                let mut main_ctrl = self.main_ctrl.borrow_mut();
+                if let Some((width, height)) = dimensions {
+                    main_ctrl.audio_ctrl.area_width = width;
+                    main_ctrl.audio_ctrl.area_height = height;
+                }
+                main_ctrl.audio_ctrl.pending_update_conditions = false;
+                main_ctrl.audio_ctrl.update_conditions();
+            }
+            UpdateFocus => self.update_focus(self.focus),
+            ZoomIn => self.main_ctrl.borrow_mut().audio_ctrl.zoom_in(),
+            ZoomOut => self.main_ctrl.borrow_mut().audio_ctrl.zoom_out(),
         }
 
         Ok(())

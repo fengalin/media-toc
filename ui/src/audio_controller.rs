@@ -1,3 +1,4 @@
+use glib::clone;
 use gtk::prelude::*;
 use log::{debug, trace};
 
@@ -99,9 +100,6 @@ pub struct AudioController {
     waveform_renderer_mtx: Arc<Mutex<Box<WaveformRenderer>>>,
     pub dbl_renderer_mtx: Arc<Mutex<DoubleAudioBuffer<WaveformRenderer>>>,
 
-    pub(super) update_conditions_async: Option<Box<dyn Fn()>>,
-
-    pub(super) tick_cb: Option<Rc<dyn Fn(&gtk::DrawingArea, &gdk::FrameClock)>>,
     tick_cb_id: Option<gtk::TickCallbackId>,
 }
 
@@ -207,9 +205,6 @@ impl AudioController {
             waveform_renderer_mtx,
             dbl_renderer_mtx: Arc::new(Mutex::new(dbl_waveform)),
 
-            update_conditions_async: None,
-
-            tick_cb: None,
             tick_cb_id: None,
         };
 
@@ -353,15 +348,12 @@ impl AudioController {
         if self.tick_cb_id.is_some() {
             return;
         }
-        let tick_cb = Rc::clone(
-            self.tick_cb
-                .as_ref()
-                .expect("AudioController: no tick callback defined"),
-        );
-        self.tick_cb_id = Some(self.drawingarea.add_tick_callback(move |da, frame_clock| {
-            tick_cb(da, frame_clock);
-            glib::Continue(true)
-        }));
+        self.tick_cb_id = Some(self.drawingarea.add_tick_callback(
+            clone!(@strong self.ui_event as ui_event => move |_, _| {
+                ui_event.tick();
+                glib::Continue(true)
+            }),
+        ));
     }
 
     fn ts_at(&self, x: f64) -> Option<Timestamp> {
@@ -466,7 +458,7 @@ impl AudioController {
         }
 
         self.pending_update_conditions = true;
-        self.update_conditions_async.as_ref().unwrap()();
+        self.ui_event.update_audio_rendering_cndt(None);
     }
 
     pub fn zoom_in(&mut self) {

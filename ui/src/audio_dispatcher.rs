@@ -4,10 +4,8 @@ use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};
 
-use media::Timestamp;
-
 use super::{
-    audio_controller::ControllerState, spawn, AudioController, MainController, PositionStatus,
+    audio_controller::ControllerState, AudioController, MainController, PositionStatus,
     UIDispatcher, UIEventSender, UIFocusContext,
 };
 
@@ -19,7 +17,7 @@ impl UIDispatcher for AudioDispatcher {
         audio_ctrl: &mut AudioController,
         main_ctrl_rc: &Rc<RefCell<MainController>>,
         app: &gtk::Application,
-        _ui_event: &UIEventSender,
+        ui_event: &UIEventSender,
     ) {
         // draw
         audio_ctrl.drawingarea.connect_draw(clone!(
@@ -33,17 +31,14 @@ impl UIDispatcher for AudioDispatcher {
         ));
 
         // widget size changed
-        audio_ctrl.drawingarea.connect_size_allocate(
-            clone!(@weak main_ctrl_rc => move |_, alloc| {
-                let main_ctrl = main_ctrl_rc.try_borrow_mut();
-                if let Ok(mut main_ctrl) = main_ctrl {
-                    let mut audio_ctrl = &mut main_ctrl.audio_ctrl;
-                    audio_ctrl.area_height = f64::from(alloc.height);
-                    audio_ctrl.area_width = f64::from(alloc.width);
-                    audio_ctrl.update_conditions_async.as_ref().unwrap()();
-                }
-            }),
-        );
+        audio_ctrl
+            .drawingarea
+            .connect_size_allocate(clone!(@strong ui_event => move |_, alloc| {
+                ui_event.update_audio_rendering_cndt(Some((
+                    f64::from(alloc.width),
+                    f64::from(alloc.height),
+                )));
+            }));
 
         // Move cursor over drawing_area
         audio_ctrl.drawingarea.connect_motion_notify_event(
@@ -99,70 +94,33 @@ impl UIDispatcher for AudioDispatcher {
         app.add_action(&audio_ctrl.zoom_in_action);
         audio_ctrl
             .zoom_in_action
-            .connect_activate(clone!(@weak main_ctrl_rc => move |_, _| {
-                let mut main_ctrl = main_ctrl_rc.borrow_mut();
-                main_ctrl.audio_ctrl.zoom_in()
+            .connect_activate(clone!(@strong ui_event => move |_, _| {
+                ui_event.zoom_in()
             }));
 
         // Register Zoom out action
         app.add_action(&audio_ctrl.zoom_out_action);
         audio_ctrl
             .zoom_out_action
-            .connect_activate(clone!(@weak main_ctrl_rc => move |_, _| {
-                let mut main_ctrl = main_ctrl_rc.borrow_mut();
-                main_ctrl.audio_ctrl.zoom_out()
+            .connect_activate(clone!(@strong ui_event => move |_, _| {
+                ui_event.zoom_out()
             }));
 
         // Register Step forward action
         app.add_action(&audio_ctrl.step_forward_action);
         audio_ctrl
             .step_forward_action
-            .connect_activate(clone!(@weak main_ctrl_rc => move |_, _| {
-                let mut main_ctrl = main_ctrl_rc.borrow_mut();
-                if let Some(current_ts) = main_ctrl.current_ts() {
-                    let seek_target = current_ts + main_ctrl.audio_ctrl.seek_step;
-                    main_ctrl.seek(seek_target, gst::SeekFlags::ACCURATE);
-                }
+            .connect_activate(clone!(@strong ui_event => move |_, _| {
+                ui_event.step_forward();
             }));
 
         // Register Step back action
         app.add_action(&audio_ctrl.step_back_action);
         audio_ctrl
             .step_back_action
-            .connect_activate(clone!(@weak main_ctrl_rc => move |_, _| {
-                let mut main_ctrl = main_ctrl_rc.borrow_mut();
-                if let Some(ts) = main_ctrl.current_ts() {
-                    let seek_pos = {
-                        let audio_ctrl = &mut main_ctrl.audio_ctrl;
-                        if ts > audio_ctrl.seek_step {
-                            ts - audio_ctrl.seek_step
-                        } else {
-                            Timestamp::default()
-                        }
-                    };
-                    main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
-                }
+            .connect_activate(clone!(@strong ui_event => move |_, _| {
+                ui_event.step_back();
             }));
-
-        // Update conditions asynchronously
-        audio_ctrl.update_conditions_async = Some(Box::new(
-            clone!(@weak main_ctrl_rc => @default-panic, move || {
-                let main_ctrl_rc = Rc::clone(&main_ctrl_rc);
-                spawn(async move {
-                    let mut main_ctrl = main_ctrl_rc.borrow_mut();
-                    main_ctrl.audio_ctrl.pending_update_conditions = false;
-                    main_ctrl.audio_ctrl.update_conditions();
-                });
-            }),
-        ));
-
-        // Tick callback
-        audio_ctrl.tick_cb = Some(Rc::new(
-            clone!(@weak main_ctrl_rc => move |_da, _frame_clock| {
-                let mut main_ctrl = main_ctrl_rc.borrow_mut();
-                main_ctrl.audio_ctrl.tick();
-            }),
-        ));
     }
 
     fn bind_accels_for(ctx: UIFocusContext, app: &gtk::Application) {

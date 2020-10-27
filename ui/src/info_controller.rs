@@ -15,6 +15,7 @@ use super::{
 };
 
 const EMPTY_REPLACEMENT: &str = "-";
+const GO_TO_PREV_CHAPTER_THRESHOLD: Duration = Duration::from_secs(1);
 
 pub struct InfoController {
     ui_event: UIEventSender,
@@ -447,6 +448,38 @@ impl InfoController {
         if let Some((toc, count)) = self.chapter_manager.toc() {
             info.toc = Some(toc);
             info.chapter_count = Some(count);
+        }
+    }
+
+    pub fn toggle_chapter_list(&self, must_show: bool) {
+        CONFIG.write().unwrap().ui.is_chapters_list_hidden = must_show;
+
+        if must_show {
+            self.info_container.hide();
+        } else {
+            self.info_container.show();
+        }
+    }
+
+    pub fn previous_chapter(&self, cur_ts: Timestamp) -> Option<Timestamp> {
+        let cur_start = self
+            .chapter_manager
+            .selected()
+            .map(|sel_chapter| sel_chapter.start());
+        let prev_start = self
+            .chapter_manager
+            .pick_previous()
+            .map(|prev_chapter| prev_chapter.start());
+
+        match (cur_start, prev_start) {
+            (Some(cur_start), prev_start_opt) => {
+                if cur_ts > cur_start + GO_TO_PREV_CHAPTER_THRESHOLD {
+                    Some(cur_start)
+                } else {
+                    prev_start_opt
+                }
+            }
+            (None, prev_start_opt) => prev_start_opt,
         }
     }
 }
