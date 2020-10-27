@@ -448,7 +448,7 @@ impl ChapterTree {
 
                 Some(ChapterRemovalResult {
                     removed_ts: rem_ts,
-                    selected_iter: self.selected.clone().map(|selected| selected),
+                    selected_iter: self.selected.clone(),
                 })
             }
             None => None,

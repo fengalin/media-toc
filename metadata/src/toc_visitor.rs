@@ -10,14 +10,8 @@ pub enum TocVisit {
 impl PartialEq for TocVisit {
     fn eq(&self, other: &TocVisit) -> bool {
         match *self {
-            TocVisit::EnteringChildren => match *other {
-                TocVisit::EnteringChildren => true,
-                _ => false,
-            },
-            TocVisit::LeavingChildren => match *other {
-                TocVisit::LeavingChildren => true,
-                _ => false,
-            },
+            TocVisit::EnteringChildren => matches!(*other, TocVisit::EnteringChildren),
+            TocVisit::LeavingChildren => matches!(*other, TocVisit::LeavingChildren),
             TocVisit::Node(ref entry) => match *other {
                 TocVisit::Node(ref other_entry) => (entry.get_uid() == other_entry.get_uid()),
                 _ => false,
