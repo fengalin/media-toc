@@ -36,7 +36,7 @@ mod perspective_dispatcher;
 use self::perspective_dispatcher::PerspectiveDispatcher;
 
 mod streams_controller;
-use self::streams_controller::StreamsController;
+use self::streams_controller::{StreamClickedStatus, StreamsController};
 mod streams_dispatcher;
 use self::streams_dispatcher::StreamsDispatcher;
 

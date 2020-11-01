@@ -47,6 +47,8 @@ pub(crate) enum UIEvent {
     ShowInfo(Cow<'static, str>),
     StepBack,
     StepForward,
+    StreamClicked(gst::StreamType),
+    StreamExportToggled(gst::StreamType, gtk::TreePath),
     SwitchTo(UIFocusContext),
     TemporarilySwitchTo(UIFocusContext),
     Tick,
@@ -168,6 +170,14 @@ impl UIEventSender {
 
     pub fn step_forward(&self) {
         self.send(UIEvent::StepForward);
+    }
+
+    pub fn stream_clicked(&self, type_: gst::StreamType) {
+        self.send(UIEvent::StreamClicked(type_));
+    }
+
+    pub fn stream_export_toggled(&self, type_: gst::StreamType, tree_path: gtk::TreePath) {
+        self.send(UIEvent::StreamExportToggled(type_, tree_path));
     }
 
     pub fn switch_to(&self, ctx: UIFocusContext) {

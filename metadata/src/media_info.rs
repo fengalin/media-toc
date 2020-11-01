@@ -144,7 +144,7 @@ macro_rules! get_tag_for_display (
     };
 );
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Stream {
     pub id: Arc<str>,
     pub codec_printable: String,
@@ -197,11 +197,76 @@ impl Stream {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug)]
+pub struct StreamCollection {
+    type_: gst::StreamType,
+    collection: HashMap<Arc<str>, Stream>,
+}
+
+impl StreamCollection {
+    fn new(type_: gst::StreamType) -> Self {
+        StreamCollection {
+            type_,
+            collection: HashMap::new(),
+        }
+    }
+
+    fn add_stream(&mut self, stream: Stream) {
+        self.collection.insert(Arc::clone(&stream.id), stream);
+    }
+
+    pub fn len(&self) -> usize {
+        self.collection.len()
+    }
+
+    pub fn get<S: AsRef<str>>(&self, id: S) -> Option<&Stream> {
+        self.collection.get(id.as_ref())
+    }
+
+    pub fn get_mut<S: AsRef<str>>(&mut self, id: S) -> Option<&mut Stream> {
+        self.collection.get_mut(id.as_ref())
+    }
+
+    pub fn contains<S: AsRef<str>>(&self, id: S) -> bool {
+        self.collection.contains_key(id.as_ref())
+    }
+
+    pub fn sorted(&self) -> impl Iterator<Item = &'_ Stream> {
+        SortedStreamCollectionIter::new(self)
+    }
+}
+
+struct SortedStreamCollectionIter<'sc> {
+    collection: &'sc StreamCollection,
+    sorted_iter: std::vec::IntoIter<Arc<str>>,
+}
+
+impl<'sc> SortedStreamCollectionIter<'sc> {
+    fn new(collection: &'sc StreamCollection) -> Self {
+        let mut sorted_ids: Vec<Arc<str>> = collection.collection.keys().map(Arc::clone).collect();
+        sorted_ids.sort();
+
+        SortedStreamCollectionIter {
+            collection,
+            sorted_iter: sorted_ids.into_iter(),
+        }
+    }
+}
+
+impl<'sc> Iterator for SortedStreamCollectionIter<'sc> {
+    type Item = &'sc Stream;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.sorted_iter
+            .next()
+            .and_then(|id| self.collection.get(&id))
+    }
+}
+
 pub struct Streams {
-    pub audio: HashMap<Arc<str>, Stream>,
-    pub video: HashMap<Arc<str>, Stream>,
-    pub text: HashMap<Arc<str>, Stream>,
+    pub audio: StreamCollection,
+    pub video: StreamCollection,
+    pub text: StreamCollection,
 
     cur_audio_id: Option<Arc<str>>,
     pub audio_changed: bool,
@@ -211,23 +276,58 @@ pub struct Streams {
     pub text_changed: bool,
 }
 
+impl Default for Streams {
+    fn default() -> Self {
+        Streams {
+            audio: StreamCollection::new(gst::StreamType::AUDIO),
+            video: StreamCollection::new(gst::StreamType::VIDEO),
+            text: StreamCollection::new(gst::StreamType::TEXT),
+
+            cur_audio_id: None,
+            audio_changed: false,
+            cur_video_id: None,
+            video_changed: false,
+            cur_text_id: None,
+            text_changed: false,
+        }
+    }
+}
+
 impl Streams {
     pub fn add_stream(&mut self, gst_stream: &gst::Stream) {
         let stream = Stream::new(gst_stream);
         match stream.type_ {
             gst::StreamType::AUDIO => {
                 self.cur_audio_id.get_or_insert(Arc::clone(&stream.id));
-                self.audio.insert(stream.id.clone(), stream);
+                self.audio.add_stream(stream);
             }
             gst::StreamType::VIDEO => {
                 self.cur_video_id.get_or_insert(Arc::clone(&stream.id));
-                self.video.insert(stream.id.clone(), stream);
+                self.video.add_stream(stream);
             }
             gst::StreamType::TEXT => {
                 self.cur_text_id.get_or_insert(Arc::clone(&stream.id));
-                self.text.insert(stream.id.clone(), stream);
+                self.text.add_stream(stream);
             }
-            _ => panic!("MediaInfo::add_stream can't handle {:?}", stream.type_),
+            other => unimplemented!("{:?}", other),
+        }
+    }
+
+    pub fn collection(&self, type_: gst::StreamType) -> &StreamCollection {
+        match type_ {
+            gst::StreamType::AUDIO => &self.audio,
+            gst::StreamType::VIDEO => &self.video,
+            gst::StreamType::TEXT => &self.text,
+            other => unimplemented!("{:?}", other),
+        }
+    }
+
+    pub fn collection_mut(&mut self, type_: gst::StreamType) -> &mut StreamCollection {
+        match type_ {
+            gst::StreamType::AUDIO => &mut self.audio,
+            gst::StreamType::VIDEO => &mut self.video,
+            gst::StreamType::TEXT => &mut self.text,
+            other => unimplemented!("{:?}", other),
         }
     }
 
@@ -242,31 +342,19 @@ impl Streams {
     pub fn selected_audio(&self) -> Option<&Stream> {
         self.cur_audio_id
             .as_ref()
-            .map(|stream_id| &self.audio[stream_id])
+            .and_then(|stream_id| self.audio.get(stream_id))
     }
 
     pub fn selected_video(&self) -> Option<&Stream> {
         self.cur_video_id
             .as_ref()
-            .map(|stream_id| &self.video[stream_id])
+            .and_then(|stream_id| self.video.get(stream_id))
     }
 
     pub fn selected_text(&self) -> Option<&Stream> {
         self.cur_text_id
             .as_ref()
-            .map(|stream_id| &self.text[stream_id])
-    }
-
-    pub fn audio<S: AsRef<str>>(&mut self, id: S) -> Option<&mut Stream> {
-        self.audio.get_mut(id.as_ref())
-    }
-
-    pub fn video<S: AsRef<str>>(&mut self, id: S) -> Option<&mut Stream> {
-        self.video.get_mut(id.as_ref())
-    }
-
-    pub fn text<S: AsRef<str>>(&mut self, id: S) -> Option<&mut Stream> {
-        self.text.get_mut(id.as_ref())
+            .and_then(|stream_id| self.text.get(stream_id))
     }
 
     pub fn select_streams(&mut self, ids: &[Arc<str>]) {
@@ -275,19 +363,19 @@ impl Streams {
         let mut is_video_selected = false;
 
         for id in ids {
-            if self.audio.contains_key(id) {
+            if self.audio.contains(id) {
                 is_audio_selected = true;
                 self.audio_changed = self
                     .selected_audio()
                     .map_or(true, |prev_stream| *id != prev_stream.id);
                 self.cur_audio_id = Some(Arc::clone(id));
-            } else if self.text.contains_key(id) {
+            } else if self.text.contains(id) {
                 is_text_selected = true;
                 self.text_changed = self
                     .selected_text()
                     .map_or(true, |prev_stream| *id != prev_stream.id);
                 self.cur_text_id = Some(Arc::clone(id));
-            } else if self.video.contains_key(id) {
+            } else if self.video.contains(id) {
                 is_video_selected = true;
                 self.video_changed = self
                     .selected_video()
@@ -328,13 +416,13 @@ impl Streams {
 
         {
             if !format.is_audio_only() {
-                for (stream_id, stream) in &self.video {
+                for (stream_id, stream) in &self.video.collection {
                     if stream.must_export {
                         streams.insert(stream_id.to_string());
                         content.add_stream_type(gst::StreamType::VIDEO);
                     }
                 }
-                for (stream_id, stream) in &self.text {
+                for (stream_id, stream) in &self.text.collection {
                     if stream.must_export {
                         streams.insert(stream_id.to_string());
                         content.add_stream_type(gst::StreamType::TEXT);
@@ -342,7 +430,7 @@ impl Streams {
                 }
             }
 
-            for (stream_id, stream) in &self.audio {
+            for (stream_id, stream) in &self.audio.collection {
                 if stream.must_export {
                     streams.insert(stream_id.to_string());
                     content.add_stream_type(gst::StreamType::AUDIO);

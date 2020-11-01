@@ -260,6 +260,34 @@ impl MainDispatcher {
                     let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
                 }
             }
+            StreamClicked(type_) => {
+                let mut main_ctrl = self.main_ctrl.borrow_mut();
+                if let super::StreamClickedStatus::Changed =
+                    main_ctrl.streams_ctrl.stream_clicked(type_)
+                {
+                    let streams = main_ctrl.streams_ctrl.selected_streams();
+                    main_ctrl.select_streams(&streams);
+                }
+            }
+            StreamExportToggled(type_, tree_path) => {
+                let mut main_ctrl = self.main_ctrl.borrow_mut();
+                if let Some((stream_id, must_export)) =
+                    main_ctrl.streams_ctrl.export_toggled(type_, tree_path)
+                {
+                    if let Some(pipeline) = main_ctrl.pipeline.as_mut() {
+                        pipeline
+                            .info
+                            .write()
+                            .unwrap()
+                            .streams
+                            .collection_mut(type_)
+                            .get_mut(stream_id)
+                            .as_mut()
+                            .unwrap()
+                            .must_export = must_export;
+                    }
+                }
+            }
             SwitchTo(focus_ctx) => self.switch_to(focus_ctx),
             TemporarilySwitchTo(focus_ctx) => {
                 self.save_context();
@@ -369,20 +397,18 @@ impl MainDispatcher {
     }
 
     fn update_focus(&mut self, ctx: UIFocusContext) {
-        {
-            let main_ctrl = self.main_ctrl.borrow();
+        let main_ctrl = self.main_ctrl.borrow();
 
-            if self.focus == UIFocusContext::PlaybackPage && ctx != UIFocusContext::PlaybackPage {
-                main_ctrl.info_ctrl.loose_focus();
-            }
+        if self.focus == UIFocusContext::PlaybackPage && ctx != UIFocusContext::PlaybackPage {
+            main_ctrl.info_ctrl.loose_focus();
+        }
 
-            match ctx {
-                UIFocusContext::ExportPage => main_ctrl.export_ctrl.grab_focus(),
-                UIFocusContext::PlaybackPage => main_ctrl.info_ctrl.grab_focus(),
-                UIFocusContext::SplitPage => main_ctrl.split_ctrl.grab_focus(),
-                UIFocusContext::StreamsPage => main_ctrl.streams_ctrl.grab_focus(),
-                _ => (),
-            }
+        match ctx {
+            UIFocusContext::ExportPage => main_ctrl.export_ctrl.grab_focus(),
+            UIFocusContext::PlaybackPage => main_ctrl.info_ctrl.grab_focus(),
+            UIFocusContext::SplitPage => main_ctrl.split_ctrl.grab_focus(),
+            UIFocusContext::StreamsPage => main_ctrl.streams_ctrl.grab_focus(),
+            _ => (),
         }
 
         self.focus = ctx;

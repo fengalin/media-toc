@@ -333,7 +333,7 @@ impl MediaProcessor for SplitControllerImpl {
                 .as_ref()
                 .expect("split_file_info not defined in `next()`, did you call `init()`?");
 
-            let stream_id = if src_info.streams.audio.len() > 1 {
+            let stream_id = if src_info.streams.collection(gst::StreamType::AUDIO).len() > 1 {
                 Some(self.selected_audio.as_ref().unwrap().id.to_string())
             } else {
                 // Some single stream decoders advertise a random id at each invocation
