@@ -7,7 +7,7 @@ use gio::prelude::*;
 use glib::clone;
 use gtk::prelude::*;
 
-use log::debug;
+use log::{debug, trace};
 
 use std::{cell::RefCell, rc::Rc};
 
@@ -49,7 +49,11 @@ impl MainDispatcher {
 
         spawn(async move {
             while let Some(event) = ui_event_receiver.next().await {
-                debug!("handling event {:?}", event);
+                if let UIEvent::Tick = event {
+                    trace!("handling event {:?}", event);
+                } else {
+                    debug!("handling event {:?}", event);
+                }
                 if handler.handle(event).await.is_err() {
                     break;
                 }

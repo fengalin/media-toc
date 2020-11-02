@@ -162,6 +162,8 @@ impl WaveformImage {
         // a steady offset between redraws. This allows using the same samples
         // for a given req_step_duration and avoiding flickering
         // between redraws.
+        // FIXME we should use the div_??? crate and snap to
+        // ceil fpr lower or floor for upper
         let mut lower = lower.snap_to(d.sample_step);
         let upper = upper.snap_to(d.sample_step);
         let mut force_redraw = if self.id == 1 {
@@ -203,6 +205,7 @@ impl WaveformImage {
             );
         }
 
+        // FIXME is this still needed or snap_to could take care of this?
         if lower < audio_buffer.lower {
             // first sample might be smaller than audio_buffer.lower
             // due to alignement on sample_step
@@ -219,16 +222,18 @@ impl WaveformImage {
 
         force_redraw |= !self.is_ready;
 
-        if !force_redraw && lower >= self.lower && upper <= self.upper {
-            // target extraction fits in previous extraction
-            return;
-        } else if upper < self.lower || lower > self.upper || lower < self.lower {
+        if upper < self.lower || lower > self.upper {
             force_redraw = true;
 
             debug!(
                 "{}_render forcing redraw image [{}, {}], requested [{}, {}] ",
                 self.id, self.lower, self.upper, lower, upper,
             );
+        }
+
+        if !force_redraw && self.lower < upper && upper <= self.upper {
+            // target extraction fits in previous extraction
+            return;
         }
 
         let (exposed_image, secondary_image) = {
@@ -341,12 +346,13 @@ impl WaveformImage {
 
         debug!(
             "{}_redraw smpl_stp {}, lower {}, upper {}",
-            self.id, d.sample_step, self.lower, self.upper
+            self.id, d.sample_step, lower, upper
         );
 
         self.exposed_image = Some(exposed_image);
         *self.secondary_image.lock().unwrap() = Some(secondary_image);
         self.lower = lower;
+        self.upper = upper;
     }
 
     fn append_right(
@@ -358,7 +364,8 @@ impl WaveformImage {
         lower: SampleIndex,
         upper: SampleIndex,
     ) {
-        let x_offset = ((lower - self.lower).step_range(d.sample_step) * d.x_step) as f64;
+        let x_offset =
+            (lower.saturating_sub(self.lower).step_range(d.sample_step) * d.x_step) as f64;
 
         let x_range_to_draw = (upper - self.upper).step_range(d.sample_step) * d.x_step;
         let must_translate = self.last.x as usize + x_range_to_draw >= self.image_width as usize;

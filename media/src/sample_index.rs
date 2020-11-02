@@ -58,6 +58,11 @@ impl SampleIndex {
     }
 
     #[must_use = "this returns the result of the operation, without modifying the original"]
+    pub fn saturating_sub(self, rhs: Self) -> SampleIndexRange {
+        SampleIndexRange::new(self.0.saturating_sub(rhs.0))
+    }
+
+    #[must_use = "this returns the result of the operation, without modifying the original"]
     pub fn saturating_sub_range(self, rhs: SampleIndexRange) -> SampleIndex {
         SampleIndex::new(self.0.saturating_sub(rhs.as_usize()))
     }
