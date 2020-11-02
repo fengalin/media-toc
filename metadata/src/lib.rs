@@ -1,5 +1,3 @@
-use gstreamer as gst;
-
 mod cue_sheet_format;
 pub use self::cue_sheet_format::CueSheetFormat;
 

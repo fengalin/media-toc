@@ -1,5 +1,4 @@
-use gstreamer as gst;
-use gstreamer::ElementExtManual;
+use gst::prelude::*;
 
 use metadata::Duration;
 

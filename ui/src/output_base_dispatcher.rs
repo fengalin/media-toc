@@ -13,6 +13,7 @@ use std::{
     cell::{Ref, RefCell, RefMut},
     marker::PhantomData,
     rc::Rc,
+    time::Duration,
 };
 
 use media::MediaEvent;
@@ -23,7 +24,7 @@ use super::output_base_controller::{
     MediaProcessor, OutputBaseController, OutputControllerImpl, ProcessingState,
 };
 
-const PROGRESS_TIMER_PERIOD: u32 = 250; // 250 ms
+const PROGRESS_TIMER_PERIOD: Duration = Duration::from_millis(250);
 
 pub trait OutputDispatcherImpl {
     type CtrlImpl: OutputControllerImpl;

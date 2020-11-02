@@ -1,5 +1,4 @@
 use gettextrs::gettext;
-use gstreamer as gst;
 
 use log::error;
 

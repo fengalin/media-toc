@@ -15,8 +15,8 @@ name = "mediatocrenderers"
 path = "src/lib.rs"
 
 [dependencies]
-cairo-rs = "0.9"
-gstreamer = { version = "0.16", features = ["v1_10"] }
+cairo-rs = { git = "https://github.com/gtk-rs/gtk-rs" }
+gst = { package = "gstreamer", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
 media = { path = "../media", package = "media-toc-media"  }
 metadata = { path = "../metadata", package = "media-toc-metadata" }
 image = "0.23"
@@ -25,5 +25,5 @@ smallvec = "1"
 
 [dev-dependencies]
 byteorder = "1"
-cairo-rs = { version = "0.9", features = ["png"] }
-gstreamer-audio = { version = "0.16", features = ["v1_10"] }
+cairo-rs = { git = "https://github.com/gtk-rs/gtk-rs", features = ["png"] }
+gst-audio = { package = "gstreamer-audio", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }

@@ -1,5 +1,4 @@
-use gstreamer_audio as gst_audio;
-use gstreamer_audio::AudioChannelPosition as Position;
+use gst_audio::AudioChannelPosition as Position;
 
 /// Inline length for `SmallVec`s with channels.
 pub const INLINE_CHANNELS: usize = 5 + 1;

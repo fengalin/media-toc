@@ -1,6 +1,3 @@
-use gstreamer as gst;
-use gstreamer_audio as gst_audio;
-
 use log::{debug, info};
 
 use std::{

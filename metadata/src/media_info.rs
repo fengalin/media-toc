@@ -1,6 +1,5 @@
 use gettextrs::gettext;
 use gst::Tag;
-use gstreamer as gst;
 use lazy_static::lazy_static;
 use log::warn;
 
@@ -558,13 +557,12 @@ impl MediaInfo {
             for (tag_name, tag_iter) in self.tags.iter_generic() {
                 if TAGS_TO_SKIP_FOR_TRACK
                     .iter()
-                    .find(|&&tag_to_skip| tag_to_skip == tag_name)
-                    .is_none()
+                    .all(|&tag_to_skip| tag_to_skip != tag_name)
                 {
                     // can add tag
                     for tag_value in tag_iter {
                         if tags
-                            .add_generic(tag_name, tag_value, gst::TagMergeMode::Append)
+                            .add_value(tag_name, tag_value, gst::TagMergeMode::Append)
                             .is_err()
                         {
                             warn!(

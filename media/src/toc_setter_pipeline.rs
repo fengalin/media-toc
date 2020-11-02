@@ -2,10 +2,7 @@ use futures::channel::mpsc as async_mpsc;
 
 use gettextrs::gettext;
 
-use gstreamer as gst;
-use gstreamer::prelude::*;
-
-use glib::ObjectExt;
+use gst::prelude::*;
 
 use log::{info, warn};
 
@@ -100,7 +97,7 @@ impl TocSetterPipeline {
         // Input
         let filesrc = gst::ElementFactory::make("filesrc", None).unwrap();
         filesrc
-            .set_property("location", &glib::Value::from(input_path.to_str().unwrap()))
+            .set_property("location", &input_path.to_str().unwrap())
             .unwrap();
 
         let parsebin = gst::ElementFactory::make("parsebin", None).unwrap();
@@ -113,16 +110,11 @@ impl TocSetterPipeline {
 
         // Muxer and output sink
         let muxer = gst::ElementFactory::make("matroskamux", None).unwrap();
-        muxer
-            .set_property("writing-app", &glib::Value::from("media-toc"))
-            .unwrap();
+        muxer.set_property("writing-app", &"media-toc").unwrap();
 
         let filesink = gst::ElementFactory::make("filesink", Some("filesink")).unwrap();
         filesink
-            .set_property(
-                "location",
-                &glib::Value::from(output_path.to_str().unwrap()),
-            )
+            .set_property("location", &output_path.to_str().unwrap())
             .unwrap();
 
         {

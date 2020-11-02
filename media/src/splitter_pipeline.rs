@@ -2,8 +2,7 @@ use futures::channel::mpsc as async_mpsc;
 
 use gettextrs::gettext;
 
-use gstreamer as gst;
-use gstreamer::{prelude::*, ClockTime};
+use gst::{prelude::*, ClockTime};
 
 use log::{debug, error, info, warn};
 
@@ -165,7 +164,7 @@ impl SplitterPipeline {
         // Input
         let filesrc = gst::ElementFactory::make("filesrc", None).unwrap();
         filesrc
-            .set_property("location", &glib::Value::from(input_path.to_str().unwrap()))
+            .set_property("location", &input_path.to_str().unwrap())
             .unwrap();
         let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
 
@@ -279,10 +278,7 @@ impl SplitterPipeline {
         // Output sink
         let outsink = gst::ElementFactory::make("filesink", Some("filesink")).unwrap();
         outsink
-            .set_property(
-                "location",
-                &glib::Value::from(output_path.to_str().unwrap()),
-            )
+            .set_property("location", &output_path.to_str().unwrap())
             .unwrap();
 
         self.pipeline.add(&outsink).unwrap();

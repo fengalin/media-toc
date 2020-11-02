@@ -1,4 +1,4 @@
-use glib::{signal::SignalHandlerId, ObjectExt, ToValue};
+use glib::{signal::SignalHandlerId, ObjectExt};
 use gtk::prelude::*;
 use log::debug;
 
@@ -67,7 +67,7 @@ impl VideoController {
                     let glsinkbin = gst::ElementFactory::make("glsinkbin", Some("video_sink"))
                         .expect("PlaybackPipeline: couldn't get `glsinkbin` from `gtkglsink`");
                     glsinkbin
-                        .set_property("sink", &gtkglsink.to_value())
+                        .set_property("sink", &gtkglsink)
                         .expect("VideoController: couldn't set `sink` for `glsinkbin`");
 
                     debug!("Using gtkglsink");

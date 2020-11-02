@@ -2,11 +2,8 @@ use futures::channel::mpsc as async_mpsc;
 
 use gettextrs::gettext;
 
-use gstreamer as gst;
-
-use gstreamer::{prelude::*, ClockTime};
-
 use glib::{Cast, ObjectExt};
+use gst::{prelude::*, ClockTime};
 
 use log::{debug, info, warn};
 
@@ -268,7 +265,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
 
         let file_src = gst::ElementFactory::make("filesrc", Some("filesrc")).unwrap();
         file_src
-            .set_property("location", &glib::Value::from(path.to_str().unwrap()))
+            .set_property("location", &path.to_str().unwrap())
             .unwrap();
         self.pipeline.add(&file_src).unwrap();
         file_src.link(&self.decodebin).unwrap();
@@ -369,13 +366,9 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
         // FIXME: build a dedicated plugin?
 
         // get samples as fast as possible
-        waveform_sink
-            .set_property("sync", &glib::Value::from(&false))
-            .unwrap();
+        waveform_sink.set_property("sync", &false).unwrap();
         // and don't block pipeline when switching state
-        waveform_sink
-            .set_property("async", &glib::Value::from(&false))
-            .unwrap();
+        waveform_sink.set_property("async", &false).unwrap();
 
         {
             dbl_audio_buffer_mtx

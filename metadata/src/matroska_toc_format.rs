@@ -1,7 +1,4 @@
-use glib::Cast;
-
-use gstreamer as gst;
-use gstreamer::{TagSetterExt, TocSetterExt};
+use gst::{prelude::*, TagSetterExt, TocSetterExt};
 
 use super::{Exporter, MediaInfo};
 

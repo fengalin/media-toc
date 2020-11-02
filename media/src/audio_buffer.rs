@@ -1,9 +1,6 @@
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 
-use gstreamer as gst;
-
-use gstreamer_audio as gst_audio;
-use gstreamer_audio::AudioFormat;
+use gst_audio::AudioFormat;
 
 use log::{debug, trace};
 

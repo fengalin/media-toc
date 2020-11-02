@@ -1,5 +1,3 @@
-use gstreamer as gst;
-
 #[derive(Debug)]
 pub enum TocVisit {
     EnteringChildren,
