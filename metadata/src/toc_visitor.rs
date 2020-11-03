@@ -122,8 +122,7 @@ impl TocVisitor {
 
 #[cfg(test)]
 mod tests {
-    extern crate gstreamer as gst;
-    use gstreamer::{Toc, TocEntry, TocEntryType, TocScope};
+    use gst::{Toc, TocEntry, TocEntryType, TocScope};
 
     use super::*;
 

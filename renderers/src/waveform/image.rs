@@ -511,9 +511,7 @@ impl WaveformImage {
 mod tests {
     //use env_logger;
     use byteorder::{ByteOrder, LittleEndian};
-    use gstreamer as gst;
-    use gstreamer_audio as gst_audio;
-    use gstreamer_audio::AUDIO_FORMAT_S16;
+    use gst_audio::AUDIO_FORMAT_S16;
     use log::info;
 
     use std::{
