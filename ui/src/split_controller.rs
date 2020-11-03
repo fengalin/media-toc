@@ -5,10 +5,8 @@ use gtk::prelude::*;
 use log::warn;
 
 use std::{
-    borrow::ToOwned,
     path::Path,
     rc::Rc,
-    string::ToString,
     sync::{Arc, RwLock},
 };
 
@@ -101,7 +99,7 @@ impl UIController for SplitControllerImpl {
     }
 
     fn streams_changed(&mut self, info: &MediaInfo) {
-        self.selected_audio = info.streams.selected_audio().map(ToOwned::to_owned);
+        self.selected_audio = info.streams.selected_audio().map(Stream::to_owned);
         if self.is_usable {
             self.split_btn.set_sensitive(self.selected_audio.is_some());
         }
@@ -196,7 +194,7 @@ impl SplitControllerImpl {
             .get_tags()
             .and_then(|tags| {
                 tags.get::<gst::tags::Title>()
-                    .and_then(|tag| tag.get().map(ToString::to_string))
+                    .and_then(|tag| tag.get().map(str::to_string))
             })
             .unwrap_or_else(default_chapter_title);
 
@@ -207,7 +205,7 @@ impl SplitControllerImpl {
                 .tags
                 .get_index::<gst::tags::LanguageName>(0)
                 .or_else(|| stream.tags.get_index::<gst::tags::LanguageCode>(0))
-                .and_then(|value| value.get().map(ToString::to_string))
+                .and_then(|value| value.get().map(str::to_string))
         });
         if let Some(lang) = lang {
             split_name += &format!(" ({})", lang);
