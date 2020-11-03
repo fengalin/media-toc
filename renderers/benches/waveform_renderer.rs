@@ -7,9 +7,6 @@ use byteorder::{ByteOrder, LittleEndian};
 
 use cairo;
 
-use gstreamer as gst;
-use gstreamer_audio as gst_audio;
-
 use std::sync::{Arc, Mutex, RwLock};
 
 use media::{

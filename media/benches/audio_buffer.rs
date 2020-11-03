@@ -5,9 +5,6 @@ use test::Bencher;
 
 use byteorder::{ByteOrder, LittleEndian};
 
-use gstreamer as gst;
-use gstreamer_audio as gst_audio;
-
 use metadata::Duration;
 
 use mediatocmedia::{AudioBuffer, SampleIndex, Timestamp};
