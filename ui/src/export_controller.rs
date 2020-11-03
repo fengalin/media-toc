@@ -221,18 +221,11 @@ impl MediaProcessor for ExportControllerImpl {
         if let Some(pipeline) = self.toc_setter_pipeline.as_mut() {
             pipeline.cancel();
 
-            let path = &self
-                .export_file_info
-                .as_ref()
-                .expect(concat!(
-                    "ExportControllerImpl: export_file_info not defined in `cancel()`, ",
-                    "did you call `init()`?"
-                ))
-                .path;
-
-            if std::fs::remove_file(path).is_err() {
-                if let Some(printable_path) = path.to_str() {
-                    warn!("Failed to remove canceled export file {}", printable_path);
+            if let Some(file_info) = self.export_file_info.take() {
+                if std::fs::remove_file(&file_info.path).is_err() {
+                    if let Some(printable_path) = file_info.path.to_str() {
+                        warn!("Failed to remove canceled export file {}", printable_path);
+                    }
                 }
             }
         }

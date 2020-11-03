@@ -189,7 +189,7 @@ impl Stream {
             caps,
             tags,
             type_,
-            must_export: false,
+            must_export: true,
         }
     }
 }
@@ -419,12 +419,16 @@ impl Streams {
                         content.add_stream_type(StreamType::VIDEO);
                     }
                 }
+                // FIXME: discard text stream export for now as it hangs the export
+                // (see https://github.com/fengalin/media-toc/issues/136)
+                /*
                 for (stream_id, stream) in &self.text.collection {
                     if stream.must_export {
                         streams.insert(stream_id.to_string());
                         content.add_stream_type(StreamType::TEXT);
                     }
                 }
+                */
             }
 
             for (stream_id, stream) in &self.audio.collection {
