@@ -20,15 +20,15 @@ impl UIDispatcher for AudioDispatcher {
         ui_event: &UIEventSender,
     ) {
         // draw
-        audio_ctrl.drawingarea.connect_draw(clone!(
-            @weak main_ctrl_rc => @default-panic, move |drawing_area, cairo_ctx| {
-                let mut main_ctrl = main_ctrl_rc.borrow_mut();
-                if let Some(position) = main_ctrl.audio_ctrl.draw(drawing_area, cairo_ctx) {
-                    main_ctrl.refresh_info(position);
-                }
+        let waveform_with_overlay = RefCell::new(audio_ctrl.waveform_with_overlay());
+        audio_ctrl
+            .drawingarea
+            .connect_draw(move |drawing_area, cairo_ctx| {
+                waveform_with_overlay
+                    .borrow_mut()
+                    .draw(drawing_area, cairo_ctx);
                 Inhibit(false)
-            }
-        ));
+            });
 
         // widget size changed
         audio_ctrl

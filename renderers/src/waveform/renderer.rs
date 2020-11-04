@@ -1,6 +1,9 @@
 use log::{debug, trace};
 
-use std::sync::{Arc, Mutex, RwLock};
+use std::{
+    fmt,
+    sync::{Arc, Mutex, RwLock},
+};
 
 use media::{
     sample_extractor, AudioBuffer, AudioChannel, DoubleAudioBuffer, SampleExtractor, SampleIndex,
@@ -80,9 +83,107 @@ impl Default for Mode {
     }
 }
 
+impl Mode {
+    #[inline]
+    fn freeze(&mut self) {
+        if let Mode::Scrollable(_) = self {
+            *self = Mode::Frozen;
+        }
+    }
+
+    #[inline]
+    fn release(&mut self) {
+        if let Mode::Frozen = self {
+            *self = Mode::Scrollable(CursorDirection::Forward);
+        }
+    }
+
+    #[inline]
+    fn scroll_forward(&mut self) {
+        *self = Mode::Scrollable(CursorDirection::Forward);
+    }
+
+    #[inline]
+    fn scroll_backward(&mut self, cursor_sample: SampleIndex) {
+        *self = Mode::Scrollable(CursorDirection::Backward(cursor_sample));
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum State {
+    Playback(Mode),
+    Seeking(Mode),
+}
+
+impl Default for State {
+    fn default() -> Self {
+        State::Playback(Mode::default())
+    }
+}
+
+impl State {
+    #[inline]
+    fn freeze(&mut self) {
+        match self {
+            State::Playback(mode) => mode.freeze(),
+            State::Seeking(_) => unreachable!(),
+        }
+    }
+
+    #[inline]
+    fn release(&mut self) {
+        match self {
+            State::Playback(mode) => mode.release(),
+            State::Seeking(_) => unreachable!(),
+        }
+    }
+
+    #[inline]
+    fn seek(&mut self) {
+        match self {
+            State::Playback(mode) => *self = State::Seeking(*mode),
+            State::Seeking(_) => (),
+        }
+    }
+
+    #[inline]
+    fn seek_done(&mut self) {
+        match self {
+            State::Seeking(mode) => *self = State::Playback(*mode),
+            State::Playback(_) => unreachable!(),
+        }
+    }
+
+    #[inline]
+    fn scroll_forward(&mut self) {
+        match self {
+            State::Playback(mode) => mode.scroll_forward(),
+            State::Seeking(_) => unreachable!(),
+        }
+    }
+
+    #[inline]
+    fn scroll_backward(&mut self, cursor_sample: SampleIndex) {
+        match self {
+            State::Playback(mode) => mode.scroll_backward(cursor_sample),
+            State::Seeking(_) => unreachable!(),
+        }
+    }
+
+    #[inline]
+    fn must_refresh_cursor(&self) -> bool {
+        matches!(self, State::Playback(_))
+    }
+
+    #[inline]
+    pub fn is_playing(&self) -> bool {
+        matches!(self, State::Playback(Mode::Scrollable(_)))
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct SharedState {
-    mode: Mode,
+    state: State,
 
     pub cursor_sample: SampleIndex, // The sample idx currently under the cursor (might be different from
     // current sample idx during seeks)
@@ -102,6 +203,25 @@ impl SharedState {
         *self = Self::default();
     }
 }
+
+#[derive(Debug)]
+pub enum RefreshError {
+    NotReady,
+}
+
+impl RefreshError {
+    pub fn is_not_ready(&self) -> bool {
+        matches!(*self, RefreshError::NotReady)
+    }
+}
+
+impl fmt::Display for RefreshError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "refreshing a not ready image attempted")
+    }
+}
+
+impl std::error::Error for RefreshError {}
 
 // A WaveformRenderer hosts one of the Waveform images of the double buffering
 // mechanism based on the SampleExtractor trait.
@@ -166,17 +286,22 @@ impl WaveformRenderer {
     }
 
     pub fn freeze(&mut self) {
-        self.shared_state.write().unwrap().mode = Mode::Frozen;
+        self.shared_state.write().unwrap().state.freeze();
     }
 
     pub fn release(&mut self) {
-        self.shared_state.write().unwrap().mode = Mode::Scrollable(CursorDirection::Forward);
+        self.shared_state.write().unwrap().state.release();
+    }
+
+    pub fn seek(&mut self) {
+        self.shared_state.write().unwrap().state.seek();
     }
 
     pub fn seek_done(&mut self, ts: Timestamp) {
         let cursor_sample = ts.sample_index(self.dimensions.read().unwrap().sample_duration);
 
         let mut shared_state = self.shared_state.write().unwrap();
+        shared_state.state.seek_done();
 
         shared_state.cursor_sample = cursor_sample;
         shared_state.cursor_ts = ts;
@@ -191,8 +316,8 @@ impl WaveformRenderer {
             (dim.req_sample_window, dim.half_req_sample_window)
         };
 
-        if shared_state.cursor_sample >= first_visible_sample + req_sample_window
-            || shared_state.cursor_sample < first_visible_sample
+        if cursor_sample >= first_visible_sample + req_sample_window
+            || cursor_sample < first_visible_sample
         {
             // Cursor no longer in current window => recompute
             shared_state.first_visible_sample = None;
@@ -200,17 +325,17 @@ impl WaveformRenderer {
         }
 
         // cursor still in current window
-        match shared_state.mode {
-            Mode::Scrollable(_) => {
-                if shared_state.cursor_sample > first_visible_sample + half_req_sample_window {
-                    shared_state.mode =
-                        Mode::Scrollable(CursorDirection::Backward(shared_state.cursor_sample));
+        match shared_state.state {
+            State::Playback(Mode::Scrollable(_)) => {
+                if cursor_sample > first_visible_sample + half_req_sample_window {
+                    shared_state.state.scroll_backward(cursor_sample);
                 }
             }
-            Mode::Frozen => {
+            State::Playback(Mode::Frozen) => {
                 // Attempt to center cursor
                 shared_state.first_visible_sample = None;
             }
+            _ => unreachable!(),
         }
     }
 
@@ -233,29 +358,15 @@ impl WaveformRenderer {
         })
     }
 
-    /// Refreshes the cursor position.
-    pub fn refresh_cursor(&mut self) {
-        let sample_duration = self.dimensions.read().unwrap().sample_duration;
-
-        if let Some((ts, sample)) = self.cursor(sample_duration) {
-            let mut shared_state = self.shared_state.write().unwrap();
-            shared_state.cursor_sample = sample;
-            shared_state.cursor_ts = ts;
-        }
-    }
-
     /// Refreshes the waveform position.
     ///
     /// Refreshes the cursor and computes the first sample to display depending on current mode.
-    pub fn refresh(&mut self) {
+    pub fn refresh(&mut self) -> Result<(), RefreshError> {
         if !self.image.is_ready {
-            debug!(
-                "{}_update_first_visible_sample image not ready",
-                self.image.id
-            );
+            debug!("{}_refresh image not ready", self.image.id);
 
             self.shared_state.write().unwrap().first_visible_sample = None;
-            return;
+            return Err(RefreshError::NotReady);
         }
 
         let (sample_duration, req_sample_window, half_req_sample_window) = {
@@ -270,14 +381,20 @@ impl WaveformRenderer {
         // Keep this order and separation so as to avoid race conditions locking the states.
         let cursor = self.cursor(sample_duration);
         let mut shared_state = self.shared_state.write().unwrap();
+        if !shared_state.state.must_refresh_cursor() {
+            return Ok(());
+        }
+
         if let Some((ts, sample)) = cursor {
             shared_state.cursor_sample = sample;
             shared_state.cursor_ts = ts;
         }
 
-        if shared_state.cursor_sample < self.image.lower {
+        let cursor_sample = shared_state.cursor_sample;
+
+        if cursor_sample < self.image.lower {
             // cursor appears before image range
-            if shared_state.cursor_sample + req_sample_window > self.image.lower {
+            if cursor_sample + req_sample_window > self.image.lower {
                 // cursor is close enough to the image
                 // => render what can be rendered
                 debug!(
@@ -285,7 +402,7 @@ impl WaveformRenderer {
                         "{}_refresh_window cursor_sample {} ",
                         "close to image first sample {}",
                     ),
-                    self.image.id, shared_state.cursor_sample, self.image.lower
+                    self.image.id, cursor_sample, self.image.lower
                 );
 
                 shared_state.first_visible_sample = Some(self.image.lower);
@@ -297,46 +414,45 @@ impl WaveformRenderer {
                         "{}_refresh_window cursor_sample {} ",
                         "appears before image first sample {}",
                     ),
-                    self.image.id, shared_state.cursor_sample, self.image.lower
+                    self.image.id, cursor_sample, self.image.lower
                 );
 
                 shared_state.first_visible_sample = None;
             }
 
-            return;
+            return Ok(());
         }
 
         // current sample appears after first sample on image
 
-        if shared_state.cursor_sample >= self.image.upper {
+        if cursor_sample >= self.image.upper {
             // cursor_sample appears after image last sample
             debug!(
                 concat!(
                     "{}_refresh_window ",
                     "cursor_sample {} appears above image upper bound {}",
                 ),
-                self.image.id, shared_state.cursor_sample, self.image.upper,
+                self.image.id, cursor_sample, self.image.upper,
             );
 
-            if shared_state.cursor_sample <= self.image.lower + req_sample_window {
+            if cursor_sample <= self.image.lower + req_sample_window {
                 // rebase image attempting to keep in range
                 // even if samples are not rendered yet
 
                 if self.image.upper > self.image.lower + req_sample_window {
-                    shared_state.first_visible_sample =
-                        Some(shared_state.cursor_sample - req_sample_window);
+                    shared_state.first_visible_sample = Some(cursor_sample - req_sample_window);
                 } else {
                     shared_state.first_visible_sample = Some(self.image.lower);
                 }
 
-                return;
+                return Ok(());
             } else {
                 // cursor no longer in range, 2 cases:
                 // - seeking forward
                 // - zoomed-in too much to keep up with the audio stream
 
                 shared_state.first_visible_sample = None;
-                return;
+                return Ok(());
             }
         }
 
@@ -347,12 +463,12 @@ impl WaveformRenderer {
             None => {
                 debug!("{}_refresh_window init first_visible_sample", self.image.id);
 
-                if shared_state.cursor_sample + half_req_sample_window <= self.image.upper {
+                if cursor_sample + half_req_sample_window <= self.image.upper {
                     // cursor_sample fits in the first half of the window with last sample further
-                    if shared_state.cursor_sample > self.image.lower + half_req_sample_window {
+                    if cursor_sample > self.image.lower + half_req_sample_window {
                         // cursor_sample can be centered
                         shared_state.first_visible_sample =
-                            Some(shared_state.cursor_sample - half_req_sample_window);
+                            Some(cursor_sample - half_req_sample_window);
                     } else {
                         // cursor_sample before half of displayable window
                         // set origin to the first sample of the image
@@ -370,34 +486,33 @@ impl WaveformRenderer {
                     shared_state.first_visible_sample = Some(self.image.lower);
                 }
 
-                return;
+                return Ok(());
             }
         };
 
-        match shared_state.mode {
-            Mode::Scrollable(CursorDirection::Forward) => {
-                if shared_state.cursor_sample < first_visible_sample + half_req_sample_window {
-                    return;
+        match shared_state.state {
+            State::Playback(Mode::Scrollable(CursorDirection::Forward)) => {
+                if cursor_sample < first_visible_sample + half_req_sample_window {
+                    return Ok(());
                 }
 
                 if self.image.upper < first_visible_sample + req_sample_window {
-                    return;
+                    return Ok(());
                 }
 
                 // Move the image so that the cursor is centered
-                shared_state.first_visible_sample =
-                    Some(shared_state.cursor_sample - half_req_sample_window);
+                shared_state.first_visible_sample = Some(cursor_sample - half_req_sample_window);
             }
-            Mode::Scrollable(CursorDirection::Backward(prev_sample)) => {
-                if shared_state.cursor_sample <= first_visible_sample + half_req_sample_window {
+            State::Playback(Mode::Scrollable(CursorDirection::Backward(prev_sample))) => {
+                if cursor_sample <= first_visible_sample + half_req_sample_window {
                     // No longer in second half
                     debug!(
                         "{}_refresh_window cursor direction: Backward -> Forward",
                         self.image.id
                     );
-                    shared_state.mode = Mode::Scrollable(CursorDirection::Forward);
+                    shared_state.state.scroll_forward();
 
-                    return;
+                    return Ok(());
                 }
 
                 // still in second half
@@ -405,19 +520,21 @@ impl WaveformRenderer {
                     // and there is still overhead
                     // => progressively get cursor back to center
                     let previous_offset = prev_sample - first_visible_sample;
-                    let delta_cursor = shared_state.cursor_sample - prev_sample;
+                    let delta_cursor = cursor_sample.saturating_sub(prev_sample);
                     shared_state.first_visible_sample =
-                        Some(shared_state.cursor_sample - previous_offset + delta_cursor);
+                        Some(cursor_sample - previous_offset + delta_cursor);
 
-                    shared_state.mode =
-                        Mode::Scrollable(CursorDirection::Backward(shared_state.cursor_sample));
+                    shared_state.state.scroll_backward(cursor_sample);
                 } else {
                     // Not enough overhead to get cursor back to center
-                    shared_state.mode = Mode::Scrollable(CursorDirection::Forward);
+                    shared_state.state.scroll_forward();
                 }
             }
-            Mode::Frozen => (),
+            State::Playback(Mode::Frozen) => (),
+            _ => unreachable!(),
         }
+
+        Ok(())
     }
 
     /// Updates rendering conditions
@@ -582,7 +699,7 @@ impl WaveformRenderer {
     }
 
     // Get the waveform as an image in current conditions.
-    pub fn image(&mut self) -> Option<(&Image, ImagePositions)> {
+    pub fn image(&mut self) -> Option<(&Image, ImagePositions, State)> {
         let d = *self.dimensions.read().unwrap();
 
         let shared_state = self.shared_state.read().unwrap();
@@ -643,6 +760,7 @@ impl WaveformRenderer {
                 sample_duration: d.sample_duration,
                 sample_step: d.sample_step_f,
             },
+            shared_state.state,
         ))
     }
 

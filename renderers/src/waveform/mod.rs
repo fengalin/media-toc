@@ -1,5 +1,6 @@
 pub mod image;
 pub mod renderer;
+pub use renderer::RefreshError;
 
 use media::SampleIndexRange;
 use metadata::Duration;

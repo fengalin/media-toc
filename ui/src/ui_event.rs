@@ -34,6 +34,7 @@ pub(crate) enum UIEvent {
     },
     PreviousChapter,
     Quit,
+    RefreshInfo(Timestamp),
     ResetCursor,
     RestoreContext,
     Seek {
@@ -124,6 +125,10 @@ impl UIEventSender {
 
     pub fn quit(&self) {
         self.send(UIEvent::Quit);
+    }
+
+    pub fn refresh_info(&self, ts: Timestamp) {
+        self.send(UIEvent::RefreshInfo(ts));
     }
 
     pub fn reset_cursor(&self) {

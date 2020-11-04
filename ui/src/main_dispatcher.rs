@@ -205,6 +205,7 @@ impl MainDispatcher {
                 self.main_ctrl.borrow_mut().quit();
                 return Err(());
             }
+            RefreshInfo(ts) => self.main_ctrl.borrow_mut().refresh_info(ts),
             ResetCursor => self.reset_cursor(),
             RestoreContext => self.restore_context(),
             Seek { target, flags } => self.main_ctrl.borrow_mut().seek(target, flags),

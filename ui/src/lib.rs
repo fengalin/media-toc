@@ -53,6 +53,9 @@ use self::video_controller::VideoController;
 mod video_dispatcher;
 use self::video_dispatcher::VideoDispatcher;
 
+mod waveform_with_overlay;
+use self::waveform_with_overlay::WaveformWithOverlay;
+
 use futures::channel::mpsc as async_mpsc;
 use gio::prelude::*;
 use log::warn;
