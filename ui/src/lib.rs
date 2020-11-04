@@ -7,7 +7,7 @@ mod chapters_boundaries;
 use self::chapters_boundaries::{ChapterTimestamps, ChaptersBoundaries};
 
 mod chapter_tree_manager;
-use self::chapter_tree_manager::{ChapterTreeManager, PositionStatus};
+use self::chapter_tree_manager::{ChapterEntry, ChapterTreeManager, PositionStatus};
 
 mod export_controller;
 use self::export_controller::ExportController;

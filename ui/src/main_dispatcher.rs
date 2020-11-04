@@ -11,7 +11,7 @@ use log::{debug, trace};
 
 use std::{cell::RefCell, rc::Rc};
 
-use media::{MediaEvent, Timestamp};
+use media::MediaEvent;
 
 use super::{
     main_controller::ControllerState, spawn, ui_event::UIEvent, AudioDispatcher, ExportDispatcher,
@@ -185,32 +185,12 @@ impl MainDispatcher {
                 response_sender,
             } => self.info_bar_ctrl.ask_question(&question, response_sender),
             CancelSelectMedia => self.main_ctrl.borrow_mut().cancel_select_media(),
-            ChapterClicked(tree_path) => {
-                let mut main_ctrl = self.main_ctrl.borrow_mut();
-                let seek_ts = main_ctrl
-                    .info_ctrl
-                    .chapter_manager
-                    .chapter_from_path(&tree_path)
-                    .map(|chapter| chapter.start());
-
-                if let Some(seek_ts) = seek_ts {
-                    let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
-                }
+            ChapterClicked(chapter_path) => {
+                self.main_ctrl.borrow_mut().chapter_clicked(chapter_path)
             }
             HideInfoBar => self.info_bar_ctrl.hide(),
             OpenMedia(path) => self.main_ctrl.borrow_mut().open_media(path),
-            NextChapter => {
-                let mut main_ctrl = self.main_ctrl.borrow_mut();
-                let seek_ts = main_ctrl
-                    .info_ctrl
-                    .chapter_manager
-                    .pick_next()
-                    .map(|next_chapter| next_chapter.start());
-
-                if let Some(seek_ts) = seek_ts {
-                    let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
-                }
-            }
+            NextChapter => self.main_ctrl.borrow_mut().next_chapter(),
             PlayRange {
                 start,
                 end,
@@ -220,17 +200,7 @@ impl MainDispatcher {
                     .borrow_mut()
                     .play_range(start, end, ts_to_restore);
             }
-            PreviousChapter => {
-                let mut main_ctrl = self.main_ctrl.borrow_mut();
-                let seek_ts = main_ctrl
-                    .current_ts()
-                    .and_then(|cur_ts| main_ctrl.info_ctrl.previous_chapter(cur_ts));
-
-                let _ = main_ctrl.seek(
-                    seek_ts.unwrap_or_else(Timestamp::default),
-                    gst::SeekFlags::ACCURATE,
-                );
-            }
+            PreviousChapter => self.main_ctrl.borrow_mut().previous_chapter(),
             Quit => {
                 self.main_ctrl.borrow_mut().quit();
                 return Err(());
@@ -243,55 +213,13 @@ impl MainDispatcher {
             ShowAll => self.show_all(),
             ShowError(msg) => self.info_bar_ctrl.show_error(&msg),
             ShowInfo(msg) => self.info_bar_ctrl.show_info(&msg),
-            StepBack => {
-                let mut main_ctrl = self.main_ctrl.borrow_mut();
-                if let Some(current_ts) = main_ctrl.current_ts() {
-                    let seek_ts = {
-                        let seek_step = main_ctrl.audio_ctrl.seek_step;
-                        if current_ts > seek_step {
-                            current_ts - seek_step
-                        } else {
-                            Timestamp::default()
-                        }
-                    };
-                    let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
-                }
-            }
-            StepForward => {
-                let mut main_ctrl = self.main_ctrl.borrow_mut();
-                if let Some(current_ts) = main_ctrl.current_ts() {
-                    let seek_ts = current_ts + main_ctrl.audio_ctrl.seek_step;
-                    let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
-                }
-            }
-            StreamClicked(type_) => {
-                let mut main_ctrl = self.main_ctrl.borrow_mut();
-                if let super::StreamClickedStatus::Changed =
-                    main_ctrl.streams_ctrl.stream_clicked(type_)
-                {
-                    let streams = main_ctrl.streams_ctrl.selected_streams();
-                    main_ctrl.select_streams(&streams);
-                }
-            }
-            StreamExportToggled(type_, tree_path) => {
-                let mut main_ctrl = self.main_ctrl.borrow_mut();
-                if let Some((stream_id, must_export)) =
-                    main_ctrl.streams_ctrl.export_toggled(type_, tree_path)
-                {
-                    if let Some(pipeline) = main_ctrl.pipeline.as_mut() {
-                        pipeline
-                            .info
-                            .write()
-                            .unwrap()
-                            .streams
-                            .collection_mut(type_)
-                            .get_mut(stream_id)
-                            .as_mut()
-                            .unwrap()
-                            .must_export = must_export;
-                    }
-                }
-            }
+            StepBack => self.main_ctrl.borrow_mut().step_back(),
+            StepForward => self.main_ctrl.borrow_mut().step_forward(),
+            StreamClicked(type_) => self.main_ctrl.borrow_mut().stream_clicked(type_),
+            StreamExportToggled(type_, tree_path) => self
+                .main_ctrl
+                .borrow_mut()
+                .stream_export_toggled(type_, tree_path),
             SwitchTo(focus_ctx) => self.switch_to(focus_ctx),
             TemporarilySwitchTo(focus_ctx) => {
                 self.save_context();
@@ -306,15 +234,11 @@ impl MainDispatcher {
             ToggleRepeat(must_repeat) => {
                 self.main_ctrl.borrow_mut().info_ctrl.repeat_chapter = must_repeat
             }
-            UpdateAudioRenderingCndt { dimensions } => {
-                let mut main_ctrl = self.main_ctrl.borrow_mut();
-                if let Some((width, height)) = dimensions {
-                    main_ctrl.audio_ctrl.area_width = width;
-                    main_ctrl.audio_ctrl.area_height = height;
-                }
-                main_ctrl.audio_ctrl.pending_update_conditions = false;
-                main_ctrl.audio_ctrl.update_conditions();
-            }
+            UpdateAudioRenderingCndt { dimensions } => self
+                .main_ctrl
+                .borrow_mut()
+                .audio_ctrl
+                .update_conditions(dimensions),
             UpdateFocus => self.update_focus(self.focus),
             ZoomIn => self.main_ctrl.borrow_mut().audio_ctrl.zoom_in(),
             ZoomOut => self.main_ctrl.borrow_mut().audio_ctrl.zoom_out(),

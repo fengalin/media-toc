@@ -144,7 +144,7 @@ impl UIController for AudioController {
         // AudioController accesses self.boundaries as readonly
         // clearing it is under the responsiblity of ChapterTreeManager
         self.text_metrics = TextMetrics::default();
-        self.update_conditions();
+        self.update_conditions(None);
         self.refresh();
     }
 
@@ -426,7 +426,13 @@ impl AudioController {
         }
     }
 
-    pub fn update_conditions(&mut self) {
+    pub fn update_conditions(&mut self, dimensions: Option<(f64, f64)>) {
+        if let Some((width, height)) = dimensions {
+            self.area_width = width;
+            self.area_height = height;
+            self.pending_update_conditions = false;
+        }
+
         if self.state != ControllerState::Disabled {
             debug!(
                 "update_conditions {}, {}x{}",
@@ -464,7 +470,7 @@ impl AudioController {
     pub fn zoom_in(&mut self) {
         self.requested_duration /= REQ_DURATION_SCALE_FACTOR;
         if self.requested_duration >= MIN_REQ_DURATION_FOR_1000PX {
-            self.update_conditions();
+            self.update_conditions(None);
         } else {
             self.requested_duration = MIN_REQ_DURATION_FOR_1000PX;
         }
@@ -474,7 +480,7 @@ impl AudioController {
     pub fn zoom_out(&mut self) {
         self.requested_duration *= REQ_DURATION_SCALE_FACTOR;
         if self.requested_duration <= MAX_REQ_DURATION_FOR_1000PX {
-            self.update_conditions();
+            self.update_conditions(None);
         } else {
             self.requested_duration = MAX_REQ_DURATION_FOR_1000PX;
         }

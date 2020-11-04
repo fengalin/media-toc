@@ -13,9 +13,10 @@ use application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG};
 use media::{MediaEvent, PlaybackState, Timestamp};
 
 use super::{
-    spawn, ui_event, AudioController, ChaptersBoundaries, ExportController, InfoController,
-    MainDispatcher, MediaEventReceiver, PerspectiveController, PlaybackPipeline, PositionStatus,
-    SplitController, StreamsController, UIController, UIEventSender, VideoController,
+    spawn, ui_event, AudioController, ChapterEntry, ChaptersBoundaries, ExportController,
+    InfoController, MainDispatcher, MediaEventReceiver, PerspectiveController, PlaybackPipeline,
+    PositionStatus, SplitController, StreamsController, UIController, UIEventSender,
+    VideoController,
 };
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
@@ -642,6 +643,88 @@ impl MainController {
             } else {
                 ControllerState::Stopped
             };
+        }
+    }
+
+    pub fn chapter_clicked(&mut self, chapter_path: gtk::TreePath) {
+        let seek_ts = self
+            .info_ctrl
+            .chapter_manager
+            .chapter_from_path(&chapter_path)
+            .as_ref()
+            .map(ChapterEntry::start);
+
+        if let Some(seek_ts) = seek_ts {
+            let _ = self.seek(seek_ts, gst::SeekFlags::ACCURATE);
+        }
+    }
+
+    pub fn next_chapter(&mut self) {
+        let seek_ts = self
+            .info_ctrl
+            .chapter_manager
+            .pick_next()
+            .as_ref()
+            .map(ChapterEntry::start);
+
+        if let Some(seek_ts) = seek_ts {
+            let _ = self.seek(seek_ts, gst::SeekFlags::ACCURATE);
+        }
+    }
+
+    pub fn previous_chapter(&mut self) {
+        let seek_ts = self
+            .current_ts()
+            .and_then(|cur_ts| self.info_ctrl.previous_chapter(cur_ts));
+
+        let _ = self.seek(
+            seek_ts.unwrap_or_else(Timestamp::default),
+            gst::SeekFlags::ACCURATE,
+        );
+    }
+
+    pub fn step_back(&mut self) {
+        if let Some(current_ts) = self.current_ts() {
+            let seek_ts = {
+                let seek_step = self.audio_ctrl.seek_step;
+                if current_ts > seek_step {
+                    current_ts - seek_step
+                } else {
+                    Timestamp::default()
+                }
+            };
+            let _ = self.seek(seek_ts, gst::SeekFlags::ACCURATE);
+        }
+    }
+
+    pub fn step_forward(&mut self) {
+        if let Some(current_ts) = self.current_ts() {
+            let seek_ts = current_ts + self.audio_ctrl.seek_step;
+            let _ = self.seek(seek_ts, gst::SeekFlags::ACCURATE);
+        }
+    }
+
+    pub fn stream_clicked(&mut self, type_: gst::StreamType) {
+        if let super::StreamClickedStatus::Changed = self.streams_ctrl.stream_clicked(type_) {
+            let streams = self.streams_ctrl.selected_streams();
+            self.select_streams(&streams);
+        }
+    }
+
+    pub fn stream_export_toggled(&mut self, type_: gst::StreamType, tree_path: gtk::TreePath) {
+        if let Some((stream_id, must_export)) = self.streams_ctrl.export_toggled(type_, tree_path) {
+            if let Some(pipeline) = self.pipeline.as_mut() {
+                pipeline
+                    .info
+                    .write()
+                    .unwrap()
+                    .streams
+                    .collection_mut(type_)
+                    .get_mut(stream_id)
+                    .as_mut()
+                    .unwrap()
+                    .must_export = must_export;
+            }
         }
     }
 }
