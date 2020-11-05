@@ -5,8 +5,7 @@ use gtk::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 
 use super::{
-    audio_controller::ControllerState, AudioController, MainController, PositionStatus,
-    UIDispatcher, UIEventSender, UIFocusContext,
+    AudioAreaEvent, AudioController, MainController, UIDispatcher, UIEventSender, UIFocusContext,
 };
 
 pub struct AudioDispatcher;
@@ -15,7 +14,7 @@ impl UIDispatcher for AudioDispatcher {
 
     fn setup(
         audio_ctrl: &mut AudioController,
-        main_ctrl_rc: &Rc<RefCell<MainController>>,
+        _main_ctrl_rc: &Rc<RefCell<MainController>>,
         app: &gtk::Application,
         ui_event: &UIEventSender,
     ) {
@@ -42,50 +41,32 @@ impl UIDispatcher for AudioDispatcher {
 
         // Move cursor over drawing_area
         audio_ctrl.drawingarea.connect_motion_notify_event(
-            clone!(@weak main_ctrl_rc => @default-panic, move |_, event_motion| {
-                let mut main_ctrl = main_ctrl_rc.borrow_mut();
-                if let Some((boundary, position)) =
-                    main_ctrl.audio_ctrl.motion_notify(&event_motion)
-                {
-                    if let PositionStatus::ChapterChanged { .. } =
-                        main_ctrl.move_chapter_boundary(boundary, position)
-                    {
-                        main_ctrl.audio_ctrl.state = ControllerState::MovingBoundary(position);
-                        main_ctrl.audio_ctrl.drawingarea.queue_draw();
-                    }
-                }
+            clone!(@strong ui_event => move |_, event| {
+                ui_event.audio_area_event(AudioAreaEvent::Motion(event.clone()));
                 Inhibit(true)
             }),
         );
 
         // Leave drawing_area
         audio_ctrl.drawingarea.connect_leave_notify_event(
-            clone!(@weak main_ctrl_rc => @default-panic, move |_, _event_crossing| {
-                let main_ctrl = main_ctrl_rc.try_borrow_mut();
-                match main_ctrl {
-                    Ok(mut main_ctrl) => {
-                        main_ctrl.audio_ctrl.leave_drawing_area();
-                        Inhibit(true)
-                    }
-                    Err(_) => Inhibit(false),
-                }
+            clone!(@strong ui_event => move |_, _event| {
+                ui_event.audio_area_event(AudioAreaEvent::Leaving);
+                Inhibit(true)
             }),
         );
 
         // button press in drawing_area
         audio_ctrl.drawingarea.connect_button_press_event(
-            clone!(@weak main_ctrl_rc => @default-panic, move |_, event_button| {
-                let mut main_ctrl = main_ctrl_rc.borrow_mut();
-                main_ctrl.audio_ctrl.button_pressed(event_button);
+            clone!(@strong ui_event => move |_, event| {
+                ui_event.audio_area_event(AudioAreaEvent::Button(event.clone()));
                 Inhibit(true)
             }),
         );
 
         // button release in drawing_area
         audio_ctrl.drawingarea.connect_button_release_event(
-            clone!(@weak main_ctrl_rc => @default-panic, move |_, event_button| {
-                let mut main_ctrl = main_ctrl_rc.borrow_mut();
-                main_ctrl.audio_ctrl.button_released(event_button);
+            clone!(@strong ui_event => move |_, event| {
+                ui_event.audio_area_event(AudioAreaEvent::Button(event.clone()));
                 Inhibit(true)
             }),
         );

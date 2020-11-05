@@ -43,6 +43,13 @@ pub enum ControllerState {
     SeekingPlaying,
 }
 
+#[derive(Debug)]
+pub enum AudioAreaEvent {
+    Button(gdk::EventButton),
+    Leaving,
+    Motion(gdk::EventMotion),
+}
+
 pub struct AudioController {
     waveform_renderer_mtx: Arc<Mutex<Box<WaveformRenderer>>>,
     pub dbl_renderer_mtx: Arc<Mutex<DoubleAudioBuffer<WaveformRenderer>>>,
@@ -452,7 +459,7 @@ impl AudioController {
 
     pub fn motion_notify(
         &mut self,
-        event_motion: &gdk::EventMotion,
+        event_motion: gdk::EventMotion,
     ) -> Option<(Timestamp, Timestamp)> {
         let (x, _y) = event_motion.get_position();
 
@@ -493,7 +500,7 @@ impl AudioController {
         }
     }
 
-    pub fn button_pressed(&mut self, event_button: &gdk::EventButton) {
+    pub fn button_pressed(&mut self, event_button: gdk::EventButton) {
         match event_button.get_button() {
             1 => {
                 // left button
@@ -538,7 +545,7 @@ impl AudioController {
         }
     }
 
-    pub fn button_released(&mut self, event_button: &gdk::EventButton) {
+    pub fn button_released(&mut self, event_button: gdk::EventButton) {
         if let ControllerState::MovingBoundary(boundary) = self.state {
             if 1 == event_button.get_button() {
                 // left button

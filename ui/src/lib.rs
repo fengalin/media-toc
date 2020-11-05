@@ -1,5 +1,5 @@
 mod audio_controller;
-use self::audio_controller::AudioController;
+use self::audio_controller::{AudioAreaEvent, AudioController};
 mod audio_dispatcher;
 use self::audio_dispatcher::AudioDispatcher;
 

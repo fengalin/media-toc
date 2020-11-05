@@ -184,6 +184,7 @@ impl MainDispatcher {
                 question,
                 response_sender,
             } => self.info_bar_ctrl.ask_question(&question, response_sender),
+            AudioAreaEvent(event) => self.main_ctrl.borrow_mut().audio_area_event(event),
             CancelSelectMedia => self.main_ctrl.borrow_mut().cancel_select_media(),
             ChapterClicked(chapter_path) => {
                 self.main_ctrl.borrow_mut().chapter_clicked(chapter_path)

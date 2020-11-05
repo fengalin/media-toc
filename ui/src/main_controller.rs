@@ -13,10 +13,10 @@ use application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG};
 use media::{MediaEvent, PlaybackState, Timestamp};
 
 use super::{
-    spawn, ui_event, AudioController, ChapterEntry, ChaptersBoundaries, ExportController,
-    InfoController, MainDispatcher, MediaEventReceiver, PerspectiveController, PlaybackPipeline,
-    PositionStatus, SplitController, StreamsController, UIController, UIEventSender,
-    VideoController,
+    spawn, ui_event, AudioAreaEvent, AudioController, ChapterEntry, ChaptersBoundaries,
+    ExportController, InfoController, MainDispatcher, MediaEventReceiver, PerspectiveController,
+    PlaybackPipeline, PositionStatus, SplitController, StreamsController, UIController,
+    UIEventSender, VideoController,
 };
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
@@ -255,14 +255,6 @@ impl MainController {
             ControllerState::Stopped => self.select_media(),
             _ => (),
         }
-    }
-
-    pub fn move_chapter_boundary(
-        &mut self,
-        boundary: Timestamp,
-        target: Timestamp,
-    ) -> PositionStatus {
-        self.info_ctrl.move_chapter_boundary(boundary, target)
     }
 
     pub fn seek(&mut self, mut ts: Timestamp, mut flags: gst::SeekFlags) {
@@ -724,6 +716,32 @@ impl MainController {
                     .as_mut()
                     .unwrap()
                     .must_export = must_export;
+            }
+        }
+    }
+
+    pub fn audio_area_event(&mut self, event: AudioAreaEvent) {
+        match event {
+            AudioAreaEvent::Button(event) => match event.get_event_type() {
+                gdk::EventType::ButtonPress => self.audio_ctrl.button_pressed(event),
+                gdk::EventType::ButtonRelease => self.audio_ctrl.button_released(event),
+                gdk::EventType::Scroll => {
+                    // FIXME zoom in / out
+                }
+                _ => (),
+            },
+            AudioAreaEvent::Leaving => self.audio_ctrl.leave_drawing_area(),
+            AudioAreaEvent::Motion(event) => {
+                if let Some((boundary, target)) = self.audio_ctrl.motion_notify(event) {
+                    if let PositionStatus::ChapterChanged { .. } =
+                        self.info_ctrl.move_chapter_boundary(boundary, target)
+                    {
+                        // FIXME this is ugly
+                        self.audio_ctrl.state =
+                            super::audio_controller::ControllerState::MovingBoundary(target);
+                        self.audio_ctrl.drawingarea.queue_draw();
+                    }
+                }
             }
         }
     }

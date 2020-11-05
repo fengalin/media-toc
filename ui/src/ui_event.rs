@@ -3,6 +3,7 @@ use futures::channel::oneshot;
 
 use std::{borrow::Cow, cell::RefCell, path::PathBuf};
 
+use super::AudioAreaEvent;
 use media::Timestamp;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -22,6 +23,7 @@ pub(crate) enum UIEvent {
         question: Cow<'static, str>,
         response_sender: oneshot::Sender<gtk::ResponseType>,
     },
+    AudioAreaEvent(AudioAreaEvent),
     CancelSelectMedia,
     ChapterClicked(gtk::TreePath),
     HideInfoBar,
@@ -87,6 +89,10 @@ impl UIEventSender {
         });
 
         response_receiver.await.unwrap_or(gtk::ResponseType::Cancel)
+    }
+
+    pub fn audio_area_event(&self, event: AudioAreaEvent) {
+        self.send(UIEvent::AudioAreaEvent(event));
     }
 
     pub fn cancel_select_media(&self) {
