@@ -1,7 +1,7 @@
 use futures::channel::mpsc as async_mpsc;
 use futures::channel::oneshot;
 
-use std::{borrow::Cow, cell::RefCell, path::PathBuf};
+use std::{cell::RefCell, path::PathBuf, string::ToString};
 
 use super::AudioAreaEvent;
 use media::Timestamp;
@@ -19,8 +19,9 @@ pub enum UIFocusContext {
 #[derive(Debug)]
 pub(crate) enum UIEvent {
     About,
+    AddChapter,
     AskQuestion {
-        question: Cow<'static, str>,
+        question: String,
         response_sender: oneshot::Sender<gtk::ResponseType>,
     },
     AudioAreaEvent(AudioAreaEvent),
@@ -29,6 +30,7 @@ pub(crate) enum UIEvent {
     HideInfoBar,
     NextChapter,
     OpenMedia(PathBuf),
+    PlayPause,
     PlayRange {
         start: Timestamp,
         end: Timestamp,
@@ -37,6 +39,8 @@ pub(crate) enum UIEvent {
     PreviousChapter,
     Quit,
     RefreshInfo(Timestamp),
+    RemoveChapter,
+    RenameChapter(String),
     ResetCursor,
     RestoreContext,
     Seek {
@@ -46,8 +50,8 @@ pub(crate) enum UIEvent {
     SetCursorWaiting,
     SetCursorDoubleArrow,
     ShowAll,
-    ShowError(Cow<'static, str>),
-    ShowInfo(Cow<'static, str>),
+    ShowError(String),
+    ShowInfo(String),
     StepBack,
     StepForward,
     StreamClicked(gst::StreamType),
@@ -78,13 +82,14 @@ impl UIEventSender {
         self.send(UIEvent::About);
     }
 
-    pub async fn ask_question<Q>(&self, question: Q) -> gtk::ResponseType
-    where
-        Q: Into<Cow<'static, str>>,
-    {
+    pub fn add_chapter(&self) {
+        self.send(UIEvent::AddChapter);
+    }
+
+    pub async fn ask_question(&self, question: impl ToString) -> gtk::ResponseType {
         let (response_sender, response_receiver) = oneshot::channel();
         self.send(UIEvent::AskQuestion {
-            question: question.into(),
+            question: question.to_string(),
             response_sender,
         });
 
@@ -117,6 +122,10 @@ impl UIEventSender {
         self.send(UIEvent::NextChapter);
     }
 
+    pub fn play_pause(&self) {
+        self.send(UIEvent::PlayPause);
+    }
+
     pub fn play_range(&self, start: Timestamp, end: Timestamp, ts_to_restore: Timestamp) {
         self.send(UIEvent::PlayRange {
             start,
@@ -135,6 +144,14 @@ impl UIEventSender {
 
     pub fn refresh_info(&self, ts: Timestamp) {
         self.send(UIEvent::RefreshInfo(ts));
+    }
+
+    pub fn remove_chapter(&self) {
+        self.send(UIEvent::RemoveChapter);
+    }
+
+    pub fn rename_chapter(&self, new_title: impl ToString) {
+        self.send(UIEvent::RenameChapter(new_title.to_string()));
     }
 
     pub fn reset_cursor(&self) {
@@ -161,18 +178,12 @@ impl UIEventSender {
         self.send(UIEvent::ShowAll);
     }
 
-    pub fn show_error<Msg>(&self, msg: Msg)
-    where
-        Msg: Into<Cow<'static, str>>,
-    {
-        self.send(UIEvent::ShowError(msg.into()));
+    pub fn show_error(&self, msg: impl ToString) {
+        self.send(UIEvent::ShowError(msg.to_string()));
     }
 
-    pub fn show_info<Msg>(&self, msg: Msg)
-    where
-        Msg: Into<Cow<'static, str>>,
-    {
-        self.send(UIEvent::ShowInfo(msg.into()));
+    pub fn show_info(&self, msg: impl ToString) {
+        self.send(UIEvent::ShowInfo(msg.to_string()));
     }
 
     pub fn step_back(&self) {

@@ -745,4 +745,20 @@ impl MainController {
             }
         }
     }
+
+    pub fn add_chapter(&mut self) {
+        if let Some(ts) = self.current_ts() {
+            self.info_ctrl.add_chapter(ts);
+        }
+    }
+
+    pub fn remove_chapter(&mut self) {
+        self.info_ctrl.remove_chapter();
+    }
+
+    pub fn rename_chapter(&mut self, new_title: &str) {
+        self.info_ctrl.chapter_manager.rename_selected(new_title);
+        // reflect title modification in other parts of the UI (audio waveform)
+        self.redraw();
+    }
 }

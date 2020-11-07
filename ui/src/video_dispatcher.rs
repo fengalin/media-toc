@@ -13,9 +13,9 @@ impl UIDispatcher for VideoDispatcher {
 
     fn setup(
         video_ctrl: &mut VideoController,
-        main_ctrl_rc: &Rc<RefCell<MainController>>,
+        _main_ctrl_rc: &Rc<RefCell<MainController>>,
         _app: &gtk::Application,
-        _ui_event: &UIEventSender,
+        ui_event: &UIEventSender,
     ) {
         match video_ctrl.video_output {
             Some(ref video_output) => {
@@ -25,8 +25,8 @@ impl UIDispatcher for VideoDispatcher {
                     .set_events(gdk::EventMask::BUTTON_PRESS_MASK);
 
                 video_ctrl.container.connect_button_press_event(
-                    clone!(@weak main_ctrl_rc => @default-panic, move |_, _| {
-                        main_ctrl_rc.borrow_mut().play_pause();
+                    clone!(@strong ui_event => move |_, _| {
+                        ui_event.play_pause();
                         Inhibit(true)
                     }),
                 );

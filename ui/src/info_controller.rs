@@ -44,7 +44,7 @@ pub struct InfoController {
     pub(super) next_chapter_action: gio::SimpleAction,
     pub(super) previous_chapter_action: gio::SimpleAction,
 
-    thumbnail: Option<Image>,
+    thumbnail_handler: Option<glib::SignalHandlerId>,
 
     pub(super) chapter_manager: ChapterTreeManager,
 
@@ -79,7 +79,7 @@ impl UIController for InfoController {
             self.duration_lbl
                 .set_label(&Timestamp4Humans::from_duration(info.duration).to_string());
 
-            self.thumbnail = info.media_image().and_then(|image| {
+            let mut thumbnail = info.media_image().and_then(|image| {
                 image.get_buffer().and_then(|image_buffer| {
                     image_buffer.map_readable().ok().and_then(|image_map| {
                         Image::from_unknown(image_map.as_slice())
@@ -88,6 +88,15 @@ impl UIController for InfoController {
                     })
                 })
             });
+
+            if let Some(thumbnail) = thumbnail.take() {
+                self.thumbnail_handler = Some(self.drawingarea.connect_draw(
+                    move |drawingarea, cairo_ctx| {
+                        Self::draw_thumbnail(&thumbnail, drawingarea, cairo_ctx);
+                        Inhibit(false)
+                    },
+                ));
+            }
 
             self.container_lbl
                 .set_label(info.container().unwrap_or(EMPTY_REPLACEMENT));
@@ -161,7 +170,7 @@ impl UIController for InfoController {
         self.next_chapter_action.set_enabled(true);
         self.previous_chapter_action.set_enabled(true);
 
-        if self.thumbnail.is_some() {
+        if self.thumbnail_handler.is_some() {
             self.drawingarea.show();
             self.drawingarea.queue_draw();
         } else {
@@ -178,7 +187,9 @@ impl UIController for InfoController {
         self.audio_codec_lbl.set_text("");
         self.video_codec_lbl.set_text("");
         self.duration_lbl.set_text("00:00.000");
-        self.thumbnail = None;
+        if let Some(thumbnail_handler) = self.thumbnail_handler.take() {
+            glib::signal_handler_disconnect(&self.drawingarea, thumbnail_handler);
+        }
         self.chapter_treeview.get_selection().unselect_all();
         self.chapter_manager.clear();
         self.add_chapter_btn.set_sensitive(false);
@@ -282,7 +293,7 @@ impl InfoController {
             next_chapter_action: gio::SimpleAction::new("next_chapter", None),
             previous_chapter_action: gio::SimpleAction::new("previous_chapter", None),
 
-            thumbnail: None,
+            thumbnail_handler: None,
 
             chapter_manager,
 
@@ -312,31 +323,33 @@ impl InfoController {
         self.del_chapter_action.set_enabled(false);
     }
 
-    pub fn draw_thumbnail(&mut self, drawingarea: &gtk::DrawingArea, cairo_ctx: &cairo::Context) {
-        if let Some(image) = self.thumbnail.as_ref() {
-            let allocation = drawingarea.get_allocation();
-            let alloc_width_f: f64 = allocation.width.into();
-            let alloc_height_f: f64 = allocation.height.into();
+    pub fn draw_thumbnail(
+        thumbnail: &Image,
+        drawingarea: &gtk::DrawingArea,
+        cairo_ctx: &cairo::Context,
+    ) {
+        let allocation = drawingarea.get_allocation();
+        let alloc_width_f: f64 = allocation.width.into();
+        let alloc_height_f: f64 = allocation.height.into();
 
-            let image_width_f: f64 = image.width().into();
-            let image_height_f: f64 = image.height().into();
+        let image_width_f: f64 = thumbnail.width().into();
+        let image_height_f: f64 = thumbnail.height().into();
 
-            let alloc_ratio = alloc_width_f / alloc_height_f;
-            let image_ratio = image_width_f / image_height_f;
-            let scale = if image_ratio < alloc_ratio {
-                alloc_height_f / image_height_f
-            } else {
-                alloc_width_f / image_width_f
-            };
-            let x = (alloc_width_f / scale - image_width_f).abs() / 2f64;
-            let y = (alloc_height_f / scale - image_height_f).abs() / 2f64;
+        let alloc_ratio = alloc_width_f / alloc_height_f;
+        let image_ratio = image_width_f / image_height_f;
+        let scale = if image_ratio < alloc_ratio {
+            alloc_height_f / image_height_f
+        } else {
+            alloc_width_f / image_width_f
+        };
+        let x = (alloc_width_f / scale - image_width_f).abs() / 2f64;
+        let y = (alloc_height_f / scale - image_height_f).abs() / 2f64;
 
-            image.with_surface_external_context(cairo_ctx, |cr, surface| {
-                cr.scale(scale, scale);
-                cr.set_source_surface(surface, x, y);
-                cr.paint();
-            })
-        }
+        thumbnail.with_surface_external_context(cairo_ctx, |cr, surface| {
+            cr.scale(scale, scale);
+            cr.set_source_surface(surface, x, y);
+            cr.paint();
+        })
     }
 
     fn update_marks(&self) {

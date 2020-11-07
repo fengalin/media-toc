@@ -142,8 +142,8 @@ impl MainDispatcher {
             // Register Play/Pause action
             let play_pause = gio::SimpleAction::new("play_pause", None);
             app.add_action(&play_pause);
-            play_pause.connect_activate(clone!(@weak main_ctrl_rc => move |_, _| {
-                main_ctrl_rc.borrow_mut().play_pause();
+            play_pause.connect_activate(clone!(@strong ui_event => move |_, _| {
+                ui_event.play_pause();
             }));
             main_ctrl.play_pause_btn.set_sensitive(true);
 
@@ -180,6 +180,10 @@ impl MainDispatcher {
 
         match event {
             About => self.main_ctrl.borrow().about(),
+            AddChapter => {
+                self.main_ctrl.borrow_mut().add_chapter();
+                self.update_focus(self.focus);
+            }
             AskQuestion {
                 question,
                 response_sender,
@@ -192,6 +196,7 @@ impl MainDispatcher {
             HideInfoBar => self.info_bar_ctrl.hide(),
             OpenMedia(path) => self.main_ctrl.borrow_mut().open_media(path),
             NextChapter => self.main_ctrl.borrow_mut().next_chapter(),
+            PlayPause => self.main_ctrl.borrow_mut().play_pause(),
             PlayRange {
                 start,
                 end,
@@ -207,6 +212,14 @@ impl MainDispatcher {
                 return Err(());
             }
             RefreshInfo(ts) => self.main_ctrl.borrow_mut().refresh_info(ts),
+            RemoveChapter => {
+                self.main_ctrl.borrow_mut().remove_chapter();
+                self.update_focus(self.focus);
+            }
+            RenameChapter(new_title) => {
+                self.main_ctrl.borrow_mut().rename_chapter(&new_title);
+                self.restore_context();
+            }
             ResetCursor => self.reset_cursor(),
             RestoreContext => self.restore_context(),
             Seek { target, flags } => self.main_ctrl.borrow_mut().seek(target, flags),

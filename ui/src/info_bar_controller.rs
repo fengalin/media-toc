@@ -74,7 +74,7 @@ impl InfoBarController {
         self.revealer.set_reveal_child(false);
     }
 
-    pub fn show_message<Msg: AsRef<str>>(&mut self, type_: gtk::MessageType, message: Msg) {
+    pub fn show_message(&mut self, type_: gtk::MessageType, msg: &str) {
         if type_ == gtk::MessageType::Question {
             self.btn_box.set_visible(true);
             self.info_bar.set_show_close_button(false);
@@ -87,25 +87,25 @@ impl InfoBarController {
         }
 
         self.info_bar.set_message_type(type_);
-        self.label.set_label(message.as_ref());
+        self.label.set_label(msg);
         self.revealer.set_reveal_child(true);
 
         self.ui_event.temporarily_switch_to(UIFocusContext::InfoBar);
     }
 
-    pub fn show_error<Msg: AsRef<str>>(&mut self, message: Msg) {
-        error!("{}", message.as_ref());
-        self.show_message(gtk::MessageType::Error, message);
+    pub fn show_error(&mut self, msg: &str) {
+        error!("{}", msg);
+        self.show_message(gtk::MessageType::Error, msg);
     }
 
-    pub fn show_info<Msg: AsRef<str>>(&mut self, message: Msg) {
-        info!("{}", message.as_ref());
-        self.show_message(gtk::MessageType::Info, message);
+    pub fn show_info(&mut self, msg: &str) {
+        info!("{}", msg);
+        self.show_message(gtk::MessageType::Info, msg);
     }
 
-    pub fn ask_question<Q: AsRef<str>>(
+    pub fn ask_question(
         &mut self,
-        question: Q,
+        question: &str,
         response_sender: oneshot::Sender<gtk::ResponseType>,
     ) {
         let revealer = self.revealer.clone();
