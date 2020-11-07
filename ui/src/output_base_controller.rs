@@ -1,15 +1,20 @@
-use futures::channel::mpsc as async_mpsc;
+use futures::channel::oneshot;
 use futures::future::{abortable, AbortHandle, LocalBoxFuture};
 use futures::prelude::*;
+use futures::stream;
 
 use gettextrs::gettext;
 use gtk::prelude::*;
 
+use log::debug;
+
 use std::{
     collections::HashSet,
+    fmt,
     path::Path,
     rc::Rc,
     sync::{Arc, RwLock},
+    time::Duration,
 };
 
 use media::MediaEvent;
@@ -20,37 +25,223 @@ use super::{
 };
 
 pub const MEDIA_EVENT_CHANNEL_CAPACITY: usize = 1;
+pub const PROGRESS_TIMER_PERIOD: Duration = Duration::from_millis(250);
 
 pub enum ProcessingType {
-    Async(async_mpsc::Receiver<MediaEvent>),
+    Async(MediaEventReceiver),
     Sync,
 }
 
+pub enum MediaEventHandling {
+    Done,
+    ExpectingMore,
+}
+
+impl MediaEventHandling {
+    pub fn is_done(&self) -> bool {
+        matches!(self, MediaEventHandling::Done)
+    }
+}
+
 #[derive(Debug, PartialEq)]
-pub enum ProcessingState {
-    AllComplete(String),
+enum ProcessingState {
+    AllDone,
     ConfirmedOutputTo(Rc<Path>),
+    Init,
     SkipCurrent,
     DoneWithCurrent,
-    PendingAsyncMediaEvent,
-    Start,
     WouldOutputTo(Rc<Path>),
 }
 
-pub trait MediaProcessor {
-    fn init(&mut self) -> ProcessingType;
-    fn next(&mut self) -> Result<ProcessingState, String>;
-    fn process(&mut self, path: &Path) -> Result<ProcessingState, String>;
-    fn cancel(&mut self);
-    fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingState, String>;
-    fn report_progress(&mut self) -> f64;
+#[derive(Debug)]
+pub struct MediaProcessorError(String);
+
+impl From<String> for MediaProcessorError {
+    fn from(msg: String) -> Self {
+        MediaProcessorError(msg)
+    }
 }
 
-pub trait OutputControllerImpl: MediaProcessor + UIController {
+impl fmt::Display for MediaProcessorError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for MediaProcessorError {}
+
+pub trait MediaProcessorImpl: Iterator<Item = Rc<Path>> {
+    fn process<'a>(
+        &'a mut self,
+        output_path: &'a Path,
+    ) -> LocalBoxFuture<'a, Result<ProcessingType, MediaProcessorError>>;
+    fn cancel(&mut self);
+    fn handle_media_event(
+        &mut self,
+        event: MediaEvent,
+    ) -> Result<MediaEventHandling, MediaProcessorError>;
+    fn report_progress(&mut self) -> f64;
+    fn completion_msg() -> String;
+}
+
+struct MediaProcessor<CtrlImpl: OutputControllerImpl + 'static> {
+    impl_: CtrlImpl::MediaProcessorImplType,
+    progress_bar: gtk::ProgressBar,
+    btn: gtk::Button,
+}
+
+impl<CtrlImpl: OutputControllerImpl + 'static> MediaProcessor<CtrlImpl> {
+    pub(super) async fn spawn(
+        impl_: CtrlImpl::MediaProcessorImplType,
+        mut ui_event: UIEventSender,
+        progress_bar: gtk::ProgressBar,
+        btn: gtk::Button,
+    ) -> AbortHandle {
+        let mut this = MediaProcessor {
+            impl_,
+            progress_bar,
+            btn,
+        };
+
+        let (sender, receiver) = oneshot::channel();
+        spawn(async move {
+            let (abortable_run, abort_handle) = abortable(Self::run(&mut this, &mut ui_event));
+            sender.send(abort_handle).unwrap();
+
+            if abortable_run.await.is_err() {
+                this.impl_.cancel();
+            }
+
+            ui_event.action_over(CtrlImpl::FOCUS_CONTEXT);
+        });
+
+        receiver.await.unwrap()
+    }
+
+    async fn run(&mut self, ui_event: &mut UIEventSender) {
+        use ProcessingState::*;
+
+        let mut state = ProcessingState::Init;
+        let mut overwrite_all = false;
+
+        loop {
+            match state {
+                AllDone => {
+                    ui_event.show_info(CtrlImpl::MediaProcessorImplType::completion_msg());
+                    break;
+                }
+                ConfirmedOutputTo(path) => {
+                    if let Err(err) = self.process(path.as_ref()).await {
+                        ui_event.show_error(err);
+                        break;
+                    }
+
+                    state = DoneWithCurrent;
+                }
+                Init | DoneWithCurrent => {
+                    state = self.impl_.next().map_or(AllDone, WouldOutputTo);
+                }
+                SkipCurrent => {
+                    match self.impl_.next() {
+                        Some(path) => state = WouldOutputTo(path),
+                        None => {
+                            // Don't display the success message when the user decided
+                            // to skip (not overwrite) last part as it seems missleading
+                            break;
+                        }
+                    }
+                }
+                WouldOutputTo(path) => {
+                    if !path.exists() || overwrite_all {
+                        state = ConfirmedOutputTo(path);
+                        continue;
+                    }
+
+                    // Path exists and overwrite_all is not true
+                    self.btn.set_sensitive(false);
+                    ui_event.reset_cursor();
+
+                    let filename = path.file_name().expect("no `filename` in `path`");
+                    let filename = filename
+                        .to_str()
+                        .expect("can't get printable `str` from `filename`");
+                    let question = gettext("{output_file}\nalready exists. Overwrite?").replacen(
+                        "{output_file}",
+                        filename,
+                        1,
+                    );
+
+                    let response = ui_event.ask_question(question).await;
+                    self.btn.set_sensitive(true);
+
+                    let next_state = match response {
+                        gtk::ResponseType::Apply => {
+                            // This one is used for "Yes to all"
+                            overwrite_all = true;
+                            ConfirmedOutputTo(Rc::clone(&path))
+                        }
+                        gtk::ResponseType::Cancel => {
+                            self.impl_.cancel();
+                            break;
+                        }
+                        gtk::ResponseType::No => SkipCurrent,
+                        gtk::ResponseType::Yes => ConfirmedOutputTo(Rc::clone(&path)),
+                        other => unimplemented!(
+                            "Response {:?} in OutputBaseController::ask_overwrite_question",
+                            other,
+                        ),
+                    };
+
+                    ui_event.set_cursor_waiting();
+                    state = next_state;
+                }
+            }
+        }
+    }
+
+    async fn process(&mut self, output_path: &Path) -> Result<(), MediaProcessorError> {
+        enum Item {
+            MediaEvent(MediaEvent),
+            Tick,
+        }
+
+        let media_event_stream = match self.impl_.process(output_path).await? {
+            ProcessingType::Async(media_event_stream) => media_event_stream.map(Item::MediaEvent),
+            ProcessingType::Sync => return Ok(()),
+        };
+
+        // async processing
+
+        let tick_stream = glib::interval_stream(PROGRESS_TIMER_PERIOD).map(|_| Item::Tick);
+        let mut combined_streams = stream::select(media_event_stream, tick_stream);
+
+        while let Some(item) = combined_streams.next().await {
+            match item {
+                Item::MediaEvent(media_event) => {
+                    debug!("handling media event {:?}", media_event);
+                    if self.impl_.handle_media_event(media_event)?.is_done() {
+                        break;
+                    }
+                }
+                Item::Tick => {
+                    self.progress_bar.set_fraction(self.impl_.report_progress());
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+pub trait OutputControllerImpl: UIController {
+    type MediaProcessorImplType: MediaProcessorImpl + 'static;
+
     const FOCUS_CONTEXT: UIFocusContext;
     const BTN_NAME: &'static str;
     const LIST_NAME: &'static str;
     const PROGRESS_BAR_NAME: &'static str;
+
+    fn new_processor(&self) -> Self::MediaProcessorImplType;
 }
 
 pub struct OutputMediaFileInfo {
@@ -74,14 +265,12 @@ impl OutputMediaFileInfo {
     }
 }
 
-type ProcessingStateResult = Result<ProcessingState, String>;
-
 pub struct OutputBaseController<Impl> {
     pub(super) impl_: Impl,
     ui_event: UIEventSender,
 
     progress_bar: gtk::ProgressBar,
-    pub(super) list: gtk::ListBox,
+    list: gtk::ListBox,
     pub(super) btn: gtk::Button,
     btn_default_label: glib::GString,
 
@@ -90,19 +279,10 @@ pub struct OutputBaseController<Impl> {
     pub(super) page: gtk::Widget,
 
     pub(super) is_busy: bool,
-    pub(super) new_media_event_handler:
-        Option<Box<dyn Fn(MediaEventReceiver) -> LocalBoxFuture<'static, ()>>>,
-    media_event_abort_handle: Option<AbortHandle>,
-    pub(super) new_progress_updater: Option<Box<dyn Fn() -> LocalBoxFuture<'static, ()>>>,
-
-    #[allow(clippy::type_complexity)]
-    pub(super) new_processing_state_handler:
-        Option<Box<dyn Fn(ProcessingStateResult) -> LocalBoxFuture<'static, Result<(), ()>>>>,
-
-    pub(super) overwrite_all: bool,
+    processor_abort_handle: Option<AbortHandle>,
 }
 
-impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
+impl<Impl: OutputControllerImpl + 'static> OutputBaseController<Impl> {
     pub fn new_base(impl_: Impl, builder: &gtk::Builder, ui_event: UIEventSender) -> Self {
         let btn: gtk::Button = builder.get_object(Impl::BTN_NAME).unwrap();
         let list: gtk::ListBox = builder.get_object(Impl::LIST_NAME).unwrap();
@@ -124,13 +304,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
             page,
 
             is_busy: false,
-            new_media_event_handler: None,
-            media_event_abort_handle: None,
-            new_progress_updater: None,
-
-            new_processing_state_handler: None,
-
-            overwrite_all: false,
+            processor_abort_handle: None,
         };
 
         ctrl.btn.set_sensitive(false);
@@ -138,45 +312,23 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
         ctrl
     }
 
-    pub fn start(&mut self) {
+    pub async fn start(&mut self) {
         self.switch_to_busy();
-        self.overwrite_all = false;
 
-        // FIXME spawn the media event handler and progress timer
-        // from the implementation when necessary
-        match self.impl_.init() {
-            ProcessingType::Sync => (),
-            ProcessingType::Async(receiver) => {
-                let (abortable_handler, abort_handle) =
-                    abortable(self.new_media_event_handler.as_ref().unwrap()(receiver));
-                self.media_event_abort_handle = Some(abort_handle);
-                spawn(abortable_handler.map(drop));
-
-                spawn(self.new_progress_updater.as_ref().unwrap()());
-            }
-        }
-
-        spawn(
-            self.new_processing_state_handler.as_ref().unwrap()(Ok(ProcessingState::Start))
-                .map(drop),
+        self.processor_abort_handle = Some(
+            MediaProcessor::<Impl>::spawn(
+                self.impl_.new_processor(),
+                self.ui_event.clone(),
+                self.progress_bar.clone(),
+                self.btn.clone(),
+            )
+            .await,
         );
     }
 
     pub fn cancel(&mut self) {
-        self.impl_.cancel();
-        if let Some(abortable_handler) = self.media_event_abort_handle.take() {
-            abortable_handler.abort();
-        }
-        self.switch_to_available();
-    }
-
-    pub fn update_progress(&mut self) -> Result<(), ()> {
-        if self.is_busy {
-            self.progress_bar.set_fraction(self.impl_.report_progress());
-            Ok(())
-        } else {
-            self.progress_bar.set_fraction(0f64);
-            Err(())
+        if let Some(abort_handle) = self.processor_abort_handle.take() {
+            abort_handle.abort();
         }
     }
 
@@ -193,6 +345,7 @@ impl<Impl: OutputControllerImpl> OutputBaseController<Impl> {
     }
 
     pub(super) fn switch_to_available(&mut self) {
+        self.processor_abort_handle = None;
         self.is_busy = false;
 
         self.progress_bar.set_fraction(0f64);
@@ -215,7 +368,6 @@ impl<Impl: OutputControllerImpl> UIController for OutputBaseController<Impl> {
     fn cleanup(&mut self) {
         self.progress_bar.set_fraction(0f64);
         self.btn.set_sensitive(false);
-        self.overwrite_all = false;
         self.impl_.cleanup();
     }
 

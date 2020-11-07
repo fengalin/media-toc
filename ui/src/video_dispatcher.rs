@@ -3,20 +3,13 @@ use glib::clone;
 use gtk::prelude::*;
 use log::error;
 
-use std::{cell::RefCell, rc::Rc};
-
-use super::{spawn, MainController, UIDispatcher, UIEventSender, VideoController};
+use super::{spawn, UIDispatcher, UIEventSender, VideoController};
 
 pub struct VideoDispatcher;
 impl UIDispatcher for VideoDispatcher {
     type Controller = VideoController;
 
-    fn setup(
-        video_ctrl: &mut VideoController,
-        _main_ctrl_rc: &Rc<RefCell<MainController>>,
-        _app: &gtk::Application,
-        ui_event: &UIEventSender,
-    ) {
+    fn setup(video_ctrl: &mut VideoController, _app: &gtk::Application, ui_event: &UIEventSender) {
         match video_ctrl.video_output {
             Some(ref video_output) => {
                 // discard GStreamer defined navigation events on widget

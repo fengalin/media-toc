@@ -29,6 +29,7 @@ use self::main_dispatcher::MainDispatcher;
 
 mod output_base_controller;
 mod output_base_dispatcher;
+use self::output_base_dispatcher::OutputDispatcher;
 
 mod perspective_controller;
 use self::perspective_controller::PerspectiveController;
@@ -61,11 +62,9 @@ use gio::prelude::*;
 use log::warn;
 
 use std::{
-    cell::RefCell,
     future::Future,
     ops::{Deref, DerefMut},
     path::Path,
-    rc::Rc,
     sync::{Arc, Mutex},
 };
 
@@ -146,12 +145,7 @@ pub trait UIController {
 pub trait UIDispatcher {
     type Controller: UIController;
 
-    fn setup(
-        ctrl: &mut Self::Controller,
-        main_ctrl_rc: &Rc<RefCell<MainController>>,
-        app: &gtk::Application,
-        ui_event: &UIEventSender,
-    );
+    fn setup(ctrl: &mut Self::Controller, app: &gtk::Application, ui_event: &UIEventSender);
 
     // bind context specific accels
     fn bind_accels_for(_ctx: UIFocusContext, _app: &gtk::Application) {}

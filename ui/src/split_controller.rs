@@ -1,4 +1,6 @@
 use futures::channel::mpsc as async_mpsc;
+use futures::future::LocalBoxFuture;
+use futures::prelude::*;
 
 use gettextrs::gettext;
 use gtk::prelude::*;
@@ -16,8 +18,8 @@ use metadata::{default_chapter_title, Duration, Format, MediaInfo, Stream, TocVi
 use super::{PlaybackPipeline, UIController, UIEventSender, UIFocusContext};
 
 use super::output_base_controller::{
-    MediaProcessor, OutputBaseController, OutputControllerImpl, OutputMediaFileInfo,
-    ProcessingState, ProcessingType, MEDIA_EVENT_CHANNEL_CAPACITY,
+    MediaEventHandling, MediaProcessorError, MediaProcessorImpl, OutputBaseController,
+    OutputControllerImpl, OutputMediaFileInfo, ProcessingType, MEDIA_EVENT_CHANNEL_CAPACITY,
 };
 
 pub type SplitController = OutputBaseController<SplitControllerImpl>;
@@ -54,15 +56,6 @@ pub struct SplitControllerImpl {
     src_info: Option<Arc<RwLock<MediaInfo>>>,
     selected_audio: Option<Stream>,
 
-    split_file_info: Option<OutputMediaFileInfo>,
-    media_event_sender: Option<async_mpsc::Sender<MediaEvent>>,
-    splitter_pipeline: Option<SplitterPipeline>,
-    toc_visitor: Option<TocVisitor>,
-    idx: usize,
-    last_progress: f64,
-    current_chapter: Option<gst::TocEntry>,
-    current_path: Option<Rc<Path>>,
-
     split_list: gtk::ListBox,
     split_to_flac_row: gtk::ListBoxRow,
     flac_warning_lbl: gtk::Label,
@@ -79,10 +72,55 @@ pub struct SplitControllerImpl {
 }
 
 impl OutputControllerImpl for SplitControllerImpl {
+    type MediaProcessorImplType = SplitProcessor;
+
     const FOCUS_CONTEXT: UIFocusContext = UIFocusContext::SplitPage;
     const BTN_NAME: &'static str = "split-btn";
     const LIST_NAME: &'static str = "split-list-box";
     const PROGRESS_BAR_NAME: &'static str = "split-progress";
+
+    fn new_processor(&self) -> SplitProcessor {
+        let format = if self.split_to_flac_row.is_selected() {
+            Format::Flac
+        } else if self.split_to_wave_row.is_selected() {
+            Format::Wave
+        } else if self.split_to_opus_row.is_selected() {
+            Format::Opus
+        } else if self.split_to_vorbis_row.is_selected() {
+            Format::Vorbis
+        } else if self.split_to_mp3_row.is_selected() {
+            Format::MP3
+        } else {
+            unreachable!("`SplitController`: unknown split type");
+        };
+
+        // Split button is not sensitive when no audio
+        // stream is selected (see `streams_changed`)
+        debug_assert!(self.selected_audio.is_some());
+
+        SplitProcessor {
+            src_info: Arc::clone(self.src_info.as_ref().unwrap()),
+            selected_audio: self.selected_audio.clone(),
+            split_file_info: Some({
+                let src_info = self.src_info.as_ref().unwrap().read().unwrap();
+                OutputMediaFileInfo::new(format, &src_info)
+            }),
+            toc_visitor: self
+                .src_info
+                .as_ref()
+                .unwrap()
+                .read()
+                .unwrap()
+                .toc
+                .as_ref()
+                .map(|toc| TocVisitor::new(toc)),
+            splitter_pipeline: None,
+            idx: 0,
+            current_chapter: None,
+            current_path: None,
+            last_progress: 0f64,
+        }
+    }
 }
 
 impl UIController for SplitControllerImpl {
@@ -94,8 +132,6 @@ impl UIController for SplitControllerImpl {
     fn cleanup(&mut self) {
         self.src_info = None;
         self.selected_audio = None;
-
-        self.reset();
     }
 
     fn streams_changed(&mut self, info: &MediaInfo) {
@@ -113,15 +149,6 @@ impl SplitControllerImpl {
 
             src_info: None,
             selected_audio: None,
-
-            split_file_info: None,
-            media_event_sender: None,
-            splitter_pipeline: None,
-            toc_visitor: None,
-            idx: 0,
-            last_progress: 0f64,
-            current_chapter: None,
-            current_path: None,
 
             split_list: builder.get_object(Self::LIST_NAME).unwrap(),
             split_to_flac_row: builder.get_object("flac_split-row").unwrap(),
@@ -154,22 +181,26 @@ impl SplitControllerImpl {
 
         ctrl
     }
+}
 
-    fn reset(&mut self) {
-        self.split_file_info = None;
-        self.media_event_sender = None;
-        self.splitter_pipeline = None;
-        self.toc_visitor = None;
-        self.idx = 0;
-        self.last_progress = 0f64;
-        self.current_chapter = None;
-        self.current_path = None;
-    }
+pub struct SplitProcessor {
+    src_info: Arc<RwLock<MediaInfo>>,
+    selected_audio: Option<Stream>,
 
+    split_file_info: Option<OutputMediaFileInfo>,
+    idx: usize,
+    toc_visitor: Option<TocVisitor>,
+    splitter_pipeline: Option<SplitterPipeline>,
+    last_progress: f64,
+    current_chapter: Option<gst::TocEntry>,
+    current_path: Option<Rc<Path>>,
+}
+
+impl SplitProcessor {
     fn split_path(&self, chapter: &gst::TocEntry) -> Rc<Path> {
         let mut split_name = String::new();
 
-        let src_info = self.src_info.as_ref().unwrap().read().unwrap();
+        let src_info = self.src_info.read().unwrap();
 
         // TODO: make format customisable
         let artist = src_info
@@ -211,10 +242,7 @@ impl SplitControllerImpl {
             split_name += &format!(" ({})", lang);
         }
 
-        let split_file_info = self.split_file_info.as_ref().expect(concat!(
-            "SplitControllerImpl: split_file_info not defined in `split_path()`, ",
-            "did you call `init()`?"
-        ));
+        let split_file_info = self.split_file_info.as_ref().unwrap();
 
         split_name += &format!(".{}", split_file_info.extension);
 
@@ -222,51 +250,10 @@ impl SplitControllerImpl {
     }
 }
 
-impl MediaProcessor for SplitControllerImpl {
-    fn init(&mut self) -> ProcessingType {
-        self.reset();
+impl Iterator for SplitProcessor {
+    type Item = Rc<Path>;
 
-        let format = if self.split_to_flac_row.is_selected() {
-            Format::Flac
-        } else if self.split_to_wave_row.is_selected() {
-            Format::Wave
-        } else if self.split_to_opus_row.is_selected() {
-            Format::Opus
-        } else if self.split_to_vorbis_row.is_selected() {
-            Format::Vorbis
-        } else if self.split_to_mp3_row.is_selected() {
-            Format::MP3
-        } else {
-            unreachable!("`SplitController`: unknown split type");
-        };
-
-        // Split button is not sensitive when no audio
-        // stream is selected (see `streams_changed`)
-        debug_assert!(self.selected_audio.is_some());
-
-        self.toc_visitor = self
-            .src_info
-            .as_ref()
-            .unwrap()
-            .read()
-            .unwrap()
-            .toc
-            .as_ref()
-            .map(|toc| TocVisitor::new(toc));
-        self.idx = 0;
-
-        self.split_file_info = Some({
-            let src_info = self.src_info.as_ref().unwrap().read().unwrap();
-            OutputMediaFileInfo::new(format, &src_info)
-        });
-
-        let (sender, receiver) = async_mpsc::channel(MEDIA_EVENT_CHANNEL_CAPACITY);
-        self.media_event_sender = Some(sender);
-
-        ProcessingType::Async(receiver)
-    }
-
-    fn next(&mut self) -> Result<ProcessingState, String> {
+    fn next(&mut self) -> Option<Rc<Path>> {
         let chapter = self
             .toc_visitor
             .as_mut()
@@ -275,7 +262,7 @@ impl MediaProcessor for SplitControllerImpl {
                 if self.idx == 0 {
                     // No chapter defined => build a fake chapter corresponding to the whole file
 
-                    let src_info = self.src_info.as_ref().unwrap().read().unwrap();
+                    let src_info = self.src_info.read().unwrap();
                     let mut toc_entry =
                         gst::TocEntry::new(gst::TocEntryType::Chapter, &"".to_owned());
                     toc_entry
@@ -298,10 +285,7 @@ impl MediaProcessor for SplitControllerImpl {
 
         if chapter.is_none() {
             self.split_file_info = None;
-
-            return Ok(ProcessingState::AllComplete(gettext(
-                "Media split succesfully",
-            )));
+            return None;
         }
 
         let chapter = chapter.as_ref().unwrap();
@@ -310,8 +294,6 @@ impl MediaProcessor for SplitControllerImpl {
 
         self.current_chapter = Some(
             self.src_info
-                .as_ref()
-                .unwrap()
                 .read()
                 .unwrap()
                 .chapter_with_track_tags(chapter, self.idx),
@@ -320,49 +302,49 @@ impl MediaProcessor for SplitControllerImpl {
         let split_path = self.split_path(chapter);
         self.current_path = Some(Rc::clone(&split_path));
 
-        Ok(ProcessingState::WouldOutputTo(split_path))
+        Some(split_path)
     }
+}
 
-    fn process(&mut self, output_path: &Path) -> Result<ProcessingState, String> {
-        let res = {
-            let src_info = self.src_info.as_ref().unwrap().read().unwrap();
-            let split_file_info = self
-                .split_file_info
-                .as_ref()
-                .expect("split_file_info not defined in `next()`, did you call `init()`?");
+impl MediaProcessorImpl for SplitProcessor {
+    fn process<'a>(
+        &'a mut self,
+        output_path: &'a Path,
+    ) -> LocalBoxFuture<'a, Result<ProcessingType, MediaProcessorError>> {
+        async move {
+            let (res, receiver) = {
+                let src_info = self.src_info.read().unwrap();
+                let split_file_info = self.split_file_info.as_ref().unwrap();
 
-            let stream_id = if src_info.streams.collection(gst::StreamType::AUDIO).len() > 1 {
-                Some(self.selected_audio.as_ref().unwrap().id.to_string())
-            } else {
-                // Some single stream decoders advertise a random id at each invocation
-                // so don't be explicit when only one audio stream is available
-                None
+                let stream_id = if src_info.streams.collection(gst::StreamType::AUDIO).len() > 1 {
+                    Some(self.selected_audio.as_ref().unwrap().id.to_string())
+                } else {
+                    // Some single stream decoders advertise a random id at each invocation
+                    // so don't be explicit when only one audio stream is available
+                    None
+                };
+
+                let (sender, receiver) = async_mpsc::channel(MEDIA_EVENT_CHANNEL_CAPACITY);
+
+                let res = SplitterPipeline::try_new(
+                    &src_info.path,
+                    output_path,
+                    stream_id,
+                    split_file_info.format,
+                    self.current_chapter.take().expect("no current_chapter"),
+                    sender,
+                );
+
+                (res, receiver)
             };
 
-            SplitterPipeline::try_new(
-                &src_info.path,
-                output_path,
-                stream_id,
-                split_file_info.format,
-                self.current_chapter
-                    .take()
-                    .expect("no current_chapter in `process_current_chapter()`"),
-                self.media_event_sender
-                    .as_ref()
-                    .expect(concat!(
-                        "no media_event_sender in `process_current_chapter()` ",
-                        "did you call `init()`?",
-                    ))
-                    .clone(),
-            )
-        };
+            self.splitter_pipeline = Some(res.map_err(|err| {
+                gettext("Failed to prepare for split. {}").replacen("{}", &err, 1)
+            })?);
 
-        self.splitter_pipeline = Some(res.map_err(|err| {
-            self.reset();
-            gettext("Failed to prepare for split. {}").replacen("{}", &err, 1)
-        })?);
-
-        Ok(ProcessingState::PendingAsyncMediaEvent)
+            Ok(ProcessingType::Async(receiver))
+        }
+        .boxed_local()
     }
 
     fn cancel(&mut self) {
@@ -377,28 +359,28 @@ impl MediaProcessor for SplitControllerImpl {
                 }
             }
         }
-
-        self.reset();
     }
 
-    fn handle_media_event(&mut self, event: MediaEvent) -> Result<ProcessingState, String> {
+    fn handle_media_event(
+        &mut self,
+        event: MediaEvent,
+    ) -> Result<MediaEventHandling, MediaProcessorError> {
         match event {
             MediaEvent::Eos => {
                 self.current_chapter = None;
                 self.current_path = None;
                 self.splitter_pipeline = None;
-                Ok(ProcessingState::DoneWithCurrent)
+                Ok(MediaEventHandling::Done)
             }
-            MediaEvent::FailedToExport(err) => {
-                self.reset();
-                Err(gettext("Failed to split media. {}").replacen("{}", &err, 1))
-            }
+            MediaEvent::FailedToExport(err) => Err(gettext("Failed to split media. {}")
+                .replacen("{}", &err, 1)
+                .into()),
             other => unimplemented!("SplitController: can't handle media event {:?}", other),
         }
     }
 
     fn report_progress(&mut self) -> f64 {
-        let duration = self.src_info.as_ref().unwrap().read().unwrap().duration;
+        let duration = self.src_info.read().unwrap().duration;
         if duration > Duration::default() {
             // With some formats, we can't retrieve a proper ts between 2 files
             // so, just report known last progress in this case
@@ -414,5 +396,9 @@ impl MediaProcessor for SplitControllerImpl {
         } else {
             0f64
         }
+    }
+
+    fn completion_msg() -> String {
+        gettext("Media split succesfully")
     }
 }

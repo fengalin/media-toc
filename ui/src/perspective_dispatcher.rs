@@ -2,9 +2,7 @@ use gio::prelude::*;
 use glib::Cast;
 use gtk::prelude::*;
 
-use std::{cell::RefCell, rc::Rc};
-
-use super::{MainController, PerspectiveController, UIDispatcher, UIEventSender};
+use super::{PerspectiveController, UIDispatcher, UIEventSender};
 
 macro_rules! gtk_downcast(
     ($source:expr, $target_type:ty, $item_name:expr) => {
@@ -31,7 +29,6 @@ impl UIDispatcher for PerspectiveDispatcher {
 
     fn setup(
         perspective_ctrl: &mut PerspectiveController,
-        _main_ctrl_rc: &Rc<RefCell<MainController>>,
         app: &gtk::Application,
         _ui_event: &UIEventSender,
     ) {

@@ -152,18 +152,13 @@ impl MainDispatcher {
                 ui_event_clone.switch_to(UIFocusContext::PlaybackPage);
             });
 
-            PerspectiveDispatcher::setup(
-                &mut main_ctrl.perspective_ctrl,
-                main_ctrl_rc,
-                &app,
-                &ui_event,
-            );
-            VideoDispatcher::setup(&mut main_ctrl.video_ctrl, main_ctrl_rc, &app, &ui_event);
-            InfoDispatcher::setup(&mut main_ctrl.info_ctrl, main_ctrl_rc, &app, &ui_event);
-            AudioDispatcher::setup(&mut main_ctrl.audio_ctrl, main_ctrl_rc, &app, &ui_event);
-            ExportDispatcher::setup(&mut main_ctrl.export_ctrl, main_ctrl_rc, &app, &ui_event);
-            SplitDispatcher::setup(&mut main_ctrl.split_ctrl, main_ctrl_rc, &app, &ui_event);
-            StreamsDispatcher::setup(&mut main_ctrl.streams_ctrl, main_ctrl_rc, &app, &ui_event);
+            PerspectiveDispatcher::setup(&mut main_ctrl.perspective_ctrl, &app, &ui_event);
+            VideoDispatcher::setup(&mut main_ctrl.video_ctrl, &app, &ui_event);
+            InfoDispatcher::setup(&mut main_ctrl.info_ctrl, &app, &ui_event);
+            AudioDispatcher::setup(&mut main_ctrl.audio_ctrl, &app, &ui_event);
+            ExportDispatcher::setup(&mut main_ctrl.export_ctrl, &app, &ui_event);
+            SplitDispatcher::setup(&mut main_ctrl.split_ctrl, &app, &ui_event);
+            StreamsDispatcher::setup(&mut main_ctrl.streams_ctrl, &app, &ui_event);
 
             ui_event.switch_to(UIFocusContext::PlaybackPage);
         } else {
@@ -180,6 +175,17 @@ impl MainDispatcher {
 
         match event {
             About => self.main_ctrl.borrow().about(),
+            ActionOver(focus_ctx) => match focus_ctx {
+                UIFocusContext::ExportPage => self
+                    .main_ctrl
+                    .borrow_mut()
+                    .export_ctrl
+                    .switch_to_available(),
+                UIFocusContext::SplitPage => {
+                    self.main_ctrl.borrow_mut().split_ctrl.switch_to_available()
+                }
+                _ => unreachable!(),
+            },
             AddChapter => {
                 self.main_ctrl.borrow_mut().add_chapter();
                 self.update_focus(self.focus);
@@ -194,8 +200,8 @@ impl MainDispatcher {
                 self.main_ctrl.borrow_mut().chapter_clicked(chapter_path)
             }
             HideInfoBar => self.info_bar_ctrl.hide(),
-            OpenMedia(path) => self.main_ctrl.borrow_mut().open_media(path),
             NextChapter => self.main_ctrl.borrow_mut().next_chapter(),
+            OpenMedia(path) => self.main_ctrl.borrow_mut().open_media(path),
             PlayPause => self.main_ctrl.borrow_mut().play_pause(),
             PlayRange {
                 start,
@@ -249,6 +255,21 @@ impl MainDispatcher {
             ToggleRepeat(must_repeat) => {
                 self.main_ctrl.borrow_mut().info_ctrl.repeat_chapter = must_repeat
             }
+            TriggerAction(focus_ctx) => match focus_ctx {
+                UIFocusContext::ExportPage => {
+                    self.main_ctrl
+                        .borrow_mut()
+                        .trigger_output_action::<ExportDispatcher>()
+                        .await
+                }
+                UIFocusContext::SplitPage => {
+                    self.main_ctrl
+                        .borrow_mut()
+                        .trigger_output_action::<SplitDispatcher>()
+                        .await
+                }
+                _ => unreachable!(),
+            },
             UpdateAudioRenderingCndt { dimensions } => self
                 .main_ctrl
                 .borrow_mut()

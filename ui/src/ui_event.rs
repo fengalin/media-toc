@@ -19,6 +19,7 @@ pub enum UIFocusContext {
 #[derive(Debug)]
 pub(crate) enum UIEvent {
     About,
+    ActionOver(UIFocusContext),
     AddChapter,
     AskQuestion {
         question: String,
@@ -61,6 +62,7 @@ pub(crate) enum UIEvent {
     Tick,
     ToggleChapterList(bool),
     ToggleRepeat(bool),
+    TriggerAction(UIFocusContext),
     UpdateAudioRenderingCndt {
         dimensions: Option<(f64, f64)>,
     },
@@ -80,6 +82,10 @@ impl UIEventSender {
 
     pub fn about(&self) {
         self.send(UIEvent::About);
+    }
+
+    pub fn action_over(&self, ctx: UIFocusContext) {
+        self.send(UIEvent::ActionOver(ctx));
     }
 
     pub fn add_chapter(&self) {
@@ -113,13 +119,13 @@ impl UIEventSender {
         self.send(UIEvent::HideInfoBar);
     }
 
+    pub fn next_chapter(&self) {
+        self.send(UIEvent::NextChapter);
+    }
+
     pub fn open_media(&self, path: PathBuf) {
         self.set_cursor_waiting();
         self.send(UIEvent::OpenMedia(path));
-    }
-
-    pub fn next_chapter(&self) {
-        self.send(UIEvent::NextChapter);
     }
 
     pub fn play_pause(&self) {
@@ -221,6 +227,10 @@ impl UIEventSender {
 
     pub fn toggle_repeat(&self, must_repeat: bool) {
         self.send(UIEvent::ToggleRepeat(must_repeat));
+    }
+
+    pub fn trigger_action(&self, ctx: UIFocusContext) {
+        self.send(UIEvent::TriggerAction(ctx));
     }
 
     pub fn update_audio_rendering_cndt(&self, dimensions: Option<(f64, f64)>) {

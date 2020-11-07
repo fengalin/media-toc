@@ -1,9 +1,7 @@
 use glib::clone;
 use gtk::prelude::*;
 
-use std::{cell::RefCell, rc::Rc};
-
-use super::{MainController, StreamsController, UIDispatcher, UIEventSender, UIFocusContext};
+use super::{StreamsController, UIDispatcher, UIEventSender, UIFocusContext};
 
 pub struct StreamsDispatcher;
 impl UIDispatcher for StreamsDispatcher {
@@ -11,7 +9,6 @@ impl UIDispatcher for StreamsDispatcher {
 
     fn setup(
         streams_ctrl: &mut StreamsController,
-        _main_ctrl_rc: &Rc<RefCell<MainController>>,
         _app: &gtk::Application,
         ui_event: &UIEventSender,
     ) {

@@ -14,9 +14,9 @@ use media::{MediaEvent, PlaybackState, Timestamp};
 
 use super::{
     spawn, ui_event, AudioAreaEvent, AudioController, ChapterEntry, ChaptersBoundaries,
-    ExportController, InfoController, MainDispatcher, MediaEventReceiver, PerspectiveController,
-    PlaybackPipeline, PositionStatus, SplitController, StreamsController, UIController,
-    UIEventSender, VideoController,
+    ExportController, InfoController, MainDispatcher, MediaEventReceiver, OutputDispatcher,
+    PerspectiveController, PlaybackPipeline, PositionStatus, SplitController, StreamsController,
+    UIController, UIEventSender, VideoController,
 };
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
@@ -760,5 +760,17 @@ impl MainController {
         self.info_ctrl.chapter_manager.rename_selected(new_title);
         // reflect title modification in other parts of the UI (audio waveform)
         self.redraw();
+    }
+
+    pub async fn trigger_output_action<D: OutputDispatcher>(&mut self) {
+        if !D::ctrl(self).is_busy {
+            if let Some(pipeline) = self.pipeline.as_mut() {
+                self.info_ctrl
+                    .export_chapters(&mut pipeline.info.write().unwrap());
+                D::ctrl_mut(self).start().await;
+            }
+        } else {
+            D::ctrl_mut(self).cancel();
+        }
     }
 }

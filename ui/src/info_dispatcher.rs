@@ -2,20 +2,13 @@ use gio::prelude::*;
 use glib::clone;
 use gtk::prelude::*;
 
-use std::{cell::RefCell, rc::Rc};
-
-use super::{InfoController, MainController, UIDispatcher, UIEventSender, UIFocusContext};
+use super::{InfoController, UIDispatcher, UIEventSender, UIFocusContext};
 
 pub struct InfoDispatcher;
 impl UIDispatcher for InfoDispatcher {
     type Controller = InfoController;
 
-    fn setup(
-        info_ctrl: &mut InfoController,
-        _main_ctrl_rc: &Rc<RefCell<MainController>>,
-        app: &gtk::Application,
-        ui_event: &UIEventSender,
-    ) {
+    fn setup(info_ctrl: &mut InfoController, app: &gtk::Application, ui_event: &UIEventSender) {
         // Register Toggle show chapters list action
         let toggle_show_list = gio::SimpleAction::new("toggle_show_list", None);
         app.add_action(&toggle_show_list);

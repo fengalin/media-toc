@@ -2,22 +2,15 @@ use gio::prelude::*;
 use glib::clone;
 use gtk::prelude::*;
 
-use std::{cell::RefCell, rc::Rc};
+use std::cell::RefCell;
 
-use super::{
-    AudioAreaEvent, AudioController, MainController, UIDispatcher, UIEventSender, UIFocusContext,
-};
+use super::{AudioAreaEvent, AudioController, UIDispatcher, UIEventSender, UIFocusContext};
 
 pub struct AudioDispatcher;
 impl UIDispatcher for AudioDispatcher {
     type Controller = AudioController;
 
-    fn setup(
-        audio_ctrl: &mut AudioController,
-        _main_ctrl_rc: &Rc<RefCell<MainController>>,
-        app: &gtk::Application,
-        ui_event: &UIEventSender,
-    ) {
+    fn setup(audio_ctrl: &mut AudioController, app: &gtk::Application, ui_event: &UIEventSender) {
         // draw
         let waveform_with_overlay = RefCell::new(audio_ctrl.waveform_with_overlay());
         audio_ctrl
