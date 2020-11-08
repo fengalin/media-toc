@@ -1,4 +1,4 @@
-use futures::channel::oneshot;
+use futures::channel::{mpsc as async_mpsc, oneshot};
 use futures::future::{abortable, AbortHandle, LocalBoxFuture};
 use futures::prelude::*;
 use futures::stream;
@@ -20,15 +20,13 @@ use std::{
 use media::MediaEvent;
 use metadata::{Format, MediaInfo};
 
-use super::{
-    spawn, MediaEventReceiver, PlaybackPipeline, UIController, UIEventSender, UIFocusContext,
-};
+use super::{spawn, PlaybackPipeline, UIController, UIEventSender, UIFocusContext};
 
 pub const MEDIA_EVENT_CHANNEL_CAPACITY: usize = 1;
 pub const PROGRESS_TIMER_PERIOD: Duration = Duration::from_millis(250);
 
 pub enum ProcessingType {
-    Async(MediaEventReceiver),
+    Async(async_mpsc::Receiver<media::MediaEvent>),
     Sync,
 }
 
@@ -206,14 +204,17 @@ impl<CtrlImpl: OutputControllerImpl + 'static> MediaProcessor<CtrlImpl> {
         }
 
         let media_event_stream = match self.impl_.process(output_path).await? {
-            ProcessingType::Async(media_event_stream) => media_event_stream.map(Item::MediaEvent),
+            ProcessingType::Async(media_event_stream) => media_event_stream,
             ProcessingType::Sync => return Ok(()),
         };
 
         // async processing
 
-        let tick_stream = glib::interval_stream(PROGRESS_TIMER_PERIOD).map(|_| Item::Tick);
-        let mut combined_streams = stream::select(media_event_stream, tick_stream);
+        let tick_stream = glib::interval_stream(PROGRESS_TIMER_PERIOD);
+        let mut combined_streams = stream::select(
+            media_event_stream.map(Item::MediaEvent),
+            tick_stream.map(|_| Item::Tick),
+        );
 
         while let Some(item) = combined_streams.next().await {
             match item {

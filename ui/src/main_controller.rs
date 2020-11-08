@@ -1,22 +1,20 @@
 use futures::channel::mpsc as async_mpsc;
-use futures::future::{abortable, AbortHandle, LocalBoxFuture};
-use futures::prelude::*;
 
 use gettextrs::{gettext, ngettext};
+use glib::clone;
 use gtk::prelude::*;
 
 use log::{debug, error};
 
 use std::{borrow::ToOwned, cell::RefCell, collections::HashSet, path::PathBuf, rc::Rc, sync::Arc};
 
-use application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG};
+use application::{CommandLineArguments, APP_ID, CONFIG};
 use media::{MediaEvent, PlaybackState, Timestamp};
 
 use super::{
-    spawn, ui_event, AudioAreaEvent, AudioController, ChapterEntry, ChaptersBoundaries,
-    ExportController, InfoController, MainDispatcher, MediaEventReceiver, OutputDispatcher,
-    PerspectiveController, PlaybackPipeline, PositionStatus, SplitController, StreamsController,
-    UIController, UIEventSender, VideoController,
+    AudioAreaEvent, AudioController, ChapterEntry, ChaptersBoundaries, ExportController,
+    InfoController, OutputDispatcher, PerspectiveController, PlaybackPipeline, PositionStatus,
+    SplitController, StreamsController, UIController, UIEventSender, VideoController,
 };
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
@@ -40,17 +38,16 @@ pub enum ControllerState {
 }
 
 pub struct MainController {
-    pub(super) window: gtk::ApplicationWindow,
+    window: gtk::ApplicationWindow,
     pub(super) window_delete_id: Option<glib::signal::SignalHandlerId>,
 
     header_bar: gtk::HeaderBar,
-    pub(super) open_btn: gtk::Button,
-    pub(super) display_page: gtk::Box,
-    playback_paned: gtk::Paned,
+    pub(super) playback_paned: gtk::Paned,
     pub(super) play_pause_btn: gtk::ToolButton,
     file_dlg: gtk::FileChooserNative,
 
     pub(super) ui_event: UIEventSender,
+    media_event_sender: async_mpsc::Sender<MediaEvent>,
 
     pub(super) perspective_ctrl: PerspectiveController,
     pub(super) video_ctrl: VideoController,
@@ -64,53 +61,46 @@ pub struct MainController {
     missing_plugins: HashSet<String>,
     pub(super) state: ControllerState,
 
-    pub(super) new_media_event_handler:
-        Option<Box<dyn Fn(MediaEventReceiver) -> LocalBoxFuture<'static, ()>>>,
-    media_event_abort_handle: Option<AbortHandle>,
     callback_when_paused: Option<Box<dyn Fn(&mut MainController)>>,
 }
 
 impl MainController {
-    pub fn setup(app: &gtk::Application, args: &CommandLineArguments) {
-        let builder = gtk::Builder::from_resource(&format!("{}/{}", *APP_PATH, "media-toc.ui"));
-
-        let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
-        window.set_application(Some(app));
-
-        let (ui_event, ui_event_receiver) = ui_event::new_pair();
+    pub fn new(
+        window: &gtk::ApplicationWindow,
+        args: &CommandLineArguments,
+        builder: &gtk::Builder,
+        ui_event: &UIEventSender,
+        media_event_sender: async_mpsc::Sender<MediaEvent>,
+    ) -> Self {
         let chapters_boundaries = Rc::new(RefCell::new(ChaptersBoundaries::new()));
 
         let file_dlg = gtk::FileChooserNativeBuilder::new()
             .title(&gettext("Open a media file"))
-            .transient_for(&window)
+            .transient_for(window)
             .modal(true)
             .accept_label(&gettext("Open"))
             .cancel_label(&gettext("Cancel"))
             .build();
 
-        let ui_event_clone = ui_event.clone();
-        file_dlg.connect_response(move |file_dlg, response| {
+        file_dlg.connect_response(clone!(@strong ui_event => move |file_dlg, response| {
             file_dlg.hide();
             match (response, file_dlg.get_filename()) {
-                (gtk::ResponseType::Accept, Some(path)) => ui_event_clone.open_media(path),
-                _ => ui_event_clone.cancel_select_media(),
+                (gtk::ResponseType::Accept, Some(path)) => ui_event.open_media(path),
+                _ => ui_event.cancel_select_media(),
             }
-        });
+        }));
 
-        let gst_init_res = gst::init();
-
-        let main_ctrl_rc = Rc::new(RefCell::new(MainController {
+        MainController {
             window: window.clone(),
             window_delete_id: None,
 
             header_bar: builder.get_object("header-bar").unwrap(),
-            open_btn: builder.get_object("open-btn").unwrap(),
-            display_page: builder.get_object("display-box").unwrap(),
             playback_paned: builder.get_object("playback-paned").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
             file_dlg,
 
             ui_event: ui_event.clone(),
+            media_event_sender,
 
             perspective_ctrl: PerspectiveController::new(&builder),
             video_ctrl: VideoController::new(&builder, args),
@@ -128,44 +118,8 @@ impl MainController {
             missing_plugins: HashSet::<String>::new(),
             state: ControllerState::Stopped,
 
-            new_media_event_handler: None,
-            media_event_abort_handle: None,
             callback_when_paused: None,
-        }));
-
-        let mut main_ctrl = main_ctrl_rc.borrow_mut();
-        MainDispatcher::setup(
-            &mut main_ctrl,
-            &main_ctrl_rc,
-            app,
-            &window,
-            &builder,
-            ui_event_receiver,
-        );
-
-        if gst_init_res.is_ok() {
-            {
-                let config = CONFIG.read().unwrap();
-                if config.ui.width > 0 && config.ui.height > 0 {
-                    main_ctrl.window.resize(config.ui.width, config.ui.height);
-                    main_ctrl.playback_paned.set_position(config.ui.paned_pos);
-                }
-
-                main_ctrl.open_btn.set_sensitive(true);
-            }
-
-            ui_event.show_all();
-
-            if let Some(input_file) = args.input_file.to_owned() {
-                main_ctrl.ui_event.open_media(input_file);
-            }
-        } else {
-            ui_event.show_all();
         }
-    }
-
-    pub fn ui_event(&self) -> &UIEventSender {
-        &self.ui_event
     }
 
     pub fn about(&self) {
@@ -193,7 +147,6 @@ impl MainController {
         if let Some(pipeline) = self.pipeline.take() {
             pipeline.stop();
         }
-        self.abort_media_event_handler();
 
         self.export_ctrl.cancel();
         self.split_ctrl.cancel();
@@ -406,24 +359,7 @@ impl MainController {
         }
     }
 
-    fn spawn_media_event_handler(&mut self) -> async_mpsc::Sender<MediaEvent> {
-        let (sender, receiver) = async_mpsc::channel(1);
-
-        let (abortable_event_handler, abort_handle) =
-            abortable(self.new_media_event_handler.as_ref().unwrap()(receiver));
-        spawn(abortable_event_handler.map(drop));
-        self.media_event_abort_handle = Some(abort_handle);
-
-        sender
-    }
-
-    fn abort_media_event_handler(&mut self) {
-        if let Some(abort_handle) = self.media_event_abort_handle.take() {
-            abort_handle.abort();
-        }
-    }
-
-    pub fn handle_media_event(&mut self, event: MediaEvent) -> Result<(), ()> {
+    pub fn handle_media_event(&mut self, event: MediaEvent) {
         match self.state {
             ControllerState::Playing => match event {
                 MediaEvent::Eos => {
@@ -554,8 +490,6 @@ impl MainController {
                         error += &message;
                     }
                     self.ui_event.show_error(error);
-
-                    return Err(());
                 }
                 MediaEvent::GLSinkError => {
                     self.pipeline = None;
@@ -569,32 +503,34 @@ impl MainController {
                     self.ui_event.show_error(gettext(
     "Video rendering hardware acceleration seems broken and has been disabled.\nPlease restart the application.",
                     ));
-
-                    return Err(());
                 }
                 _ => (),
             },
         }
-
-        Ok(())
     }
 
     pub fn select_media(&mut self) {
-        self.state = ControllerState::PendingSelectMediaDecision;
-        self.ui_event.hide_info_bar();
+        match self.state {
+            ControllerState::Playing | ControllerState::EOS => {
+                self.hold();
+                self.state = ControllerState::PendingSelectMedia;
+            }
+            _ => {
+                self.state = ControllerState::PendingSelectMediaDecision;
+                self.ui_event.hide_info_bar();
 
-        if let Some(ref last_path) = CONFIG.read().unwrap().media.last_path {
-            self.file_dlg.set_current_folder(last_path);
+                if let Some(ref last_path) = CONFIG.read().unwrap().media.last_path {
+                    self.file_dlg.set_current_folder(last_path);
+                }
+                self.file_dlg.show();
+            }
         }
-        self.file_dlg.show();
     }
 
     pub fn open_media(&mut self, path: PathBuf) {
         if let Some(pipeline) = self.pipeline.take() {
             pipeline.stop();
         }
-
-        self.abort_media_event_handler();
 
         self.info_ctrl.cleanup();
         self.audio_ctrl.cleanup();
@@ -607,14 +543,13 @@ impl MainController {
 
         self.state = ControllerState::Stopped;
         self.missing_plugins.clear();
-        let sender = self.spawn_media_event_handler();
 
         let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.dbl_renderer_mtx);
         match PlaybackPipeline::try_new(
             path.as_ref(),
             &dbl_buffer_mtx,
             &self.video_ctrl.video_sink(),
-            sender,
+            self.media_event_sender.clone(),
         ) {
             Ok(pipeline) => {
                 CONFIG.write().unwrap().media.last_path = path.parent().map(ToOwned::to_owned);

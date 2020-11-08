@@ -48,6 +48,7 @@ pub(crate) enum UIEvent {
         target: Timestamp,
         flags: gst::SeekFlags,
     },
+    SelectMedia,
     SetCursorWaiting,
     SetCursorDoubleArrow,
     ShowAll,
@@ -170,6 +171,10 @@ impl UIEventSender {
 
     pub fn seek(&self, target: Timestamp, flags: gst::SeekFlags) {
         self.send(UIEvent::Seek { target, flags });
+    }
+
+    pub fn select_media(&self) {
+        self.send(UIEvent::SelectMedia);
     }
 
     pub fn set_cursor_double_arrow(&self) {

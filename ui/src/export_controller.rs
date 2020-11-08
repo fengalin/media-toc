@@ -155,7 +155,7 @@ impl MediaProcessorImpl for ExportProcessor {
                     if src_info.toc.is_none() {
                         let msg = gettext("The table of contents is empty");
                         error!("{}", msg);
-                        Err(msg)?;
+                        return Err(msg.into());
                     }
 
                     // export toc as a standalone file

@@ -23,7 +23,7 @@ mod info_dispatcher;
 use self::info_dispatcher::InfoDispatcher;
 
 mod main_controller;
-pub use self::main_controller::{ControllerState, MainController};
+use self::main_controller::{ControllerState, MainController};
 mod main_dispatcher;
 use self::main_dispatcher::MainDispatcher;
 
@@ -92,11 +92,9 @@ pub fn run(args: CommandLineArguments) {
     let gtk_app = gtk::Application::new(Some(&APP_ID), gio::ApplicationFlags::empty())
         .expect("Failed to initialize GtkApplication");
 
-    gtk_app.connect_activate(move |gtk_app| MainController::setup(gtk_app, &args));
+    gtk_app.connect_activate(move |gtk_app| MainDispatcher::setup(gtk_app, &args));
     gtk_app.run(&[]);
 }
-
-type MediaEventReceiver = async_mpsc::Receiver<media::MediaEvent>;
 
 pub struct PlaybackPipeline(media::PlaybackPipeline<renderers::WaveformRenderer>);
 
