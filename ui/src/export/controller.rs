@@ -1,4 +1,4 @@
-use futures::{channel::mpsc as async_mpsc, future::LocalBoxFuture, prelude::*};
+use futures::channel::mpsc as async_mpsc;
 
 use gettextrs::gettext;
 use gtk::prelude::*;
@@ -138,57 +138,51 @@ impl Iterator for Processor {
 }
 
 impl MediaProcessorImpl for Processor {
-    fn process<'a>(
-        &'a mut self,
-        output_path: &'a Path,
-    ) -> LocalBoxFuture<'a, Result<ProcessingType, MediaProcessorError>> {
-        async move {
-            let format = self.export_file_info.as_ref().unwrap().format;
-            match format {
-                Format::MKVMergeText | Format::CueSheet => {
-                    self.export_file_info = None;
+    fn process(&mut self, output_path: &Path) -> Result<ProcessingType, MediaProcessorError> {
+        let format = self.export_file_info.as_ref().unwrap().format;
+        match format {
+            Format::MKVMergeText | Format::CueSheet => {
+                self.export_file_info = None;
 
-                    let src_info = self.src_info.read().unwrap();
-                    if src_info.toc.is_none() {
-                        let msg = gettext("The table of contents is empty");
-                        error!("{}", msg);
-                        return Err(msg.into());
-                    }
-
-                    // export toc as a standalone file
-                    fs::File::create(&output_path)
-                        .map_err(|_| gettext("Failed to create the file for the table of contents"))
-                        .and_then(|mut output_file| {
-                            metadata::Factory::writer(format)
-                                .write(&src_info, &mut output_file)
-                                .map_err(|msg| {
-                                    let _ = fs::remove_file(&output_path);
-                                    msg
-                                })
-                        })?;
-
-                    Ok(ProcessingType::Sync)
+                let src_info = self.src_info.read().unwrap();
+                if src_info.toc.is_none() {
+                    let msg = gettext("The table of contents is empty");
+                    error!("{}", msg);
+                    return Err(msg.into());
                 }
-                Format::Matroska => {
-                    let (sender, receiver) = async_mpsc::channel(MEDIA_EVENT_CHANNEL_CAPACITY);
 
-                    let toc_setter_pipeline = TocSetterPipeline::try_new(
-                        &self.src_info.read().unwrap().path,
-                        output_path,
-                        Arc::clone(&self.export_file_info.as_ref().unwrap().stream_ids),
-                        sender,
-                    )
-                    .map_err(|err| {
-                        gettext("Failed to prepare for export. {}").replacen("{}", &err, 1)
+                // export toc as a standalone file
+                fs::File::create(&output_path)
+                    .map_err(|_| gettext("Failed to create the file for the table of contents"))
+                    .and_then(|mut output_file| {
+                        metadata::Factory::writer(format)
+                            .write(&src_info, &mut output_file)
+                            .map_err(|msg| {
+                                let _ = fs::remove_file(&output_path);
+                                msg
+                            })
                     })?;
 
-                    self.toc_setter_pipeline = Some(toc_setter_pipeline);
-                    Ok(ProcessingType::Async(receiver))
-                }
-                format => unimplemented!("export::ControllerImpl for format {:?}", format),
+                Ok(ProcessingType::Sync)
             }
+            Format::Matroska => {
+                let (sender, receiver) = async_mpsc::channel(MEDIA_EVENT_CHANNEL_CAPACITY);
+
+                let toc_setter_pipeline = TocSetterPipeline::try_new(
+                    &self.src_info.read().unwrap().path,
+                    output_path,
+                    Arc::clone(&self.export_file_info.as_ref().unwrap().stream_ids),
+                    sender,
+                )
+                .map_err(|err| {
+                    gettext("Failed to prepare for export. {}").replacen("{}", &err, 1)
+                })?;
+
+                self.toc_setter_pipeline = Some(toc_setter_pipeline);
+                Ok(ProcessingType::Async(receiver))
+            }
+            format => unimplemented!("export::ControllerImpl for format {:?}", format),
         }
-        .boxed_local()
     }
 
     fn cancel(&mut self) {

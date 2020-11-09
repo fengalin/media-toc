@@ -1,6 +1,6 @@
 use futures::{
     channel::{mpsc as async_mpsc, oneshot},
-    future::{abortable, AbortHandle, LocalBoxFuture},
+    future::{abortable, AbortHandle},
     prelude::*,
     stream,
 };
@@ -71,10 +71,7 @@ impl fmt::Display for MediaProcessorError {
 impl std::error::Error for MediaProcessorError {}
 
 pub trait MediaProcessorImpl: Iterator<Item = Rc<Path>> {
-    fn process<'a>(
-        &'a mut self,
-        output_path: &'a Path,
-    ) -> LocalBoxFuture<'a, Result<ProcessingType, MediaProcessorError>>;
+    fn process(&mut self, output_path: &Path) -> Result<ProcessingType, MediaProcessorError>;
     fn cancel(&mut self);
     fn handle_media_event(
         &mut self,
@@ -204,7 +201,7 @@ impl<CtrlImpl: OutputControllerImpl + 'static> MediaProcessor<CtrlImpl> {
             Tick,
         }
 
-        let media_event_stream = match self.impl_.process(output_path).await? {
+        let media_event_stream = match self.impl_.process(output_path)? {
             ProcessingType::Async(media_event_stream) => media_event_stream,
             ProcessingType::Sync => return Ok(()),
         };

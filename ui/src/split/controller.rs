@@ -1,4 +1,4 @@
-use futures::{channel::mpsc as async_mpsc, future::LocalBoxFuture, prelude::*};
+use futures::channel::mpsc as async_mpsc;
 
 use gettextrs::gettext;
 use gtk::prelude::*;
@@ -304,44 +304,39 @@ impl Iterator for Processor {
 }
 
 impl MediaProcessorImpl for Processor {
-    fn process<'a>(
-        &'a mut self,
-        output_path: &'a Path,
-    ) -> LocalBoxFuture<'a, Result<ProcessingType, MediaProcessorError>> {
-        async move {
-            let (res, receiver) = {
-                let src_info = self.src_info.read().unwrap();
-                let split_file_info = self.split_file_info.as_ref().unwrap();
+    fn process(&mut self, output_path: &Path) -> Result<ProcessingType, MediaProcessorError> {
+        let (res, receiver) = {
+            let src_info = self.src_info.read().unwrap();
+            let split_file_info = self.split_file_info.as_ref().unwrap();
 
-                let stream_id = if src_info.streams.collection(gst::StreamType::AUDIO).len() > 1 {
-                    Some(self.selected_audio.as_ref().unwrap().id.to_string())
-                } else {
-                    // Some single stream decoders advertise a random id at each invocation
-                    // so don't be explicit when only one audio stream is available
-                    None
-                };
-
-                let (sender, receiver) = async_mpsc::channel(MEDIA_EVENT_CHANNEL_CAPACITY);
-
-                let res = SplitterPipeline::try_new(
-                    &src_info.path,
-                    output_path,
-                    stream_id,
-                    split_file_info.format,
-                    self.current_chapter.take().expect("no current_chapter"),
-                    sender,
-                );
-
-                (res, receiver)
+            let stream_id = if src_info.streams.collection(gst::StreamType::AUDIO).len() > 1 {
+                Some(self.selected_audio.as_ref().unwrap().id.to_string())
+            } else {
+                // Some single stream decoders advertise a random id at each invocation
+                // so don't be explicit when only one audio stream is available
+                None
             };
 
-            self.splitter_pipeline = Some(res.map_err(|err| {
+            let (sender, receiver) = async_mpsc::channel(MEDIA_EVENT_CHANNEL_CAPACITY);
+
+            let res = SplitterPipeline::try_new(
+                &src_info.path,
+                output_path,
+                stream_id,
+                split_file_info.format,
+                self.current_chapter.take().expect("no current_chapter"),
+                sender,
+            );
+
+            (res, receiver)
+        };
+
+        self.splitter_pipeline =
+            Some(res.map_err(|err| {
                 gettext("Failed to prepare for split. {}").replacen("{}", &err, 1)
             })?);
 
-            Ok(ProcessingType::Async(receiver))
-        }
-        .boxed_local()
+        Ok(ProcessingType::Async(receiver))
     }
 
     fn cancel(&mut self) {
