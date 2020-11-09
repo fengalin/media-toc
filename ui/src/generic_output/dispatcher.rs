@@ -1,4 +1,7 @@
-use futures::{future::LocalBoxFuture, prelude::*};
+use futures::{
+    future::{self, LocalBoxFuture},
+    prelude::*,
+};
 
 use gio::prelude::*;
 use gtk::prelude::*;
@@ -47,27 +50,26 @@ impl<T: OutputDispatcher> UIDispatcher for T {
         main_ctrl: &mut main::Controller,
         event: impl Into<Self::Event>,
     ) -> LocalBoxFuture<'_, ()> {
-        let event = event.into();
-        async move {
-            use generic_output::Event::*;
+        use generic_output::Event::*;
 
-            debug!("handling {:?}", event);
-            match event {
-                ActionOver => T::ctrl_mut(main_ctrl).switch_to_available(),
-                TriggerAction => {
-                    if !T::ctrl(main_ctrl).is_busy {
-                        if let Some(pipeline) = main_ctrl.pipeline.as_mut() {
-                            main_ctrl
-                                .info
-                                .export_chapters(&mut pipeline.info.write().unwrap());
-                            T::ctrl_mut(main_ctrl).start().await;
-                        }
-                    } else {
-                        T::ctrl_mut(main_ctrl).cancel();
+        let event = event.into();
+        debug!("handling {:?}", event);
+        match event {
+            ActionOver => T::ctrl_mut(main_ctrl).switch_to_available(),
+            TriggerAction => {
+                if !T::ctrl(main_ctrl).is_busy {
+                    if let Some(pipeline) = main_ctrl.pipeline.as_mut() {
+                        main_ctrl
+                            .info
+                            .export_chapters(&mut pipeline.info.write().unwrap());
+                        return T::ctrl_mut(main_ctrl).start().boxed_local();
                     }
+                } else {
+                    T::ctrl_mut(main_ctrl).cancel();
                 }
             }
         }
-        .boxed_local()
+
+        future::ready(()).boxed_local()
     }
 }

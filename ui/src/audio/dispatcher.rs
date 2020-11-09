@@ -1,4 +1,7 @@
-use futures::{future::LocalBoxFuture, prelude::*};
+use futures::{
+    future::{self, LocalBoxFuture},
+    prelude::*,
+};
 
 use gio::prelude::*;
 use gtk::prelude::*;
@@ -90,26 +93,25 @@ impl UIDispatcher for Dispatcher {
         main_ctrl: &mut main::Controller,
         event: impl Into<Self::Event>,
     ) -> LocalBoxFuture<'_, ()> {
-        let event = event.into();
-        async move {
-            use audio::Event::*;
+        use audio::Event::*;
 
-            if let Tick = event {
-                trace!("handling {:?}", event);
-            } else {
-                debug!("handling {:?}", event);
-            }
-            match event {
-                AreaEvent(event) => Self::area_event(main_ctrl, event),
-                UpdateRenderingCndt(dimensions) => main_ctrl.audio.update_conditions(dimensions),
-                StepBack => Self::step_back(main_ctrl),
-                StepForward => Self::step_forward(main_ctrl),
-                Tick => main_ctrl.audio.tick(),
-                ZoomIn => main_ctrl.audio.zoom_in(),
-                ZoomOut => main_ctrl.audio.zoom_out(),
-            }
+        let event = event.into();
+        if let Tick = event {
+            trace!("handling {:?}", event);
+        } else {
+            debug!("handling {:?}", event);
         }
-        .boxed_local()
+        match event {
+            AreaEvent(event) => Self::area_event(main_ctrl, event),
+            UpdateRenderingCndt(dimensions) => main_ctrl.audio.update_conditions(dimensions),
+            StepBack => Self::step_back(main_ctrl),
+            StepForward => Self::step_forward(main_ctrl),
+            Tick => main_ctrl.audio.tick(),
+            ZoomIn => main_ctrl.audio.zoom_in(),
+            ZoomOut => main_ctrl.audio.zoom_out(),
+        }
+
+        future::ready(()).boxed_local()
     }
 
     fn bind_accels_for(ctx: UIFocusContext, app: &gtk::Application) {

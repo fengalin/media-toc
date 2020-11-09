@@ -1,4 +1,7 @@
-use futures::{future::LocalBoxFuture, prelude::*};
+use futures::{
+    future::{self, LocalBoxFuture},
+    prelude::*,
+};
 
 use gio::prelude::*;
 use glib::clone;
@@ -39,22 +42,21 @@ impl UIDispatcher for Dispatcher {
         main_ctrl: &mut main::Controller,
         event: impl Into<Self::Event>,
     ) -> LocalBoxFuture<'_, ()> {
-        let event = event.into();
-        async move {
-            use info_bar::Event::*;
+        use info_bar::Event::*;
 
-            debug!("handling {:?}", event);
-            match event {
-                AskQuestion {
-                    question,
-                    response_sender,
-                } => main_ctrl.info_bar.ask_question(&question, response_sender),
-                Hide => main_ctrl.info_bar.hide(),
-                ShowError(msg) => main_ctrl.info_bar.show_error(&msg),
-                ShowInfo(msg) => main_ctrl.info_bar.show_info(&msg),
-            }
+        let event = event.into();
+        debug!("handling {:?}", event);
+        match event {
+            AskQuestion {
+                question,
+                response_sender,
+            } => main_ctrl.info_bar.ask_question(&question, response_sender),
+            Hide => main_ctrl.info_bar.hide(),
+            ShowError(msg) => main_ctrl.info_bar.show_error(&msg),
+            ShowInfo(msg) => main_ctrl.info_bar.show_info(&msg),
         }
-        .boxed_local()
+
+        future::ready(()).boxed_local()
     }
 
     fn bind_accels_for(ctx: UIFocusContext, app: &gtk::Application) {

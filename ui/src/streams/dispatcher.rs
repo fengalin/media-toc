@@ -1,4 +1,7 @@
-use futures::{future::LocalBoxFuture, prelude::*};
+use futures::{
+    future::{self, LocalBoxFuture},
+    prelude::*,
+};
 
 use gtk::prelude::*;
 
@@ -54,39 +57,37 @@ impl UIDispatcher for Dispatcher {
         main_ctrl: &mut main::Controller,
         event: impl Into<Self::Event>,
     ) -> LocalBoxFuture<'_, ()> {
-        let event = event.into();
-        async move {
-            use streams::Event::*;
+        use streams::Event::*;
 
-            debug!("handling {:?}", event);
-            match event {
-                StreamClicked(type_) => {
-                    if let streams::ClickedStatus::Changed = main_ctrl.streams.stream_clicked(type_)
-                    {
-                        let streams = main_ctrl.streams.selected_streams();
-                        main_ctrl.select_streams(&streams);
-                    }
+        let event = event.into();
+        debug!("handling {:?}", event);
+        match event {
+            StreamClicked(type_) => {
+                if let streams::ClickedStatus::Changed = main_ctrl.streams.stream_clicked(type_) {
+                    let streams = main_ctrl.streams.selected_streams();
+                    main_ctrl.select_streams(&streams);
                 }
-                ExportToggled(type_, tree_path) => {
-                    if let Some((stream_id, must_export)) =
-                        main_ctrl.streams.export_toggled(type_, tree_path)
-                    {
-                        if let Some(pipeline) = main_ctrl.pipeline.as_mut() {
-                            pipeline
-                                .info
-                                .write()
-                                .unwrap()
-                                .streams
-                                .collection_mut(type_)
-                                .get_mut(stream_id)
-                                .as_mut()
-                                .unwrap()
-                                .must_export = must_export;
-                        }
+            }
+            ExportToggled(type_, tree_path) => {
+                if let Some((stream_id, must_export)) =
+                    main_ctrl.streams.export_toggled(type_, tree_path)
+                {
+                    if let Some(pipeline) = main_ctrl.pipeline.as_mut() {
+                        pipeline
+                            .info
+                            .write()
+                            .unwrap()
+                            .streams
+                            .collection_mut(type_)
+                            .get_mut(stream_id)
+                            .as_mut()
+                            .unwrap()
+                            .must_export = must_export;
                     }
                 }
             }
         }
-        .boxed_local()
+
+        future::ready(()).boxed_local()
     }
 }

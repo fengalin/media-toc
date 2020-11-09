@@ -1,4 +1,7 @@
-use futures::{future::LocalBoxFuture, prelude::*};
+use futures::{
+    future::{self, LocalBoxFuture},
+    prelude::*,
+};
 
 use gio::prelude::*;
 use gtk::prelude::*;
@@ -96,44 +99,43 @@ impl UIDispatcher for Dispatcher {
         main_ctrl: &mut main::Controller,
         event: impl Into<Self::Event>,
     ) -> LocalBoxFuture<'_, ()> {
+        use info::Event::*;
+
         let event = event.into();
-        async move {
-            use info::Event::*;
-
-            debug!("handling {:?}", event);
-            match event {
-                AddChapter => {
-                    if let Some(ts) = main_ctrl.current_ts() {
-                        main_ctrl.info.add_chapter(ts);
-                    }
+        debug!("handling {:?}", event);
+        match event {
+            AddChapter => {
+                if let Some(ts) = main_ctrl.current_ts() {
+                    main_ctrl.info.add_chapter(ts);
                 }
-                ChapterClicked(chapter_path) => {
-                    let seek_ts = main_ctrl
-                        .info
-                        .chapter_manager
-                        .chapter_from_path(&chapter_path)
-                        .as_ref()
-                        .map(ChapterEntry::start);
-
-                    if let Some(seek_ts) = seek_ts {
-                        let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
-                    }
-                }
-                Refresh(ts) => match main_ctrl.state {
-                    main::State::Seeking(_) => (),
-                    _ => main_ctrl.info.tick(ts, main_ctrl.state),
-                },
-                RemoveChapter => main_ctrl.info.remove_chapter(),
-                RenameChapter(new_title) => {
-                    main_ctrl.info.chapter_manager.rename_selected(&new_title);
-                    // reflect title modification in other parts of the UI (audio waveform)
-                    main_ctrl.redraw();
-                }
-                ToggleChapterList(must_show) => main_ctrl.info.toggle_chapter_list(must_show),
-                ToggleRepeat(must_repeat) => main_ctrl.info.repeat_chapter = must_repeat,
             }
+            ChapterClicked(chapter_path) => {
+                let seek_ts = main_ctrl
+                    .info
+                    .chapter_manager
+                    .chapter_from_path(&chapter_path)
+                    .as_ref()
+                    .map(ChapterEntry::start);
+
+                if let Some(seek_ts) = seek_ts {
+                    let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
+                }
+            }
+            Refresh(ts) => match main_ctrl.state {
+                main::State::Seeking(_) => (),
+                _ => main_ctrl.info.tick(ts, main_ctrl.state),
+            },
+            RemoveChapter => main_ctrl.info.remove_chapter(),
+            RenameChapter(new_title) => {
+                main_ctrl.info.chapter_manager.rename_selected(&new_title);
+                // reflect title modification in other parts of the UI (audio waveform)
+                main_ctrl.redraw();
+            }
+            ToggleChapterList(must_show) => main_ctrl.info.toggle_chapter_list(must_show),
+            ToggleRepeat(must_repeat) => main_ctrl.info.repeat_chapter = must_repeat,
         }
-        .boxed_local()
+
+        future::ready(()).boxed_local()
     }
 
     fn bind_accels_for(ctx: UIFocusContext, app: &gtk::Application) {
