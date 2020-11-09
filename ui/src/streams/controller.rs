@@ -3,7 +3,7 @@ use gtk::prelude::*;
 
 use std::sync::Arc;
 
-use super::{spawn, PlaybackPipeline, UIController};
+use crate::{prelude::*, spawn};
 
 const ALIGN_LEFT: f32 = 0f32;
 const ALIGN_CENTER: f32 = 0.5f32;
@@ -16,7 +16,7 @@ const LANGUAGE_COL: u32 = 3;
 const CODEC_COL: u32 = 4;
 const COMMENT_COL: u32 = 5;
 
-pub enum StreamClickedStatus {
+pub enum ClickedStatus {
     Changed,
     Unchanged,
 }
@@ -191,7 +191,7 @@ impl<Impl: UIStreamImpl> UIStream<Impl> {
             .unwrap()
     }
 
-    fn stream_clicked(&mut self) -> StreamClickedStatus {
+    fn stream_clicked(&mut self) -> ClickedStatus {
         if let (Some(cursor_path), _) = self.treeview.get_cursor() {
             if let Some(iter) = self.store.get_iter(&cursor_path) {
                 let stream = self
@@ -215,12 +215,12 @@ impl<Impl: UIStreamImpl> UIStream<Impl> {
 
                 if let Some(new_stream) = stream_to_select {
                     self.selected = Some(new_stream);
-                    return StreamClickedStatus::Changed;
+                    return ClickedStatus::Changed;
                 }
             }
         }
 
-        StreamClickedStatus::Unchanged
+        ClickedStatus::Unchanged
     }
 
     fn export_toggled(&self, tree_path: gtk::TreePath) -> Option<(glib::GString, bool)> {
@@ -357,7 +357,7 @@ impl UIStreamImpl for UIStreamTextImpl {
     }
 }
 
-pub struct StreamsController {
+pub struct Controller {
     pub(super) page: gtk::Grid,
 
     pub(super) video: UIStream<UIStreamVideoImpl>,
@@ -365,7 +365,7 @@ pub struct StreamsController {
     pub(super) text: UIStream<UIStreamTextImpl>,
 }
 
-impl UIController for StreamsController {
+impl UIController for Controller {
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         self.video.new_media(&pipeline.info.read().unwrap().streams);
         self.audio.new_media(&pipeline.info.read().unwrap().streams);
@@ -388,9 +388,9 @@ impl UIController for StreamsController {
     }
 }
 
-impl StreamsController {
+impl Controller {
     pub fn new(builder: &gtk::Builder) -> Self {
-        let mut ctrl = StreamsController {
+        let mut ctrl = Controller {
             page: builder.get_object("streams-grid").unwrap(),
 
             video: UIStream::new(
@@ -418,7 +418,7 @@ impl StreamsController {
         ctrl
     }
 
-    pub(super) fn stream_clicked(&mut self, type_: gst::StreamType) -> StreamClickedStatus {
+    pub(super) fn stream_clicked(&mut self, type_: gst::StreamType) -> ClickedStatus {
         match type_ {
             gst::StreamType::VIDEO => self.video.stream_clicked(),
             gst::StreamType::AUDIO => self.audio.stream_clicked(),

@@ -1037,7 +1037,6 @@ dependencies = [
  "gstreamer",
  "gstreamer-audio",
  "gtk",
- "lazy_static",
  "log",
  "media-toc-application",
  "media-toc-media",

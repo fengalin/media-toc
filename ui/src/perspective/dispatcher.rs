@@ -2,7 +2,7 @@ use gio::prelude::*;
 use glib::Cast;
 use gtk::prelude::*;
 
-use super::{PerspectiveController, UIDispatcher, UIEventSender};
+use crate::{perspective, prelude::*};
 
 macro_rules! gtk_downcast(
     ($source:expr, $target_type:ty, $item_name:expr) => {
@@ -23,20 +23,17 @@ macro_rules! gtk_downcast(
     };
 );
 
-pub struct PerspectiveDispatcher;
-impl UIDispatcher for PerspectiveDispatcher {
-    type Controller = PerspectiveController;
+pub struct Dispatcher;
+impl UIDispatcher for Dispatcher {
+    type Controller = perspective::Controller;
+    type Event = ();
 
-    fn setup(
-        perspective_ctrl: &mut PerspectiveController,
-        app: &gtk::Application,
-        _ui_event: &UIEventSender,
-    ) {
+    fn setup(perspective_ctrl: &mut perspective::Controller, app: &gtk::Application) {
         let menu_btn_box = gtk_downcast!(
             perspective_ctrl
                 .menu_btn
                 .get_child()
-                .expect("PerspectiveController no box for menu button"),
+                .expect("perspective::Controller no box for menu button"),
             gtk::Box,
             "menu button"
         );
@@ -47,14 +44,17 @@ impl UIDispatcher for PerspectiveDispatcher {
         let stack_children = perspective_ctrl.stack.get_children();
         for (index, perspective_box_child) in popover_box.get_children().iter().enumerate() {
             let stack_child = stack_children.get(index).unwrap_or_else(|| {
-                panic!("PerspectiveController no stack child for index {:?}", index)
+                panic!(
+                    "perspective::Controller no stack child for index {:?}",
+                    index
+                )
             });
 
             let button = gtk_downcast!(perspective_box_child, gtk::Button, "popover box");
             let button_name = button.get_widget_name();
             let button_box = gtk_downcast!(
                 button.get_child().unwrap_or_else(|| panic!(
-                    "PerspectiveController no box for button {:?}",
+                    "perspective::Controller no box for button {:?}",
                     button_name
                 )),
                 gtk::Box,
@@ -65,7 +65,7 @@ impl UIDispatcher for PerspectiveDispatcher {
                 .get_property_icon_name()
                 .unwrap_or_else(|| {
                     panic!(
-                        "PerspectiveController no icon name for button {:?}",
+                        "perspective::Controller no icon name for button {:?}",
                         button_name,
                     )
                 });
@@ -75,7 +75,7 @@ impl UIDispatcher for PerspectiveDispatcher {
                 .get_child_name(stack_child)
                 .unwrap_or_else(|| {
                     panic!(
-                        "PerspectiveController no name for stack page matching {:?}",
+                        "perspective::Controller no name for stack page matching {:?}",
                         button_name,
                     )
                 })
@@ -109,7 +109,7 @@ impl UIDispatcher for PerspectiveDispatcher {
                     let action_splits: Vec<&str> = action_name.splitn(2, '.').collect();
                     if action_splits.len() != 2 {
                         panic!(
-                            "PerspectiveController unexpected action name for button {:?}",
+                            "perspective::Controller unexpected action name for button {:?}",
                             button_name,
                         );
                     }

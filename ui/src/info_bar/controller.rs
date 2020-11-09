@@ -3,27 +3,31 @@ use futures::channel::oneshot;
 use gettextrs::gettext;
 
 use gio::prelude::*;
-use glib::clone;
 use gtk::prelude::*;
 
 use log::{error, info};
 
 use std::cell::RefCell;
 
-use super::{UIEventSender, UIFocusContext};
+use crate::{info_bar, main, prelude::*};
 
-pub struct InfoBarController {
-    info_bar: gtk::InfoBar,
+pub struct Controller {
+    pub(super) info_bar: gtk::InfoBar,
     revealer: gtk::Revealer,
     ok_btn: gtk::Button,
     label: gtk::Label,
     btn_box: gtk::ButtonBox,
     response_src: Option<glib::signal::SignalHandlerId>,
-    ui_event: UIEventSender,
 }
 
-impl InfoBarController {
-    pub fn new(app: &gtk::Application, builder: &gtk::Builder, ui_event: &UIEventSender) -> Self {
+impl UIController for Controller {
+    fn cleanup(&mut self) {
+        self.hide();
+    }
+}
+
+impl Controller {
+    pub fn new(builder: &gtk::Builder) -> Self {
         let info_bar: gtk::InfoBar = builder.get_object("info_bar").unwrap();
         let ok_btn = info_bar
             .add_button(&gettext("Yes"), gtk::ResponseType::Yes)
@@ -35,38 +39,13 @@ impl InfoBarController {
 
         let revealer: gtk::Revealer = builder.get_object("info_bar-revealer").unwrap();
 
-        let close_info_bar_action = gio::SimpleAction::new("close_info_bar", None);
-        app.add_action(&close_info_bar_action);
-        app.set_accels_for_action("app.close_info_bar", &["Escape"]);
-
-        let ui_event_clone = ui_event.clone();
-        info_bar.connect_response(move |_, _| {
-            ui_event_clone.hide_info_bar();
-            ui_event_clone.restore_context();
-        });
-
-        if gst::init().is_ok() {
-            close_info_bar_action
-                .connect_activate(clone!(@strong info_bar => move |_, _| info_bar.emit_close()));
-        } else {
-            close_info_bar_action.connect_activate(clone!(@strong ui_event => move |_, _| {
-                ui_event.quit();
-            }));
-
-            info_bar.connect_response(clone!(@strong ui_event => move |_, _| {
-                ui_event.quit();
-            }));
-        }
-
-        let ui_event = ui_event.clone();
-        InfoBarController {
+        info_bar::Controller {
             info_bar,
             revealer,
             ok_btn,
             label: builder.get_object("info_bar-lbl").unwrap(),
             btn_box: builder.get_object("info_bar-btnbox").unwrap(),
             response_src: None,
-            ui_event,
         }
     }
 
@@ -90,7 +69,7 @@ impl InfoBarController {
         self.label.set_label(msg);
         self.revealer.set_reveal_child(true);
 
-        self.ui_event.temporarily_switch_to(UIFocusContext::InfoBar);
+        main::temporarily_switch_to(UIFocusContext::InfoBar);
     }
 
     pub fn show_error(&mut self, msg: &str) {
@@ -108,16 +87,15 @@ impl InfoBarController {
         question: &str,
         response_sender: oneshot::Sender<gtk::ResponseType>,
     ) {
-        let revealer = self.revealer.clone();
         if let Some(src) = self.response_src.take() {
             self.info_bar.disconnect(src);
         }
 
-        let ui_event = self.ui_event.clone();
+        let revealer = self.revealer.clone();
         let response_sender = RefCell::new(Some(response_sender));
         self.response_src = Some(self.info_bar.connect_response(move |_, response_type| {
             revealer.set_reveal_child(false);
-            ui_event.restore_context();
+            main::restore_context();
             response_sender
                 .borrow_mut()
                 .take()

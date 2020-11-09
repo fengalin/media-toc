@@ -1,30 +1,39 @@
+use futures::{future::LocalBoxFuture, prelude::*};
+
 use gio::prelude::*;
-use glib::clone;
 use gtk::prelude::*;
 
-use super::{MainController, UIDispatcher, UIEventSender};
+use log::debug;
 
-use super::output_base_controller::{OutputBaseController, OutputControllerImpl};
+use crate::{
+    generic_output::{self, prelude::*},
+    main,
+    prelude::*,
+};
 
 pub trait OutputDispatcher {
     type CtrlImpl: OutputControllerImpl + 'static;
 
-    fn ctrl(main_ctrl: &MainController) -> &OutputBaseController<Self::CtrlImpl>;
-    fn ctrl_mut(main_ctrl: &mut MainController) -> &mut OutputBaseController<Self::CtrlImpl>;
+    fn ctrl(main_ctrl: &main::Controller) -> &generic_output::Controller<Self::CtrlImpl>;
+    fn ctrl_mut(
+        main_ctrl: &mut main::Controller,
+    ) -> &mut generic_output::Controller<Self::CtrlImpl>;
 }
 
 impl<T: OutputDispatcher> UIDispatcher for T {
-    type Controller = OutputBaseController<T::CtrlImpl>;
+    type Controller = generic_output::Controller<T::CtrlImpl>;
+    type Event = generic_output::Event;
 
-    fn setup(ctrl: &mut Self::Controller, app: &gtk::Application, ui_event: &UIEventSender) {
-        ctrl.page.connect_map(clone!(@strong ui_event => move |_| {
-            ui_event.switch_to(T::CtrlImpl::FOCUS_CONTEXT);
-        }));
+    fn setup(ctrl: &mut Self::Controller, app: &gtk::Application) {
+        ctrl.page.connect_map(|_| {
+            main::switch_to(T::CtrlImpl::FOCUS_CONTEXT);
+        });
 
-        ctrl.btn
-            .connect_clicked(clone!(@strong ui_event => move |_| {
-                ui_event.trigger_action(T::CtrlImpl::FOCUS_CONTEXT);
-            }));
+        ctrl.btn.connect_clicked(|_| {
+            UIEventChannel::send(<T::CtrlImpl as OutputControllerImpl>::OutputEvent::from(
+                Self::Event::TriggerAction,
+            ));
+        });
 
         ctrl.open_action = Some(
             app.lookup_action("open")
@@ -32,5 +41,33 @@ impl<T: OutputDispatcher> UIDispatcher for T {
                 .downcast::<gio::SimpleAction>()
                 .unwrap(),
         );
+    }
+
+    fn handle_event(
+        main_ctrl: &mut main::Controller,
+        event: impl Into<Self::Event>,
+    ) -> LocalBoxFuture<'_, ()> {
+        let event = event.into();
+        async move {
+            use generic_output::Event::*;
+
+            debug!("handling {:?}", event);
+            match event {
+                ActionOver => T::ctrl_mut(main_ctrl).switch_to_available(),
+                TriggerAction => {
+                    if !T::ctrl(main_ctrl).is_busy {
+                        if let Some(pipeline) = main_ctrl.pipeline.as_mut() {
+                            main_ctrl
+                                .info
+                                .export_chapters(&mut pipeline.info.write().unwrap());
+                            T::ctrl_mut(main_ctrl).start().await;
+                        }
+                    } else {
+                        T::ctrl_mut(main_ctrl).cancel();
+                    }
+                }
+            }
+        }
+        .boxed_local()
     }
 }

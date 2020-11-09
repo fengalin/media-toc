@@ -1,4 +1,3 @@
-use glib::clone;
 use gtk::prelude::*;
 use log::{debug, trace};
 
@@ -14,9 +13,8 @@ use media::{DoubleAudioBuffer, Timestamp, QUEUE_SIZE};
 use metadata::{Duration, MediaInfo};
 use renderers::{DoubleWaveformRenderer, ImagePositions, WaveformRenderer};
 
-use super::{
-    ChaptersBoundaries, PlaybackPipeline, UIController, UIEventSender, WaveformWithOverlay,
-};
+use super::WaveformWithOverlay;
+use crate::{audio, info::ChaptersBoundaries, main, playback, prelude::*};
 
 const BUFFER_DURATION: Duration = Duration::from_secs(60);
 const INIT_REQ_DURATION_FOR_1000PX: Duration = Duration::from_secs(4);
@@ -30,7 +28,7 @@ const SEEK_STEP_DURATION_DIVISOR: u64 = 2;
 const MIN_RANGE_DURATION: Duration = Duration::from_millis(100);
 
 #[derive(Debug, PartialEq)]
-pub enum ControllerState {
+pub enum State {
     Disabled,
     // FIXME those two are more cursor specific than Controller specific
     CursorAboveBoundary(Timestamp),
@@ -44,19 +42,17 @@ pub enum ControllerState {
 }
 
 #[derive(Debug)]
-pub enum AudioAreaEvent {
+pub enum AreaEvent {
     Button(gdk::EventButton),
     Leaving,
     Motion(gdk::EventMotion),
 }
 
-pub struct AudioController {
+pub struct Controller {
     waveform_renderer_mtx: Arc<Mutex<Box<WaveformRenderer>>>,
     pub dbl_renderer_mtx: Arc<Mutex<DoubleAudioBuffer<WaveformRenderer>>>,
     pub(super) positions: Rc<RefCell<ImagePositions>>,
     boundaries: Rc<RefCell<ChaptersBoundaries>>,
-
-    ui_event: UIEventSender,
 
     container: gtk::Box,
     pub(super) drawingarea: gtk::DrawingArea,
@@ -68,22 +64,22 @@ pub struct AudioController {
     pub(super) step_forward_action: gio::SimpleAction,
     pub(super) step_back_action: gio::SimpleAction,
 
-    pub(super) area_height: f64,
-    pub(super) area_width: f64,
-    pub(super) pending_update_conditions: bool,
+    area_height: f64,
+    area_width: f64,
+    pending_update_conditions: bool,
 
-    pub(super) state: ControllerState,
+    pub(super) state: State,
     playback_needs_refresh: bool,
 
     requested_duration: Duration,
-    pub(super) seek_step: Duration,
+    pub(crate) seek_step: Duration,
 
     tick_cb_id: Option<gtk::TickCallbackId>,
 
     ref_lbl: gtk::Label,
 }
 
-impl UIController for AudioController {
+impl UIController for Controller {
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         let is_audio_selected = {
             let info = pipeline.info.read().unwrap();
@@ -91,7 +87,7 @@ impl UIController for AudioController {
         };
 
         if is_audio_selected {
-            self.state = ControllerState::Paused;
+            self.state = State::Paused;
 
             // Refresh conditions asynchronously so that
             // all widgets are arranged to their target positions
@@ -100,7 +96,7 @@ impl UIController for AudioController {
 
         // FIXME: step forward / back actions should probably be
         // defined in the InfoController. On the other hand, they
-        // depend on the seek_step which is defined in AudioController
+        // depend on the seek_step which is defined in Controller
         // since it depends on the zoom factor, which has to do with
         // the waveform.
         self.step_forward_action.set_enabled(true);
@@ -108,7 +104,7 @@ impl UIController for AudioController {
     }
 
     fn cleanup(&mut self) {
-        self.state = ControllerState::Disabled;
+        self.state = State::Disabled;
         self.zoom_in_btn.set_sensitive(false);
         self.zoom_in_action.set_enabled(false);
         self.zoom_out_btn.set_sensitive(false);
@@ -120,7 +116,7 @@ impl UIController for AudioController {
         self.requested_duration = INIT_REQ_DURATION_FOR_1000PX;
         self.seek_step = INIT_REQ_DURATION_FOR_1000PX / SEEK_STEP_DURATION_DIVISOR;
         *self.positions.borrow_mut() = ImagePositions::default();
-        // AudioController accesses self.boundaries as readonly
+        // Controller accesses self.boundaries as readonly
         // clearing it is under the responsiblity of ChapterTreeManager
         self.update_conditions(None);
         self.refresh();
@@ -141,22 +137,16 @@ impl UIController for AudioController {
     }
 }
 
-impl AudioController {
-    pub fn new(
-        builder: &gtk::Builder,
-        ui_event: UIEventSender,
-        boundaries: Rc<RefCell<ChaptersBoundaries>>,
-    ) -> Self {
+impl Controller {
+    pub fn new(builder: &gtk::Builder, boundaries: Rc<RefCell<ChaptersBoundaries>>) -> Self {
         let dbl_waveform = DoubleWaveformRenderer::new_dbl_audio_buffer(BUFFER_DURATION);
         let waveform_renderer_mtx = dbl_waveform.exposed_buffer_mtx();
 
-        let mut ctrl = AudioController {
+        let mut ctrl = Controller {
             waveform_renderer_mtx,
             dbl_renderer_mtx: Arc::new(Mutex::new(dbl_waveform)),
             positions: Rc::new(RefCell::new(ImagePositions::default())),
             boundaries,
-
-            ui_event,
 
             container: builder.get_object("audio-container").unwrap(),
             drawingarea: builder.get_object("audio-drawingarea").unwrap(),
@@ -172,7 +162,7 @@ impl AudioController {
             area_width: 0f64,
             pending_update_conditions: false,
 
-            state: ControllerState::Disabled,
+            state: State::Disabled,
             playback_needs_refresh: false,
 
             requested_duration: INIT_REQ_DURATION_FOR_1000PX,
@@ -193,7 +183,6 @@ impl AudioController {
             &self.waveform_renderer_mtx,
             &self.positions,
             &self.boundaries,
-            &self.ui_event,
             &self.ref_lbl,
         )
     }
@@ -235,11 +224,11 @@ impl AudioController {
 
     pub fn pause(&mut self) {
         match self.state {
-            ControllerState::Playing => {
-                self.state = ControllerState::Paused;
+            State::Playing => {
+                self.state = State::Paused;
             }
-            ControllerState::PlayingRange(ts) => {
-                self.state = ControllerState::PausedPlayingRange(ts);
+            State::PlayingRange(ts) => {
+                self.state = State::PausedPlayingRange(ts);
             }
             _ => return,
         }
@@ -253,11 +242,11 @@ impl AudioController {
 
     pub fn play(&mut self) {
         match self.state {
-            ControllerState::Paused => {
-                self.state = ControllerState::Playing;
+            State::Paused => {
+                self.state = State::Playing;
             }
-            ControllerState::PausedPlayingRange(ts) => {
-                self.state = ControllerState::PlayingRange(ts);
+            State::PausedPlayingRange(ts) => {
+                self.state = State::PlayingRange(ts);
             }
             _ => return,
         }
@@ -268,16 +257,16 @@ impl AudioController {
 
     pub fn seek(&mut self) {
         match self.state {
-            ControllerState::Playing => {
-                self.state = ControllerState::SeekingPlaying;
+            State::Playing => {
+                self.state = State::SeekingPlaying;
             }
-            ControllerState::Paused => self.state = ControllerState::SeekingPaused,
-            ControllerState::PlayingRange(_) => {
+            State::Paused => self.state = State::SeekingPaused,
+            State::PlayingRange(_) => {
                 self.remove_tick_callback();
-                self.state = ControllerState::SeekingPaused;
+                self.state = State::SeekingPaused;
             }
-            ControllerState::PausedPlayingRange(_) => {
-                self.state = ControllerState::SeekingPaused;
+            State::PausedPlayingRange(_) => {
+                self.state = State::SeekingPaused;
             }
             _ => (),
         }
@@ -287,12 +276,12 @@ impl AudioController {
 
     pub fn seek_done(&mut self, ts: Timestamp) {
         match self.state {
-            ControllerState::SeekingPlaying => {
-                self.state = ControllerState::Playing;
+            State::SeekingPlaying => {
+                self.state = State::Playing;
                 self.waveform_renderer_mtx.lock().unwrap().seek_done(ts);
             }
-            ControllerState::SeekingPaused => {
-                self.state = ControllerState::Paused;
+            State::SeekingPaused => {
+                self.state = State::Paused;
                 self.waveform_renderer_mtx.lock().unwrap().seek_done(ts);
                 self.refresh();
             }
@@ -302,11 +291,11 @@ impl AudioController {
 
     pub fn start_play_range(&mut self, to_restore: Timestamp) {
         match self.state {
-            ControllerState::PlayingRange(_) => {
-                self.state = ControllerState::PlayingRange(to_restore);
+            State::PlayingRange(_) => {
+                self.state = State::PlayingRange(to_restore);
             }
-            ControllerState::Paused | ControllerState::PausedPlayingRange(_) => {
-                self.state = ControllerState::PlayingRange(to_restore);
+            State::Paused | State::PausedPlayingRange(_) => {
+                self.state = State::PlayingRange(to_restore);
                 self.register_tick_callback();
             }
             _ => unreachable!("start_play_range in {:?}", self.state),
@@ -315,9 +304,9 @@ impl AudioController {
 
     pub fn stop_play_range(&mut self) {
         match self.state {
-            ControllerState::PlayingRange(_) => {
+            State::PlayingRange(_) => {
                 self.remove_tick_callback();
-                self.state = ControllerState::Paused;
+                self.state = State::Paused;
             }
             _ => unreachable!("stop_play_range in {:?}", self.state),
         }
@@ -333,12 +322,10 @@ impl AudioController {
         if self.tick_cb_id.is_some() {
             return;
         }
-        self.tick_cb_id = Some(self.drawingarea.add_tick_callback(
-            clone!(@strong self.ui_event as ui_event => move |_, _| {
-                ui_event.tick();
-                glib::Continue(true)
-            }),
-        ));
+        self.tick_cb_id = Some(self.drawingarea.add_tick_callback(|_, _| {
+            audio::tick();
+            glib::Continue(true)
+        }));
     }
 
     fn ts_at(&self, x: f64) -> Option<Timestamp> {
@@ -388,7 +375,7 @@ impl AudioController {
             self.pending_update_conditions = false;
         }
 
-        if self.state != ControllerState::Disabled {
+        if self.state != State::Disabled {
             debug!(
                 "update_conditions {}, {}x{}",
                 self.requested_duration, self.area_width, self.area_height,
@@ -419,7 +406,7 @@ impl AudioController {
         }
 
         self.pending_update_conditions = true;
-        self.ui_event.update_audio_rendering_cndt(None);
+        audio::update_rendering_cndt(None);
     }
 
     pub fn zoom_in(&mut self) {
@@ -452,7 +439,7 @@ impl AudioController {
             self.refresh_buffer();
         }
 
-        if let ControllerState::Playing | ControllerState::PlayingRange(_) = self.state {
+        if let State::Playing | State::PlayingRange(_) = self.state {
             self.redraw();
         }
     }
@@ -464,22 +451,22 @@ impl AudioController {
         let (x, _y) = event_motion.get_position();
 
         match self.state {
-            ControllerState::Playing => (),
-            ControllerState::MovingBoundary(boundary) => {
+            State::Playing => (),
+            State::MovingBoundary(boundary) => {
                 return self.ts_at(x).map(|position| (boundary, position));
             }
-            ControllerState::Paused => {
+            State::Paused => {
                 if let Some(boundary) = self.boundary_at(x) {
-                    self.state = ControllerState::CursorAboveBoundary(boundary);
-                    self.ui_event.set_cursor_double_arrow();
+                    self.state = State::CursorAboveBoundary(boundary);
+                    main::set_cursor_double_arrow();
                 }
             }
-            ControllerState::CursorAboveBoundary(_) => {
+            State::CursorAboveBoundary(_) => {
                 if let Some(boundary) = self.boundary_at(x) {
-                    self.state = ControllerState::CursorAboveBoundary(boundary);
+                    self.state = State::CursorAboveBoundary(boundary);
                 } else {
-                    self.state = ControllerState::Paused;
-                    self.ui_event.reset_cursor();
+                    self.state = State::Paused;
+                    main::reset_cursor();
                 }
             }
             _ => (),
@@ -490,11 +477,11 @@ impl AudioController {
 
     pub fn leave_drawing_area(&mut self) {
         match self.state {
-            ControllerState::Playing => (),
-            ControllerState::Paused => (),
-            ControllerState::MovingBoundary(_) | ControllerState::CursorAboveBoundary(_) => {
-                self.state = ControllerState::Paused;
-                self.ui_event.reset_cursor()
+            State::Playing => (),
+            State::Paused => (),
+            State::MovingBoundary(_) | State::CursorAboveBoundary(_) => {
+                self.state = State::Paused;
+                main::reset_cursor()
             }
             _ => (),
         }
@@ -506,14 +493,14 @@ impl AudioController {
                 // left button
                 if let Some(ts) = self.ts_at(event_button.get_position().0) {
                     match self.state {
-                        ControllerState::Playing
-                        | ControllerState::PlayingRange(_)
-                        | ControllerState::Paused
-                        | ControllerState::PausedPlayingRange(_) => {
-                            self.ui_event.seek(ts, gst::SeekFlags::ACCURATE);
+                        State::Playing
+                        | State::PlayingRange(_)
+                        | State::Paused
+                        | State::PausedPlayingRange(_) => {
+                            playback::seek(ts, gst::SeekFlags::ACCURATE);
                         }
-                        ControllerState::CursorAboveBoundary(boundary) => {
-                            self.state = ControllerState::MovingBoundary(boundary);
+                        State::CursorAboveBoundary(boundary) => {
+                            self.state = State::MovingBoundary(boundary);
                         }
                         _ => (),
                     }
@@ -523,21 +510,22 @@ impl AudioController {
                 // right button => range playback in Paused state
                 if let Some(start) = self.ts_at(event_button.get_position().0) {
                     let to_restore = match self.state {
-                        ControllerState::Paused => self
+                        State::Paused => self
                             .positions
                             .borrow()
                             .cursor
                             .as_ref()
                             .map(|cursor| cursor.ts),
-                        ControllerState::PlayingRange(to_restore)
-                        | ControllerState::PausedPlayingRange(to_restore) => Some(to_restore),
+                        State::PlayingRange(to_restore) | State::PausedPlayingRange(to_restore) => {
+                            Some(to_restore)
+                        }
                         _ => None,
                     };
 
                     if let Some(to_restore) = to_restore {
                         let end =
                             start + MIN_RANGE_DURATION.max(self.positions.borrow().last.ts - start);
-                        self.ui_event.play_range(start, end, to_restore);
+                        playback::play_range(start, end, to_restore);
                     }
                 }
             }
@@ -546,10 +534,10 @@ impl AudioController {
     }
 
     pub fn button_released(&mut self, event_button: gdk::EventButton) {
-        if let ControllerState::MovingBoundary(boundary) = self.state {
+        if let State::MovingBoundary(boundary) = self.state {
             if 1 == event_button.get_button() {
                 // left button
-                self.state = ControllerState::CursorAboveBoundary(boundary);
+                self.state = State::CursorAboveBoundary(boundary);
             }
         }
     }

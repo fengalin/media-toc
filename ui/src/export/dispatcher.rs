@@ -1,17 +1,33 @@
-use super::MainController;
+use crate::{
+    export,
+    generic_output::{self, prelude::*},
+    main,
+};
 
-use super::export_controller::{ExportController, ExportControllerImpl};
-use super::output_base_dispatcher::OutputDispatcher;
+#[derive(Debug)]
+pub struct Event(generic_output::Event);
 
-pub struct ExportDispatcher;
-impl OutputDispatcher for ExportDispatcher {
-    type CtrlImpl = ExportControllerImpl;
+impl From<Event> for generic_output::Event {
+    fn from(event: Event) -> Self {
+        event.0
+    }
+}
 
-    fn ctrl(main_ctrl: &MainController) -> &ExportController {
-        &main_ctrl.export_ctrl
+impl From<generic_output::Event> for Event {
+    fn from(event: generic_output::Event) -> Self {
+        Event(event)
+    }
+}
+
+pub struct Dispatcher;
+impl OutputDispatcher for Dispatcher {
+    type CtrlImpl = export::ControllerImpl;
+
+    fn ctrl(main_ctrl: &main::Controller) -> &export::Controller {
+        &main_ctrl.export
     }
 
-    fn ctrl_mut(main_ctrl: &mut MainController) -> &mut ExportController {
-        &mut main_ctrl.export_ctrl
+    fn ctrl_mut(main_ctrl: &mut main::Controller) -> &mut export::Controller {
+        &mut main_ctrl.export
     }
 }

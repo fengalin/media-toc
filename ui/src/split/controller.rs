@@ -1,6 +1,4 @@
-use futures::channel::mpsc as async_mpsc;
-use futures::future::LocalBoxFuture;
-use futures::prelude::*;
+use futures::{channel::mpsc as async_mpsc, future::LocalBoxFuture, prelude::*};
 
 use gettextrs::gettext;
 use gtk::prelude::*;
@@ -15,21 +13,19 @@ use std::{
 use media::{MediaEvent, SplitterPipeline};
 use metadata::{default_chapter_title, Duration, Format, MediaInfo, Stream, TocVisitor};
 
-use super::{PlaybackPipeline, UIController, UIEventSender, UIFocusContext};
-
-use super::output_base_controller::{
-    MediaEventHandling, MediaProcessorError, MediaProcessorImpl, OutputBaseController,
-    OutputControllerImpl, OutputMediaFileInfo, ProcessingType, MEDIA_EVENT_CHANNEL_CAPACITY,
+use crate::{
+    generic_output::{self, prelude::*},
+    prelude::*,
+    split,
 };
 
-pub type SplitController = OutputBaseController<SplitControllerImpl>;
+pub type Controller = generic_output::Controller<ControllerImpl>;
 
-impl SplitController {
-    pub fn new(builder: &gtk::Builder, ui_event: UIEventSender) -> Self {
-        OutputBaseController::<SplitControllerImpl>::new_base(
-            SplitControllerImpl::new(builder),
+impl Controller {
+    pub fn new(builder: &gtk::Builder) -> Self {
+        generic_output::Controller::<ControllerImpl>::new_generic(
+            ControllerImpl::new(builder),
             builder,
-            ui_event,
         )
     }
 }
@@ -50,7 +46,7 @@ macro_rules! update_list_with_format(
     };
 );
 
-pub struct SplitControllerImpl {
+pub struct ControllerImpl {
     is_usable: bool,
 
     src_info: Option<Arc<RwLock<MediaInfo>>>,
@@ -71,15 +67,16 @@ pub struct SplitControllerImpl {
     split_btn: gtk::Button,
 }
 
-impl OutputControllerImpl for SplitControllerImpl {
-    type MediaProcessorImplType = SplitProcessor;
+impl OutputControllerImpl for ControllerImpl {
+    type MediaProcessorImplType = Processor;
+    type OutputEvent = split::Event;
 
     const FOCUS_CONTEXT: UIFocusContext = UIFocusContext::SplitPage;
     const BTN_NAME: &'static str = "split-btn";
     const LIST_NAME: &'static str = "split-list-box";
     const PROGRESS_BAR_NAME: &'static str = "split-progress";
 
-    fn new_processor(&self) -> SplitProcessor {
+    fn new_processor(&self) -> Processor {
         let format = if self.split_to_flac_row.is_selected() {
             Format::Flac
         } else if self.split_to_wave_row.is_selected() {
@@ -98,7 +95,7 @@ impl OutputControllerImpl for SplitControllerImpl {
         // stream is selected (see `streams_changed`)
         debug_assert!(self.selected_audio.is_some());
 
-        SplitProcessor {
+        Processor {
             src_info: Arc::clone(self.src_info.as_ref().unwrap()),
             selected_audio: self.selected_audio.clone(),
             split_file_info: Some({
@@ -123,7 +120,7 @@ impl OutputControllerImpl for SplitControllerImpl {
     }
 }
 
-impl UIController for SplitControllerImpl {
+impl UIController for ControllerImpl {
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         let info_arc = Arc::clone(&pipeline.info);
         self.src_info = Some(info_arc);
@@ -142,9 +139,9 @@ impl UIController for SplitControllerImpl {
     }
 }
 
-impl SplitControllerImpl {
+impl ControllerImpl {
     pub fn new(builder: &gtk::Builder) -> Self {
-        let mut ctrl = SplitControllerImpl {
+        let mut ctrl = ControllerImpl {
             is_usable: false,
 
             src_info: None,
@@ -183,7 +180,7 @@ impl SplitControllerImpl {
     }
 }
 
-pub struct SplitProcessor {
+pub struct Processor {
     src_info: Arc<RwLock<MediaInfo>>,
     selected_audio: Option<Stream>,
 
@@ -196,7 +193,7 @@ pub struct SplitProcessor {
     current_path: Option<Rc<Path>>,
 }
 
-impl SplitProcessor {
+impl Processor {
     fn split_path(&self, chapter: &gst::TocEntry) -> Rc<Path> {
         let mut split_name = String::new();
 
@@ -250,7 +247,7 @@ impl SplitProcessor {
     }
 }
 
-impl Iterator for SplitProcessor {
+impl Iterator for Processor {
     type Item = Rc<Path>;
 
     fn next(&mut self) -> Option<Rc<Path>> {
@@ -306,7 +303,7 @@ impl Iterator for SplitProcessor {
     }
 }
 
-impl MediaProcessorImpl for SplitProcessor {
+impl MediaProcessorImpl for Processor {
     fn process<'a>(
         &'a mut self,
         output_path: &'a Path,
@@ -375,7 +372,7 @@ impl MediaProcessorImpl for SplitProcessor {
             MediaEvent::FailedToExport(err) => Err(gettext("Failed to split media. {}")
                 .replacen("{}", &err, 1)
                 .into()),
-            other => unimplemented!("SplitController: can't handle media event {:?}", other),
+            other => unimplemented!("split::Controller: can't handle media event {:?}", other),
         }
     }
 

@@ -22,7 +22,6 @@ glib = { git = "https://github.com/gtk-rs/gtk-rs" }
 gst = { package = "gstreamer", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
 gst-audio = { package = "gstreamer-audio", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
 gtk = { git = "https://github.com/gtk-rs/gtk-rs", features = ["v3_20"] }
-lazy_static = "1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 media = { path = "../media", package = "media-toc-media"  }
 metadata = { path = "../metadata", package = "media-toc-metadata"  }

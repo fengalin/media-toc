@@ -9,17 +9,13 @@ use media::Timestamp;
 use metadata::{Duration, MediaInfo, Timestamp4Humans};
 use renderers::Image;
 
-use super::{
-    ChapterTreeManager, ChaptersBoundaries, ControllerState, PlaybackPipeline, PositionStatus,
-    UIController, UIEventSender,
-};
+use super::{ChapterTreeManager, ChaptersBoundaries, PositionStatus};
+use crate::{info_bar, main, playback, prelude::*};
 
 const EMPTY_REPLACEMENT: &str = "-";
 const GO_TO_PREV_CHAPTER_THRESHOLD: Duration = Duration::from_secs(1);
 
-pub struct InfoController {
-    ui_event: UIEventSender,
-
+pub struct Controller {
     pub(super) info_container: gtk::Grid,
     pub(super) show_chapters_btn: gtk::ToggleButton,
 
@@ -46,13 +42,13 @@ pub struct InfoController {
 
     thumbnail_handler: Option<glib::SignalHandlerId>,
 
-    pub(super) chapter_manager: ChapterTreeManager,
+    pub(crate) chapter_manager: ChapterTreeManager,
 
     duration: Duration,
-    pub(super) repeat_chapter: bool,
+    pub(crate) repeat_chapter: bool,
 }
 
-impl UIController for InfoController {
+impl UIController for Controller {
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         let toc_extensions = metadata::Factory::extensions();
 
@@ -114,11 +110,11 @@ impl UIController for InfoController {
                                     1,
                                 );
                                 info!("{}", msg);
-                                self.ui_event.show_info(msg);
+                                info_bar::show_info(msg);
                                 None
                             }
                             Err(err) => {
-                                self.ui_event.show_error(
+                                info_bar::show_error(
                                     gettext("Error opening toc file \"{}\":\n{}")
                                         .replacen(
                                             "{}",
@@ -132,8 +128,7 @@ impl UIController for InfoController {
                         }
                     }
                     Err(_) => {
-                        self.ui_event
-                            .show_error(gettext("Failed to open toc file."));
+                        info_bar::show_error(gettext("Failed to open toc file."));
                         None
                     }
                 });
@@ -177,7 +172,7 @@ impl UIController for InfoController {
             self.drawingarea.hide();
         }
 
-        self.ui_event.update_focus();
+        main::update_focus();
     }
 
     fn cleanup(&mut self) {
@@ -253,12 +248,8 @@ impl UIController for InfoController {
     }
 }
 
-impl InfoController {
-    pub fn new(
-        builder: &gtk::Builder,
-        ui_event: UIEventSender,
-        boundaries: Rc<RefCell<ChaptersBoundaries>>,
-    ) -> Self {
+impl Controller {
+    pub fn new(builder: &gtk::Builder, boundaries: Rc<RefCell<ChaptersBoundaries>>) -> Self {
         let mut chapter_manager = ChapterTreeManager::new(
             builder.get_object("chapters-tree-store").unwrap(),
             boundaries,
@@ -266,9 +257,7 @@ impl InfoController {
         let chapter_treeview: gtk::TreeView = builder.get_object("chapter-treeview").unwrap();
         chapter_manager.init_treeview(&chapter_treeview);
 
-        let mut ctrl = InfoController {
-            ui_event,
-
+        let mut ctrl = Controller {
             info_container: builder.get_object("info-chapter_list-grid").unwrap(),
             show_chapters_btn: builder.get_object("show_chapters-toggle").unwrap(),
 
@@ -362,17 +351,17 @@ impl InfoController {
     }
 
     fn repeat_at(&self, ts: Timestamp) {
-        self.ui_event.seek(ts, gst::SeekFlags::ACCURATE)
+        playback::seek(ts, gst::SeekFlags::ACCURATE)
     }
 
-    pub fn tick(&mut self, ts: Timestamp, state: ControllerState) {
+    pub fn tick(&mut self, ts: Timestamp, state: main::State) {
         self.timeline_scale.set_value(ts.as_f64());
 
         let mut position_status = self.chapter_manager.update_ts(ts);
 
         if self.repeat_chapter {
             // repeat is activated
-            if state == ControllerState::EOS {
+            if state == main::State::EOS {
                 // postpone chapter selection change until media has synchronized
                 position_status = PositionStatus::ChapterNotChanged;
                 self.repeat_at(Timestamp::default());
@@ -414,7 +403,7 @@ impl InfoController {
                 }
             }
 
-            self.ui_event.update_focus();
+            main::update_focus();
         }
     }
 
@@ -427,7 +416,7 @@ impl InfoController {
     }
 
     pub fn seek_done(&mut self, target: Timestamp) {
-        self.tick(target, ControllerState::Seeking(target));
+        self.tick(target, main::State::Seeking(target));
     }
 
     pub fn add_chapter(&mut self, ts: Timestamp) {

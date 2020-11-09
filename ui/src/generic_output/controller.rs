@@ -1,7 +1,9 @@
-use futures::channel::{mpsc as async_mpsc, oneshot};
-use futures::future::{abortable, AbortHandle, LocalBoxFuture};
-use futures::prelude::*;
-use futures::stream;
+use futures::{
+    channel::{mpsc as async_mpsc, oneshot},
+    future::{abortable, AbortHandle, LocalBoxFuture},
+    prelude::*,
+    stream,
+};
 
 use gettextrs::gettext;
 use gtk::prelude::*;
@@ -20,10 +22,10 @@ use std::{
 use media::MediaEvent;
 use metadata::{Format, MediaInfo};
 
-use super::{spawn, PlaybackPipeline, UIController, UIEventSender, UIFocusContext};
+use crate::{generic_output, info_bar, main, prelude::*, spawn, UIEvent};
 
 pub const MEDIA_EVENT_CHANNEL_CAPACITY: usize = 1;
-pub const PROGRESS_TIMER_PERIOD: Duration = Duration::from_millis(250);
+const PROGRESS_TIMER_PERIOD: Duration = Duration::from_millis(250);
 
 pub enum ProcessingType {
     Async(async_mpsc::Receiver<media::MediaEvent>),
@@ -91,7 +93,6 @@ struct MediaProcessor<CtrlImpl: OutputControllerImpl + 'static> {
 impl<CtrlImpl: OutputControllerImpl + 'static> MediaProcessor<CtrlImpl> {
     pub(super) async fn spawn(
         impl_: CtrlImpl::MediaProcessorImplType,
-        mut ui_event: UIEventSender,
         progress_bar: gtk::ProgressBar,
         btn: gtk::Button,
     ) -> AbortHandle {
@@ -103,20 +104,22 @@ impl<CtrlImpl: OutputControllerImpl + 'static> MediaProcessor<CtrlImpl> {
 
         let (sender, receiver) = oneshot::channel();
         spawn(async move {
-            let (abortable_run, abort_handle) = abortable(Self::run(&mut this, &mut ui_event));
+            let (abortable_run, abort_handle) = abortable(Self::run(&mut this));
             sender.send(abort_handle).unwrap();
 
             if abortable_run.await.is_err() {
                 this.impl_.cancel();
             }
 
-            ui_event.action_over(CtrlImpl::FOCUS_CONTEXT);
+            UIEventChannel::send(CtrlImpl::OutputEvent::from(
+                generic_output::Event::ActionOver,
+            ));
         });
 
         receiver.await.unwrap()
     }
 
-    async fn run(&mut self, ui_event: &mut UIEventSender) {
+    async fn run(&mut self) {
         use ProcessingState::*;
 
         let mut state = ProcessingState::Init;
@@ -125,12 +128,12 @@ impl<CtrlImpl: OutputControllerImpl + 'static> MediaProcessor<CtrlImpl> {
         loop {
             match state {
                 AllDone => {
-                    ui_event.show_info(CtrlImpl::MediaProcessorImplType::completion_msg());
+                    info_bar::show_info(CtrlImpl::MediaProcessorImplType::completion_msg());
                     break;
                 }
                 ConfirmedOutputTo(path) => {
                     if let Err(err) = self.process(path.as_ref()).await {
-                        ui_event.show_error(err);
+                        info_bar::show_error(err);
                         break;
                     }
 
@@ -157,7 +160,7 @@ impl<CtrlImpl: OutputControllerImpl + 'static> MediaProcessor<CtrlImpl> {
 
                     // Path exists and overwrite_all is not true
                     self.btn.set_sensitive(false);
-                    ui_event.reset_cursor();
+                    main::reset_cursor();
 
                     let filename = path.file_name().expect("no `filename` in `path`");
                     let filename = filename
@@ -169,7 +172,7 @@ impl<CtrlImpl: OutputControllerImpl + 'static> MediaProcessor<CtrlImpl> {
                         1,
                     );
 
-                    let response = ui_event.ask_question(question).await;
+                    let response = info_bar::ask_question(question).await;
                     self.btn.set_sensitive(true);
 
                     let next_state = match response {
@@ -190,7 +193,7 @@ impl<CtrlImpl: OutputControllerImpl + 'static> MediaProcessor<CtrlImpl> {
                         ),
                     };
 
-                    ui_event.set_cursor_waiting();
+                    main::set_cursor_waiting();
                     state = next_state;
                 }
             }
@@ -236,6 +239,10 @@ impl<CtrlImpl: OutputControllerImpl + 'static> MediaProcessor<CtrlImpl> {
 
 pub trait OutputControllerImpl: UIController {
     type MediaProcessorImplType: MediaProcessorImpl + 'static;
+    type OutputEvent: From<generic_output::Event>
+        + Into<generic_output::Event>
+        + Into<UIEvent>
+        + 'static;
 
     const FOCUS_CONTEXT: UIFocusContext;
     const BTN_NAME: &'static str;
@@ -266,9 +273,8 @@ impl OutputMediaFileInfo {
     }
 }
 
-pub struct OutputBaseController<Impl> {
+pub struct Controller<Impl> {
     pub(super) impl_: Impl,
-    ui_event: UIEventSender,
 
     progress_bar: gtk::ProgressBar,
     list: gtk::ListBox,
@@ -279,21 +285,20 @@ pub struct OutputBaseController<Impl> {
     pub(super) open_action: Option<gio::SimpleAction>,
     pub(super) page: gtk::Widget,
 
-    pub(super) is_busy: bool,
+    pub(crate) is_busy: bool,
     processor_abort_handle: Option<AbortHandle>,
 }
 
-impl<Impl: OutputControllerImpl + 'static> OutputBaseController<Impl> {
-    pub fn new_base(impl_: Impl, builder: &gtk::Builder, ui_event: UIEventSender) -> Self {
+impl<Impl: OutputControllerImpl + 'static> Controller<Impl> {
+    pub fn new_generic(impl_: Impl, builder: &gtk::Builder) -> Self {
         let btn: gtk::Button = builder.get_object(Impl::BTN_NAME).unwrap();
         let list: gtk::ListBox = builder.get_object(Impl::LIST_NAME).unwrap();
         let page: gtk::Widget = list
             .get_parent()
             .unwrap_or_else(|| panic!("Couldn't get parent for list {}", Impl::LIST_NAME));
 
-        let ctrl = OutputBaseController {
+        let ctrl = Controller {
             impl_,
-            ui_event,
 
             btn_default_label: btn.get_label().unwrap(),
             btn,
@@ -319,7 +324,6 @@ impl<Impl: OutputControllerImpl + 'static> OutputBaseController<Impl> {
         self.processor_abort_handle = Some(
             MediaProcessor::<Impl>::spawn(
                 self.impl_.new_processor(),
-                self.ui_event.clone(),
                 self.progress_bar.clone(),
                 self.btn.clone(),
             )
@@ -340,12 +344,12 @@ impl<Impl: OutputControllerImpl + 'static> OutputBaseController<Impl> {
         self.perspective_selector.set_sensitive(false);
         self.open_action.as_ref().unwrap().set_enabled(false);
 
-        self.ui_event.set_cursor_waiting();
+        main::set_cursor_waiting();
 
         self.is_busy = true;
     }
 
-    pub(super) fn switch_to_available(&mut self) {
+    pub(crate) fn switch_to_available(&mut self) {
         self.processor_abort_handle = None;
         self.is_busy = false;
 
@@ -356,11 +360,11 @@ impl<Impl: OutputControllerImpl + 'static> OutputBaseController<Impl> {
         self.perspective_selector.set_sensitive(true);
         self.open_action.as_ref().unwrap().set_enabled(true);
 
-        self.ui_event.reset_cursor();
+        main::reset_cursor();
     }
 }
 
-impl<Impl: OutputControllerImpl> UIController for OutputBaseController<Impl> {
+impl<Impl: OutputControllerImpl> UIController for Controller<Impl> {
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         self.btn.set_sensitive(true);
         self.impl_.new_media(pipeline);

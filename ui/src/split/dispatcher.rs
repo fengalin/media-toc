@@ -1,17 +1,32 @@
-use super::MainController;
+use crate::{
+    generic_output::{self, prelude::*},
+    main, split,
+};
 
-use super::output_base_dispatcher::OutputDispatcher;
-use super::split_controller::{SplitController, SplitControllerImpl};
+#[derive(Debug)]
+pub struct Event(generic_output::Event);
 
-pub struct SplitDispatcher;
-impl OutputDispatcher for SplitDispatcher {
-    type CtrlImpl = SplitControllerImpl;
+impl From<Event> for generic_output::Event {
+    fn from(event: Event) -> Self {
+        event.0
+    }
+}
 
-    fn ctrl(main_ctrl: &MainController) -> &SplitController {
-        &main_ctrl.split_ctrl
+impl From<generic_output::Event> for Event {
+    fn from(event: generic_output::Event) -> Self {
+        Event(event)
+    }
+}
+
+pub struct Dispatcher;
+impl OutputDispatcher for Dispatcher {
+    type CtrlImpl = split::ControllerImpl;
+
+    fn ctrl(main_ctrl: &main::Controller) -> &split::Controller {
+        &main_ctrl.split
     }
 
-    fn ctrl_mut(main_ctrl: &mut MainController) -> &mut SplitController {
-        &mut main_ctrl.split_ctrl
+    fn ctrl_mut(main_ctrl: &mut main::Controller) -> &mut split::Controller {
+        &mut main_ctrl.split
     }
 }

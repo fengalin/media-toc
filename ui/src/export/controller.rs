@@ -1,6 +1,4 @@
-use futures::channel::mpsc as async_mpsc;
-use futures::future::LocalBoxFuture;
-use futures::prelude::*;
+use futures::{channel::mpsc as async_mpsc, future::LocalBoxFuture, prelude::*};
 
 use gettextrs::gettext;
 use gtk::prelude::*;
@@ -16,26 +14,24 @@ use std::{
 use media::{MediaEvent, TocSetterPipeline};
 use metadata::{Duration, Exporter, Format, MatroskaTocFormat, MediaInfo};
 
-use super::{PlaybackPipeline, UIController, UIEventSender, UIFocusContext};
-
-use super::output_base_controller::{
-    MediaEventHandling, MediaProcessorError, MediaProcessorImpl, OutputBaseController,
-    OutputControllerImpl, OutputMediaFileInfo, ProcessingType, MEDIA_EVENT_CHANNEL_CAPACITY,
+use crate::{
+    export,
+    generic_output::{self, prelude::*},
+    prelude::*,
 };
 
-pub type ExportController = OutputBaseController<ExportControllerImpl>;
+pub type Controller = generic_output::Controller<ControllerImpl>;
 
-impl ExportController {
-    pub fn new(builder: &gtk::Builder, ui_event: UIEventSender) -> Self {
-        OutputBaseController::<ExportControllerImpl>::new_base(
-            ExportControllerImpl::new(builder),
+impl Controller {
+    pub fn new(builder: &gtk::Builder) -> Self {
+        generic_output::Controller::<ControllerImpl>::new_generic(
+            ControllerImpl::new(builder),
             builder,
-            ui_event,
         )
     }
 }
 
-pub struct ExportControllerImpl {
+pub struct ControllerImpl {
     src_info: Option<Arc<RwLock<MediaInfo>>>,
 
     export_list: gtk::ListBox,
@@ -47,15 +43,16 @@ pub struct ExportControllerImpl {
     export_btn: gtk::Button,
 }
 
-impl OutputControllerImpl for ExportControllerImpl {
-    type MediaProcessorImplType = ExportProcessor;
+impl OutputControllerImpl for ControllerImpl {
+    type MediaProcessorImplType = Processor;
+    type OutputEvent = export::Event;
 
     const FOCUS_CONTEXT: UIFocusContext = UIFocusContext::ExportPage;
     const BTN_NAME: &'static str = "export-btn";
     const LIST_NAME: &'static str = "export-list-box";
     const PROGRESS_BAR_NAME: &'static str = "export-progress";
 
-    fn new_processor(&self) -> ExportProcessor {
+    fn new_processor(&self) -> Processor {
         let format = if self.mkvmerge_txt_row.is_selected() {
             Format::MKVMergeText
         } else if self.cue_row.is_selected() {
@@ -63,10 +60,10 @@ impl OutputControllerImpl for ExportControllerImpl {
         } else if self.mkv_row.is_selected() {
             Format::Matroska
         } else {
-            unreachable!("ExportControllerImpl::get_selected_format unknown export type");
+            unreachable!("export::ControllerImpl::get_selected_format unknown export type");
         };
 
-        ExportProcessor {
+        Processor {
             src_info: Arc::clone(self.src_info.as_ref().unwrap()),
             idx: 0,
             export_file_info: Some({
@@ -78,7 +75,7 @@ impl OutputControllerImpl for ExportControllerImpl {
     }
 }
 
-impl UIController for ExportControllerImpl {
+impl UIController for ControllerImpl {
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         self.src_info = Some(Arc::clone(&pipeline.info));
     }
@@ -88,9 +85,9 @@ impl UIController for ExportControllerImpl {
     }
 }
 
-impl ExportControllerImpl {
+impl ControllerImpl {
     pub fn new(builder: &gtk::Builder) -> Self {
-        let ctrl = ExportControllerImpl {
+        let ctrl = ControllerImpl {
             src_info: None,
 
             export_list: builder.get_object(Self::LIST_NAME).unwrap(),
@@ -117,14 +114,14 @@ impl ExportControllerImpl {
     }
 }
 
-pub struct ExportProcessor {
+pub struct Processor {
     src_info: Arc<RwLock<MediaInfo>>,
     idx: usize,
     export_file_info: Option<OutputMediaFileInfo>,
     toc_setter_pipeline: Option<TocSetterPipeline>,
 }
 
-impl Iterator for ExportProcessor {
+impl Iterator for Processor {
     type Item = Rc<Path>;
 
     fn next(&mut self) -> Option<Rc<Path>> {
@@ -140,7 +137,7 @@ impl Iterator for ExportProcessor {
     }
 }
 
-impl MediaProcessorImpl for ExportProcessor {
+impl MediaProcessorImpl for Processor {
     fn process<'a>(
         &'a mut self,
         output_path: &'a Path,
@@ -188,7 +185,7 @@ impl MediaProcessorImpl for ExportProcessor {
                     self.toc_setter_pipeline = Some(toc_setter_pipeline);
                     Ok(ProcessingType::Async(receiver))
                 }
-                format => unimplemented!("ExportControllerImpl for format {:?}", format),
+                format => unimplemented!("export::ControllerImpl for format {:?}", format),
             }
         }
         .boxed_local()
@@ -217,7 +214,7 @@ impl MediaProcessorImpl for ExportProcessor {
                 let toc_setter_pipeline = self
                     .toc_setter_pipeline
                     .as_mut()
-                    .expect("ExportController::handle_media_event no toc_setter_pipeline");
+                    .expect("export::Controller::handle_media_event no toc_setter_pipeline");
 
                 let exporter = MatroskaTocFormat::new();
                 {
@@ -239,7 +236,7 @@ impl MediaProcessorImpl for ExportProcessor {
             MediaEvent::FailedToExport(err) => Err(gettext("Failed to export media. {}")
                 .replacen("{}", &err, 1)
                 .into()),
-            other => unimplemented!("ExportController: can't handle media event {:?}", other),
+            other => unimplemented!("export::Controller: can't handle media event {:?}", other),
         }
     }
 

@@ -1,7 +1,6 @@
 use futures::channel::mpsc as async_mpsc;
 
 use gettextrs::{gettext, ngettext};
-use glib::clone;
 use gtk::prelude::*;
 
 use log::{debug, error};
@@ -11,17 +10,19 @@ use std::{borrow::ToOwned, cell::RefCell, collections::HashSet, path::PathBuf, r
 use application::{CommandLineArguments, APP_ID, CONFIG};
 use media::{MediaEvent, PlaybackState, Timestamp};
 
-use super::{
-    AudioAreaEvent, AudioController, ChapterEntry, ChaptersBoundaries, ExportController,
-    InfoController, OutputDispatcher, PerspectiveController, PlaybackPipeline, PositionStatus,
-    SplitController, StreamsController, UIController, UIEventSender, VideoController,
+use crate::{
+    audio, export,
+    info::{self, ChaptersBoundaries},
+    info_bar, main, perspective,
+    prelude::*,
+    split, streams, video,
 };
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
 const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ControllerState {
+pub enum State {
     CompletePlayRange(Timestamp),
     EOS,
     Paused,
@@ -37,39 +38,38 @@ pub enum ControllerState {
     TwoStepsSeek(Timestamp),
 }
 
-pub struct MainController {
+pub struct Controller {
     window: gtk::ApplicationWindow,
     pub(super) window_delete_id: Option<glib::signal::SignalHandlerId>,
 
     header_bar: gtk::HeaderBar,
     pub(super) playback_paned: gtk::Paned,
-    pub(super) play_pause_btn: gtk::ToolButton,
+    pub(crate) play_pause_btn: gtk::ToolButton,
     file_dlg: gtk::FileChooserNative,
 
-    pub(super) ui_event: UIEventSender,
     media_event_sender: async_mpsc::Sender<MediaEvent>,
 
-    pub(super) perspective_ctrl: PerspectiveController,
-    pub(super) video_ctrl: VideoController,
-    pub(super) info_ctrl: InfoController,
-    pub(super) audio_ctrl: AudioController,
-    pub(super) export_ctrl: ExportController,
-    pub(super) split_ctrl: SplitController,
-    pub(super) streams_ctrl: StreamsController,
+    pub(crate) perspective: perspective::Controller,
+    pub(crate) video: video::Controller,
+    pub(crate) info: info::Controller,
+    pub(crate) info_bar: info_bar::Controller,
+    pub(crate) audio: audio::Controller,
+    pub(crate) export: export::Controller,
+    pub(crate) split: split::Controller,
+    pub(crate) streams: streams::Controller,
 
-    pub(super) pipeline: Option<PlaybackPipeline>,
+    pub(crate) pipeline: Option<PlaybackPipeline>,
     missing_plugins: HashSet<String>,
-    pub(super) state: ControllerState,
+    pub(crate) state: State,
 
-    callback_when_paused: Option<Box<dyn Fn(&mut MainController)>>,
+    callback_when_paused: Option<Box<dyn Fn(&mut main::Controller)>>,
 }
 
-impl MainController {
+impl Controller {
     pub fn new(
         window: &gtk::ApplicationWindow,
         args: &CommandLineArguments,
         builder: &gtk::Builder,
-        ui_event: &UIEventSender,
         media_event_sender: async_mpsc::Sender<MediaEvent>,
     ) -> Self {
         let chapters_boundaries = Rc::new(RefCell::new(ChaptersBoundaries::new()));
@@ -82,15 +82,15 @@ impl MainController {
             .cancel_label(&gettext("Cancel"))
             .build();
 
-        file_dlg.connect_response(clone!(@strong ui_event => move |file_dlg, response| {
+        file_dlg.connect_response(|file_dlg, response| {
             file_dlg.hide();
             match (response, file_dlg.get_filename()) {
-                (gtk::ResponseType::Accept, Some(path)) => ui_event.open_media(path),
-                _ => ui_event.cancel_select_media(),
+                (gtk::ResponseType::Accept, Some(path)) => main::open_media(path),
+                _ => main::cancel_select_media(),
             }
-        }));
+        });
 
-        MainController {
+        Controller {
             window: window.clone(),
             window_delete_id: None,
 
@@ -99,24 +99,20 @@ impl MainController {
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
             file_dlg,
 
-            ui_event: ui_event.clone(),
             media_event_sender,
 
-            perspective_ctrl: PerspectiveController::new(&builder),
-            video_ctrl: VideoController::new(&builder, args),
-            info_ctrl: InfoController::new(
-                &builder,
-                ui_event.clone(),
-                Rc::clone(&chapters_boundaries),
-            ),
-            audio_ctrl: AudioController::new(&builder, ui_event.clone(), chapters_boundaries),
-            export_ctrl: ExportController::new(&builder, ui_event.clone()),
-            split_ctrl: SplitController::new(&builder, ui_event.clone()),
-            streams_ctrl: StreamsController::new(&builder),
+            perspective: perspective::Controller::new(builder),
+            video: video::Controller::new(builder, args),
+            info: info::Controller::new(&builder, Rc::clone(&chapters_boundaries)),
+            info_bar: info_bar::Controller::new(builder),
+            audio: audio::Controller::new(builder, chapters_boundaries),
+            export: export::Controller::new(builder),
+            split: split::Controller::new(builder),
+            streams: streams::Controller::new(builder),
 
             pipeline: None,
             missing_plugins: HashSet::<String>::new(),
-            state: ControllerState::Stopped,
+            state: State::Stopped,
 
             callback_when_paused: None,
         }
@@ -148,8 +144,8 @@ impl MainController {
             pipeline.stop();
         }
 
-        self.export_ctrl.cancel();
-        self.split_ctrl.cancel();
+        self.export.cancel();
+        self.split.cancel();
 
         if let Some(window_delete_id) = self.window_delete_id.take() {
             let size = self.window.get_size();
@@ -177,67 +173,67 @@ impl MainController {
         };
 
         match self.state {
-            ControllerState::Paused => {
+            State::Paused => {
                 self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
-                self.state = ControllerState::Playing;
-                self.audio_ctrl.play();
+                self.state = State::Playing;
+                self.audio.play();
                 pipeline.play().unwrap();
             }
-            ControllerState::PausedPlayingRange(to_restore) => {
+            State::PausedPlayingRange(to_restore) => {
                 self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
-                self.state = ControllerState::PlayingRange(to_restore);
-                self.audio_ctrl.play();
+                self.state = State::PlayingRange(to_restore);
+                self.audio.play();
                 pipeline.play().unwrap();
             }
-            ControllerState::PlayingRange(to_restore) => {
+            State::PlayingRange(to_restore) => {
                 self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
-                self.state = ControllerState::PausedPlayingRange(to_restore);
+                self.state = State::PausedPlayingRange(to_restore);
                 pipeline.pause().unwrap();
-                self.audio_ctrl.pause();
+                self.audio.pause();
             }
-            ControllerState::Playing => {
+            State::Playing => {
                 self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
-                self.state = ControllerState::Paused;
-                self.audio_ctrl.pause();
+                self.state = State::Paused;
+                self.audio.pause();
                 pipeline.pause().unwrap();
             }
-            ControllerState::EOS => {
+            State::EOS => {
                 // Restart the stream from the begining
                 self.seek(Timestamp::default(), gst::SeekFlags::ACCURATE);
             }
-            ControllerState::Stopped => self.select_media(),
+            State::Stopped => self.select_media(),
             _ => (),
         }
     }
 
     pub fn seek(&mut self, mut ts: Timestamp, mut flags: gst::SeekFlags) {
         match self.state {
-            ControllerState::Playing => {
-                self.state = ControllerState::Seeking(ts);
-                self.audio_ctrl.seek();
+            State::Playing => {
+                self.state = State::Seeking(ts);
+                self.audio.seek();
             }
-            ControllerState::Paused | ControllerState::PausedPlayingRange(_) => {
+            State::Paused | State::PausedPlayingRange(_) => {
                 flags = gst::SeekFlags::ACCURATE;
-                let seek_1st_step = self.audio_ctrl.first_ts_for_paused_seek(ts);
+                let seek_1st_step = self.audio.first_ts_for_paused_seek(ts);
                 match seek_1st_step {
                     Some(seek_1st_step) => {
                         let seek_2d_step = ts;
                         ts = seek_1st_step;
-                        self.state = ControllerState::TwoStepsSeek(seek_2d_step);
-                        self.audio_ctrl.seek();
+                        self.state = State::TwoStepsSeek(seek_2d_step);
+                        self.audio.seek();
                     }
                     None => {
-                        self.state = ControllerState::Seeking(ts);
-                        self.audio_ctrl.seek();
+                        self.state = State::Seeking(ts);
+                        self.audio.seek();
                     }
                 }
             }
-            ControllerState::PlayingRange(_) => {
-                self.state = ControllerState::PendingSeek(ts);
+            State::PlayingRange(_) => {
+                self.state = State::PendingSeek(ts);
                 self.pipeline.as_ref().unwrap().pause().unwrap();
                 return;
             }
-            ControllerState::TwoStepsSeek(target) => {
+            State::TwoStepsSeek(target) => {
                 // seeked position and target might be different if the user
                 // seeks repeatedly and rapidly: we can receive a new seek while still
                 // being in the `TwoStepsSeek` step from previous seek.
@@ -245,12 +241,12 @@ impl MainController {
                 // `TwoStepsSeek` (which purpose is to center the cursor on the waveform)
                 // than reaching for the latest seeked position
                 ts = target;
-                self.state = ControllerState::Seeking(ts);
+                self.state = State::Seeking(ts);
             }
-            ControllerState::EOS => {
-                self.state = ControllerState::Seeking(ts);
-                self.audio_ctrl.play();
-                self.audio_ctrl.seek();
+            State::EOS => {
+                self.state = State::Seeking(ts);
+                self.audio.play();
+                self.audio.seek();
             }
             _ => return,
         }
@@ -262,13 +258,11 @@ impl MainController {
 
     pub fn play_range(&mut self, start: Timestamp, end: Timestamp, to_restore: Timestamp) {
         match self.state {
-            ControllerState::Paused
-            | ControllerState::PlayingRange(_)
-            | ControllerState::PausedPlayingRange(_) => {
+            State::Paused | State::PlayingRange(_) | State::PausedPlayingRange(_) => {
                 self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
-                self.audio_ctrl.start_play_range(to_restore);
+                self.audio.start_play_range(to_restore);
 
-                self.state = ControllerState::PlayingRange(to_restore);
+                self.state = State::PlayingRange(to_restore);
                 self.pipeline.as_ref().unwrap().seek_range(start, end);
             }
             _ => (),
@@ -280,38 +274,31 @@ impl MainController {
     }
 
     pub fn redraw(&mut self) {
-        self.audio_ctrl.redraw();
-    }
-
-    pub fn refresh_info(&mut self, ts: Timestamp) {
-        match self.state {
-            ControllerState::Seeking(_) => (),
-            _ => self.info_ctrl.tick(ts, self.state),
-        }
+        self.audio.redraw();
     }
 
     pub fn select_streams(&mut self, stream_ids: &[Arc<str>]) {
         self.pipeline.as_ref().unwrap().select_streams(stream_ids);
         // In Playing state, wait for the notification from the pipeline
         // Otherwise, update immediately
-        if self.state != ControllerState::Playing {
+        if self.state != State::Playing {
             self.streams_selected();
         }
     }
 
     pub fn streams_selected(&mut self) {
         let info = self.pipeline.as_ref().unwrap().info.read().unwrap();
-        self.audio_ctrl.streams_changed(&info);
-        self.export_ctrl.streams_changed(&info);
-        self.info_ctrl.streams_changed(&info);
-        self.perspective_ctrl.streams_changed(&info);
-        self.split_ctrl.streams_changed(&info);
-        self.video_ctrl.streams_changed(&info);
+        self.audio.streams_changed(&info);
+        self.export.streams_changed(&info);
+        self.info.streams_changed(&info);
+        self.perspective.streams_changed(&info);
+        self.split.streams_changed(&info);
+        self.video.streams_changed(&info);
     }
 
     pub fn hold(&mut self) {
-        self.ui_event.set_cursor_waiting();
-        self.audio_ctrl.pause();
+        main::set_cursor_waiting();
+        self.audio.pause();
         self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
 
         if let Some(pipeline) = self.pipeline.as_mut() {
@@ -319,8 +306,8 @@ impl MainController {
         };
     }
 
-    pub fn pause_and_callback(&mut self, callback: Box<dyn Fn(&mut MainController)>) {
-        self.audio_ctrl.pause();
+    pub fn pause_and_callback(&mut self, callback: Box<dyn Fn(&mut main::Controller)>) {
+        self.audio.pause();
         self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
 
         if let Some(pipeline) = self.pipeline.as_mut() {
@@ -328,11 +315,11 @@ impl MainController {
         };
 
         match &self.state {
-            ControllerState::Playing | ControllerState::EOS => {
+            State::Playing | State::EOS => {
                 self.callback_when_paused = Some(callback);
-                self.state = ControllerState::PendingPaused;
+                self.state = State::PendingPaused;
             }
-            ControllerState::Paused => callback(self),
+            State::Paused => callback(self),
             other => unimplemented!("MainController::pause_and_callback in {:?}", other),
         }
     }
@@ -361,27 +348,27 @@ impl MainController {
 
     pub fn handle_media_event(&mut self, event: MediaEvent) {
         match self.state {
-            ControllerState::Playing => match event {
+            State::Playing => match event {
                 MediaEvent::Eos => {
-                    self.state = ControllerState::EOS;
+                    self.state = State::EOS;
                     self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
-                    self.audio_ctrl.pause();
+                    self.audio.pause();
                 }
                 // FIXME select_stream might be eligible for an async impl
                 MediaEvent::StreamsSelected => self.streams_selected(),
                 _ => (),
             },
-            ControllerState::PlayingRange(pos_to_restore) => match event {
+            State::PlayingRange(pos_to_restore) => match event {
                 MediaEvent::Eos => {
                     // end of range => pause and seek back to pos_to_restore
                     self.pipeline.as_ref().unwrap().pause().unwrap();
-                    self.state = ControllerState::CompletePlayRange(pos_to_restore);
+                    self.state = State::CompletePlayRange(pos_to_restore);
                 }
                 // FIXME select_stream might be eligible for an async impl
                 MediaEvent::StreamsSelected => self.streams_selected(),
                 _ => (),
             },
-            ControllerState::CompletePlayRange(pos_to_restore) => match event {
+            State::CompletePlayRange(pos_to_restore) => match event {
                 MediaEvent::ReadyToRefresh => {
                     self.pipeline
                         .as_ref()
@@ -390,61 +377,61 @@ impl MainController {
                 }
                 MediaEvent::AsyncDone(_) => {
                     self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
-                    self.state = ControllerState::Paused;
-                    self.audio_ctrl.stop_play_range();
+                    self.state = State::Paused;
+                    self.audio.stop_play_range();
                 }
                 _ => (),
             },
-            ControllerState::Seeking(ts) => {
+            State::Seeking(ts) => {
                 if let MediaEvent::AsyncDone(playback_state) = event {
                     match playback_state {
-                        PlaybackState::Playing => self.state = ControllerState::Playing,
-                        PlaybackState::Paused => self.state = ControllerState::Paused,
+                        PlaybackState::Playing => self.state = State::Playing,
+                        PlaybackState::Paused => self.state = State::Paused,
                     }
 
                     debug!("seek to {} done", ts);
-                    self.info_ctrl.seek_done(ts);
-                    self.audio_ctrl.seek_done(ts);
+                    self.info.seek_done(ts);
+                    self.audio.seek_done(ts);
                 }
             }
-            ControllerState::TwoStepsSeek(target) => {
+            State::TwoStepsSeek(target) => {
                 if let MediaEvent::ReadyToRefresh = event {
                     self.seek(target, gst::SeekFlags::ACCURATE);
                 }
             }
-            ControllerState::Paused => match event {
-                MediaEvent::ReadyToRefresh => self.audio_ctrl.refresh(),
+            State::Paused => match event {
+                MediaEvent::ReadyToRefresh => self.audio.refresh(),
                 // FIXME select_stream might be eligible for an async impl
                 MediaEvent::StreamsSelected => self.streams_selected(),
                 _ => (),
             },
-            ControllerState::EOS | ControllerState::PausedPlayingRange(_) => {
+            State::EOS | State::PausedPlayingRange(_) => {
                 if let MediaEvent::StreamsSelected = event {
                     // FIXME select_stream might be eligible for an async impl
                     self.streams_selected();
                 }
             }
             // FIXME Pending states seem to be eligible for async implementations
-            ControllerState::PendingSeek(ts) => {
+            State::PendingSeek(ts) => {
                 if let MediaEvent::ReadyToRefresh = event {
-                    self.state = ControllerState::Paused;
+                    self.state = State::Paused;
                     self.seek(ts, gst::SeekFlags::ACCURATE);
                 }
             }
-            ControllerState::PendingPaused => {
+            State::PendingPaused => {
                 if let MediaEvent::ReadyToRefresh = event {
-                    self.state = ControllerState::Paused;
+                    self.state = State::Paused;
                     if let Some(callback) = self.callback_when_paused.take() {
                         callback(self)
                     }
                 }
             }
-            ControllerState::PendingSelectMedia => {
+            State::PendingSelectMedia => {
                 if let MediaEvent::ReadyToRefresh = event {
                     self.select_media();
                 }
             }
-            ControllerState::Stopped | ControllerState::PendingSelectMediaDecision => match event {
+            State::Stopped | State::PendingSelectMediaDecision => match event {
                 MediaEvent::InitDone => {
                     debug!("received `InitDone`");
                     {
@@ -453,24 +440,24 @@ impl MainController {
                         self.header_bar
                             .set_subtitle(Some(pipeline.info.read().unwrap().file_name.as_str()));
 
-                        self.audio_ctrl.new_media(&pipeline);
-                        self.export_ctrl.new_media(&pipeline);
-                        self.info_ctrl.new_media(&pipeline);
-                        self.perspective_ctrl.new_media(&pipeline);
-                        self.split_ctrl.new_media(&pipeline);
-                        self.streams_ctrl.new_media(&pipeline);
-                        self.video_ctrl.new_media(&pipeline);
+                        self.audio.new_media(&pipeline);
+                        self.export.new_media(&pipeline);
+                        self.info.new_media(&pipeline);
+                        self.perspective.new_media(&pipeline);
+                        self.split.new_media(&pipeline);
+                        self.streams.new_media(&pipeline);
+                        self.video.new_media(&pipeline);
                     }
 
                     self.streams_selected();
 
                     if let Some(message) = self.check_missing_plugins() {
-                        self.ui_event.show_error(message);
+                        info_bar::show_error(message);
                     }
 
-                    self.audio_ctrl.pause();
-                    self.ui_event.reset_cursor();
-                    self.state = ControllerState::Paused;
+                    self.audio.pause();
+                    main::reset_cursor();
+                    self.state = State::Paused;
                 }
                 MediaEvent::MissingPlugin(plugin) => {
                     error!(
@@ -481,26 +468,26 @@ impl MainController {
                 }
                 MediaEvent::FailedToOpenMedia(error) => {
                     self.pipeline = None;
-                    self.state = ControllerState::Stopped;
-                    self.ui_event.reset_cursor();
+                    self.state = State::Stopped;
+                    main::reset_cursor();
 
                     let mut error = gettext("Error opening file.\n\n{}").replacen("{}", &error, 1);
                     if let Some(message) = self.check_missing_plugins() {
                         error += "\n\n";
                         error += &message;
                     }
-                    self.ui_event.show_error(error);
+                    info_bar::show_error(error);
                 }
                 MediaEvent::GLSinkError => {
                     self.pipeline = None;
-                    self.state = ControllerState::Stopped;
-                    self.ui_event.reset_cursor();
+                    self.state = State::Stopped;
+                    main::reset_cursor();
 
                     let mut config = CONFIG.write().expect("Failed to get CONFIG as mut");
                     config.media.is_gl_disabled = true;
                     config.save();
 
-                    self.ui_event.show_error(gettext(
+                    info_bar::show_info(gettext(
     "Video rendering hardware acceleration seems broken and has been disabled.\nPlease restart the application.",
                     ));
                 }
@@ -511,13 +498,13 @@ impl MainController {
 
     pub fn select_media(&mut self) {
         match self.state {
-            ControllerState::Playing | ControllerState::EOS => {
+            State::Playing | State::EOS => {
                 self.hold();
-                self.state = ControllerState::PendingSelectMedia;
+                self.state = State::PendingSelectMedia;
             }
             _ => {
-                self.state = ControllerState::PendingSelectMediaDecision;
-                self.ui_event.hide_info_bar();
+                self.state = State::PendingSelectMediaDecision;
+                info_bar::hide();
 
                 if let Some(ref last_path) = CONFIG.read().unwrap().media.last_path {
                     self.file_dlg.set_current_folder(last_path);
@@ -532,23 +519,23 @@ impl MainController {
             pipeline.stop();
         }
 
-        self.info_ctrl.cleanup();
-        self.audio_ctrl.cleanup();
-        self.video_ctrl.cleanup();
-        self.export_ctrl.cleanup();
-        self.split_ctrl.cleanup();
-        self.streams_ctrl.cleanup();
-        self.perspective_ctrl.cleanup();
+        self.info.cleanup();
+        self.audio.cleanup();
+        self.video.cleanup();
+        self.export.cleanup();
+        self.split.cleanup();
+        self.streams.cleanup();
+        self.perspective.cleanup();
         self.header_bar.set_subtitle(Some(""));
 
-        self.state = ControllerState::Stopped;
+        self.state = State::Stopped;
         self.missing_plugins.clear();
 
-        let dbl_buffer_mtx = Arc::clone(&self.audio_ctrl.dbl_renderer_mtx);
+        let dbl_buffer_mtx = Arc::clone(&self.audio.dbl_renderer_mtx);
         match PlaybackPipeline::try_new(
             path.as_ref(),
             &dbl_buffer_mtx,
-            &self.video_ctrl.video_sink(),
+            &self.video.video_sink(),
             self.media_event_sender.clone(),
         ) {
             Ok(pipeline) => {
@@ -556,156 +543,24 @@ impl MainController {
                 self.pipeline = Some(pipeline);
             }
             Err(error) => {
-                self.ui_event.reset_cursor();
+                main::reset_cursor();
                 let error = gettext("Error opening file.\n\n{}").replace("{}", &error);
-                self.ui_event.show_error(error);
+                info_bar::show_error(error);
             }
         };
     }
 
     pub fn cancel_select_media(&mut self) {
-        if self.state == ControllerState::PendingSelectMediaDecision {
+        if self.state == State::PendingSelectMediaDecision {
             self.state = if self.pipeline.is_some() {
-                ControllerState::Paused
+                State::Paused
             } else {
-                ControllerState::Stopped
+                State::Stopped
             };
         }
     }
+}
 
-    pub fn chapter_clicked(&mut self, chapter_path: gtk::TreePath) {
-        let seek_ts = self
-            .info_ctrl
-            .chapter_manager
-            .chapter_from_path(&chapter_path)
-            .as_ref()
-            .map(ChapterEntry::start);
-
-        if let Some(seek_ts) = seek_ts {
-            let _ = self.seek(seek_ts, gst::SeekFlags::ACCURATE);
-        }
-    }
-
-    pub fn next_chapter(&mut self) {
-        let seek_ts = self
-            .info_ctrl
-            .chapter_manager
-            .pick_next()
-            .as_ref()
-            .map(ChapterEntry::start);
-
-        if let Some(seek_ts) = seek_ts {
-            let _ = self.seek(seek_ts, gst::SeekFlags::ACCURATE);
-        }
-    }
-
-    pub fn previous_chapter(&mut self) {
-        let seek_ts = self
-            .current_ts()
-            .and_then(|cur_ts| self.info_ctrl.previous_chapter(cur_ts));
-
-        let _ = self.seek(
-            seek_ts.unwrap_or_else(Timestamp::default),
-            gst::SeekFlags::ACCURATE,
-        );
-    }
-
-    pub fn step_back(&mut self) {
-        if let Some(current_ts) = self.current_ts() {
-            let seek_ts = {
-                let seek_step = self.audio_ctrl.seek_step;
-                if current_ts > seek_step {
-                    current_ts - seek_step
-                } else {
-                    Timestamp::default()
-                }
-            };
-            let _ = self.seek(seek_ts, gst::SeekFlags::ACCURATE);
-        }
-    }
-
-    pub fn step_forward(&mut self) {
-        if let Some(current_ts) = self.current_ts() {
-            let seek_ts = current_ts + self.audio_ctrl.seek_step;
-            let _ = self.seek(seek_ts, gst::SeekFlags::ACCURATE);
-        }
-    }
-
-    pub fn stream_clicked(&mut self, type_: gst::StreamType) {
-        if let super::StreamClickedStatus::Changed = self.streams_ctrl.stream_clicked(type_) {
-            let streams = self.streams_ctrl.selected_streams();
-            self.select_streams(&streams);
-        }
-    }
-
-    pub fn stream_export_toggled(&mut self, type_: gst::StreamType, tree_path: gtk::TreePath) {
-        if let Some((stream_id, must_export)) = self.streams_ctrl.export_toggled(type_, tree_path) {
-            if let Some(pipeline) = self.pipeline.as_mut() {
-                pipeline
-                    .info
-                    .write()
-                    .unwrap()
-                    .streams
-                    .collection_mut(type_)
-                    .get_mut(stream_id)
-                    .as_mut()
-                    .unwrap()
-                    .must_export = must_export;
-            }
-        }
-    }
-
-    pub fn audio_area_event(&mut self, event: AudioAreaEvent) {
-        match event {
-            AudioAreaEvent::Button(event) => match event.get_event_type() {
-                gdk::EventType::ButtonPress => self.audio_ctrl.button_pressed(event),
-                gdk::EventType::ButtonRelease => self.audio_ctrl.button_released(event),
-                gdk::EventType::Scroll => {
-                    // FIXME zoom in / out
-                }
-                _ => (),
-            },
-            AudioAreaEvent::Leaving => self.audio_ctrl.leave_drawing_area(),
-            AudioAreaEvent::Motion(event) => {
-                if let Some((boundary, target)) = self.audio_ctrl.motion_notify(event) {
-                    if let PositionStatus::ChapterChanged { .. } =
-                        self.info_ctrl.move_chapter_boundary(boundary, target)
-                    {
-                        // FIXME this is ugly
-                        self.audio_ctrl.state =
-                            super::audio_controller::ControllerState::MovingBoundary(target);
-                        self.audio_ctrl.drawingarea.queue_draw();
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn add_chapter(&mut self) {
-        if let Some(ts) = self.current_ts() {
-            self.info_ctrl.add_chapter(ts);
-        }
-    }
-
-    pub fn remove_chapter(&mut self) {
-        self.info_ctrl.remove_chapter();
-    }
-
-    pub fn rename_chapter(&mut self, new_title: &str) {
-        self.info_ctrl.chapter_manager.rename_selected(new_title);
-        // reflect title modification in other parts of the UI (audio waveform)
-        self.redraw();
-    }
-
-    pub async fn trigger_output_action<D: OutputDispatcher>(&mut self) {
-        if !D::ctrl(self).is_busy {
-            if let Some(pipeline) = self.pipeline.as_mut() {
-                self.info_ctrl
-                    .export_chapters(&mut pipeline.info.write().unwrap());
-                D::ctrl_mut(self).start().await;
-            }
-        } else {
-            D::ctrl_mut(self).cancel();
-        }
-    }
+impl UIController for Controller {
+    fn cleanup(&mut self) {}
 }

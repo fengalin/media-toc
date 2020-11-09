@@ -5,20 +5,20 @@ use log::debug;
 use application::{CommandLineArguments, CONFIG};
 use metadata::MediaInfo;
 
-use super::UIController;
+use crate::prelude::*;
 
 pub struct VideoOutput {
     sink: gst::Element,
     pub(super) widget: gtk::Widget,
 }
 
-pub struct VideoController {
+pub struct Controller {
     pub(super) video_output: Option<VideoOutput>,
     pub(super) container: gtk::Box,
     cleaner_id: Option<SignalHandlerId>,
 }
 
-impl UIController for VideoController {
+impl UIController for Controller {
     fn cleanup(&mut self) {
         if let Some(video_widget) = self.video_widget() {
             if self.cleaner_id.is_none() {
@@ -57,7 +57,7 @@ impl UIController for VideoController {
     }
 }
 
-impl VideoController {
+impl Controller {
     pub fn new(builder: &gtk::Builder, args: &CommandLineArguments) -> Self {
         let container: gtk::Box = builder.get_object("video-container").unwrap();
 
@@ -68,17 +68,19 @@ impl VideoController {
                         .expect("PlaybackPipeline: couldn't get `glsinkbin` from `gtkglsink`");
                     glsinkbin
                         .set_property("sink", &gtkglsink)
-                        .expect("VideoController: couldn't set `sink` for `glsinkbin`");
+                        .expect("video::Controller: couldn't set `sink` for `glsinkbin`");
 
                     debug!("Using gtkglsink");
                     VideoOutput {
                         sink: glsinkbin,
                         widget: gtkglsink
                             .get_property("widget")
-                            .expect("VideoController: couldn't get `widget` from `gtkglsink`")
+                            .expect("video::Controller: couldn't get `widget` from `gtkglsink`")
                             .get::<gtk::Widget>()
-                            .expect("VideoController: unexpected type for `widget` in `gtkglsink`")
-                            .expect("VideoController: `widget` not found in `gtkglsink`"),
+                            .expect(
+                                "video::Controller: unexpected type for `widget` in `gtkglsink`",
+                            )
+                            .expect("video::Controller: `widget` not found in `gtkglsink`"),
                     }
                 })
                 .ok()
@@ -93,10 +95,10 @@ impl VideoController {
                         sink: sink.clone(),
                         widget: sink
                             .get_property("widget")
-                            .expect("VideoController: couldn't get `widget` from `gtksink`")
+                            .expect("video::Controller: couldn't get `widget` from `gtksink`")
                             .get::<gtk::Widget>()
-                            .expect("VideoController: unexpected type for `widget` in `gtksink`")
-                            .expect("VideoController: `widget` not found in `gtksink`"),
+                            .expect("video::Controller: unexpected type for `widget` in `gtksink`")
+                            .expect("video::Controller: `widget` not found in `gtksink`"),
                     }
                 })
                 .ok()
@@ -108,7 +110,7 @@ impl VideoController {
             video_output.widget.show();
         };
 
-        let mut video_ctrl = VideoController {
+        let mut video_ctrl = Controller {
             video_output,
             container,
             cleaner_id: None,

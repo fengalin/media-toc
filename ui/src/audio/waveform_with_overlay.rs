@@ -13,7 +13,7 @@ use media::{SampleIndexRange, Timestamp};
 use metadata::Duration;
 use renderers::{ImagePositions, WaveformRenderer, BACKGROUND_COLOR};
 
-use super::{ChaptersBoundaries, UIEventSender};
+use crate::info::{self, ChaptersBoundaries};
 
 // Use this text to compute the largest text box for the waveform limits
 // This is required to position the labels in such a way they don't
@@ -91,7 +91,6 @@ pub struct WaveformWithOverlay {
     boundaries: Rc<RefCell<ChaptersBoundaries>>,
     positions: Rc<RefCell<ImagePositions>>,
     last_other_ui_refresh: Timestamp,
-    ui_event: UIEventSender,
 }
 
 impl WaveformWithOverlay {
@@ -99,7 +98,6 @@ impl WaveformWithOverlay {
         waveform_renderer_mtx: &Arc<Mutex<Box<WaveformRenderer>>>,
         positions: &Rc<RefCell<ImagePositions>>,
         boundaries: &Rc<RefCell<ChaptersBoundaries>>,
-        ui_event: &UIEventSender,
         ref_lbl: &gtk::Label,
     ) -> Self {
         WaveformWithOverlay {
@@ -108,7 +106,6 @@ impl WaveformWithOverlay {
             boundaries: Rc::clone(boundaries),
             positions: Rc::clone(positions),
             last_other_ui_refresh: Timestamp::default(),
-            ui_event: ui_event.clone(),
         }
     }
 
@@ -249,7 +246,7 @@ impl WaveformWithOverlay {
                 || cursor.ts < self.last_other_ui_refresh
                 || cursor.ts > self.last_other_ui_refresh + OTHER_UI_REFRESH_PERIOD
             {
-                self.ui_event.refresh_info(cursor_ts);
+                info::refresh(cursor_ts);
                 self.last_other_ui_refresh = cursor_ts;
             }
         }
