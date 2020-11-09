@@ -162,8 +162,9 @@ impl<CtrlImpl: OutputControllerImpl + 'static> MediaProcessor<CtrlImpl> {
                     self.btn.set_sensitive(false);
                     main::reset_cursor();
 
-                    let filename = path.file_name().expect("no `filename` in `path`");
-                    let filename = filename
+                    let filename = path
+                        .file_name()
+                        .expect("no `filename` in `path`")
                         .to_str()
                         .expect("can't get printable `str` from `filename`");
                     let question = gettext("{output_file}\nalready exists. Overwrite?").replacen(
@@ -187,10 +188,7 @@ impl<CtrlImpl: OutputControllerImpl + 'static> MediaProcessor<CtrlImpl> {
                         }
                         gtk::ResponseType::No => SkipCurrent,
                         gtk::ResponseType::Yes => ConfirmedOutputTo(Rc::clone(&path)),
-                        other => unimplemented!(
-                            "Response {:?} in OutputBaseController::ask_overwrite_question",
-                            other,
-                        ),
+                        other => unimplemented!("{:?}", other),
                     };
 
                     main::set_cursor_waiting();
@@ -285,37 +283,31 @@ pub struct Controller<Impl> {
     pub(super) open_action: Option<gio::SimpleAction>,
     pub(super) page: gtk::Widget,
 
-    pub(crate) is_busy: bool,
+    pub(super) is_busy: bool,
     processor_abort_handle: Option<AbortHandle>,
 }
 
 impl<Impl: OutputControllerImpl + 'static> Controller<Impl> {
     pub fn new_generic(impl_: Impl, builder: &gtk::Builder) -> Self {
         let btn: gtk::Button = builder.get_object(Impl::BTN_NAME).unwrap();
+        btn.set_sensitive(false);
         let list: gtk::ListBox = builder.get_object(Impl::LIST_NAME).unwrap();
         let page: gtk::Widget = list
             .get_parent()
             .unwrap_or_else(|| panic!("Couldn't get parent for list {}", Impl::LIST_NAME));
 
-        let ctrl = Controller {
+        Controller {
             impl_,
-
             btn_default_label: btn.get_label().unwrap(),
             btn,
             list,
             progress_bar: builder.get_object(Impl::PROGRESS_BAR_NAME).unwrap(),
-
             perspective_selector: builder.get_object("perspective-menu-btn").unwrap(),
             open_action: None,
             page,
-
             is_busy: false,
             processor_abort_handle: None,
-        };
-
-        ctrl.btn.set_sensitive(false);
-
-        ctrl
+        }
     }
 
     pub async fn start(&mut self) {
