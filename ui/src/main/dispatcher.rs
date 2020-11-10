@@ -1,4 +1,4 @@
-use futures::{channel::mpsc as async_mpsc, prelude::*, stream};
+use futures::prelude::*;
 
 use gdk::{Cursor, CursorType, WindowExt};
 use gettextrs::gettext;
@@ -6,7 +6,6 @@ use gio::prelude::*;
 use gtk::prelude::*;
 
 use application::{CommandLineArguments, APP_PATH, CONFIG};
-use media::MediaEvent;
 
 use crate::{
     audio, export, info, info_bar, main, perspective, playback, prelude::*, spawn, split, streams,
@@ -30,9 +29,7 @@ impl Dispatcher {
         let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
         window.set_application(Some(app));
 
-        let (media_event_sender, media_event_receiver) = async_mpsc::channel(1);
-
-        let mut main_ctrl = main::Controller::new(&window, args, &builder, media_event_sender);
+        let mut main_ctrl = main::Controller::new(&window, args, &builder);
         main_ctrl.window_delete_id = Some(window.connect_delete_event(|_, _| {
             main::quit();
             Inhibit(true)
@@ -107,7 +104,7 @@ impl Dispatcher {
             let open_btn: gtk::Button = builder.get_object("open-btn").unwrap();
             open_btn.set_sensitive(true);
 
-            Self::spawn_event_handlers(this, media_event_receiver);
+            Self::spawn_event_handlers(this);
             main::show_all();
 
             if let Some(input_file) = args.input_file.to_owned() {
@@ -115,7 +112,7 @@ impl Dispatcher {
             }
         } else {
             // GStreamer initialization failed
-            Self::spawn_event_handlers(this, media_event_receiver);
+            Self::spawn_event_handlers(this);
             main::show_all();
 
             let msg = gettext("Failed to initialize GStreamer, the application can't be used.");
@@ -125,26 +122,12 @@ impl Dispatcher {
 }
 
 impl Dispatcher {
-    fn spawn_event_handlers(mut self, media_event_receiver: async_mpsc::Receiver<MediaEvent>) {
-        enum Item {
-            UI(UIEvent),
-            Media(MediaEvent),
-        }
-
+    fn spawn_event_handlers(mut self) {
         spawn(async move {
-            let mut combined_streams = stream::select(
-                UIEventChannel::take_receiver().map(Item::UI),
-                media_event_receiver.map(Item::Media),
-            );
-
-            while let Some(event) = combined_streams.next().await {
-                match event {
-                    Item::UI(event) => {
-                        if self.handle(event).await.is_err() {
-                            break;
-                        }
-                    }
-                    Item::Media(event) => self.main_ctrl.handle_media_event(event),
+            let mut ui_event_rx = UIEventChannel::take_receiver();
+            while let Some(event) = ui_event_rx.next().await {
+                if self.handle(event).await.is_err() {
+                    break;
                 }
             }
         });
@@ -163,14 +146,14 @@ impl Dispatcher {
                 match event {
                     About => self.main_ctrl.about(),
                     CancelSelectMedia => self.main_ctrl.cancel_select_media(),
-                    OpenMedia(path) => self.main_ctrl.open_media(path),
+                    OpenMedia(path) => self.main_ctrl.open_media(path).await,
                     Quit => {
                         self.main_ctrl.quit();
                         return Err(());
                     }
                     ResetCursor => self.reset_cursor(),
                     RestoreContext => self.restore_context(),
-                    SelectMedia => self.main_ctrl.select_media(),
+                    SelectMedia => self.main_ctrl.select_media().await,
                     SetCursorDoubleArrow => self.set_cursor_double_arrow(),
                     SetCursorWaiting => self.set_cursor_waiting(),
                     ShowAll => self.show_all(),

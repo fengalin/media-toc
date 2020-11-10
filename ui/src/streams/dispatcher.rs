@@ -64,8 +64,11 @@ impl UIDispatcher for Dispatcher {
         match event {
             StreamClicked(type_) => {
                 if let streams::ClickedStatus::Changed = main_ctrl.streams.stream_clicked(type_) {
-                    let streams = main_ctrl.streams.selected_streams();
-                    main_ctrl.select_streams(&streams);
+                    return async move {
+                        let streams = main_ctrl.streams.selected_streams();
+                        main_ctrl.select_streams(&streams).await;
+                    }
+                    .boxed_local();
                 }
             }
             ExportToggled(type_, tree_path) => {

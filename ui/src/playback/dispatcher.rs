@@ -1,7 +1,4 @@
-use futures::{
-    future::{self, LocalBoxFuture},
-    prelude::*,
-};
+use futures::{future::LocalBoxFuture, prelude::*};
 
 use gio::prelude::*;
 use gtk::prelude::*;
@@ -30,45 +27,51 @@ impl UIDispatcher for Dispatcher {
         main_ctrl: &mut main::Controller,
         event: impl Into<Self::Event>,
     ) -> LocalBoxFuture<'_, ()> {
-        use playback::Event::*;
-
         let event = event.into();
-        debug!("handling {:?}", event);
-        match event {
-            NextChapter => {
-                let seek_ts = main_ctrl
-                    .info
-                    .chapter_manager
-                    .pick_next()
-                    .as_ref()
-                    .map(ChapterEntry::start);
+        async move {
+            use playback::Event::*;
 
-                if let Some(seek_ts) = seek_ts {
-                    let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
+            debug!("handling {:?}", event);
+            match event {
+                Eos => main_ctrl.eos(),
+                NextChapter => {
+                    let seek_ts = main_ctrl
+                        .info
+                        .chapter_manager
+                        .pick_next()
+                        .as_ref()
+                        .map(ChapterEntry::start);
+
+                    if let Some(seek_ts) = seek_ts {
+                        let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE).await;
+                    }
+                }
+                PlayPause => main_ctrl.play_pause().await,
+                PlayRange {
+                    start,
+                    end,
+                    ts_to_restore,
+                } => {
+                    main_ctrl.play_range(start, end, ts_to_restore);
+                }
+                PreviousChapter => {
+                    let seek_ts = main_ctrl
+                        .current_ts()
+                        .and_then(|cur_ts| main_ctrl.info.previous_chapter(cur_ts));
+
+                    let _ = main_ctrl
+                        .seek(
+                            seek_ts.unwrap_or_else(Timestamp::default),
+                            gst::SeekFlags::ACCURATE,
+                        )
+                        .await;
+                }
+                Seek { target, flags } => {
+                    let _ = main_ctrl.seek(target, flags).await;
                 }
             }
-            PlayPause => main_ctrl.play_pause(),
-            PlayRange {
-                start,
-                end,
-                ts_to_restore,
-            } => {
-                main_ctrl.play_range(start, end, ts_to_restore);
-            }
-            PreviousChapter => {
-                let seek_ts = main_ctrl
-                    .current_ts()
-                    .and_then(|cur_ts| main_ctrl.info.previous_chapter(cur_ts));
-
-                let _ = main_ctrl.seek(
-                    seek_ts.unwrap_or_else(Timestamp::default),
-                    gst::SeekFlags::ACCURATE,
-                );
-            }
-            Seek { target, flags } => main_ctrl.seek(target, flags),
         }
-
-        future::ready(()).boxed_local()
+        .boxed_local()
     }
 
     fn bind_accels_for(ctx: UIFocusContext, app: &gtk::Application) {

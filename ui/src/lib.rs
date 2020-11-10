@@ -30,6 +30,7 @@ use std::{
 };
 
 use application::{CommandLineArguments, APP_ID};
+use media::{MediaEvent, OpenError};
 
 pub fn spawn<Fut: Future<Output = ()> + 'static>(fut: Fut) {
     glib::MainContext::ref_thread_default().spawn_local(fut);
@@ -60,19 +61,18 @@ pub fn run(args: CommandLineArguments) {
 pub struct PlaybackPipeline(media::PlaybackPipeline<renderers::WaveformRenderer>);
 
 impl PlaybackPipeline {
-    pub fn try_new(
+    pub async fn try_new(
         path: &Path,
         dbl_audio_buffer_mtx: &Arc<Mutex<media::DoubleAudioBuffer<renderers::WaveformRenderer>>>,
         video_sink: &Option<gst::Element>,
-        sender: async_mpsc::Sender<media::MediaEvent>,
-    ) -> Result<Self, String> {
+    ) -> Result<(Self, async_mpsc::UnboundedReceiver<MediaEvent>), OpenError> {
         media::PlaybackPipeline::<renderers::WaveformRenderer>::try_new(
             path,
             dbl_audio_buffer_mtx,
             video_sink,
-            sender,
         )
-        .map(PlaybackPipeline)
+        .await
+        .map(|(pipeline, media_msg_rx)| (PlaybackPipeline(pipeline), media_msg_rx))
     }
 
     pub fn check_requirements() -> Result<(), String> {

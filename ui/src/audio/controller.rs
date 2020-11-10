@@ -187,17 +187,6 @@ impl Controller {
         )
     }
 
-    pub fn redraw(&self) {
-        self.drawingarea.queue_draw();
-    }
-
-    pub fn refresh(&mut self) {
-        self.refresh_buffer();
-        if self.waveform_renderer_mtx.lock().unwrap().refresh().is_ok() {
-            self.drawingarea.queue_draw();
-        }
-    }
-
     /// Finds the first timestamp for a seek in Paused state.
     ///
     /// This is used as an attempt to center the waveform on the target timestamp.
@@ -391,8 +380,7 @@ impl Controller {
                 let _ = waveform_renderer.refresh();
             }
 
-            self.refresh_buffer();
-            self.drawingarea.queue_draw();
+            self.refresh();
         }
     }
 
@@ -429,18 +417,32 @@ impl Controller {
         self.seek_step = self.requested_duration / SEEK_STEP_DURATION_DIVISOR;
     }
 
-    pub fn refresh_buffer(&self) {
-        self.dbl_renderer_mtx.lock().unwrap().refresh();
+    pub fn redraw(&self) {
+        self.drawingarea.queue_draw();
+    }
+
+    pub fn refresh(&mut self) {
+        if self.refresh_buffer() {
+            self.redraw();
+        }
+    }
+
+    fn refresh_buffer(&mut self) -> bool {
+        self.waveform_renderer_mtx.lock().unwrap().refresh().is_ok()
     }
 
     pub fn tick(&mut self) {
+        let mut can_redraw = true;
+
         if self.playback_needs_refresh {
             trace!("tick forcing refresh");
-            self.refresh_buffer();
+            can_redraw = self.refresh_buffer();
         }
 
-        if let State::Playing | State::PlayingRange(_) = self.state {
-            self.redraw();
+        if can_redraw {
+            if let State::Playing | State::PlayingRange(_) = self.state {
+                self.redraw();
+            }
         }
     }
 
