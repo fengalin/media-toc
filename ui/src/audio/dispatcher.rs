@@ -104,6 +104,7 @@ impl UIDispatcher for Dispatcher {
         match event {
             AreaEvent(event) => Self::area_event(main_ctrl, event),
             UpdateRenderingCndt(dimensions) => main_ctrl.audio.update_conditions(dimensions),
+            Refresh => main_ctrl.audio.refresh(),
             StepBack => Self::step_back(main_ctrl),
             StepForward => Self::step_forward(main_ctrl),
             Tick => main_ctrl.audio.tick(),

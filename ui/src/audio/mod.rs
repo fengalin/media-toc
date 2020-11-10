@@ -13,6 +13,7 @@ use crate::UIEventChannel;
 pub enum Event {
     AreaEvent(AreaEvent),
     UpdateRenderingCndt(Option<(f64, f64)>),
+    Refresh,
     // FIXME those 2 are not audio specific, rather for a dedicated playback
     StepBack,
     StepForward,
@@ -27,6 +28,10 @@ fn area_event(event: AreaEvent) {
 
 pub fn update_rendering_cndt(dimensions: Option<(f64, f64)>) {
     UIEventChannel::send(Event::UpdateRenderingCndt(dimensions));
+}
+
+pub fn refresh() {
+    UIEventChannel::send(Event::Refresh);
 }
 
 pub fn step_back() {

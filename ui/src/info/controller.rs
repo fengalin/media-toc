@@ -361,7 +361,7 @@ impl Controller {
 
         if self.repeat_chapter {
             // repeat is activated
-            if state == main::State::EOS {
+            if state.is_eos() {
                 // postpone chapter selection change until media has synchronized
                 position_status = PositionStatus::ChapterNotChanged;
                 self.repeat_at(Timestamp::default());
@@ -413,10 +413,6 @@ impl Controller {
         target: Timestamp,
     ) -> PositionStatus {
         self.chapter_manager.move_chapter_boundary(boundary, target)
-    }
-
-    pub fn seek_done(&mut self, target: Timestamp) {
-        self.tick(target, main::State::Seeking(target));
     }
 
     pub fn add_chapter(&mut self, ts: Timestamp) {

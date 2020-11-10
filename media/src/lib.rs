@@ -8,7 +8,10 @@ pub mod dbl_audio_buffer;
 pub use self::dbl_audio_buffer::DoubleAudioBuffer;
 
 pub mod playback_pipeline;
-pub use self::playback_pipeline::{PlaybackPipeline, QUEUE_SIZE};
+pub use self::playback_pipeline::{
+    MissingPlugins, OpenError, PlaybackPipeline, SeekError, SelectStreamsError, StateChangeError,
+    QUEUE_SIZE,
+};
 
 pub mod sample_extractor;
 pub use self::sample_extractor::SampleExtractor;
@@ -31,21 +34,13 @@ pub use self::timestamp::Timestamp;
 pub mod toc_setter_pipeline;
 pub use self::toc_setter_pipeline::TocSetterPipeline;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum PlaybackState {
-    Paused,
-    Playing,
-}
-
 #[derive(Clone, Debug)]
 pub enum MediaEvent {
-    AsyncDone(PlaybackState),
     Eos,
-    FailedToOpenMedia(String),
-    FailedToExport(String),
-    GLSinkError,
-    InitDone,
-    MissingPlugin(String),
+    Error(String),
     ReadyToRefresh,
-    StreamsSelected,
+    // FIXME remove those
+    AsyncDone,
+    FailedToExport(String),
+    InitDone,
 }
