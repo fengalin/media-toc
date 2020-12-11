@@ -6,8 +6,8 @@ use gtk::prelude::*;
 
 use std::{borrow::Cow, cell::RefCell, rc::Rc, string::ToString};
 
-use media::Timestamp;
 use metadata::{default_chapter_title, Duration, Timestamp4Humans, TocVisitor};
+use renderers::Timestamp;
 
 use super::{ChapterTimestamps, ChaptersBoundaries};
 

@@ -15,6 +15,7 @@ use metadata::Duration;
 
 use super::{SampleIndex, SampleIndexRange, SampleValue, Timestamp, INLINE_CHANNELS};
 
+#[derive(Debug)]
 pub struct StreamState {
     format: gst_audio::AudioFormat,
     rate: u64,
@@ -147,8 +148,9 @@ impl StreamState {
     }
 }
 
+#[derive(Debug)]
 pub struct AudioBuffer {
-    buffer_duration: Duration,
+    pub(super) buffer_duration: Duration,
     capacity: usize,
     stream_state: StreamState,
     // AudioBuffer stores up to INLINE_CHANNELS

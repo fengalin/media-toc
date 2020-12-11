@@ -1,12 +1,13 @@
 mod dispatcher;
 pub use self::dispatcher::Dispatcher;
 
-use media::Timestamp;
+use renderers::Timestamp;
 
 use crate::UIEventChannel;
 
 #[derive(Debug)]
 pub enum Event {
+    Eos,
     NextChapter,
     PreviousChapter,
     PlayPause,
@@ -19,6 +20,10 @@ pub enum Event {
         target: Timestamp,
         flags: gst::SeekFlags,
     },
+}
+
+pub fn eos() {
+    UIEventChannel::send(Event::Eos);
 }
 
 pub fn next_chapter() {

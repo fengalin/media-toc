@@ -6,7 +6,7 @@ use futures::{
 use gio::prelude::*;
 use gtk::prelude::*;
 
-use log::debug;
+use log::{debug, trace};
 
 use crate::{
     info::{self, ChapterEntry},
@@ -102,7 +102,11 @@ impl UIDispatcher for Dispatcher {
         use info::Event::*;
 
         let event = event.into();
-        debug!("handling {:?}", event);
+        match event {
+            Refresh(_) => trace!("handling {:?}", event),
+            _ => debug!("handling {:?}", event),
+        }
+
         match event {
             AddChapter => {
                 if let Some(ts) = main_ctrl.current_ts() {
@@ -118,13 +122,13 @@ impl UIDispatcher for Dispatcher {
                     .map(ChapterEntry::start);
 
                 if let Some(seek_ts) = seek_ts {
-                    let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
+                    return async move {
+                        let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE).await;
+                    }
+                    .boxed_local();
                 }
             }
-            Refresh(ts) => match main_ctrl.state {
-                main::State::Seeking(_) => (),
-                _ => main_ctrl.info.tick(ts, main_ctrl.state),
-            },
+            Refresh(ts) => main_ctrl.info.tick(ts, main_ctrl.state),
             RemoveChapter => main_ctrl.info.remove_chapter(),
             RenameChapter(new_title) => {
                 main_ctrl.info.chapter_manager.rename_selected(&new_title);

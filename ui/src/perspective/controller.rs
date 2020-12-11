@@ -1,5 +1,6 @@
 use gtk::prelude::*;
 
+use media::PlaybackPipeline;
 use metadata::MediaInfo;
 
 use crate::prelude::*;

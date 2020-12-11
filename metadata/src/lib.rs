@@ -13,7 +13,7 @@ pub use self::format::{Exporter, Reader, Writer};
 mod matroska_toc_format;
 pub use self::matroska_toc_format::MatroskaTocFormat;
 
-mod media_info;
+pub mod media_info;
 pub use self::media_info::{default_chapter_title, MediaInfo, Stream, Streams};
 
 mod mkvmerge_text_format;

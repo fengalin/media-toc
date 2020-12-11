@@ -9,9 +9,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use media::{SampleIndexRange, Timestamp};
 use metadata::Duration;
-use renderers::{ImagePositions, WaveformRenderer, BACKGROUND_COLOR};
+use renderers::{ImagePositions, SampleIndexRange, Timestamp, WaveformRenderer, BACKGROUND_COLOR};
 
 use crate::info::{self, ChaptersBoundaries};
 

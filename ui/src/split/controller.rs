@@ -10,7 +10,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use media::{MediaEvent, SplitterPipeline};
+use media::{MediaEvent, PlaybackPipeline, SplitterPipeline};
 use metadata::{default_chapter_title, Duration, Format, MediaInfo, Stream, TocVisitor};
 
 use crate::{
