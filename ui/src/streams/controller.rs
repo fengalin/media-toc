@@ -3,6 +3,8 @@ use gtk::prelude::*;
 
 use std::sync::Arc;
 
+use media::PlaybackPipeline;
+
 use crate::{prelude::*, spawn};
 
 const ALIGN_LEFT: f32 = 0f32;

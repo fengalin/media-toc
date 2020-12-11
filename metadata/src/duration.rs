@@ -45,9 +45,15 @@ impl Duration {
     }
 }
 
-impl Into<u64> for Duration {
-    fn into(self) -> u64 {
-        self.0
+impl From<Duration> for u64 {
+    fn from(duration: Duration) -> Self {
+        duration.0
+    }
+}
+
+impl From<Duration> for gst::ClockTime {
+    fn from(duration: Duration) -> Self {
+        gst::ClockTime::from_nseconds(duration.0)
     }
 }
 

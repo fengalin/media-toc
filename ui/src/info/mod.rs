@@ -11,7 +11,7 @@ mod dispatcher;
 pub use self::dispatcher::Dispatcher;
 
 use crate::UIEventChannel;
-use media::Timestamp;
+use renderers::Timestamp;
 
 #[derive(Debug)]
 pub enum Event {

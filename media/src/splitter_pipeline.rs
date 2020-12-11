@@ -12,8 +12,9 @@ use std::{
 };
 
 use metadata::Format;
+use renderers::Timestamp;
 
-use super::{MediaEvent, Timestamp};
+use super::MediaEvent;
 
 pub struct SplitterPipeline {
     pipeline: gst::Pipeline,

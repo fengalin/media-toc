@@ -1,5 +1,6 @@
 use std::{
     cmp::Ordering,
+    error::Error,
     fmt,
     ops::{Add, AddAssign, Sub},
 };
@@ -7,6 +8,15 @@ use std::{
 use metadata::Duration;
 
 use super::{SampleIndexRange, Timestamp};
+
+#[derive(Debug)]
+pub struct DecrementError;
+impl fmt::Display for DecrementError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        f.write_str("overflow while decrementing")
+    }
+}
+impl Error for DecrementError {}
 
 #[derive(Clone, Copy, Default, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct SampleIndex(usize);
@@ -39,12 +49,12 @@ impl SampleIndex {
         self.0 as u64
     }
 
-    pub fn try_dec(&mut self) -> Result<(), ()> {
+    pub fn try_dec(&mut self) -> Result<(), DecrementError> {
         if self.0 > 0 {
             *self = SampleIndex(self.0 - 1);
             Ok(())
         } else {
-            Err(())
+            Err(DecrementError)
         }
     }
 

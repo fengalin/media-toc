@@ -1,4 +1,4 @@
-# media-toc [![Build Status](https://travis-ci.org/fengalin/media-toc.svg?branch=master)](https://travis-ci.org/fengalin/media-toc) [![Build status](https://ci.appveyor.com/api/projects/status/eu9p6ggcflj89h3v?svg=true)](https://ci.appveyor.com/project/fengalin/media-toc)
+# media-toc ![CI](https://github.com/fengalin/media-toc/workflows/CI/badge.svg) [![dependency status](https://deps.rs/repo/github/fengalin/media-toc/status.svg)](https://deps.rs/repo/github/fengalin/media-toc)
 
 ![media-toc logo](res/icons/banner/org.fengalin.media-toc.png "media-toc logo")
 

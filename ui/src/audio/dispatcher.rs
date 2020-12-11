@@ -11,7 +11,7 @@ use log::{debug, trace};
 use std::cell::RefCell;
 
 use crate::{audio, info::PositionStatus, main, prelude::*};
-use media::Timestamp;
+use renderers::Timestamp;
 
 use super::AreaEvent;
 
@@ -96,7 +96,7 @@ impl UIDispatcher for Dispatcher {
         use audio::Event::*;
 
         let event = event.into();
-        if let Tick = event {
+        if let Tick | AreaEvent(_) = event {
             trace!("handling {:?}", event);
         } else {
             debug!("handling {:?}", event);

@@ -11,14 +11,17 @@ use log::{error, info};
 use std::{borrow::ToOwned, cell::RefCell, path::PathBuf, rc::Rc, sync::Arc};
 
 use application::{CommandLineArguments, APP_ID, CONFIG};
-use media::{MediaEvent, MissingPlugins, OpenError, SeekError, SelectStreamsError, Timestamp};
+use media::{
+    MediaEvent, MissingPlugins, OpenError, PlaybackPipeline, SeekError, SelectStreamsError,
+};
+use renderers::Timestamp;
 
 use crate::{
     audio, export,
     info::{self, ChaptersBoundaries},
     info_bar, main, perspective, playback,
     prelude::*,
-    spawn, split, streams, video, PlaybackPipeline,
+    spawn, split, streams, video,
 };
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
@@ -190,65 +193,28 @@ impl Controller {
                     self.audio.play();
                 }
             }
+            PlayingRange(to_restore) => {
+                self.pipeline.as_mut().unwrap().pause().await.unwrap();
+                self.audio.pause();
+                self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
+                self.state = PausedPlayingRange(to_restore);
+            }
+            PausedPlayingRange(to_restore) => {
+                self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
+                self.state = PlayingRange(to_restore);
+                self.pipeline.as_mut().unwrap().play().await.unwrap();
+                self.audio.play();
+            }
             Stopped => self.select_media().await,
             PendingSelectMediaDecision => (),
-            other => unimplemented!("{:?}", other),
         }
     }
-
-    // FIXME remove
-    /*
-    pub fn play_pause(&mut self) {
-        let pipeline = match self.pipeline.as_mut() {
-            Some(pipeline) => pipeline,
-            None => {
-                self.select_media();
-                return;
-            }
-        };
-
-        match self.state {
-            State::Paused => {
-                self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
-                self.state = State::Playing;
-                self.audio.play();
-                pipeline.play().unwrap();
-            }
-            State::PausedPlayingRange(to_restore) => {
-                self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
-                self.state = State::PlayingRange(to_restore);
-                self.audio.play();
-                pipeline.play().unwrap();
-            }
-            State::PlayingRange(to_restore) => {
-                self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
-                self.state = State::PausedPlayingRange(to_restore);
-                pipeline.pause().unwrap();
-                self.audio.pause();
-            }
-            State::Playing => {
-                self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
-                self.state = State::Paused;
-                self.audio.pause();
-                pipeline.pause().unwrap();
-            }
-            State::EOS => {
-                // Restart the stream from the begining
-                self.seek(Timestamp::default(), gst::SeekFlags::ACCURATE);
-            }
-            State::Stopped => self.select_media(),
-            _ => (),
-        }
-    }
-    */
 
     pub async fn seek(&mut self, target: Timestamp, flags: gst::SeekFlags) -> Result<(), ()> {
         use State::*;
 
         match self.state {
             Playing | EosPlaying => {
-                self.audio.seek();
-
                 match self.pipeline.as_mut().unwrap().seek(target, flags).await {
                     Ok(()) => {
                         if let EosPlaying = self.state {
@@ -257,7 +223,7 @@ impl Controller {
                     }
                     Err(SeekError::Eos) => {
                         // FIXME used to be an event
-                        self.eos();
+                        self.eos().await;
                     }
                     Err(SeekError::Unrecoverable) => {
                         // FIXME probably would need to report an error
@@ -265,24 +231,9 @@ impl Controller {
                         return Err(());
                     }
                 }
-
-                self.audio.seek_done(target);
             }
             Paused | EosPaused => {
-                self.audio.seek();
-
-                let res = match self.audio.first_ts_for_paused_seek(target) {
-                    Some(first_ts) => {
-                        self.pipeline
-                            .as_mut()
-                            .unwrap()
-                            .two_steps_seek(first_ts, target, flags)
-                            .await
-                    }
-                    None => self.pipeline.as_mut().unwrap().seek(target, flags).await,
-                };
-
-                match res {
+                match self.pipeline.as_mut().unwrap().seek(target, flags).await {
                     Ok(()) => {
                         if let EosPaused = self.state {
                             self.state = Paused;
@@ -290,7 +241,7 @@ impl Controller {
                     }
                     Err(SeekError::Eos) => {
                         // FIXME used to be an event
-                        self.eos();
+                        self.eos().await;
                     }
                     Err(SeekError::Unrecoverable) => {
                         // FIXME probably would need to report an error
@@ -299,7 +250,7 @@ impl Controller {
                     }
                 }
 
-                self.audio.seek_done(target);
+                self.info.tick(target, self.state);
             }
             _ => (),
         }
@@ -360,22 +311,10 @@ impl Controller {
     }
     */
 
-    pub fn play_range(&mut self, start: Timestamp, end: Timestamp, to_restore: Timestamp) {
-        match self.state {
-            State::Paused | State::PlayingRange(_) | State::PausedPlayingRange(_) => {
-                self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
-                self.audio.start_play_range(to_restore);
-
-                self.state = State::PlayingRange(to_restore);
-                self.pipeline.as_ref().unwrap().seek_range(start, end);
-            }
-            _ => (),
-        }
-    }
-
     fn stop(&mut self) {
         if let Some(mut pipeline) = self.pipeline.take() {
             let _ = pipeline.stop();
+            self.audio.dbl_renderer_impl = Some(pipeline.take_dbl_renderer_impl());
         }
 
         if let Some(abort_handle) = self.media_msg_abort_handle.take() {
@@ -418,14 +357,47 @@ impl Controller {
         self.video.streams_changed(&info);
     }
 
-    pub fn eos(&mut self) {
-        self.audio.pause();
+    pub fn play_range(&mut self, start: Timestamp, end: Timestamp, to_restore: Timestamp) {
+        match self.state {
+            State::Paused | State::PlayingRange(_) | State::PausedPlayingRange(_) => {
+                self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
+                self.audio.start_play_range(to_restore);
+
+                self.state = State::PlayingRange(to_restore);
+                self.pipeline.as_ref().unwrap().seek_range(start, end);
+            }
+            _ => (),
+        }
+    }
+
+    pub async fn eos(&mut self) {
         self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
 
         use State::*;
         match self.state {
+            Paused => {
+                self.audio.pause();
+                self.state = EosPaused;
+            }
             Playing => self.state = EosPlaying,
-            Paused => self.state = EosPaused,
+            PlayingRange(pos_to_restore) => {
+                // FIXME still necessary?
+                self.audio.stop_play_range();
+                if let Some(pipeline) = self.pipeline.as_mut() {
+                    // FIXME handle error
+                    pipeline.pause().await.unwrap();
+                    pipeline
+                        .seek(
+                            pos_to_restore,
+                            gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
+                        )
+                        .await
+                        .unwrap();
+                    self.state = Paused;
+                } else {
+                    unreachable!("Playing range without a pipeline");
+                }
+            }
             _ => (),
         }
     }
@@ -542,9 +514,15 @@ impl Controller {
             gettext("Opening {}...").replacen("{}", path.to_str().unwrap(), 1)
         );
 
-        let dbl_buffer_mtx = Arc::clone(&self.audio.dbl_renderer_mtx);
-        match PlaybackPipeline::try_new(path.as_ref(), &dbl_buffer_mtx, &self.video.video_sink())
-            .await
+        match PlaybackPipeline::try_new(
+            path.as_ref(),
+            self.audio
+                .dbl_renderer_impl
+                .take()
+                .expect("Couldn't take double visu renderer"),
+            &self.video.video_sink(),
+        )
+        .await
         {
             Ok((pipeline, mut media_evt_rx)) => {
                 if !pipeline.missing_plugins.is_empty() {
@@ -581,8 +559,8 @@ impl Controller {
                                 info_bar::show_error(err);
                                 break;
                             }
-                            ReadyToRefresh => audio::refresh(),
-                            _ => unreachable!(),
+                            MustRefresh => audio::refresh(),
+                            other => unreachable!("{:?}", other),
                         }
                     }
                 });

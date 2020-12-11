@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, ops::Div};
 
 use metadata::Duration;
 
@@ -48,5 +48,14 @@ impl From<usize> for SampleIndexRange {
 impl fmt::Display for SampleIndexRange {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "idx range {}", self.0)
+    }
+}
+
+impl Div<usize> for SampleIndexRange {
+    type Output = SampleIndexRange;
+
+    #[track_caller]
+    fn div(self, rhs: usize) -> Self::Output {
+        SampleIndexRange(self.0 / rhs)
     }
 }

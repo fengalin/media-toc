@@ -1,11 +1,12 @@
 use futures::prelude::*;
 
-use gdk::{Cursor, CursorType, WindowExt};
+use gdk::{Cursor, CursorType};
 use gettextrs::gettext;
 use gio::prelude::*;
 use gtk::prelude::*;
 
 use application::{CommandLineArguments, APP_PATH, CONFIG};
+use media::PlaybackPipeline;
 
 use crate::{
     audio, export, info, info_bar, main, perspective, playback, prelude::*, spawn, split, streams,

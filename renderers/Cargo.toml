@@ -15,15 +15,22 @@ name = "mediatocrenderers"
 path = "src/lib.rs"
 
 [dependencies]
+byteorder = "1"
 cairo-rs = { git = "https://github.com/gtk-rs/gtk-rs" }
+glib = { git = "https://github.com/gtk-rs/gtk-rs" }
 gst = { package = "gstreamer", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
-media = { path = "../media", package = "media-toc-media"  }
+gst-audio = { package = "gstreamer-audio", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
+lazy_static = "1"
 metadata = { path = "../metadata", package = "media-toc-metadata" }
-image = "0.23"
+image = "^0.23.12"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
+dasp_sample = "0.11"
 smallvec = "1"
 
 [dev-dependencies]
 byteorder = "1"
 cairo-rs = { git = "https://github.com/gtk-rs/gtk-rs", features = ["png"] }
 gst-audio = { package = "gstreamer-audio", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
+
+[build-dependencies]
+gst-plugin-version-helper = { git = "https://gitlab.freedesktop.org/gstreamer/gst-plugins-rs" }

@@ -6,7 +6,7 @@ use gtk::prelude::*;
 use log::debug;
 
 use crate::{info::ChapterEntry, main, playback, prelude::*};
-use media::Timestamp;
+use renderers::Timestamp;
 
 pub struct Dispatcher;
 
@@ -33,7 +33,7 @@ impl UIDispatcher for Dispatcher {
 
             debug!("handling {:?}", event);
             match event {
-                Eos => main_ctrl.eos(),
+                Eos => main_ctrl.eos().await,
                 NextChapter => {
                     let seek_ts = main_ctrl
                         .info

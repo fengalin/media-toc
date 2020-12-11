@@ -6,7 +6,7 @@ use futures::{
 use gio::prelude::*;
 use gtk::prelude::*;
 
-use log::debug;
+use log::{debug, trace};
 
 use crate::{
     info::{self, ChapterEntry},
@@ -102,7 +102,11 @@ impl UIDispatcher for Dispatcher {
         use info::Event::*;
 
         let event = event.into();
-        debug!("handling {:?}", event);
+        match event {
+            Refresh(_) => trace!("handling {:?}", event),
+            _ => debug!("handling {:?}", event),
+        }
+
         match event {
             AddChapter => {
                 if let Some(ts) = main_ctrl.current_ts() {
