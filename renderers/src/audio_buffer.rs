@@ -4,10 +4,11 @@ use gst_audio::AudioFormat;
 
 use log::{debug, trace};
 
-use sample::Sample;
+use dasp_sample::Sample;
 
 use std::{
     collections::vec_deque::VecDeque,
+    convert::TryFrom,
     io::{Cursor, Read},
 };
 
@@ -15,6 +16,7 @@ use metadata::Duration;
 
 use super::{SampleIndex, SampleIndexRange, SampleValue, Timestamp, INLINE_CHANNELS};
 
+#[derive(Debug)]
 pub struct StreamState {
     format: gst_audio::AudioFormat,
     rate: u64,
@@ -94,16 +96,20 @@ impl StreamState {
         self.eos = false;
     }
 
-    fn have_segment(&mut self, segment_start: Timestamp) {
+    fn have_segment(&mut self, segment: &gst::FormattedSegment<gst::ClockTime>) {
+        // FIXME use ClockTime everywhere
+        let gst_time = segment.get_time();
+        let time = Timestamp::try_from(gst_time).unwrap();
+
         debug!(
             "have_gst_segment {} ({})",
-            segment_start,
-            segment_start.sample_index(self.sample_duration),
+            gst_time,
+            time.sample_index(self.sample_duration),
         );
 
         match self.segment_start {
-            Some(current_segment_start) => {
-                if current_segment_start != segment_start {
+            Some(cur_segment_start) => {
+                if cur_segment_start != time {
                     self.is_new_segment = true;
                 }
                 // else: same segment => might be an async_done after a pause
@@ -112,43 +118,27 @@ impl StreamState {
             None => self.is_new_segment = true,
         }
 
-        self.segment_start = Some(segment_start);
+        if self.is_new_segment {
+            self.segment_start = Some(time);
+            self.segment_lower = SampleIndex::from_ts(time, self.sample_duration);
+            self.last_buffer_upper = self.segment_lower;
+            self.is_new_segment = false;
+        }
     }
 
     fn have_buffer(&mut self, buffer: &gst::Buffer) -> SampleIndexRange {
+        self.last_buffer_lower = self.last_buffer_upper;
         let incoming_range =
             SampleIndexRange::new(buffer.get_size() / self.channels / self.bytes_per_channel);
-
-        // Unfortunately, we can't rely on the gst_buffer pts to figure out
-        // the exact position in the segment. Some streams use a pts
-        // value which is a rounded value to e.g ms and correct
-        // the shift every n samples.
-        // After an accurate seek, the gst_buffer pts seems reliable,
-        // however after a inaccurate seek, we get a rounded value.
-        // The strategy here is to consider that each incoming gst_buffer
-        // in the same segment comes after last gst_buffer (we might need
-        // to check gst_buffer drops for this) and in case of a new segment
-        // we'll rely on the inaccurate pts value...
-
-        self.last_buffer_lower = if self.is_new_segment {
-            self.segment_lower =
-                SampleIndex::from_ts(buffer.get_pts().unwrap().into(), self.sample_duration);
-            self.last_buffer_upper = self.segment_lower;
-            self.is_new_segment = false;
-
-            self.segment_lower
-        } else {
-            self.last_buffer_upper
-        };
-
-        self.last_buffer_upper = self.last_buffer_lower + incoming_range;
+        self.last_buffer_upper += incoming_range;
 
         incoming_range
     }
 }
 
+#[derive(Debug)]
 pub struct AudioBuffer {
-    buffer_duration: Duration,
+    pub(super) buffer_duration: Duration,
     capacity: usize,
     stream_state: StreamState,
     // AudioBuffer stores up to INLINE_CHANNELS
@@ -240,8 +230,8 @@ impl AudioBuffer {
         self.stream_state.segment_start = None;
     }
 
-    pub fn have_gst_segment(&mut self, segment_start: Timestamp) {
-        self.stream_state.have_segment(segment_start);
+    pub fn have_gst_segment(&mut self, segment: &gst::FormattedSegment<gst::ClockTime>) {
+        self.stream_state.have_segment(segment);
     }
 
     // Add samples from the GStreamer pipeline to the AudioBuffer
@@ -267,7 +257,7 @@ impl AudioBuffer {
             append_after: bool,
             lower_to_add_rel: SampleIndex,
             upper_to_add_rel: SampleIndex,
-        };
+        }
 
         // Identify conditions for this incoming gst_buffer:
         // 1. Incoming gst_buffer fits at the end of current container.
@@ -315,7 +305,7 @@ impl AudioBuffer {
                 // 3. can append [self.upper, upper] to the end
                 debug!(
                     "case 3. append to the end (partial) [{}, {}], incoming [{}, {}]",
-                    self.upper, incoming_upper, incoming_lower, incoming_upper
+                    self.lower, self.upper, incoming_lower, incoming_upper
                 );
                 // self.lower unchanged
                 let previous_upper = self.upper;
@@ -332,7 +322,7 @@ impl AudioBuffer {
                 // 4. can insert [lower, self.lower] at the begining
                 debug!(
                     "case 4. insert at the begining [{}, {}], incoming [{}, {}]",
-                    incoming_lower, self.lower, incoming_lower, incoming_upper
+                    self.lower, self.upper, incoming_lower, incoming_upper
                 );
                 let upper_to_add = self.lower;
                 self.lower = incoming_lower;
@@ -751,7 +741,9 @@ mod tests {
         is_new_segment: bool,
     ) {
         if is_new_segment {
-            audio_buffer.have_gst_segment(buffer.get_pts().nseconds().unwrap().into());
+            let mut segment = gst::FormattedSegment::new();
+            segment.set_start(buffer.get_pts());
+            audio_buffer.have_gst_segment(&segment);
         }
 
         audio_buffer.push_gst_buffer(buffer, SampleIndex::default()); // never drain buffer in this test

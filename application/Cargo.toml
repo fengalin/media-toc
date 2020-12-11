@@ -14,7 +14,7 @@ build = "build.rs"
 
 [dependencies]
 clap = "2"
-directories = "3"
+directories = "^3.0.1"
 gettext-rs = { version = "0.5", features = ["gettext-system"] }
 lazy_static = "1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
@@ -23,5 +23,5 @@ serde = "1"
 serde_derive = "1"
 
 [build-dependencies]
-directories = "3"
+directories = "^3.0.1"
 lazy_static = "1"

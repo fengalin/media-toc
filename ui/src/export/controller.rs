@@ -11,7 +11,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use media::{MediaEvent, TocSetterPipeline};
+use media::{MediaEvent, PlaybackPipeline, TocSetterPipeline};
 use metadata::{Duration, Exporter, Format, MatroskaTocFormat, MediaInfo};
 
 use crate::{

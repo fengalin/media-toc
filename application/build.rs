@@ -54,10 +54,10 @@ fn generate_resources() {
     match compile_res.status() {
         Ok(status) => {
             if !status.success() {
-                panic!(format!(
+                panic!(
                     "Failed to generate resources file for icons\n{:?}",
                     compile_res,
-                ));
+                );
             }
         }
         Err(ref error) => match error.kind() {
@@ -84,10 +84,10 @@ fn generate_resources() {
     match compile_res.status() {
         Ok(status) => {
             if !status.success() {
-                panic!(format!(
+                panic!(
                     "Failed to generate resources file for the UI\n{:?}",
                     compile_res,
-                ));
+                );
             }
         }
         Err(ref error) => match error.kind() {
@@ -125,10 +125,10 @@ fn generate_translations() {
             match msgfmt.status() {
                 Ok(status) => {
                     if !status.success() {
-                        panic!(format!(
+                        panic!(
                             "Failed to generate mo file for lingua {}\n{:?}",
                             lingua, msgfmt,
-                        ));
+                        );
                     }
                 }
                 Err(ref error) => match error.kind() {

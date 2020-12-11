@@ -1,7 +1,7 @@
 mod dispatcher;
 pub use self::dispatcher::Dispatcher;
 
-use media::Timestamp;
+use renderers::Timestamp;
 
 use crate::UIEventChannel;
 

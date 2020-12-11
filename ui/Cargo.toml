@@ -25,7 +25,7 @@ gtk = { git = "https://github.com/gtk-rs/gtk-rs", features = ["v3_20"] }
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 media = { path = "../media", package = "media-toc-media"  }
 metadata = { path = "../metadata", package = "media-toc-metadata"  }
-pango = "0.9"
+pango = { git = "https://github.com/gtk-rs/gtk-rs" }
 renderers = { path = "../renderers", package = "media-toc-renderers"  }
 ron = "0.6"
 serde = "1"

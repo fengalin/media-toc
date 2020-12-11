@@ -4,10 +4,10 @@ use futures::{
 };
 
 use gettextrs::gettext;
-use glib::{Cast, ObjectExt};
+use glib::{clone, prelude::*, Cast, ObjectExt};
 use gst::{prelude::*, ClockTime};
 
-use log::{debug, warn};
+use log::warn;
 
 use std::{
     borrow::Borrow,
@@ -15,18 +15,17 @@ use std::{
     convert::AsRef,
     fmt,
     path::Path,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, RwLock},
 };
 
+use crate::{MediaEvent, QUEUE_SIZE};
 use metadata::{media_info, Duration, MediaInfo};
+use renderers::{
+    generic::{self, prelude::*},
+    plugin, Timestamp,
+};
 
-use super::{DoubleAudioBuffer, MediaEvent, SampleExtractor, Timestamp};
-
-/// Max duration that queues can hold.
-pub(super) const QUEUE_SIZE: Duration = Duration::from_secs(5);
-
-/// Structure field to hold Timestamp for AsyncDone internal message emission.
-const ASYNC_DONE_FIELD: &'static str = "async-done-samples-nb";
+const RENDERER_BIN_NAME: &str = "media-toc-renderer-bin";
 
 pub struct MissingPlugins(HashSet<String>);
 
@@ -177,48 +176,69 @@ impl fmt::Display for SelectStreamsError {
 }
 impl std::error::Error for SelectStreamsError {}
 
-pub struct PlaybackPipeline<SE: SampleExtractor + 'static> {
+pub struct PlaybackPipeline {
     pipeline: gst::Pipeline,
-    decodebin: gst::Element,
-    dbl_audio_buffer_mtx: Arc<Mutex<DoubleAudioBuffer<SE>>>,
+    renderer: gst::Element,
 
     pub info: Arc<RwLock<MediaInfo>>,
     pub missing_plugins: MissingPlugins,
-    int_evt_rx: async_mpsc::UnboundedReceiver<gst::Message>,
+    int_evt_rx: async_mpsc::UnboundedReceiver<MediaEvent>,
     bus_watch_src_id: Option<glib::SourceId>,
 }
 
 /// Initialization
-impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
+impl PlaybackPipeline {
     pub async fn try_new(
         path: &Path,
-        dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer<SE>>>,
+        dbl_visu_renderer: Box<dyn DoubleRendererImpl>,
         video_sink: &Option<gst::Element>,
-    ) -> Result<
-        (
-            PlaybackPipeline<SE>,
-            async_mpsc::UnboundedReceiver<MediaEvent>,
-        ),
-        OpenError,
-    > {
+    ) -> Result<(PlaybackPipeline, async_mpsc::UnboundedReceiver<MediaEvent>), OpenError> {
+        plugin::init();
+
+        // FIXME once we get rid of DBL_RENDERER_IMPL_PROP,
+        // we should be able to intantiate the renderer while building the pipeline
+        // and avoid keeping it as a field.
+        let renderer =
+            gst::ElementFactory::make(plugin::RENDERER_BIN_NAME, Some(RENDERER_BIN_NAME)).unwrap();
+        renderer
+            .set_property(
+                plugin::DBL_RENDERER_IMPL_PROP,
+                &generic::GBoxedDoubleRendererImpl::from(dbl_visu_renderer),
+            )
+            .unwrap();
+        renderer
+            .set_property(plugin::BUFFER_SIZE_PROP, &QUEUE_SIZE.as_u64())
+            .unwrap();
+
         let (ext_evt_tx, ext_evt_rx) = async_mpsc::unbounded();
         let (int_evt_tx, int_evt_rx) = async_mpsc::unbounded();
 
+        // FIXME remove in favor of a dedicate Visualization widget
+        renderer
+            .connect(
+                plugin::MUST_REFRESH_SIGNAL,
+                false,
+                clone!(@strong ext_evt_tx => move |_| {
+                    ext_evt_tx.unbounded_send(MediaEvent::MustRefresh).unwrap();
+                    None
+                }),
+            )
+            .unwrap();
+
         let mut this = PlaybackPipeline {
             pipeline: gst::Pipeline::new(Some("playback_pipeline")),
-            // FIXME still needed as an attribute? Can't we only keep pipeline?
-            decodebin: gst::ElementFactory::make("decodebin3", Some("decodebin")).unwrap(),
-            dbl_audio_buffer_mtx: Arc::clone(dbl_audio_buffer_mtx),
+            renderer,
+            // FIXME use pbutils
             info: Arc::new(RwLock::new(MediaInfo::new(path))),
+            // FIXME use pbutils
             missing_plugins: MissingPlugins::new(),
             int_evt_rx,
             bus_watch_src_id: None,
         };
 
-        this.pipeline.add(&this.decodebin).unwrap();
-        this.build_pipeline(path, video_sink, ext_evt_tx.clone(), int_evt_tx.clone());
+        this.build_pipeline(path, video_sink);
 
-        let this = Self::open(this, ext_evt_tx, int_evt_tx).await?;
+        let this = Self::open(this, int_evt_tx, ext_evt_tx).await?;
         Ok((this, ext_evt_rx))
     }
 
@@ -247,6 +267,17 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                         .replacen("{}", variant2, 1),
                 )
             })
+    }
+
+    pub fn take_dbl_renderer_impl(&self) -> Box<dyn DoubleRendererImpl> {
+        let dbl_visu_renderer_impl: Option<Box<dyn DoubleRendererImpl>> = self
+            .renderer
+            .get_property(plugin::DBL_RENDERER_IMPL_PROP)
+            .expect("Prop double visu renderer impl not found")
+            .get_some::<&generic::GBoxedDoubleRendererImpl>()
+            .unwrap()
+            .into();
+        dbl_visu_renderer_impl.expect("double visu renderer impl already taken")
     }
 
     fn setup_queue(queue: &gst::Element) {
@@ -312,17 +343,13 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
             .unwrap();
     }
 
-    fn build_pipeline(
-        &mut self,
-        path: &Path,
-        video_sink: &Option<gst::Element>,
-        ext_evt_tx: async_mpsc::UnboundedSender<MediaEvent>,
-        int_evt_tx: async_mpsc::UnboundedSender<gst::Message>,
-    ) {
+    fn build_pipeline(&mut self, path: &Path, video_sink: &Option<gst::Element>) {
+        let decodebin = gst::ElementFactory::make("decodebin3", Some("decodebin")).unwrap();
+        self.pipeline.add(&decodebin).unwrap();
         // From decodebin3's documentation: "Children: multiqueue0"
-        let decodebin_as_bin = self.decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
+        let decodebin_as_bin = decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
         let decodebin_multiqueue = &decodebin_as_bin.get_children()[0];
-        PlaybackPipeline::<SE>::setup_queue(decodebin_multiqueue);
+        PlaybackPipeline::setup_queue(decodebin_multiqueue);
         // Discard "interleave" as it modifies "max-size-time"
         decodebin_multiqueue
             .set_property("use-interleave", &false)
@@ -333,255 +360,112 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
             .set_property("location", &path.to_str().unwrap())
             .unwrap();
         self.pipeline.add(&file_src).unwrap();
-        file_src.link(&self.decodebin).unwrap();
+        file_src.link(&decodebin).unwrap();
 
         let audio_sink =
-            gst::ElementFactory::make("autoaudiosink", Some("audio_playback_sink")).unwrap();
+            gst::ElementFactory::make("autoaudiosink", Some("audio-playback-sink")).unwrap();
 
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
-        let dbl_audio_buffer_mtx = Arc::clone(&self.dbl_audio_buffer_mtx);
-        let info_rwlck = Arc::clone(&self.info);
         let video_sink = video_sink.clone();
-        let media_event_tx = Arc::new(Mutex::new(ext_evt_tx));
-        let int_evt_tx = Arc::new(Mutex::new(int_evt_tx));
-        self.decodebin
-            .connect_pad_added(move |_decodebin, src_pad| {
-                let pipeline = &pipeline_clone;
-                let name = src_pad.get_name();
+        let renderer = self.renderer.clone();
 
-                if name.starts_with("audio_") {
-                    PlaybackPipeline::<SE>::build_audio_pipeline(
-                        pipeline,
-                        src_pad,
-                        &audio_sink,
-                        &dbl_audio_buffer_mtx,
-                        &info_rwlck,
-                        &media_event_tx,
-                        &int_evt_tx,
+        decodebin.connect_pad_added(move |_decodebin, src_pad| {
+            let pipeline = &pipeline_clone;
+            let name = src_pad.get_name();
+
+            if name.starts_with("audio_") {
+                PlaybackPipeline::build_audio_pipeline(pipeline, src_pad, &audio_sink, &renderer);
+            } else if name.starts_with("video_") {
+                if let Some(ref video_sink) = video_sink {
+                    PlaybackPipeline::build_video_pipeline(
+                        pipeline, src_pad, video_sink, &renderer,
                     );
-                } else if name.starts_with("video_") {
-                    if let Some(ref video_sink) = video_sink {
-                        PlaybackPipeline::<SE>::build_video_pipeline(pipeline, src_pad, video_sink);
-                    }
-                } else {
-                    // TODO: handle subtitles
-                    /*let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
-                    pipeline.add(&fakesink).unwrap();
-                    let fakesink_sink_pad = fakesink.get_static_pad("sink").unwrap();
-                    assert_eq!(src_pad.link(&fakesink_sink_pad), gst::PadLinkReturn::Ok);
-                    fakesink.sync_state_with_parent().unwrap();*/
                 }
-            });
+            } else {
+                // TODO: handle subtitles
+                /*let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
+                pipeline.add(&fakesink).unwrap();
+                let fakesink_sink_pad = fakesink.get_static_pad("sink").unwrap();
+                assert_eq!(src_pad.link(&fakesink_sink_pad), gst::PadLinkReturn::Ok);
+                fakesink.sync_state_with_parent().unwrap();*/
+            }
+        });
     }
 
     fn build_audio_pipeline(
         pipeline: &gst::Pipeline,
         src_pad: &gst::Pad,
         audio_sink: &gst::Element,
-        dbl_audio_buffer_mtx: &Arc<Mutex<DoubleAudioBuffer<SE>>>,
-        info_rwlck: &Arc<RwLock<MediaInfo>>,
-        ext_evt_tx: &Arc<Mutex<async_mpsc::UnboundedSender<MediaEvent>>>,
-        int_evt_tx: &Arc<Mutex<async_mpsc::UnboundedSender<gst::Message>>>,
+        renderer: &gst::Element,
     ) {
-        let playback_queue =
-            gst::ElementFactory::make("queue2", Some("audio_playback_queue")).unwrap();
-        PlaybackPipeline::<SE>::setup_queue(&playback_queue);
-
-        let playback_convert =
-            gst::ElementFactory::make("audioconvert", Some("playback_audioconvert")).unwrap();
-        let playback_resample =
-            gst::ElementFactory::make("audioresample", Some("playback_audioresample")).unwrap();
-        let playback_sink_pad = playback_queue.get_static_pad("sink").unwrap();
-        let playback_elements = &[
-            &playback_queue,
-            &playback_convert,
-            &playback_resample,
-            audio_sink,
-        ];
-
-        let waveform_queue = gst::ElementFactory::make("queue2", Some("waveform_queue")).unwrap();
-        PlaybackPipeline::<SE>::setup_queue(&waveform_queue);
-
-        let waveform_sink = gst::ElementFactory::make("fakesink", Some("waveform_sink")).unwrap();
-        let waveform_sink_pad = waveform_queue.get_static_pad("sink").unwrap();
-
-        {
-            let waveform_elements = &[&waveform_queue, &waveform_sink];
-            let tee = gst::ElementFactory::make("tee", Some("audio_tee")).unwrap();
-            let mut elements = vec![&tee];
-            elements.extend_from_slice(playback_elements);
-            elements.extend_from_slice(waveform_elements);
-            pipeline.add_many(elements.as_slice()).unwrap();
-
-            gst::Element::link_many(playback_elements).unwrap();
-            gst::Element::link_many(waveform_elements).unwrap();
-
-            let tee_sink = tee.get_static_pad("sink").unwrap();
-            src_pad.link(&tee_sink).unwrap();
-
-            let tee_playback_src_pad = tee.get_request_pad("src_%u").unwrap();
-            tee_playback_src_pad.link(&playback_sink_pad).unwrap();
-
-            let tee_waveform_src_pad = tee.get_request_pad("src_%u").unwrap();
-            tee_waveform_src_pad.link(&waveform_sink_pad).unwrap();
-
-            for e in elements {
-                e.sync_state_with_parent().unwrap();
-            }
+        if pipeline.get_by_name(RENDERER_BIN_NAME).is_none() {
+            pipeline.add(renderer).unwrap();
+            // FIXME move out when the bin's internal pipelines are constructed on demand
+            renderer
+                .set_property(plugin::CLOCK_REF_PROP, audio_sink)
+                .unwrap();
         }
 
-        // FIXME: build a dedicated plugin?
+        let audio_convert =
+            gst::ElementFactory::make("audioconvert", Some("audio-audioconvert")).unwrap();
+        let audio_resample =
+            gst::ElementFactory::make("audioresample", Some("audio-audioresample")).unwrap();
 
-        // get samples as fast as possible
-        waveform_sink.set_property("sync", &false).unwrap();
-        // and don't block pipeline when switching state
-        waveform_sink.set_property("async", &false).unwrap();
+        let elements = &[&audio_convert, &audio_resample, &audio_sink];
+        pipeline.add_many(elements).unwrap();
 
-        {
-            dbl_audio_buffer_mtx
-                .lock()
-                .expect(
-                    "PlaybackPipeline::build_audio_pipeline: couldn't lock dbl_audio_buffer_mtx",
-                )
-                .set_ref(audio_sink);
+        src_pad
+            .link(&renderer.get_static_pad("audio_sink").unwrap())
+            .unwrap();
+        renderer
+            .get_static_pad("audio_src")
+            .unwrap()
+            .link(&audio_convert.get_static_pad("sink").unwrap())
+            .unwrap();
+
+        gst::Element::link_many(&[&audio_convert, &audio_resample, &audio_sink]).unwrap();
+
+        renderer.sync_state_with_parent().unwrap();
+        for e in elements {
+            e.sync_state_with_parent().unwrap();
         }
-
-        // Pull samples directly off the queue in order to get them as soon as they are available
-        // We can't use intermediate elements such as audioconvert because they get paused
-        // and block the buffers
-
-        let dbl_audio_buffer_mtx_cb = Arc::clone(dbl_audio_buffer_mtx);
-        let info_rwlck_cb = Arc::clone(info_rwlck);
-        let ext_evt_tx_cb = Arc::clone(ext_evt_tx);
-        let int_evt_tx_cb = Arc::clone(int_evt_tx);
-        let async_done_ts = Mutex::new(None);
-        waveform_sink_pad.add_probe(
-            gst::PadProbeType::BUFFER | gst::PadProbeType::EVENT_BOTH,
-            move |_pad, probe_info| {
-                use gst::EventView::*;
-                use gst::PadProbeData::*;
-
-                match &probe_info.data {
-                    Some(Buffer(buffer)) => {
-                        let must_notify = dbl_audio_buffer_mtx_cb
-                            .lock()
-                            .unwrap()
-                            .push_gst_buffer(buffer);
-
-                        if must_notify {
-                            ext_evt_tx_cb
-                                .lock()
-                                .unwrap()
-                                .unbounded_send(MediaEvent::ReadyToRefresh)
-                                .unwrap();
-                        }
-
-                        let mut async_done_ts_gd = async_done_ts.lock().unwrap();
-                        if let Some(async_done_ts) = *async_done_ts_gd {
-                            if buffer.get_pts().map_or(true, |pts| pts > async_done_ts) {
-                                let async_done_ts = async_done_ts_gd.take();
-                                println!("got target buffer");
-                                int_evt_tx_cb
-                                    .lock()
-                                    .unwrap()
-                                    .unbounded_send(gst::message::AsyncDone::new(
-                                        async_done_ts.into(),
-                                    ))
-                                    .unwrap();
-                            }
-                        }
-
-                        if !buffer.get_flags().contains(gst::BufferFlags::DISCONT) {
-                            return gst::PadProbeReturn::Handled;
-                        }
-                    }
-                    Some(Event(event)) => match event.view() {
-                        Caps(caps_evt) => {
-                            dbl_audio_buffer_mtx_cb
-                                .lock()
-                                .unwrap()
-                                .set_caps(caps_evt.get_caps());
-                        }
-                        Eos(_) => {
-                            dbl_audio_buffer_mtx_cb.lock().unwrap().handle_eos();
-                            // Reached Eos, since we won't get any more buffer from here
-                            // so let's notify the application to take action.
-                            if let Some(async_done_ts) = async_done_ts.lock().unwrap().take() {
-                                int_evt_tx_cb
-                                    .lock()
-                                    .unwrap()
-                                    .unbounded_send(gst::message::AsyncDone::new(
-                                        async_done_ts.into(),
-                                    ))
-                                    .unwrap();
-                            } else {
-                                ext_evt_tx_cb
-                                    .lock()
-                                    .unwrap()
-                                    .unbounded_send(MediaEvent::ReadyToRefresh)
-                                    .unwrap();
-                            }
-                        }
-                        Seek(seek_evt) => {
-                            if let Some(ts) = seek_evt
-                                .get_structure()
-                                .and_then(|structure| structure.get(ASYNC_DONE_FIELD).ok())
-                            {
-                                *async_done_ts.lock().unwrap() = ts;
-                            }
-                        }
-                        Segment(segment_evt) => {
-                            let segment = segment_evt.get_segment();
-                            dbl_audio_buffer_mtx_cb
-                                .lock()
-                                .unwrap()
-                                .have_gst_segment(segment);
-
-                            if async_done_ts.lock().unwrap().is_none() {
-                                println!("got segment without target");
-                                int_evt_tx_cb
-                                    .lock()
-                                    .unwrap()
-                                    .unbounded_send(gst::message::AsyncDone::new(ClockTime::none()))
-                                    .unwrap();
-                            }
-                        }
-                        StreamStart(_) => {
-                            // FIXME isn't there a StreamChanged?
-                            let audio_has_changed =
-                                info_rwlck_cb.read().unwrap().streams.audio_changed;
-                            if audio_has_changed {
-                                debug!("changing audio stream");
-                                // FIXME purge the waveform queue
-                                let dbl_audio_buffer = &mut dbl_audio_buffer_mtx_cb.lock().unwrap();
-                                dbl_audio_buffer.clean_samples();
-                            }
-                        }
-                        _ => (),
-                    },
-                    _ => (),
-                }
-
-                gst::PadProbeReturn::Ok
-            },
-        );
     }
 
     fn build_video_pipeline(
         pipeline: &gst::Pipeline,
         src_pad: &gst::Pad,
         video_sink: &gst::Element,
+        renderer: &gst::Element,
     ) {
-        let queue = gst::ElementFactory::make("queue2", Some("video_queue")).unwrap();
-        PlaybackPipeline::<SE>::setup_queue(&queue);
+        if pipeline.get_by_name(RENDERER_BIN_NAME).is_none() {
+            pipeline.add(renderer).unwrap();
+            // FIXME remove when the bin's internal pipelines are constructed on demand
+            println!("CLOCK_REF video_sink");
+            renderer
+                .set_property(plugin::CLOCK_REF_PROP, video_sink)
+                .unwrap();
+        }
+
+        src_pad
+            .link(&renderer.get_static_pad("video_sink").unwrap())
+            .unwrap();
+
         let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
         let scale = gst::ElementFactory::make("videoscale", None).unwrap();
 
-        let elements = &[&queue, &convert, &scale, video_sink];
+        let elements = &[&convert, &scale, video_sink];
         pipeline.add_many(elements).unwrap();
+
+        renderer
+            .get_static_pad("video_src")
+            .unwrap()
+            .link(&convert.get_static_pad("sink").unwrap())
+            .unwrap();
+
         gst::Element::link_many(elements).unwrap();
 
+        renderer.sync_state_with_parent().unwrap();
         for e in elements {
             // Silently ignore the state sync issues
             // and rely on the PlaybackPipeline state to return an error.
@@ -589,15 +473,12 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
             // the bus catches it first.
             let _res = e.sync_state_with_parent();
         }
-
-        let sink_pad = queue.get_static_pad("sink").unwrap();
-        src_pad.link(&sink_pad).unwrap();
     }
 
     async fn open(
         mut self,
+        int_evt_tx: async_mpsc::UnboundedSender<MediaEvent>,
         ext_evt_tx: async_mpsc::UnboundedSender<MediaEvent>,
-        int_evt_tx: async_mpsc::UnboundedSender<gst::Message>,
     ) -> Result<Self, OpenError> {
         let pipeline = self.pipeline.clone();
 
@@ -607,7 +488,7 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
         pipeline.set_state(gst::State::Paused)?;
         self = handler_res_rx.await.unwrap()?;
 
-        self.register_operations_bus_watch(ext_evt_tx, int_evt_tx);
+        self.register_operations_bus_watch(int_evt_tx, ext_evt_tx);
 
         Ok(self)
     }
@@ -625,7 +506,6 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
             .add_watch(move |_, msg| {
                 use gst::MessageView::*;
 
-                //println!("{:?}", msg);
                 match msg.view() {
                     Error(err) => {
                         let mut this = this.take().unwrap();
@@ -708,7 +588,6 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                         }
                     }
                     AsyncDone(_) => {
-                        // FIXME StateChanged?
                         if streams_selected {
                             let this = this.take().unwrap();
 
@@ -720,13 +599,6 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
                                     .unwrap(),
                             );
                             this.info.write().unwrap().duration = duration;
-
-                            {
-                                let mut dbl_audio_buffer =
-                                    this.dbl_audio_buffer_mtx.lock().unwrap();
-                                dbl_audio_buffer.set_state(gst::State::Paused);
-                                dbl_audio_buffer.refresh();
-                            }
 
                             let _ = handler_res_tx.take().unwrap().send(Ok(this));
 
@@ -741,13 +613,20 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
             .unwrap();
     }
 
+    fn cleanup(&mut self) {
+        if let Some(video_sink) = self.pipeline.get_by_name("video_sink") {
+            self.pipeline.remove(&video_sink).unwrap();
+        }
+    }
+}
+
+/// Operations
+impl PlaybackPipeline {
     fn register_operations_bus_watch(
         &mut self,
+        int_evt_tx: async_mpsc::UnboundedSender<MediaEvent>,
         ext_evt_tx: async_mpsc::UnboundedSender<MediaEvent>,
-        int_evt_tx: async_mpsc::UnboundedSender<gst::Message>,
     ) {
-        let dbl_audio_buffer = Arc::clone(&self.dbl_audio_buffer_mtx);
-
         let bus_watch_src_id = self
             .pipeline
             .get_bus()
@@ -755,36 +634,31 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
             .add_watch(move |_, msg| {
                 use gst::MessageView::*;
 
-                let mut must_forward = false;
                 match msg.view() {
+                    AsyncDone(_) => {
+                        int_evt_tx.unbounded_send(MediaEvent::AsyncDone).unwrap();
+                    }
                     StateChanged(state_changed) => {
                         if state_changed.get_src().unwrap().get_type()
                             == gst::Pipeline::static_type()
                         {
-                            must_forward = true;
+                            int_evt_tx.unbounded_send(MediaEvent::StateChanged).unwrap();
                         }
                     }
-                    // FIXME remove
-                    //AsyncDone(_) => must_forward = true,
                     Eos(_) => {
-                        dbl_audio_buffer
-                            .lock()
-                            .unwrap()
-                            .set_state(gst::State::Paused);
                         ext_evt_tx.unbounded_send(MediaEvent::Eos).unwrap();
                     }
                     Error(err) => {
+                        // FIXME avoid copying the error (use an Rc?)
                         ext_evt_tx
                             .unbounded_send(MediaEvent::Error(err.get_error().to_string()))
                             .unwrap();
 
-                        must_forward = true;
+                        int_evt_tx
+                            .unbounded_send(MediaEvent::Error(err.get_error().to_string()))
+                            .unwrap();
                     }
                     _ => (),
-                }
-
-                if must_forward {
-                    int_evt_tx.unbounded_send(msg.clone()).unwrap();
                 }
 
                 glib::Continue(true)
@@ -794,15 +668,6 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
         self.bus_watch_src_id = Some(bus_watch_src_id);
     }
 
-    fn cleanup(&mut self) {
-        if let Some(video_sink) = self.pipeline.get_by_name("video_sink") {
-            self.pipeline.remove(&video_sink).unwrap();
-        }
-    }
-}
-
-/// Operations
-impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
     pub fn current_ts(&self) -> Option<Timestamp> {
         let mut position_query = gst::query::Position::new(gst::Format::Time);
         self.pipeline.query(&mut position_query);
@@ -816,13 +681,12 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
 
     /// Purges previous internal messages if any.
     fn purge_int_evt_(&mut self) -> Result<(), PurgeError> {
-        while let Ok(msg) = self.int_evt_rx.try_next() {
-            match msg {
-                Some(msg) => {
-                    if let gst::MessageView::Error(_) = msg.view() {
-                        return Err(PurgeError);
-                    }
+        while let Ok(event) = self.int_evt_rx.try_next() {
+            match event {
+                Some(MediaEvent::Error(_)) => {
+                    return Err(PurgeError);
                 }
+                Some(_) => (),
                 None => panic!("internal channel terminated"),
             }
         }
@@ -835,19 +699,14 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
 
         self.pipeline.set_state(gst::State::Paused)?;
 
-        while let Some(msg) = self.int_evt_rx.next().await {
-            use gst::MessageView::*;
-            match msg.view() {
-                StateChanged(_) => break,
+        while let Some(event) = self.int_evt_rx.next().await {
+            use MediaEvent::*;
+            match event {
+                StateChanged => break,
                 Error(_) => return Err(StateChangeError),
                 _ => (),
             }
         }
-
-        self.dbl_audio_buffer_mtx
-            .lock()
-            .unwrap()
-            .set_state(gst::State::Paused);
 
         Ok(())
     }
@@ -855,23 +714,16 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
     pub async fn play(&mut self) -> Result<(), StateChangeError> {
         self.purge_int_evt_()?;
 
-        self.dbl_audio_buffer_mtx.lock().unwrap().accept_eos();
-
         self.pipeline.set_state(gst::State::Playing)?;
 
-        while let Some(msg) = self.int_evt_rx.next().await {
-            use gst::MessageView::*;
-            match msg.view() {
-                StateChanged(_) => break,
+        while let Some(event) = self.int_evt_rx.next().await {
+            use MediaEvent::*;
+            match event {
+                StateChanged => break,
                 Error(_) => return Err(StateChangeError),
                 _ => (),
             }
         }
-
-        self.dbl_audio_buffer_mtx
-            .lock()
-            .unwrap()
-            .set_state(gst::State::Playing);
 
         Ok(())
     }
@@ -895,73 +747,28 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
     ) -> Result<(), SeekError> {
         self.purge_int_evt_()?;
 
-        self.pipeline
-            .seek_simple(
-                gst::SeekFlags::FLUSH | flags,
-                ClockTime::from(target.as_u64()),
-            )
-            .unwrap();
-
-        if target >= self.info.read().unwrap().duration {
-            return Err(SeekError::Eos);
-        }
-
-        use gst::MessageView::*;
-        while let Some(msg) = self.int_evt_rx.next().await {
-            match msg.view() {
-                AsyncDone(_) => break,
-                Error(_) => return Err(SeekError::Unrecoverable),
-                _ => (),
-            }
-        }
-
-        Ok(())
-    }
-
-    pub async fn two_steps_seek(
-        &mut self,
-        start_ts: Timestamp,
-        target: Timestamp,
-        flags: gst::SeekFlags,
-    ) -> Result<(), SeekError> {
-        self.purge_int_evt_()?;
-
-        let seek_evt = gst::event::Seek::builder(
+        let seek_evt = gst::event::Seek::new(
             1f64,
             gst::SeekFlags::FLUSH | flags,
             gst::SeekType::Set,
-            ClockTime::from(start_ts.as_u64()),
-            gst::SeekType::Set,
+            target.into(),
+            gst::SeekType::None,
             ClockTime::none(),
-        )
-        .other_fields(&[(ASYNC_DONE_FIELD, &ClockTime::from(target.as_u64()))])
-        .build();
+        );
 
-        self.pipeline.send_event(seek_evt);
+        let seqnum = seek_evt.get_seqnum();
+        if !self.pipeline.send_event(seek_evt) {
+            panic!("failed to seek {:?}", seqnum);
+        }
 
         if target >= self.info.read().unwrap().duration {
             return Err(SeekError::Eos);
         }
 
-        use gst::MessageView::*;
-        while let Some(msg) = self.int_evt_rx.next().await {
-            match msg.view() {
-                AsyncDone(_) => break,
-                Error(_) => return Err(SeekError::Unrecoverable),
-                _ => (),
-            }
-        }
-
-        self.pipeline
-            .seek_simple(
-                gst::SeekFlags::FLUSH | flags,
-                ClockTime::from(target.as_u64()),
-            )
-            .unwrap();
-
-        while let Some(msg) = self.int_evt_rx.next().await {
-            match msg.view() {
-                AsyncDone(_) => break,
+        while let Some(event) = self.int_evt_rx.next().await {
+            use MediaEvent::*;
+            match event {
+                AsyncDone => break,
                 Error(_) => return Err(SeekError::Unrecoverable),
                 _ => (),
             }
@@ -972,28 +779,21 @@ impl<SE: SampleExtractor + 'static> PlaybackPipeline<SE> {
 
     // FIXME move to async
     pub fn seek_range(&self, start: Timestamp, end: Timestamp) {
-        // EOS will be emitted at the end of the range
-        // => ignore it so as not to confuse mechnisms that expect the actual end of stream
-        self.dbl_audio_buffer_mtx
-            .lock()
-            .expect("PlaybackPipeline::play: couldn't lock dbl_audio_buffer_mtx")
-            .ignore_eos();
-
         self.pipeline
             .seek(
                 1f64,
                 gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
                 gst::SeekType::Set,
-                ClockTime::from(start.as_u64()),
+                ClockTime::from(start),
                 gst::SeekType::Set,
-                ClockTime::from(end.as_u64()),
+                ClockTime::from(end),
             )
-            .ok()
             .unwrap();
+
         if self.pipeline.set_state(gst::State::Playing).is_err() {
+            // FIXME return the error
             warn!("Seeking range: Could not set media in palying state");
-            self.dbl_audio_buffer_mtx.lock().unwrap().accept_eos();
-        };
+        }
     }
 
     pub async fn select_streams(

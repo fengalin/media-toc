@@ -1,5 +1,7 @@
 use std::{
     cmp::Ordering,
+    convert::TryFrom,
+    error::Error,
     fmt,
     ops::{Add, Sub},
 };
@@ -41,6 +43,12 @@ impl Timestamp {
     pub fn as_u64(self) -> u64 {
         self.0
     }
+
+    // FIXME there seems to be a trait for this now
+    #[must_use = "this returns the result of the operation, without modifying the original"]
+    pub fn saturating_sub(self, rhs: Duration) -> Timestamp {
+        Timestamp::new(self.0.saturating_sub(rhs.as_u64()))
+    }
 }
 
 impl From<u64> for Timestamp {
@@ -58,6 +66,33 @@ impl From<i64> for Timestamp {
 impl From<Duration> for Timestamp {
     fn from(duration: Duration) -> Self {
         Self(duration.as_u64())
+    }
+}
+
+impl From<Timestamp> for gst::ClockTime {
+    fn from(ts: Timestamp) -> Self {
+        gst::ClockTime::from_nseconds(ts.as_u64())
+    }
+}
+
+#[derive(Debug)]
+pub struct TimestampTryFromError;
+
+impl fmt::Display for TimestampTryFromError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Timestamp from other type failed")
+    }
+}
+
+impl Error for TimestampTryFromError {}
+
+impl TryFrom<gst::ClockTime> for Timestamp {
+    type Error = TimestampTryFromError;
+    fn try_from(clock_time: gst::ClockTime) -> Result<Self, Self::Error> {
+        clock_time
+            .nseconds()
+            .map(Timestamp)
+            .ok_or(TimestampTryFromError)
     }
 }
 
