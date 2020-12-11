@@ -5,9 +5,9 @@ use log::{info, warn};
 use std::{cell::RefCell, fs::File, rc::Rc};
 
 use application::CONFIG;
-use media::Timestamp;
+use media::PlaybackPipeline;
 use metadata::{Duration, MediaInfo, Timestamp4Humans};
-use renderers::Image;
+use renderers::{Image, Timestamp};
 
 use super::{ChapterTreeManager, ChaptersBoundaries, PositionStatus};
 use crate::{info_bar, main, playback, prelude::*};

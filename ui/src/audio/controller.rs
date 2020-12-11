@@ -9,14 +9,15 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use media::{DoubleAudioBuffer, Timestamp, QUEUE_SIZE};
+use media::PlaybackPipeline;
 use metadata::{Duration, MediaInfo};
-use renderers::{DoubleWaveformRenderer, ImagePositions, WaveformRenderer};
+use renderers::{
+    generic::prelude::*, DoubleWaveformRenderer, ImagePositions, Timestamp, WaveformRenderer,
+};
 
 use super::WaveformWithOverlay;
 use crate::{audio, info::ChaptersBoundaries, main, playback, prelude::*};
 
-const BUFFER_DURATION: Duration = Duration::from_secs(60);
 const INIT_REQ_DURATION_FOR_1000PX: Duration = Duration::from_secs(4);
 const MIN_REQ_DURATION_FOR_1000PX: Duration = Duration::from_nanos(1_953_125); // 4s / 2^11
 const MAX_REQ_DURATION_FOR_1000PX: Duration = Duration::from_secs(32);
@@ -37,8 +38,6 @@ pub enum State {
     PlayingRange(Timestamp),
     Paused,
     PausedPlayingRange(Timestamp),
-    SeekingPaused,
-    SeekingPlaying,
 }
 
 #[derive(Debug)]
@@ -49,8 +48,8 @@ pub enum AreaEvent {
 }
 
 pub struct Controller {
-    waveform_renderer_mtx: Arc<Mutex<Box<WaveformRenderer>>>,
-    pub dbl_renderer_mtx: Arc<Mutex<DoubleAudioBuffer<WaveformRenderer>>>,
+    exposed_renderer: Arc<Mutex<Box<WaveformRenderer>>>,
+    pub(crate) dbl_renderer_impl: Option<Box<dyn DoubleRendererImpl>>,
     pub(super) positions: Rc<RefCell<ImagePositions>>,
     boundaries: Rc<RefCell<ChaptersBoundaries>>,
 
@@ -112,7 +111,6 @@ impl UIController for Controller {
         self.step_forward_action.set_enabled(false);
         self.step_back_action.set_enabled(false);
         self.playback_needs_refresh = false;
-        self.dbl_renderer_mtx.lock().unwrap().cleanup();
         self.requested_duration = INIT_REQ_DURATION_FOR_1000PX;
         self.seek_step = INIT_REQ_DURATION_FOR_1000PX / SEEK_STEP_DURATION_DIVISOR;
         *self.positions.borrow_mut() = ImagePositions::default();
@@ -139,12 +137,12 @@ impl UIController for Controller {
 
 impl Controller {
     pub fn new(builder: &gtk::Builder, boundaries: Rc<RefCell<ChaptersBoundaries>>) -> Self {
-        let dbl_waveform = DoubleWaveformRenderer::new_dbl_audio_buffer(BUFFER_DURATION);
-        let waveform_renderer_mtx = dbl_waveform.exposed_buffer_mtx();
+        let dbl_waveform = Box::new(DoubleWaveformRenderer::default());
+        let exposed_renderer = dbl_waveform.exposed();
 
         let mut ctrl = Controller {
-            waveform_renderer_mtx,
-            dbl_renderer_mtx: Arc::new(Mutex::new(dbl_waveform)),
+            exposed_renderer,
+            dbl_renderer_impl: Some(dbl_waveform),
             positions: Rc::new(RefCell::new(ImagePositions::default())),
             boundaries,
 
@@ -180,35 +178,11 @@ impl Controller {
 
     pub fn waveform_with_overlay(&self) -> WaveformWithOverlay {
         WaveformWithOverlay::new(
-            &self.waveform_renderer_mtx,
+            &self.exposed_renderer,
             &self.positions,
             &self.boundaries,
             &self.ref_lbl,
         )
-    }
-
-    /// Finds the first timestamp for a seek in Paused state.
-    ///
-    /// This is used as an attempt to center the waveform on the target timestamp.
-    pub fn first_ts_for_paused_seek(&self, target: Timestamp) -> Option<Timestamp> {
-        let (lower_ts, upper_ts, half_window_duration) = {
-            let waveform_renderer = self.waveform_renderer_mtx.lock().unwrap();
-            let limits = waveform_renderer.limits_as_ts();
-            (limits.0, limits.1, waveform_renderer.half_window_duration())
-        };
-
-        // don't step back more than the pipeline queues can handle
-        let step_back_duration = half_window_duration.min(QUEUE_SIZE);
-        if target > step_back_duration {
-            if target < lower_ts + step_back_duration || target > upper_ts {
-                Some(target - step_back_duration)
-            } else {
-                // 1st timestamp already available => don't need 2 steps seek back
-                None
-            }
-        } else {
-            Some(Timestamp::default())
-        }
     }
 
     pub fn pause(&mut self) {
@@ -222,7 +196,7 @@ impl Controller {
             _ => return,
         }
 
-        self.waveform_renderer_mtx.lock().unwrap().freeze();
+        self.exposed_renderer.lock().unwrap().freeze();
 
         self.refresh_buffer();
         self.remove_tick_callback();
@@ -240,42 +214,8 @@ impl Controller {
             _ => return,
         }
 
-        self.waveform_renderer_mtx.lock().unwrap().release();
+        self.exposed_renderer.lock().unwrap().release();
         self.register_tick_callback();
-    }
-
-    pub fn seek(&mut self) {
-        match self.state {
-            State::Playing => {
-                self.state = State::SeekingPlaying;
-            }
-            State::Paused => self.state = State::SeekingPaused,
-            State::PlayingRange(_) => {
-                self.remove_tick_callback();
-                self.state = State::SeekingPaused;
-            }
-            State::PausedPlayingRange(_) => {
-                self.state = State::SeekingPaused;
-            }
-            _ => (),
-        }
-
-        self.waveform_renderer_mtx.lock().unwrap().seek();
-    }
-
-    pub fn seek_done(&mut self, ts: Timestamp) {
-        match self.state {
-            State::SeekingPlaying => {
-                self.state = State::Playing;
-                self.waveform_renderer_mtx.lock().unwrap().seek_done(ts);
-            }
-            State::SeekingPaused => {
-                self.state = State::Paused;
-                self.waveform_renderer_mtx.lock().unwrap().seek_done(ts);
-                self.refresh();
-            }
-            _ => unreachable!("seek_done in {:?}", self.state),
-        }
     }
 
     pub fn start_play_range(&mut self, to_restore: Timestamp) {
@@ -371,7 +311,7 @@ impl Controller {
             );
 
             {
-                let waveform_renderer = &mut *self.waveform_renderer_mtx.lock().unwrap();
+                let waveform_renderer = &mut *self.exposed_renderer.lock().unwrap();
                 waveform_renderer.update_conditions(
                     self.requested_duration,
                     self.area_width as i32,
@@ -428,7 +368,7 @@ impl Controller {
     }
 
     fn refresh_buffer(&mut self) -> bool {
-        self.waveform_renderer_mtx.lock().unwrap().refresh().is_ok()
+        self.exposed_renderer.lock().unwrap().refresh().is_ok()
     }
 
     pub fn tick(&mut self) {

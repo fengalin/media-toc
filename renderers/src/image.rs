@@ -1,5 +1,6 @@
 use std::{
     cell::{Cell, RefCell},
+    fmt,
     rc::Rc,
 };
 
@@ -42,6 +43,16 @@ pub struct Image {
     pub width: i32,
     pub height: i32,
     stride: i32,
+}
+
+impl fmt::Debug for Image {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Image")
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("stride", &self.stride)
+            .finish()
+    }
 }
 
 impl Image {

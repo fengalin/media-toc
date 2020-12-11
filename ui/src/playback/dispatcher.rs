@@ -6,7 +6,7 @@ use gtk::prelude::*;
 use log::debug;
 
 use crate::{info::ChapterEntry, main, playback, prelude::*};
-use media::Timestamp;
+use renderers::Timestamp;
 
 pub struct Dispatcher;
 

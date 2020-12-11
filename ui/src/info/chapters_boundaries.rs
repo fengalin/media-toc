@@ -2,7 +2,7 @@ use log::debug;
 
 use std::{collections::BTreeMap, fmt, ops::Deref};
 
-use media::Timestamp;
+use renderers::Timestamp;
 
 #[derive(Clone, Copy, Debug)]
 pub struct ChapterTimestamps {
@@ -202,7 +202,7 @@ mod tests {
     use gtk;
     use gtk::TreeStoreExt;
 
-    use media::Timestamp;
+    use renderers::Timestamp;
 
     fn new_chapter(store: &gtk::TreeStore, title: &str, ts: ChapterTimestamps) -> Chapter {
         Chapter {

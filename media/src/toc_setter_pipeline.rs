@@ -12,7 +12,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use super::{MediaEvent, Timestamp};
+use super::MediaEvent;
+use renderers::Timestamp;
 
 pub struct TocSetterPipeline {
     pipeline: gst::Pipeline,

@@ -9,9 +9,10 @@ use cairo;
 
 use std::sync::{Arc, Mutex, RwLock};
 
-use media::{
-    sample_extractor, AudioBuffer, AudioChannel, AudioChannelSide, SampleExtractor, SampleIndex,
-    SampleIndexRange, Timestamp,
+use mediatocrenderers::{
+    generic::{prelude::*, renderer},
+    AudioBuffer, AudioChannel, AudioChannelSide, SampleExtractor, SampleIndex, SampleIndexRange,
+    Timestamp,
 };
 use mediatocrenderers::{
     waveform::{image::ChannelColors, renderer::SharedState, Dimensions},
@@ -102,7 +103,7 @@ fn prepare_buffers() -> (AudioBuffer, WaveformRenderer, Arc<RwLock<SharedState>>
             1,
             Arc::clone(&shared_state),
             Arc::new(RwLock::new(Dimensions::default())),
-            Arc::new(RwLock::new(sample_extractor::State::default())),
+            Arc::new(RwLock::new(renderer::State::default())),
             Arc::new(Mutex::new(ChannelColors::default())),
             Arc::new(Mutex::new(None)),
         ),
@@ -120,9 +121,10 @@ fn render_buffers(
     audio_buffer.upper = BUFFER_OVERHEAD.into();
 
     waveform_renderer.reset();
-    waveform_renderer.set_sample_duration(SAMPLE_DURATION, DURATION_FOR_1000);
-    waveform_renderer.set_channels(
-        vec![
+    waveform_renderer.set_sample_cndt(
+        SAMPLE_DURATION,
+        DURATION_FOR_1000,
+        &mut vec![
             AudioChannel {
                 side: AudioChannelSide::Left,
                 factor: 1f64,

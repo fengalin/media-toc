@@ -19,7 +19,7 @@ use std::{
     time::Duration,
 };
 
-use media::MediaEvent;
+use media::{MediaEvent, PlaybackPipeline};
 use metadata::{Format, MediaInfo};
 
 use crate::{generic_output, info_bar, main, prelude::*, spawn, UIEvent};

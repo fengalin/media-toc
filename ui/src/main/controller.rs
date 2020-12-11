@@ -11,14 +11,17 @@ use log::{error, info};
 use std::{borrow::ToOwned, cell::RefCell, path::PathBuf, rc::Rc, sync::Arc};
 
 use application::{CommandLineArguments, APP_ID, CONFIG};
-use media::{MediaEvent, MissingPlugins, OpenError, SeekError, SelectStreamsError, Timestamp};
+use media::{
+    MediaEvent, MissingPlugins, OpenError, PlaybackPipeline, SeekError, SelectStreamsError,
+};
+use renderers::Timestamp;
 
 use crate::{
     audio, export,
     info::{self, ChaptersBoundaries},
     info_bar, main, perspective, playback,
     prelude::*,
-    spawn, split, streams, video, PlaybackPipeline,
+    spawn, split, streams, video,
 };
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
@@ -247,8 +250,6 @@ impl Controller {
 
         match self.state {
             Playing | EosPlaying => {
-                self.audio.seek();
-
                 match self.pipeline.as_mut().unwrap().seek(target, flags).await {
                     Ok(()) => {
                         if let EosPlaying = self.state {
@@ -265,24 +266,9 @@ impl Controller {
                         return Err(());
                     }
                 }
-
-                self.audio.seek_done(target);
             }
             Paused | EosPaused => {
-                self.audio.seek();
-
-                let res = match self.audio.first_ts_for_paused_seek(target) {
-                    Some(first_ts) => {
-                        self.pipeline
-                            .as_mut()
-                            .unwrap()
-                            .two_steps_seek(first_ts, target, flags)
-                            .await
-                    }
-                    None => self.pipeline.as_mut().unwrap().seek(target, flags).await,
-                };
-
-                match res {
+                match self.pipeline.as_mut().unwrap().seek(target, flags).await {
                     Ok(()) => {
                         if let EosPaused = self.state {
                             self.state = Paused;
@@ -299,7 +285,7 @@ impl Controller {
                     }
                 }
 
-                self.audio.seek_done(target);
+                self.info.tick(target, self.state);
             }
             _ => (),
         }
@@ -376,6 +362,7 @@ impl Controller {
     fn stop(&mut self) {
         if let Some(mut pipeline) = self.pipeline.take() {
             let _ = pipeline.stop();
+            self.audio.dbl_renderer_impl = Some(pipeline.take_dbl_renderer_impl());
         }
 
         if let Some(abort_handle) = self.media_msg_abort_handle.take() {
@@ -542,9 +529,15 @@ impl Controller {
             gettext("Opening {}...").replacen("{}", path.to_str().unwrap(), 1)
         );
 
-        let dbl_buffer_mtx = Arc::clone(&self.audio.dbl_renderer_mtx);
-        match PlaybackPipeline::try_new(path.as_ref(), &dbl_buffer_mtx, &self.video.video_sink())
-            .await
+        match PlaybackPipeline::try_new(
+            path.as_ref(),
+            self.audio
+                .dbl_renderer_impl
+                .take()
+                .expect("Couldn't take double visu renderer"),
+            &self.video.video_sink(),
+        )
+        .await
         {
             Ok((pipeline, mut media_evt_rx)) => {
                 if !pipeline.missing_plugins.is_empty() {
@@ -581,8 +574,8 @@ impl Controller {
                                 info_bar::show_error(err);
                                 break;
                             }
-                            ReadyToRefresh => audio::refresh(),
-                            _ => unreachable!(),
+                            MustRefresh => audio::refresh(),
+                            other => unreachable!("{:?}", other),
                         }
                     }
                 });

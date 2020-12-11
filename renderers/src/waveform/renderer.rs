@@ -1,13 +1,13 @@
 use log::{debug, trace};
 
 use std::{
-    fmt,
+    fmt, mem,
     sync::{Arc, Mutex, RwLock},
 };
 
-use media::{
-    sample_extractor, AudioBuffer, AudioChannel, DoubleAudioBuffer, SampleExtractor, SampleIndex,
-    SampleIndexRange, Timestamp,
+use crate::{
+    generic::{prelude::*, renderer},
+    AudioBuffer, AudioChannel, SampleIndex, SampleIndexRange, Timestamp,
 };
 
 use metadata::Duration;
@@ -18,35 +18,73 @@ use super::{
     Dimensions,
 };
 
-pub struct DoubleWaveformRenderer;
+#[derive(Debug)]
+pub struct DoubleWaveformRenderer {
+    exposed: Arc<Mutex<Box<WaveformRenderer>>>,
+    working: Box<WaveformRenderer>,
+}
 
-impl DoubleWaveformRenderer {
-    pub fn new_dbl_audio_buffer(buffer_duration: Duration) -> DoubleAudioBuffer<WaveformRenderer> {
+impl Default for DoubleWaveformRenderer {
+    fn default() -> Self {
         let shared_state = Arc::new(RwLock::new(SharedState::default()));
         let dimensions = Arc::new(RwLock::new(Dimensions::default()));
-        let extract_state = Arc::new(RwLock::new(sample_extractor::State::default()));
+        let renderer_state = Arc::new(RwLock::new(renderer::State::default()));
         let channel_colors = Arc::new(Mutex::new(ChannelColors::default()));
         let secondary_image = Arc::new(Mutex::new(None));
 
-        DoubleAudioBuffer::new(
-            buffer_duration,
-            Box::new(WaveformRenderer::new(
+        DoubleWaveformRenderer {
+            exposed: Arc::new(Mutex::new(Box::new(WaveformRenderer::new(
                 1,
                 Arc::clone(&shared_state),
                 Arc::clone(&dimensions),
-                Arc::clone(&extract_state),
+                Arc::clone(&renderer_state),
                 Arc::clone(&channel_colors),
                 Arc::clone(&secondary_image),
-            )),
-            Box::new(WaveformRenderer::new(
+            )))),
+            working: Box::new(WaveformRenderer::new(
                 2,
                 shared_state,
                 dimensions,
-                extract_state,
+                renderer_state,
                 channel_colors,
                 secondary_image,
             )),
-        )
+        }
+    }
+}
+
+impl DoubleWaveformRenderer {
+    pub fn exposed(&self) -> Arc<Mutex<Box<WaveformRenderer>>> {
+        Arc::clone(&self.exposed)
+    }
+}
+
+impl DoubleRendererImpl for DoubleWaveformRenderer {
+    fn swap(&mut self) {
+        let exposed = &mut *self.exposed.lock().unwrap();
+        mem::swap(exposed, &mut self.working);
+    }
+
+    fn working(&mut self) -> &mut dyn Renderer {
+        self.working.as_mut() as &mut dyn Renderer
+    }
+
+    fn cleanup(&mut self) {
+        self.exposed.lock().unwrap().cleanup();
+        self.working.cleanup();
+    }
+
+    fn set_sample_cndt(
+        &mut self,
+        per_sample: Duration,
+        per_1000_samples: Duration,
+        channels: &mut dyn Iterator<Item = AudioChannel>,
+    ) {
+        // Keep exposed locked until we are done setting conditions
+        let mut exposed = self.exposed.lock().unwrap();
+        exposed.reset_sample_cndt();
+        self.working
+            .set_sample_cndt(per_sample, per_1000_samples, channels);
     }
 }
 
@@ -139,7 +177,7 @@ impl State {
     }
 
     #[inline]
-    fn seek(&mut self) {
+    fn seek_start(&mut self) {
         match self {
             State::Playback(mode) => *self = State::Seeking(*mode),
             State::Seeking(_) => (),
@@ -150,7 +188,7 @@ impl State {
     fn seek_done(&mut self) {
         match self {
             State::Seeking(mode) => *self = State::Playback(*mode),
-            State::Playback(_) => unreachable!(),
+            State::Playback(_) => (),
         }
     }
 
@@ -171,8 +209,8 @@ impl State {
     }
 
     #[inline]
-    fn must_refresh_cursor(&self) -> bool {
-        matches!(self, State::Playback(_))
+    fn is_seeking(&self) -> bool {
+        matches!(self, State::Seeking(_))
     }
 
     #[inline]
@@ -232,13 +270,13 @@ impl std::error::Error for RefreshError {}
 // Whenever possible, the WaveformRenderer attempts to have the Waveform scroll
 // between frames with current playback position in the middle so that the
 // user can seek forward or backward around current timestamp.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct WaveformRenderer {
     pub image: WaveformImage,
     dimensions: Arc<RwLock<Dimensions>>,
 
     shared_state: Arc<RwLock<SharedState>>,
-    extract_state: Arc<RwLock<sample_extractor::State>>,
+    renderer_state: Arc<RwLock<renderer::State>>,
 }
 
 impl WaveformRenderer {
@@ -246,7 +284,7 @@ impl WaveformRenderer {
         id: usize,
         shared_state: Arc<RwLock<SharedState>>,
         dimensions: Arc<RwLock<Dimensions>>,
-        extract_state: Arc<RwLock<sample_extractor::State>>,
+        renderer_state: Arc<RwLock<renderer::State>>,
         channel_colors: Arc<Mutex<ChannelColors>>,
         secondary_image: Arc<Mutex<Option<Image>>>,
     ) -> Self {
@@ -255,7 +293,7 @@ impl WaveformRenderer {
             dimensions,
 
             shared_state,
-            extract_state,
+            renderer_state,
         }
     }
 
@@ -265,15 +303,6 @@ impl WaveformRenderer {
         self.shared_state.write().unwrap().reset();
         self.dimensions.write().unwrap().reset();
         self.image.cleanup();
-    }
-
-    pub fn limits_as_ts(&self) -> (Timestamp, Timestamp) {
-        let sample_duration = self.dimensions.read().unwrap().sample_duration;
-
-        (
-            self.image.lower.as_ts(sample_duration),
-            self.image.upper.as_ts(sample_duration),
-        )
     }
 
     pub fn half_window_duration(&self) -> Duration {
@@ -291,52 +320,6 @@ impl WaveformRenderer {
 
     pub fn release(&mut self) {
         self.shared_state.write().unwrap().state.release();
-    }
-
-    pub fn seek(&mut self) {
-        self.shared_state.write().unwrap().state.seek();
-    }
-
-    pub fn seek_done(&mut self, ts: Timestamp) {
-        let cursor_sample = ts.sample_index(self.dimensions.read().unwrap().sample_duration);
-
-        let mut shared_state = self.shared_state.write().unwrap();
-        shared_state.state.seek_done();
-
-        shared_state.cursor_sample = cursor_sample;
-        shared_state.cursor_ts = ts;
-
-        let first_visible_sample = match shared_state.first_visible_sample {
-            Some(first_visible_sample) => first_visible_sample,
-            None => return,
-        };
-
-        let (req_sample_window, half_req_sample_window) = {
-            let dim = self.dimensions.read().unwrap();
-            (dim.req_sample_window, dim.half_req_sample_window)
-        };
-
-        if cursor_sample >= first_visible_sample + req_sample_window
-            || cursor_sample < first_visible_sample
-        {
-            // Cursor no longer in current window => recompute
-            shared_state.first_visible_sample = None;
-            return;
-        }
-
-        // cursor still in current window
-        match shared_state.state {
-            State::Playback(Mode::Scrollable(_)) => {
-                if cursor_sample > first_visible_sample + half_req_sample_window {
-                    shared_state.state.scroll_backward(cursor_sample);
-                }
-            }
-            State::Playback(Mode::Frozen) => {
-                // Attempt to center cursor
-                shared_state.first_visible_sample = None;
-            }
-            _ => unreachable!(),
-        }
     }
 
     #[inline]
@@ -381,7 +364,7 @@ impl WaveformRenderer {
         // Keep this order and separation so as to avoid race conditions locking the states.
         let cursor = self.cursor(sample_duration);
         let mut shared_state = self.shared_state.write().unwrap();
-        if !shared_state.state.must_refresh_cursor() {
+        if shared_state.state.is_seeking() {
             return Ok(());
         }
 
@@ -957,26 +940,34 @@ impl WaveformRenderer {
     }
 }
 
-impl SampleExtractor for WaveformRenderer {
-    fn with_state<Out>(&self, f: impl FnOnce(&sample_extractor::State) -> Out) -> Out {
-        let extract_state = self.extract_state.read().unwrap();
-        f(&extract_state)
-    }
-
-    fn with_state_mut<Out>(&mut self, f: impl FnOnce(&mut sample_extractor::State) -> Out) -> Out {
-        let mut extract_state = self.extract_state.write().unwrap();
-        f(&mut extract_state)
+impl Renderer for WaveformRenderer {
+    fn state(&self) -> &RwLock<renderer::State> {
+        self.renderer_state.as_ref()
     }
 
     fn cleanup(&mut self) {
         // clear for reuse
         debug!("{}_cleanup", self.image.id);
 
-        self.extract_state.write().unwrap().cleanup();
+        self.renderer_state.write().unwrap().cleanup();
         self.reset();
     }
 
-    fn set_sample_duration(&mut self, per_sample: Duration, per_1000_samples: Duration) {
+    fn reset_sample_cndt(&mut self) {
+        debug!("{}_reset_sample_cndt", self.image.id);
+
+        self.dimensions.write().unwrap().reset_sample_cndt();
+        self.image.cleanup_sample_conditions();
+    }
+
+    fn set_sample_cndt(
+        &mut self,
+        per_sample: Duration,
+        per_1000_samples: Duration,
+        channels: &mut dyn Iterator<Item = AudioChannel>,
+    ) {
+        debug!("{}_set_sample_cndt", self.image.id);
+
         self.image.cleanup_sample_conditions();
 
         let mut d = self.dimensions.write().unwrap();
@@ -986,17 +977,57 @@ impl SampleExtractor for WaveformRenderer {
 
         self.update_sample_step(&mut d);
         self.update_sample_window(&mut d);
-    }
-
-    fn reset_sample_conditions(&mut self) {
-        debug!("{}_reset_sample_conditions", self.image.id);
-
-        self.dimensions.write().unwrap().reset_sample_conditions();
-        self.image.cleanup_sample_conditions();
-    }
-
-    fn set_channels(&mut self, channels: impl Iterator<Item = AudioChannel>) {
         self.image.set_channels(channels);
+    }
+
+    fn seek_start(&mut self) {
+        self.shared_state.write().unwrap().state.seek_start();
+    }
+
+    fn seek_done(&mut self, ts: Timestamp) {
+        let cursor_sample = ts.sample_index(self.dimensions.read().unwrap().sample_duration);
+
+        let mut shared_state = self.shared_state.write().unwrap();
+        shared_state.state.seek_done();
+
+        shared_state.cursor_sample = cursor_sample;
+        shared_state.cursor_ts = ts;
+
+        let first_visible_sample = match shared_state.first_visible_sample {
+            Some(first_visible_sample) => first_visible_sample,
+            None => return,
+        };
+
+        let (req_sample_window, half_req_sample_window) = {
+            let dim = self.dimensions.read().unwrap();
+            (dim.req_sample_window, dim.half_req_sample_window)
+        };
+
+        if cursor_sample >= first_visible_sample + req_sample_window
+            || cursor_sample < first_visible_sample
+        {
+            // Cursor no longer in current window => recompute
+            shared_state.first_visible_sample = None;
+            return;
+        }
+
+        // cursor still in current window
+        match shared_state.state {
+            State::Playback(Mode::Scrollable(_)) => {
+                if cursor_sample > first_visible_sample + half_req_sample_window {
+                    shared_state.state.scroll_backward(cursor_sample);
+                }
+            }
+            State::Playback(Mode::Frozen) => {
+                // Attempt to center cursor
+                shared_state.first_visible_sample = None;
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn cancel_seek(&mut self) {
+        self.shared_state.write().unwrap().state.seek_done();
     }
 
     // This is the entry point for the waveform update.
@@ -1004,10 +1035,7 @@ impl SampleExtractor for WaveformRenderer {
     // since last extraction and adapts to the evolving conditions of
     // the playback position and target rendering dimensions and
     // resolution.
-    fn extract_samples(
-        &mut self,
-        audio_buffer: &AudioBuffer,
-    ) -> Option<sample_extractor::ExtractionStatus> {
+    fn render(&mut self, audio_buffer: &AudioBuffer) -> Option<renderer::RenderingStatus> {
         let (req_sample_window, half_req_sample_window) = {
             let d = self.dimensions.read().unwrap();
             (d.req_sample_window, d.half_req_sample_window)
@@ -1053,7 +1081,7 @@ impl SampleExtractor for WaveformRenderer {
             }
         });
 
-        Some(sample_extractor::ExtractionStatus {
+        Some(renderer::RenderingStatus {
             lower,
             req_sample_window,
         })

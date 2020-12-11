@@ -2,7 +2,7 @@ pub mod image;
 pub mod renderer;
 pub use renderer::RefreshError;
 
-use media::SampleIndexRange;
+use crate::SampleIndexRange;
 use metadata::Duration;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -34,7 +34,7 @@ impl Dimensions {
         *self = Default::default();
     }
 
-    pub(super) fn reset_sample_conditions(&mut self) {
+    pub(super) fn reset_sample_cndt(&mut self) {
         self.sample_duration = Default::default();
         self.sample_step = Default::default();
         self.sample_step_f = 0f64;

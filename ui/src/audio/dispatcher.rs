@@ -11,7 +11,7 @@ use log::{debug, trace};
 use std::cell::RefCell;
 
 use crate::{audio, info::PositionStatus, main, prelude::*};
-use media::Timestamp;
+use renderers::Timestamp;
 
 use super::AreaEvent;
 

@@ -1,7 +1,7 @@
 use log::debug;
 use smallvec::{smallvec, SmallVec};
 
-use media::{
+use crate::{
     AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex, SampleIndexRange, INLINE_CHANNELS,
 };
 
@@ -22,7 +22,7 @@ const SAMPLE_RANGE: f64 = 2f64 * (std::i16::MIN as f64);
 const INIT_WIDTH: i32 = 2000;
 const INIT_HEIGHT: i32 = 500;
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct WaveformSample {
     pub x: f64,
     pub y_values: SmallVec<[f64; INLINE_CHANNELS]>,
@@ -37,7 +37,7 @@ impl Default for ChannelColors {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct WaveformImage {
     pub id: usize,
     pub is_ready: bool,
@@ -222,7 +222,7 @@ impl WaveformImage {
 
         force_redraw |= !self.is_ready;
 
-        if upper < self.lower || lower > self.upper {
+        if upper <= self.lower || lower >= self.upper {
             force_redraw = true;
 
             debug!(
@@ -515,17 +515,18 @@ mod tests {
     use log::info;
 
     use std::{
+        env,
         fs::{create_dir, File},
         io::ErrorKind,
+        path::PathBuf,
         sync::{Arc, Mutex},
     };
 
-    use media::{AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex, SampleIndexRange};
+    use crate::{AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex, SampleIndexRange};
     use metadata::Duration;
 
     use super::*;
 
-    const OUT_DIR: &str = "../target/test";
     const SAMPLE_RATE: u32 = 300;
     const SAMPLE_DURATION: Duration = Duration::from_frequency(SAMPLE_RATE as u64);
     const SAMPLE_WINDOW: SampleIndexRange = SampleIndexRange::new(300);
@@ -533,10 +534,22 @@ mod tests {
 
     const CHANNELS: usize = 2;
 
+    fn test_path() -> PathBuf {
+        PathBuf::from(env!("OUT_DIR"))
+            .join("..")
+            .join("..")
+            .join("..")
+            .join("test")
+    }
+
     fn prepare_tests() {
-        let _ = create_dir(&OUT_DIR).map_err(|err| match err.kind() {
+        let test_path = test_path();
+        let _ = create_dir(&test_path).map_err(|err| match err.kind() {
             ErrorKind::AlreadyExists => (),
-            _ => panic!("WaveformImage test: couldn't create directory {}", OUT_DIR),
+            _ => panic!(
+                "WaveformImage test: couldn't create directory {:?}",
+                test_path
+            ),
         });
     }
 
@@ -694,7 +707,10 @@ mod tests {
 
         let mut output_file = File::create(format!(
             "{}/waveform_image_{}_{}_{}.png",
-            OUT_DIR, prefix, lower, upper
+            test_path().to_str().unwrap(),
+            prefix,
+            lower,
+            upper
         ))
         .unwrap();
         image.with_surface(|surface| {
