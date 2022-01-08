@@ -416,12 +416,11 @@ impl PlaybackPipeline {
         pipeline.add_many(elements).unwrap();
 
         src_pad
-            .link(&renderer.get_static_pad("audio_sink").unwrap())
+            .link(&renderer.get_request_pad("audio_sink").unwrap())
             .unwrap();
+
         renderer
-            .get_static_pad("audio_src")
-            .unwrap()
-            .link(&audio_convert.get_static_pad("sink").unwrap())
+            .link_pads(Some("audio_src"), &audio_convert, Some("sink"))
             .unwrap();
 
         gst::Element::link_many(&[&audio_convert, &audio_resample, &audio_sink]).unwrap();
@@ -448,7 +447,7 @@ impl PlaybackPipeline {
         }
 
         src_pad
-            .link(&renderer.get_static_pad("video_sink").unwrap())
+            .link(&renderer.get_request_pad("video_sink").unwrap())
             .unwrap();
 
         let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
@@ -458,9 +457,7 @@ impl PlaybackPipeline {
         pipeline.add_many(elements).unwrap();
 
         renderer
-            .get_static_pad("video_src")
-            .unwrap()
-            .link(&convert.get_static_pad("sink").unwrap())
+            .link_pads(Some("video_src"), &convert, Some("sink"))
             .unwrap();
 
         gst::Element::link_many(elements).unwrap();
@@ -752,6 +749,7 @@ impl PlaybackPipeline {
             gst::SeekFlags::FLUSH | flags,
             gst::SeekType::Set,
             target.into(),
+            // FIXME does this remove current segment's end?
             gst::SeekType::None,
             ClockTime::none(),
         );
@@ -778,6 +776,9 @@ impl PlaybackPipeline {
     }
 
     // FIXME move to async
+    // FIXME rename to preview range
+    // FIXME renderer bin can compute end
+    // => use a CustomEvent so that everything is handled from the bin?
     pub fn seek_range(&self, start: Timestamp, end: Timestamp) {
         self.pipeline
             .seek(

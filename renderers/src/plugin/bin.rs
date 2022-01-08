@@ -6,7 +6,10 @@ use gst::{
 
 use lazy_static::lazy_static;
 
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::{
+    ops::Deref,
+    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard},
+};
 
 use crate::{
     generic::{GBoxedDoubleRendererImpl, WindowTimestamps},
@@ -123,26 +126,87 @@ impl PlaybackState {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Debug, Default)]
 struct State {
     playback: PlaybackState,
     seek: SeekState,
     stream_count: usize,
 }
 
-pub struct RendererBin {
-    state: Arc<Mutex<State>>,
-    audio_sinkpad: GhostPad,
-    audio_srcpad: GhostPad,
+#[derive(Debug, Default)]
+struct RendererInit {
+    dbl_renderer_impl: Option<GBoxedDoubleRendererImpl>,
+    clock_ref: Option<gst::Element>,
+}
+
+#[derive(Debug)]
+struct AudioPipeline {
+    sinkpad: GhostPad,
     renderer: gst::Element,
     renderer_queue_sinkpad: gst::Pad,
     renderer_queue: gst::Element,
-    audio_tee: gst::Element,
     audio_queue: gst::Element,
     audio_queue_sinkpad: gst::Pad,
-    video_sinkpad: GhostPad,
-    video_srcpad: GhostPad,
-    video_queue: gst::Element,
+}
+
+enum Audio {
+    Uninitialized(RendererInit),
+    Initialized(AudioPipeline),
+}
+
+impl Default for Audio {
+    fn default() -> Self {
+        Audio::Uninitialized(RendererInit::default())
+    }
+}
+
+struct AudioGuard<'a>(RwLockReadGuard<'a, Audio>);
+
+impl Deref for AudioGuard<'_> {
+    type Target = AudioPipeline;
+
+    #[track_caller]
+    fn deref(&self) -> &Self::Target {
+        match *self.0 {
+            Audio::Initialized(ref audio) => audio,
+            _ => panic!("AudioPipeline not initialized"),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct VideoPipeline {
+    sinkpad: GhostPad,
+    queue: gst::Element,
+}
+
+struct VideoGuard<'a>(RwLockReadGuard<'a, Option<VideoPipeline>>);
+
+impl Deref for VideoGuard<'_> {
+    type Target = VideoPipeline;
+
+    #[track_caller]
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref().expect("VideoPipeline not initialized")
+    }
+}
+
+pub struct RendererBin {
+    state: Arc<Mutex<State>>,
+    audio: RwLock<Audio>,
+    video: RwLock<Option<VideoPipeline>>,
+}
+
+impl RendererBin {
+    #[track_caller]
+    fn audio(&self) -> AudioGuard<'_> {
+        AudioGuard(self.audio.read().unwrap())
+    }
+
+    #[track_caller]
+    fn video(&self) -> VideoGuard<'_> {
+        VideoGuard(self.video.read().unwrap())
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -170,7 +234,7 @@ impl RendererBin {
                 ..
             } => {
                 if accepts_audio_buffers && PadStream::Audio == pad_stream {
-                    return self.renderer_queue_sinkpad.chain(buffer);
+                    return self.audio().renderer_queue_sinkpad.chain(buffer);
                 }
 
                 return Ok(gst::FlowSuccess::Ok);
@@ -206,7 +270,30 @@ impl RendererBin {
                             InitSegment { .. } => (),
                             Stage1Segment { .. } => {
                                 let event_type = event.get_type();
-                                if PadStream::Audio != pad_stream {
+                                if PadStream::Audio == pad_stream {
+                                    gst_debug!(
+                                        CAT,
+                                        obj: pad,
+                                        "forwarding stage 1 audio {} {:?}",
+                                        event_type,
+                                        seqnum
+                                    );
+
+                                    drop(state);
+                                    let ret = self.audio().renderer_queue_sinkpad.send_event(event);
+                                    if !ret {
+                                        gst_error!(
+                                            CAT,
+                                            obj: pad,
+                                            "failed to forward stage 1 audio {} {:?}",
+                                            event_type,
+                                            seqnum
+                                        );
+                                        self.state.lock().unwrap().seek = SeekState::None;
+                                    }
+
+                                    return ret;
+                                } else {
                                     gst_debug!(
                                         CAT,
                                         obj: pad,
@@ -216,49 +303,17 @@ impl RendererBin {
                                     );
                                     return true;
                                 }
-
-                                gst_debug!(
-                                    CAT,
-                                    obj: pad,
-                                    "forwarding stage 1 audio {} {:?}",
-                                    event_type,
-                                    seqnum
-                                );
-
-                                drop(state);
-                                let ret = self.renderer_queue_sinkpad.send_event(event);
-                                if !ret {
-                                    gst_error!(
-                                        CAT,
-                                        obj: pad,
-                                        "failed to forward stage 1 audio {} {:?}",
-                                        event_type,
-                                        seqnum
-                                    );
-                                    self.state.lock().unwrap().seek = SeekState::None;
-                                }
-
-                                return ret;
                             }
                             Stage2Segment { .. } => {
                                 // Don't flush the renderer queue
                                 if PadStream::Audio == pad_stream {
-                                    return self.audio_queue_sinkpad.send_event(event);
+                                    return self.audio().audio_queue_sinkpad.send_event(event);
                                 }
                             }
                             None => unreachable!(),
                         }
-                    } else {
-                        gst_debug!(
-                            CAT,
-                            obj: pad,
-                            "unexpected {} {:?}",
-                            event.get_type(),
-                            seqnum
-                        );
-                        // forward and wait for the Segment before deciding what to do
-                        // FIXME might also cancel right away
                     }
+                    // else forward and wait for the Segment before deciding what to do.
                 }
             }
             Segment(_) => {
@@ -333,7 +388,34 @@ impl RendererBin {
 
                         *remaining_streams -= 1;
 
-                        if PadStream::Audio != pad_stream {
+                        if PadStream::Audio == pad_stream {
+                            gst_debug!(
+                                CAT,
+                                obj: pad,
+                                "forwarding stage 1 audio segment {:?}",
+                                seqnum,
+                            );
+
+                            *accepts_audio_buffers = true;
+                            event
+                                .make_mut()
+                                .structure_mut()
+                                .set(plugin::SegmentField::Stage1.as_str(), &"");
+
+                            drop(state);
+                            if self.audio().renderer_queue_sinkpad.send_event(event) {
+                                return true;
+                            } else {
+                                gst_error!(
+                                    CAT,
+                                    obj: pad,
+                                    "failed to forward stage 1 audio segment {:?}",
+                                    seqnum,
+                                );
+                                self.state.lock().unwrap().seek = SeekState::None;
+                                return false;
+                            }
+                        } else {
                             gst_debug!(
                                 CAT,
                                 obj: pad,
@@ -341,33 +423,6 @@ impl RendererBin {
                                 seqnum,
                             );
                             return true;
-                        }
-
-                        gst_debug!(
-                            CAT,
-                            obj: pad,
-                            "forwarding stage 1 audio segment {:?}",
-                            seqnum,
-                        );
-
-                        *accepts_audio_buffers = true;
-                        event
-                            .make_mut()
-                            .structure_mut()
-                            .set(plugin::SegmentField::Stage1.as_str(), &"");
-
-                        drop(state);
-                        if self.renderer_queue_sinkpad.send_event(event) {
-                            return true;
-                        } else {
-                            gst_error!(
-                                CAT,
-                                obj: pad,
-                                "failed to forward stage 1 audio segment {:?}",
-                                seqnum,
-                            );
-                            self.state.lock().unwrap().seek = SeekState::None;
-                            return false;
                         }
                     }
                     Stage2Segment {
@@ -424,7 +479,7 @@ impl RendererBin {
 
                         if PadStream::Audio == pad_stream {
                             gst_debug!(CAT, obj: pad, "forwarding stage 1 audio SegmentDone");
-                            if !self.renderer_queue_sinkpad.send_event(event) {
+                            if !self.audio().renderer_queue_sinkpad.send_event(event) {
                                 gst_error!(CAT, obj: pad, "failed to forward SegmentDone");
                                 return false;
                             }
@@ -521,13 +576,16 @@ impl RendererBin {
     ) -> bool {
         state.seek = SeekState::None;
 
-        // FIXME only consider seek options if audio stream is active
-        // otherwise just foward as is.
-
         let segment = match event.view() {
             gst::EventView::Segment(segment_evt) => segment_evt.get_segment(),
             other => unreachable!("unexpected {:?}", other),
         };
+
+        if matches!(*self.audio.read().unwrap(), Audio::Uninitialized(_)) {
+            drop(state);
+            gst_debug!(CAT, obj: pad, "No audio => forwading {:?}", segment);
+            return pad.event_default(Some(bin), event);
+        }
 
         let segment_seqnum = event.get_seqnum();
 
@@ -546,6 +604,7 @@ impl RendererBin {
         // FIXME handle playing backward
 
         let window_ts_res = self
+            .audio()
             .renderer
             .emit(plugin::GET_WINDOW_TIMESTAMPS_SIGNAL, &[]);
         let window_ts = match window_ts_res.as_ref() {
@@ -599,7 +658,7 @@ impl RendererBin {
 
         if let Some(stage_1_start) = Self::first_ts_for_two_stages_seek(target_ts, window_ts) {
             // Make sure stage 1 includes target_ts
-            let stage_1_end = segment.get_start() + gst::MSECOND;
+            let stage_1_end = segment.get_start() + gst::USECOND;
 
             gst_info!(
                 CAT,
@@ -677,7 +736,7 @@ impl RendererBin {
             target_ts,
         );
 
-        let sinkpad = self.audio_sinkpad.clone();
+        let sinkpad = self.audio().sinkpad.clone();
         bin.call_async(move |_| {
             sinkpad.push_event(seek_event);
         });
@@ -715,7 +774,7 @@ impl RendererBin {
             seqnum,
         );
 
-        let sinkpad = self.audio_sinkpad.clone();
+        let sinkpad = self.audio().sinkpad.clone();
         bin.call_async(move |_| {
             sinkpad.push_event(seek_event);
         });
@@ -737,46 +796,104 @@ impl RendererBin {
         queue
     }
 
-    fn setup_audio_elements(&self, bin: &plugin::RendererBin) {
+    fn setup_audio_pipeline(&self, bin: &plugin::RendererBin) {
+        let mut audio = self.audio.write().unwrap();
+        let renderer_init = match *audio {
+            Audio::Uninitialized(ref renderer_init) => renderer_init,
+            _ => panic!("AudioPipeline already initialized"),
+        };
+
+        let audio_tee = gst::ElementFactory::make("tee", Some("renderer-audio-tee")).unwrap();
+
+        let renderer_queue = Self::new_queue("renderer-queue");
+        let renderer_queue_sinkpad = renderer_queue.get_static_pad("sink").unwrap();
+
+        let audio_queue = Self::new_queue("audio-queue");
+        let audio_queue_sinkpad = audio_queue.get_static_pad("sink").unwrap();
+
         // Rendering elements
         let renderer_audioconvert =
             gst::ElementFactory::make("audioconvert", Some("renderer-audioconvert")).unwrap();
 
-        let renderer_elements = &[&self.renderer_queue, &renderer_audioconvert, &self.renderer];
+        let renderer = gst::ElementFactory::make(plugin::renderer::NAME, Some("renderer")).unwrap();
+
+        let renderer_elements = &[&renderer_queue, &renderer_audioconvert, &renderer];
 
         bin.add_many(renderer_elements).unwrap();
         gst::Element::link_many(renderer_elements).unwrap();
 
         // Audio elements
-        bin.add(&self.audio_queue).unwrap();
+        bin.add(&audio_queue).unwrap();
 
         // Audio tee
-        bin.add(&self.audio_tee).unwrap();
-        let audio_tee_renderer_src = self.audio_tee.get_request_pad("src_%u").unwrap();
+        bin.add(&audio_tee).unwrap();
+        let audio_tee_renderer_src = audio_tee.get_request_pad("src_%u").unwrap();
         audio_tee_renderer_src
-            .link(&self.renderer_queue_sinkpad)
+            .link(&renderer_queue_sinkpad)
             .unwrap();
 
-        let audio_tee_audio_src = self.audio_tee.get_request_pad("src_%u").unwrap();
+        let audio_tee_audio_src = audio_tee.get_request_pad("src_%u").unwrap();
         audio_tee_audio_src
-            .link(&self.audio_queue.get_static_pad("sink").unwrap())
+            .link(&audio_queue.get_static_pad("sink").unwrap())
             .unwrap();
 
-        let mut elements = vec![&self.audio_tee, &self.audio_queue];
+        let mut elements = vec![&audio_tee, &audio_queue];
         elements.extend_from_slice(renderer_elements);
 
-        for e in elements {
-            e.sync_state_with_parent().unwrap();
-        }
-    }
+        // GhostPads
+        let sinkpad = GhostPad::builder_with_template(
+            &bin.get_pad_template("audio_sink").unwrap(),
+            Some("audio_sink"),
+        )
+        .chain_function(|pad, parent, buffer| {
+            RendererBin::catch_panic_pad_function(
+                parent,
+                || Err(gst::FlowError::Error),
+                |this, bin| this.sink_chain(PadStream::Audio, pad, bin, buffer),
+            )
+        })
+        .event_function(|pad, parent, event| {
+            RendererBin::catch_panic_pad_function(
+                parent,
+                || false,
+                |this, bin| this.sink_event(PadStream::Audio, pad, bin, event),
+            )
+        })
+        .build();
 
-    fn setup_video_elements(&self, bin: &plugin::RendererBin) {
-        bin.add(&self.video_queue).unwrap();
-        self.video_queue.sync_state_with_parent().unwrap();
-    }
+        sinkpad
+            .set_target(Some(&audio_tee.get_static_pad("sink").unwrap()))
+            .unwrap();
+        bin.add_pad(&sinkpad).unwrap();
 
-    fn setup_renderer(&self, bin: &plugin::RendererBin) {
-        self.renderer
+        let srcpad = GhostPad::builder_with_template(
+            &bin.get_pad_template("audio_src").unwrap(),
+            Some("audio_src"),
+        )
+        .build();
+
+        srcpad
+            .set_target(Some(&audio_queue.get_static_pad("src").unwrap()))
+            .unwrap();
+        bin.add_pad(&srcpad).unwrap();
+
+        renderer
+            .set_property(
+                plugin::renderer::DBL_RENDERER_IMPL_PROP,
+                renderer_init.dbl_renderer_impl.as_ref().unwrap(),
+            )
+            .unwrap();
+
+        renderer
+            .set_property(
+                plugin::renderer::CLOCK_REF_PROP,
+                renderer_init.clock_ref.as_ref().unwrap(),
+            )
+            .unwrap();
+
+        drop(renderer_init);
+
+        renderer
             .connect(
                 plugin::renderer::SEGMENT_DONE_SIGNAL,
                 true,
@@ -801,7 +918,7 @@ impl RendererBin {
             .unwrap();
 
         // FIXME remove
-        self.renderer
+        renderer
             .connect(
                 plugin::renderer::MUST_REFRESH_SIGNAL,
                 true,
@@ -812,6 +929,61 @@ impl RendererBin {
                 }),
             )
             .unwrap();
+
+        *audio = Audio::Initialized(AudioPipeline {
+            sinkpad,
+            renderer,
+            renderer_queue_sinkpad,
+            renderer_queue,
+            audio_queue,
+            audio_queue_sinkpad,
+        });
+    }
+
+    fn setup_video_pipeline(&self, bin: &plugin::RendererBin) {
+        let mut video = self.video.write().unwrap();
+        assert!(video.is_none(), "VideoPipeline already initialized");
+
+        let queue = Self::new_queue("video-queue");
+        bin.add(&queue).unwrap();
+
+        let sinkpad = GhostPad::builder_with_template(
+            &bin.get_pad_template("video_sink").unwrap(),
+            Some("video_sink"),
+        )
+        .chain_function(|pad, parent, buffer| {
+            RendererBin::catch_panic_pad_function(
+                parent,
+                || Err(gst::FlowError::Error),
+                |this, bin| this.sink_chain(PadStream::Video, pad, bin, buffer),
+            )
+        })
+        .event_function(|pad, parent, event| {
+            RendererBin::catch_panic_pad_function(
+                parent,
+                || false,
+                |this, bin| this.sink_event(PadStream::Video, pad, bin, event),
+            )
+        })
+        .build();
+
+        sinkpad
+            .set_target(Some(&queue.get_static_pad("sink").unwrap()))
+            .unwrap();
+        bin.add_pad(&sinkpad).unwrap();
+
+        let srcpad = GhostPad::builder_with_template(
+            &bin.get_pad_template("video_src").unwrap(),
+            Some("video_src"),
+        )
+        .build();
+
+        srcpad
+            .set_target(Some(&queue.get_static_pad("src").unwrap()))
+            .unwrap();
+        bin.add_pad(&srcpad).unwrap();
+
+        *video = Some(VideoPipeline { sinkpad, queue });
     }
 }
 
@@ -824,80 +996,11 @@ impl ObjectSubclass for RendererBin {
 
     glib_object_subclass!();
 
-    fn with_class(klass: &glib::subclass::simple::ClassStruct<Self>) -> Self {
-        let audio_sinkpad = GhostPad::builder_with_template(
-            &klass.get_pad_template("audio_sink").unwrap(),
-            Some("audio_sink"),
-        )
-        .chain_function(|pad, parent, buffer| {
-            RendererBin::catch_panic_pad_function(
-                parent,
-                || Err(gst::FlowError::Error),
-                |this, element| this.sink_chain(PadStream::Audio, pad, element, buffer),
-            )
-        })
-        .event_function(|pad, parent, event| {
-            RendererBin::catch_panic_pad_function(
-                parent,
-                || false,
-                |this, element| this.sink_event(PadStream::Audio, pad, element, event),
-            )
-        })
-        .build();
-
-        let audio_queue = Self::new_queue("audio-queue");
-        let audio_queue_sinkpad = audio_queue.get_static_pad("sink").unwrap();
-
-        let video_sinkpad = GhostPad::builder_with_template(
-            &klass.get_pad_template("video_sink").unwrap(),
-            Some("video_sink"),
-        )
-        .chain_function(|pad, parent, buffer| {
-            RendererBin::catch_panic_pad_function(
-                parent,
-                || Err(gst::FlowError::Error),
-                |this, element| this.sink_chain(PadStream::Video, pad, element, buffer),
-            )
-        })
-        .event_function(|pad, parent, event| {
-            RendererBin::catch_panic_pad_function(
-                parent,
-                || false,
-                |this, element| this.sink_event(PadStream::Video, pad, element, event),
-            )
-        })
-        .build();
-
-        // FIXME src pads of the bin should only be present if the matching sink pads are linked
-
-        let renderer_queue = Self::new_queue("renderer-queue");
-        let renderer_queue_sinkpad = renderer_queue.get_static_pad("sink").unwrap();
-
-        let audio_srcpad = GhostPad::builder_with_template(
-            &klass.get_pad_template("audio_src").unwrap(),
-            Some("audio_src"),
-        )
-        .build();
-
-        let video_srcpad = GhostPad::builder_with_template(
-            &klass.get_pad_template("video_src").unwrap(),
-            Some("video_src"),
-        )
-        .build();
-
+    fn with_class(_klass: &glib::subclass::simple::ClassStruct<Self>) -> Self {
         RendererBin {
             state: Arc::new(Mutex::new(State::default())),
-            audio_sinkpad,
-            audio_srcpad,
-            renderer: gst::ElementFactory::make(plugin::renderer::NAME, Some("renderer")).unwrap(),
-            renderer_queue_sinkpad,
-            renderer_queue,
-            audio_tee: gst::ElementFactory::make("tee", Some("renderer-audio-tee")).unwrap(),
-            audio_queue,
-            audio_queue_sinkpad,
-            video_sinkpad,
-            video_srcpad,
-            video_queue: Self::new_queue("video-queue"),
+            audio: RwLock::new(Audio::default()),
+            video: RwLock::new(None),
         }
     }
 
@@ -972,40 +1075,56 @@ impl ObjectImpl for RendererBin {
         use glib::subclass::*;
         match PROPERTIES[id] {
             Property(plugin::renderer::DBL_RENDERER_IMPL_PROP, ..) => {
-                self.renderer
-                    .set_property(
-                        plugin::renderer::DBL_RENDERER_IMPL_PROP,
-                        value
-                            .get_some::<&GBoxedDoubleRendererImpl>()
-                            .expect("type checked upstream"),
-                    )
-                    .unwrap();
+                let mut audio = self.audio.write().unwrap();
+                match *audio {
+                    Audio::Uninitialized(ref mut renderer_init) => {
+                        renderer_init.dbl_renderer_impl = Some(
+                            value
+                                .get_some::<&GBoxedDoubleRendererImpl>()
+                                .expect("type checked upstream")
+                                .clone(),
+                        );
+                    }
+                    _ => panic!("AudioPipeline already initialized"),
+                }
             }
             Property(plugin::renderer::CLOCK_REF_PROP, ..) => {
-                self.renderer
-                    .set_property(
-                        plugin::renderer::CLOCK_REF_PROP,
-                        &value
-                            .get::<gst::Element>()
-                            .expect("type checked upstream")
-                            .expect("Value is None"),
-                    )
-                    .unwrap();
+                let mut audio = self.audio.write().unwrap();
+                match *audio {
+                    Audio::Uninitialized(ref mut renderer_init) => {
+                        renderer_init.clock_ref = Some(
+                            value
+                                .get::<gst::Element>()
+                                .expect("type checked upstream")
+                                .expect("Value is None"),
+                        );
+                    }
+                    _ => panic!("AudioPipeline already initialized"),
+                }
             }
             Property(plugin::renderer::BUFFER_SIZE_PROP, ..) => {
                 let buffer_size = value.get_some::<u64>().expect("type checked upstream");
-                self.renderer
-                    .set_property(plugin::renderer::BUFFER_SIZE_PROP, &buffer_size)
-                    .unwrap();
-                self.renderer_queue
-                    .set_property("max-size-time", &buffer_size)
-                    .unwrap();
-                self.audio_queue
-                    .set_property("max-size-time", &buffer_size)
-                    .unwrap();
-                self.video_queue
-                    .set_property("max-size-time", &buffer_size)
-                    .unwrap();
+                if let Audio::Initialized(ref audio) = *self.audio.read().unwrap() {
+                    audio
+                        .renderer
+                        .set_property(plugin::renderer::BUFFER_SIZE_PROP, &buffer_size)
+                        .unwrap();
+                    audio
+                        .renderer_queue
+                        .set_property("max-size-time", &buffer_size)
+                        .unwrap();
+                    audio
+                        .audio_queue
+                        .set_property("max-size-time", &buffer_size)
+                        .unwrap();
+                }
+
+                if let Some(ref video) = *self.video.read().unwrap() {
+                    video
+                        .queue
+                        .set_property("max-size-time", &buffer_size)
+                        .unwrap();
+                }
             }
             _ => unimplemented!(),
         }
@@ -1013,42 +1132,17 @@ impl ObjectImpl for RendererBin {
 
     fn get_property(&self, _bin: &plugin::RendererBin, id: usize) -> glib::Value {
         match PROPERTIES[id] {
-            glib::subclass::Property(plugin::renderer::DBL_RENDERER_IMPL_PROP, ..) => self
-                .renderer
-                .get_property(plugin::renderer::DBL_RENDERER_IMPL_PROP)
-                .unwrap(),
+            glib::subclass::Property(plugin::renderer::DBL_RENDERER_IMPL_PROP, ..) => {
+                match *self.audio.read().unwrap() {
+                    Audio::Initialized(ref audio) => audio
+                        .renderer
+                        .get_property(plugin::renderer::DBL_RENDERER_IMPL_PROP)
+                        .unwrap(),
+                    _ => GBoxedDoubleRendererImpl::none().to_value(),
+                }
+            }
             _ => unimplemented!(),
         }
-    }
-
-    fn constructed(&self, bin: &plugin::RendererBin) {
-        self.parent_constructed(bin);
-
-        self.setup_audio_elements(bin);
-
-        self.audio_sinkpad
-            .set_target(Some(&self.audio_tee.get_static_pad("sink").unwrap()))
-            .unwrap();
-        bin.add_pad(&self.audio_sinkpad).unwrap();
-
-        self.audio_srcpad
-            .set_target(Some(&self.audio_queue.get_static_pad("src").unwrap()))
-            .unwrap();
-        bin.add_pad(&self.audio_srcpad).unwrap();
-
-        self.setup_renderer(bin);
-
-        self.setup_video_elements(bin);
-
-        self.video_sinkpad
-            .set_target(Some(&self.video_queue.get_static_pad("sink").unwrap()))
-            .unwrap();
-        bin.add_pad(&self.video_sinkpad).unwrap();
-
-        self.video_srcpad
-            .set_target(Some(&self.video_queue.get_static_pad("src").unwrap()))
-            .unwrap();
-        bin.add_pad(&self.video_srcpad).unwrap();
     }
 }
 
@@ -1094,6 +1188,32 @@ impl RendererBin {
 }
 
 impl ElementImpl for RendererBin {
+    fn request_new_pad(
+        &self,
+        bin: &Self::Type,
+        _templ: &gst::PadTemplate,
+        name: Option<String>,
+        _caps: Option<&gst::Caps>,
+    ) -> Option<gst::Pad> {
+        let name = name?;
+
+        match name.as_str() {
+            "audio_sink" => {
+                self.setup_audio_pipeline(bin);
+                let audio_sinkpad = self.audio().sinkpad.clone();
+
+                Some(audio_sinkpad.upcast())
+            }
+            "video_sink" => {
+                self.setup_video_pipeline(bin);
+                let video_sinkpad = self.video().sinkpad.clone();
+
+                Some(video_sinkpad.upcast())
+            }
+            _ => None,
+        }
+    }
+
     fn change_state(
         &self,
         bin: &plugin::RendererBin,

@@ -215,20 +215,12 @@ impl Stream {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct StreamCollection {
-    type_: StreamType,
     collection: HashMap<Arc<str>, Stream>,
 }
 
 impl StreamCollection {
-    fn new(type_: StreamType) -> Self {
-        StreamCollection {
-            type_,
-            collection: HashMap::new(),
-        }
-    }
-
     fn add_stream(&mut self, stream: Stream) {
         self.collection.insert(Arc::clone(&stream.id), stream);
     }
@@ -281,6 +273,7 @@ impl<'sc> Iterator for SortedStreamCollectionIter<'sc> {
     }
 }
 
+#[derive(Debug, Default)]
 pub struct Streams {
     pub audio: StreamCollection,
     pub video: StreamCollection,
@@ -292,23 +285,6 @@ pub struct Streams {
     pub video_changed: bool,
     cur_text_id: Option<Arc<str>>,
     pub text_changed: bool,
-}
-
-impl Default for Streams {
-    fn default() -> Self {
-        Streams {
-            audio: StreamCollection::new(StreamType::AUDIO),
-            video: StreamCollection::new(StreamType::VIDEO),
-            text: StreamCollection::new(StreamType::TEXT),
-
-            cur_audio_id: None,
-            audio_changed: false,
-            cur_video_id: None,
-            video_changed: false,
-            cur_text_id: None,
-            text_changed: false,
-        }
-    }
 }
 
 impl Streams {
