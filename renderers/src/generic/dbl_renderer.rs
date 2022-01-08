@@ -28,6 +28,12 @@ pub trait DoubleRendererImpl: std::fmt::Debug + Send + 'static {
 #[gboxed(type_name = "DoubleRendererImpl")]
 pub struct GBoxedDoubleRendererImpl(Arc<Mutex<Option<Box<dyn DoubleRendererImpl>>>>);
 
+impl GBoxedDoubleRendererImpl {
+    pub fn none() -> Self {
+        Self(Arc::new(Mutex::new(None)))
+    }
+}
+
 impl From<&GBoxedDoubleRendererImpl> for Option<Box<dyn DoubleRendererImpl>> {
     fn from(gboxed_: &GBoxedDoubleRendererImpl) -> Self {
         gboxed_.0.lock().unwrap().take()
