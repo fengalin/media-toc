@@ -103,11 +103,8 @@ impl TocSetterPipeline {
 
         let parsebin = gst::ElementFactory::make("parsebin", None).unwrap();
 
-        {
-            self.pipeline.add_many(&[&filesrc, &parsebin]).unwrap();
-            filesrc.link(&parsebin).unwrap();
-            parsebin.sync_state_with_parent().unwrap();
-        }
+        self.pipeline.add_many(&[&filesrc, &parsebin]).unwrap();
+        filesrc.link(&parsebin).unwrap();
 
         // Muxer and output sink
         let muxer = gst::ElementFactory::make("matroskamux", None).unwrap();
@@ -118,11 +115,8 @@ impl TocSetterPipeline {
             .set_property("location", &output_path.to_str().unwrap())
             .unwrap();
 
-        {
-            self.pipeline.add_many(&[&muxer, &filesink]).unwrap();
-            muxer.link(&filesink).unwrap();
-            filesink.sync_state_with_parent().unwrap();
-        }
+        self.pipeline.add_many(&[&muxer, &filesink]).unwrap();
+        muxer.link(&filesink).unwrap();
 
         self.muxer = Some(muxer.clone());
 
@@ -130,8 +124,8 @@ impl TocSetterPipeline {
         parsebin.connect_pad_added(move |_element, pad| {
             let queue = gst::ElementFactory::make("queue2", None).unwrap();
             pipeline_cb.add(&queue).unwrap();
-            let queue_sink_pad = queue.get_static_pad("sink").unwrap();
-            pad.link(&queue_sink_pad).unwrap();
+
+            pad.link(&queue.get_static_pad("sink").unwrap()).unwrap();
             queue.sync_state_with_parent().unwrap();
 
             let queue_src_pad = queue.get_static_pad("src").unwrap();
@@ -164,8 +158,9 @@ impl TocSetterPipeline {
             } else {
                 let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
                 pipeline_cb.add(&fakesink).unwrap();
-                let fakesink_sink_pad = fakesink.get_static_pad("sink").unwrap();
-                queue_src_pad.link(&fakesink_sink_pad).unwrap();
+                queue_src_pad
+                    .link(&fakesink.get_static_pad("sink").unwrap())
+                    .unwrap();
                 fakesink.sync_state_with_parent().unwrap();
             }
         });
