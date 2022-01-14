@@ -21,17 +21,17 @@ pub fn command_line() -> CommandLineArguments {
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
         .about(about_msg.as_str())
-        .help_message(help_msg.as_str())
-        .version_message(version_msg.as_str())
+        .mut_arg("help", |arg| arg.help(help_msg.as_str()))
+        .mut_arg("version", |arg| arg.help(version_msg.as_str()))
         .arg(
-            Arg::with_name(DISABLE_GL_ARG)
-                .short("d")
+            Arg::new(DISABLE_GL_ARG)
+                .short('d')
                 .long("disable-gl")
-                .help(&gettext("Disable video rendering hardware acceleration")),
+                .help(gettext("Disable video rendering hardware acceleration").as_str()),
         )
         .arg(
-            Arg::with_name(input_arg.as_str())
-                .help(&gettext("Path to the input media file"))
+            Arg::new(input_arg.as_str())
+                .help(gettext("Path to the input media file").as_str())
                 .last(false),
         )
         .get_matches();

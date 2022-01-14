@@ -2,7 +2,7 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     combinator::opt,
-    error::ErrorKind,
+    error::{Error, ErrorKind},
     sequence::{preceded, separated_pair, tuple},
     Err, IResult,
 };
@@ -12,7 +12,7 @@ use std::{convert::TryFrom, fmt, string::ToString};
 use super::{parse_to, Duration};
 
 pub fn parse_timestamp(i: &str) -> IResult<&str, Timestamp4Humans> {
-    let parse_timestamp_ = tuple((
+    let mut parse_timestamp_ = tuple((
         separated_pair(parse_to::<u8>, tag(":"), parse_to::<u8>),
         opt(tuple((
             // the next tag determines whether the 1st number is h or mn
@@ -26,7 +26,7 @@ pub fn parse_timestamp(i: &str) -> IResult<&str, Timestamp4Humans> {
 
     let ts = match res {
         ((h, m), Some((":", s, ms))) => {
-            let s = u8::try_from(s).map_err(|_| Err::Error((i, ErrorKind::ParseTo)))?;
+            let s = u8::try_from(s).map_err(|_| Err::Error(Error::new(i, ErrorKind::Digit)))?;
 
             Timestamp4Humans {
                 h,

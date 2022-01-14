@@ -14,9 +14,9 @@ version = "0.7.99"
 application = { path = "../application", package = "media-toc-application"  }
 bitflags = "1"
 cairo-rs = { git = "https://github.com/gtk-rs/gtk-rs" }
-futures = "0.3"
+futures = "0.3.19"
 gdk = { git = "https://github.com/gtk-rs/gtk-rs" }
-gettext-rs = { version = "0.5", features = ["gettext-system"] }
+gettext-rs = { version = "0.7", features = ["gettext-system"] }
 gio = { git = "https://github.com/gtk-rs/gtk-rs" }
 glib = { git = "https://github.com/gtk-rs/gtk-rs" }
 gst = { package = "gstreamer", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
@@ -27,10 +27,10 @@ media = { path = "../media", package = "media-toc-media"  }
 metadata = { path = "../metadata", package = "media-toc-metadata"  }
 pango = { git = "https://github.com/gtk-rs/gtk-rs" }
 renderers = { path = "../renderers", package = "media-toc-renderers"  }
-ron = "0.6"
+ron = "0.7"
 serde = "1"
 serde_derive = "1"
 
 [dev-dependencies]
 byteorder = "1"
-smallvec = "1"
+smallvec = "1.8"

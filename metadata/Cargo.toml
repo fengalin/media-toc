@@ -11,9 +11,9 @@ repository = "https://github.com/fengalin/media-toc"
 version = "0.7.99"
 
 [dependencies]
-gettext-rs = { version = "0.5", features = ["gettext-system"] }
+gettext-rs = { version = "0.7", features = ["gettext-system"] }
 glib = { git = "https://github.com/gtk-rs/gtk-rs" }
 gst = { package = "gstreamer", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
 lazy_static = "1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
-nom = "5"
+nom = "7"

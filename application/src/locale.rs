@@ -32,5 +32,6 @@ pub fn init_locale() {
             warn!("Translation not found for language {}", lang)
         }
         Err(TextDomainError::InvalidLocale(locale)) => error!("Invalid locale {}", locale),
+        Err(err) => error!("Couldn't set locale {}", err),
     }
 }
