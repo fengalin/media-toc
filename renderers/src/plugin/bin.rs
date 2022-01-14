@@ -226,7 +226,8 @@ impl RendererBin {
     ) -> Result<gst::FlowSuccess, gst::FlowError> {
         use SeekState::*;
 
-        let seek_state = self.state.lock().unwrap().seek;
+        let state = self.state.lock().unwrap();
+        let seek_state = state.seek;
         match seek_state {
             None | Stage2Segment { .. } => (),
             Stage1Segment {
@@ -241,7 +242,7 @@ impl RendererBin {
             }
             InitSegment { .. } => return Ok(gst::FlowSuccess::Ok),
         }
-        drop(seek_state);
+        drop(state);
 
         pad.chain_default(Some(bin), buffer)
     }
@@ -890,8 +891,6 @@ impl RendererBin {
                 renderer_init.clock_ref.as_ref().unwrap(),
             )
             .unwrap();
-
-        drop(renderer_init);
 
         renderer
             .connect(

@@ -6,7 +6,6 @@ use gtk::prelude::*;
 use log::debug;
 
 use crate::{info::ChapterEntry, main, playback, prelude::*};
-use renderers::Timestamp;
 
 pub struct Dispatcher;
 
@@ -60,10 +59,7 @@ impl UIDispatcher for Dispatcher {
                         .and_then(|cur_ts| main_ctrl.info.previous_chapter(cur_ts));
 
                     let _ = main_ctrl
-                        .seek(
-                            seek_ts.unwrap_or_else(Timestamp::default),
-                            gst::SeekFlags::ACCURATE,
-                        )
+                        .seek(seek_ts.unwrap_or_default(), gst::SeekFlags::ACCURATE)
                         .await;
                 }
                 Seek { target, flags } => {

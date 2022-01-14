@@ -104,7 +104,7 @@ impl Controller {
 
             perspective: perspective::Controller::new(builder),
             video: video::Controller::new(builder, args),
-            info: info::Controller::new(&builder, Rc::clone(&chapters_boundaries)),
+            info: info::Controller::new(builder, Rc::clone(&chapters_boundaries)),
             info_bar: info_bar::Controller::new(builder),
             audio: audio::Controller::new(builder, chapters_boundaries),
             export: export::Controller::new(builder),

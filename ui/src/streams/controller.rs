@@ -127,7 +127,7 @@ impl<Impl: UIStreamImpl> UIStream<Impl> {
         for stream in sorted_collection {
             let iter = self.add_stream(stream);
             let caps_structure = stream.caps.get_structure(0).unwrap();
-            Impl::new_media(&self.store, &iter, &caps_structure);
+            Impl::new_media(&self.store, &iter, caps_structure);
         }
 
         self.selected = self.store.get_iter_first().map(|ref iter| {
@@ -296,11 +296,11 @@ impl UIStreamImpl for UIStreamAudioImpl {
 
     fn new_media(store: &gtk::ListStore, iter: &gtk::TreeIter, caps_struct: &gst::StructureRef) {
         if let Ok(Some(rate)) = caps_struct.get::<i32>("rate") {
-            store.set_value(&iter, Self::AUDIO_RATE_COL, &glib::Value::from(&rate));
+            store.set_value(iter, Self::AUDIO_RATE_COL, &glib::Value::from(&rate));
         }
         if let Ok(Some(channels)) = caps_struct.get::<i32>("channels") {
             store.set_value(
-                &iter,
+                iter,
                 Self::AUDIO_CHANNELS_COL,
                 &glib::Value::from(&channels),
             );
@@ -341,7 +341,7 @@ impl UIStreamImpl for UIStreamTextImpl {
 
     fn new_media(store: &gtk::ListStore, iter: &gtk::TreeIter, caps_struct: &gst::StructureRef) {
         if let Ok(Some(format)) = caps_struct.get::<&str>("format") {
-            store.set_value(&iter, Self::TEXT_FORMAT_COL, &glib::Value::from(&format));
+            store.set_value(iter, Self::TEXT_FORMAT_COL, &glib::Value::from(&format));
         }
     }
 

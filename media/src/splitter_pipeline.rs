@@ -187,16 +187,16 @@ impl SplitterPipeline {
             ),
         };
 
+        use gst::PadProbeData::*;
+
         // Catch events and drop the upstream Tags & TOC
         let audio_enc_sink_pad = audio_enc.get_static_pad("sink").unwrap();
         audio_enc_sink_pad.add_probe(gst::PadProbeType::EVENT_DOWNSTREAM, |_pad, probe_info| {
-            if let Some(ref data) = probe_info.data {
-                if let gst::PadProbeData::Event(ref event) = *data {
-                    match event.view() {
-                        gst::EventView::Tag(ref _tag) => return gst::PadProbeReturn::Drop,
-                        gst::EventView::Toc(ref _toc) => return gst::PadProbeReturn::Drop,
-                        _ => (),
-                    }
+            if let Some(Event(ref event)) = probe_info.data {
+                match event.view() {
+                    gst::EventView::Tag(ref _tag) => return gst::PadProbeReturn::Drop,
+                    gst::EventView::Toc(ref _toc) => return gst::PadProbeReturn::Drop,
+                    _ => (),
                 }
             }
             gst::PadProbeReturn::Ok
@@ -217,31 +217,29 @@ impl SplitterPipeline {
         let seek_done = Arc::new(Mutex::new(false));
         let pipeline = self.pipeline.clone();
         audio_enc_sink_pad.add_probe(gst::PadProbeType::BUFFER, move |_pad, probe_info| {
-            if let Some(ref data) = probe_info.data {
-                if let gst::PadProbeData::Buffer(ref buffer) = *data {
-                    if buffer.get_flags() & gst::BufferFlags::DISCONT == gst::BufferFlags::DISCONT {
-                        let mut seek_done_grp = seek_done.lock().unwrap();
-                        if !*seek_done_grp {
-                            // First buffer before seek
-                            // let's seek and drop buffers until seek start sending new segment
-                            let _res = pipeline
-                                .seek(
-                                    1f64,
-                                    gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
-                                    gst::SeekType::Set,
-                                    ClockTime::from(start as u64),
-                                    gst::SeekType::Set,
-                                    ClockTime::from(end as u64),
-                                )
-                                .map_err(|_| {
-                                    // FIXME: feedback to the user using the UI channel
-                                    error!("{}", gettext("Failed to intialize the split"));
-                                });
-                            *seek_done_grp = true;
-                        } else {
-                            // First Discont buffer after seek => stop dropping buffers
-                            return gst::PadProbeReturn::Remove;
-                        }
+            if let Some(Buffer(ref buffer)) = probe_info.data {
+                if buffer.get_flags() & gst::BufferFlags::DISCONT == gst::BufferFlags::DISCONT {
+                    let mut seek_done_grp = seek_done.lock().unwrap();
+                    if !*seek_done_grp {
+                        // First buffer before seek
+                        // let's seek and drop buffers until seek start sending new segment
+                        let _res = pipeline
+                            .seek(
+                                1f64,
+                                gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
+                                gst::SeekType::Set,
+                                ClockTime::from(start as u64),
+                                gst::SeekType::Set,
+                                ClockTime::from(end as u64),
+                            )
+                            .map_err(|_| {
+                                // FIXME: feedback to the user using the UI channel
+                                error!("{}", gettext("Failed to intialize the split"));
+                            });
+                        *seek_done_grp = true;
+                    } else {
+                        // First Discont buffer after seek => stop dropping buffers
+                        return gst::PadProbeReturn::Remove;
                     }
                 }
             }

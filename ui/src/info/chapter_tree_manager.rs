@@ -352,7 +352,7 @@ impl ChapterTree {
 
                         let new_iter = self.store.insert_before(
                             None,
-                            Some(&self.iter.as_ref().expect("inconsistency with iter")),
+                            Some(self.iter.as_ref().expect("inconsistency with iter")),
                         );
 
                         // prev_start is the new chapter's end
@@ -814,6 +814,6 @@ impl<'store> Iterator for Iter<'store> {
 
         self.iter
             .clone()
-            .map(|iter| ChapterEntry::new_owned(&self.store, iter))
+            .map(|iter| ChapterEntry::new_owned(self.store, iter))
     }
 }

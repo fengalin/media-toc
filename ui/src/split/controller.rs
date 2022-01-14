@@ -110,7 +110,7 @@ impl OutputControllerImpl for ControllerImpl {
                 .unwrap()
                 .toc
                 .as_ref()
-                .map(|toc| TocVisitor::new(toc)),
+                .map(TocVisitor::new),
             splitter_pipeline: None,
             idx: 0,
             current_chapter: None,

@@ -14,23 +14,23 @@ pub fn command_line() -> CommandLineArguments {
     let help_msg = gettext("Display this message");
     let version_msg = gettext("Print version information");
 
-    let disable_gl_arg = "DISABLE_GL";
+    const DISABLE_GL_ARG: &str = "DISABLE_GL";
     let input_arg = gettext("MEDIA");
 
     let matches = App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
-        .about(&about_msg[..])
-        .help_message(&help_msg[..])
-        .version_message(&version_msg[..])
+        .about(about_msg.as_str())
+        .help_message(help_msg.as_str())
+        .version_message(version_msg.as_str())
         .arg(
-            Arg::with_name(&disable_gl_arg[..])
+            Arg::with_name(DISABLE_GL_ARG)
                 .short("d")
                 .long("disable-gl")
                 .help(&gettext("Disable video rendering hardware acceleration")),
         )
         .arg(
-            Arg::with_name(&input_arg[..])
+            Arg::with_name(input_arg.as_str())
                 .help(&gettext("Path to the input media file"))
                 .last(false),
         )
@@ -40,6 +40,6 @@ pub fn command_line() -> CommandLineArguments {
         input_file: matches
             .value_of(input_arg.as_str())
             .map(|input_file| input_file.into()),
-        disable_gl: matches.is_present(disable_gl_arg),
+        disable_gl: matches.is_present(DISABLE_GL_ARG),
     }
 }

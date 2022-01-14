@@ -39,14 +39,10 @@ pub enum Format {
 
 impl Format {
     fn is_audio_only(self) -> bool {
-        match self {
-            Format::Flac => true,
-            Format::MP3 => true,
-            Format::Opus => true,
-            Format::Vorbis => true,
-            Format::Wave => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            Format::Flac | Format::MP3 | Format::Opus | Format::Vorbis | Format::Wave
+        )
     }
 }
 
