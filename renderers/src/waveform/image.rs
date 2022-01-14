@@ -641,13 +641,13 @@ mod tests {
         mut buffer: gst::Buffer,
         segment_lower: SampleIndex,
     ) {
-        let pts = segment_lower.as_ts(SAMPLE_DURATION);
+        let pts: gst::ClockTime = segment_lower.as_ts(SAMPLE_DURATION).into();
         {
             let buffer_mut = buffer.get_mut().unwrap();
-            buffer_mut.set_pts(gst::ClockTime::from_nseconds(pts.as_u64()));
+            buffer_mut.set_pts(pts);
         }
 
-        audio_buffer.have_gst_segment(pts);
+        audio_buffer.have_gst_segment(&pts.into());
         audio_buffer.push_gst_buffer(&buffer, SampleIndex::default()); // never drain buffer in this test
     }
 

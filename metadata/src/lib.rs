@@ -93,12 +93,16 @@ impl Default for MediaContent {
     }
 }
 
-use nom::{character::complete::digit1, error::ErrorKind, Err, IResult};
+use nom::{
+    character::complete::digit1,
+    error::{Error, ErrorKind},
+    Err, IResult,
+};
 
 fn parse_to<T: std::str::FromStr>(i: &str) -> IResult<&str, T> {
     let (i, res) = digit1(i)?;
 
     res.parse::<T>()
         .map(move |value| (i, value))
-        .map_err(move |_| Err::Error((i, ErrorKind::ParseTo)))
+        .map_err(move |_| Err::Error(Error::new(i, ErrorKind::Digit)))
 }

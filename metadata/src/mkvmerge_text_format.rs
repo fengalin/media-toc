@@ -50,7 +50,7 @@ fn new_chapter(nb: usize, start_ts: Timestamp4Humans, title: &str) -> gst::TocEn
 }
 
 fn parse_chapter(i: &str) -> IResult<&str, gst::TocEntry> {
-    let parse_first_line = terminated(
+    let mut parse_first_line = terminated(
         preceded(
             tag(CHAPTER_TAG),
             separated_pair(parse_to::<usize>, tag("="), parse_timestamp),
@@ -60,7 +60,7 @@ fn parse_chapter(i: &str) -> IResult<&str, gst::TocEntry> {
 
     let (i, (nb, start_ts)) = parse_first_line(i)?;
 
-    let parse_second_line = terminated(
+    let mut parse_second_line = terminated(
         preceded(
             tag(CHAPTER_TAG),
             separated_pair(
@@ -104,18 +104,18 @@ fn parse_chapter_test() {
 
     let res = parse_chapter("CHAPTER0x=00:00:01.000");
     let err = res.unwrap_err();
-    if let nom::Err::Error((i, error_kind)) = err {
+    if let nom::Err::Error(err) = err {
         assert_eq!("x=00:00:01.000", i);
-        assert_eq!(ErrorKind::Tag, error_kind);
+        assert_eq!(ErrorKind::Tag, err.code);
     } else {
         panic!("unexpected error type returned");
     }
 
     let res = parse_chapter("CHAPTER01=00:00:01.000\nCHAPTER02NAME=test\n");
     let err = res.unwrap_err();
-    if let nom::Err::Error((i, error_kind)) = err {
+    if let nom::Err::Error(err) = err {
         assert_eq!("02NAME=test\n", i);
-        assert_eq!(ErrorKind::Verify, error_kind);
+        assert_eq!(ErrorKind::Verify, err.code);
     } else {
         panic!("unexpected error type returned");
     }
@@ -152,15 +152,15 @@ impl Reader for MKVMergeTextFormat {
                         cur_chapter
                     }
                     Err(err) => {
-                        let msg = if let nom::Err::Error((i, error_kind)) = err {
-                            match error_kind {
-                                ErrorKind::ParseTo => gettext("expecting a number, found: {}")
-                                    .replacen("{}", &i[..i.len().min(2)], 1),
+                        let msg = if let nom::Err::Error(err) = err {
+                            match err.code {
+                                ErrorKind::Digit => gettext("expecting a number, found: {}")
+                                    .replacen("{}", &err.input[..err.input.len().min(2)], 1),
                                 ErrorKind::Verify => gettext("chapter numbers don't match for: {}")
-                                    .replacen("{}", &i[..i.len().min(2)], 1),
+                                    .replacen("{}", &err.input[..err.input.len().min(2)], 1),
                                 _ => gettext("unexpected sequence starting with: {}").replacen(
                                     "{}",
-                                    &i[..i.len().min(10)],
+                                    &err.input[..err.input.len().min(10)],
                                     1,
                                 ),
                             }

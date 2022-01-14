@@ -22,10 +22,10 @@ gst = { package = "gstreamer", git = "https://gitlab.freedesktop.org/gstreamer/g
 gst-audio = { package = "gstreamer-audio", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
 lazy_static = "1"
 metadata = { path = "../metadata", package = "media-toc-metadata" }
-image = "^0.23.12"
+image = "0.23.14"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 dasp_sample = "0.11"
-smallvec = "1"
+smallvec = "1.8"
 
 [dev-dependencies]
 byteorder = "1"
