@@ -172,7 +172,6 @@ impl SplitterPipeline {
         self.pipeline.add_many(&[&filesrc, &decodebin]).unwrap();
 
         filesrc.link(&decodebin).unwrap();
-        decodebin.sync_state_with_parent().unwrap();
 
         // Audio encoder
         let audio_enc = match self.format {
@@ -282,7 +281,6 @@ impl SplitterPipeline {
 
         self.pipeline.add(&outsink).unwrap();
         audio_muxer.link(&outsink).unwrap();
-        outsink.sync_state_with_parent().unwrap();
 
         let pipeline_cb = self.pipeline.clone();
         decodebin.connect_pad_added(move |_element, pad| {
@@ -301,8 +299,8 @@ impl SplitterPipeline {
                 let audio_conv =
                     gst::ElementFactory::make("audioconvert", Some("audioconvert")).unwrap();
                 pipeline_cb.add(&audio_conv).unwrap();
-                let audio_conv_sink_pad = audio_conv.get_static_pad("sink").unwrap();
-                pad.link(&audio_conv_sink_pad).unwrap();
+                pad.link(&audio_conv.get_static_pad("sink").unwrap())
+                    .unwrap();
                 let audio_resample =
                     gst::ElementFactory::make("audioresample", Some("audioresample")).unwrap();
                 pipeline_cb.add(&audio_resample).unwrap();
@@ -313,8 +311,7 @@ impl SplitterPipeline {
             } else {
                 let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
                 pipeline_cb.add(&fakesink).unwrap();
-                let fakesink_sink_pad = fakesink.get_static_pad("sink").unwrap();
-                pad.link(&fakesink_sink_pad).unwrap();
+                pad.link(&fakesink.get_static_pad("sink").unwrap()).unwrap();
                 fakesink.sync_state_with_parent().unwrap();
             }
         });

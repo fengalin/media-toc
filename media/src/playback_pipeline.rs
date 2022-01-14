@@ -439,8 +439,6 @@ impl PlaybackPipeline {
     ) {
         if pipeline.get_by_name(RENDERER_BIN_NAME).is_none() {
             pipeline.add(renderer).unwrap();
-            // FIXME remove when the bin's internal pipelines are constructed on demand
-            println!("CLOCK_REF video_sink");
             renderer
                 .set_property(plugin::CLOCK_REF_PROP, video_sink)
                 .unwrap();
