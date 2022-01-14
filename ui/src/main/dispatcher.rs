@@ -80,15 +80,15 @@ impl Dispatcher {
             let display_page: gtk::Box = builder.get_object("display-box").unwrap();
             display_page.connect_map(|_| main::switch_to(UIFocusContext::PlaybackPage));
 
-            perspective::Dispatcher::setup(&mut this.main_ctrl.perspective, &app);
-            video::Dispatcher::setup(&mut this.main_ctrl.video, &app);
-            info::Dispatcher::setup(&mut this.main_ctrl.info, &app);
-            info_bar::Dispatcher::setup(&mut this.main_ctrl.info_bar, &app);
-            audio::Dispatcher::setup(&mut this.main_ctrl.audio, &app);
-            export::Dispatcher::setup(&mut this.main_ctrl.export, &app);
-            split::Dispatcher::setup(&mut this.main_ctrl.split, &app);
-            streams::Dispatcher::setup(&mut this.main_ctrl.streams, &app);
-            playback::Dispatcher::setup(&mut this.main_ctrl, &app);
+            perspective::Dispatcher::setup(&mut this.main_ctrl.perspective, app);
+            video::Dispatcher::setup(&mut this.main_ctrl.video, app);
+            info::Dispatcher::setup(&mut this.main_ctrl.info, app);
+            info_bar::Dispatcher::setup(&mut this.main_ctrl.info_bar, app);
+            audio::Dispatcher::setup(&mut this.main_ctrl.audio, app);
+            export::Dispatcher::setup(&mut this.main_ctrl.export, app);
+            split::Dispatcher::setup(&mut this.main_ctrl.split, app);
+            streams::Dispatcher::setup(&mut this.main_ctrl.streams, app);
+            playback::Dispatcher::setup(&mut this.main_ctrl, app);
 
             main::switch_to(UIFocusContext::PlaybackPage);
 

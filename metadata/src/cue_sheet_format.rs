@@ -8,17 +8,12 @@ use super::{default_chapter_title, MediaInfo, Timestamp4Humans, TocVisitor, Writ
 
 static EXTENSION: &str = "cue";
 
+#[derive(Debug, Default)]
 pub struct CueSheetFormat {}
 
 impl CueSheetFormat {
     pub fn extension() -> &'static str {
         EXTENSION
-    }
-}
-
-impl Default for CueSheetFormat {
-    fn default() -> Self {
-        CueSheetFormat {}
     }
 }
 
@@ -45,9 +40,9 @@ impl Writer for CueSheetFormat {
         }
 
         let audio_codec = info.streams.audio_codec().map_or("WAVE", |audio_codec| {
-            if audio_codec.to_lowercase().find("mp3").is_some() {
+            if audio_codec.to_lowercase().contains("mp3") {
                 "MP3"
-            } else if audio_codec.to_lowercase().find("aiff").is_some() {
+            } else if audio_codec.to_lowercase().contains("aiff") {
                 "AIFF"
             } else {
                 "WAVE"

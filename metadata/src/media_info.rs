@@ -17,7 +17,7 @@ pub struct SelectStreamError(Arc<str>);
 
 impl SelectStreamError {
     fn new(id: &Arc<str>) -> Self {
-        SelectStreamError(Arc::clone(&id))
+        SelectStreamError(Arc::clone(id))
     }
 
     pub fn id(&self) -> &Arc<str> {
@@ -39,9 +39,7 @@ pub fn default_chapter_title() -> String {
 macro_rules! add_tag_names (
     ($($tag_type:path),+) => {
         {
-            let mut tag_names = Vec::new();
-            $(tag_names.push(<$tag_type>::tag_name());)+
-            tag_names
+            vec![$(<$tag_type>::tag_name(),)+]
         }
     };
 );
@@ -227,6 +225,10 @@ impl StreamCollection {
 
     pub fn len(&self) -> usize {
         self.collection.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.collection.is_empty()
     }
 
     pub fn get<S: AsRef<str>>(&self, id: S) -> Option<&Stream> {
@@ -660,9 +662,7 @@ impl MediaInfo {
         // in case of an mp3 audio file, container comes as `ID3 label`
         // => bypass it
         if let Some(audio_codec) = self.streams.audio_codec() {
-            if self.streams.video_codec().is_none()
-                && audio_codec.to_lowercase().find("mp3").is_some()
-            {
+            if self.streams.video_codec().is_none() && audio_codec.to_lowercase().contains("mp3") {
                 return None;
             }
         }

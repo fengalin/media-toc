@@ -412,7 +412,7 @@ impl PlaybackPipeline {
         let audio_resample =
             gst::ElementFactory::make("audioresample", Some("audio-audioresample")).unwrap();
 
-        let elements = &[&audio_convert, &audio_resample, &audio_sink];
+        let elements = &[&audio_convert, &audio_resample, audio_sink];
         pipeline.add_many(elements).unwrap();
 
         src_pad
@@ -423,7 +423,7 @@ impl PlaybackPipeline {
             .link_pads(Some("audio_src"), &audio_convert, Some("sink"))
             .unwrap();
 
-        gst::Element::link_many(&[&audio_convert, &audio_resample, &audio_sink]).unwrap();
+        gst::Element::link_many(&[&audio_convert, &audio_resample, audio_sink]).unwrap();
 
         renderer.sync_state_with_parent().unwrap();
         for e in elements {

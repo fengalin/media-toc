@@ -336,7 +336,7 @@ impl WaveformImage {
         self.last.y_values = smallvec![self.half_range_y; audio_buffer.channels];
 
         exposed_image.with_surface(|image_surface| {
-            let cr = cairo::Context::new(&image_surface);
+            let cr = cairo::Context::new(image_surface);
 
             cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
             cr.paint();
@@ -374,7 +374,7 @@ impl WaveformImage {
             // translate exposed image on secondary_image
             // secondary_image becomes the exposed image
             secondary_image.with_surface(|secondary_surface| {
-                let cr = cairo::Context::new(&secondary_surface);
+                let cr = cairo::Context::new(secondary_surface);
 
                 exposed_image.with_surface_external_context(&cr, |cr, exposed_surface| {
                     cr.set_source_surface(exposed_surface, -x_offset, 0f64);
@@ -394,7 +394,7 @@ impl WaveformImage {
         } else {
             // Don't translate => reuse exposed image
             exposed_image.with_surface(|exposed_surface| {
-                let cr = cairo::Context::new(&exposed_surface);
+                let cr = cairo::Context::new(exposed_surface);
                 self.draw_samples(d, &cr, audio_buffer, self.upper, upper)
             });
 

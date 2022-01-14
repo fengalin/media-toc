@@ -23,17 +23,12 @@ static EXTENSION: &str = "txt";
 static CHAPTER_TAG: &str = "CHAPTER";
 static NAME_TAG: &str = "NAME";
 
+#[derive(Debug, Default)]
 pub struct MKVMergeTextFormat {}
 
 impl MKVMergeTextFormat {
     pub fn extension() -> &'static str {
         EXTENSION
-    }
-}
-
-impl Default for MKVMergeTextFormat {
-    fn default() -> Self {
-        MKVMergeTextFormat {}
     }
 }
 

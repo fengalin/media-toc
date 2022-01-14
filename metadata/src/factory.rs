@@ -8,12 +8,8 @@ pub struct Factory {}
 
 impl Factory {
     pub fn extensions() -> Vec<(&'static str, Format)> {
-        let mut result = Vec::<(&'static str, Format)>::new();
-
         // Only MKVMergeTextFormat implemented for Read ATM
-        result.push((MKVMergeTextFormat::extension(), Format::MKVMergeText));
-
-        result
+        vec![(MKVMergeTextFormat::extension(), Format::MKVMergeText)]
     }
 
     pub fn extension(format: Format, content: MediaContent) -> &'static str {

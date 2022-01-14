@@ -365,16 +365,17 @@ impl Controller {
                 // postpone chapter selection change until media has synchronized
                 position_status = PositionStatus::ChapterNotChanged;
                 self.repeat_at(Timestamp::default());
-            } else if let PositionStatus::ChapterChanged { prev_chapter } = &position_status {
-                if let Some(prev_chapter) = prev_chapter {
-                    // reset position_status because we will be looping on current chapter
-                    let prev_start = prev_chapter.start;
-                    position_status = PositionStatus::ChapterNotChanged;
+            } else if let PositionStatus::ChapterChanged {
+                prev_chapter: Some(prev_chapter),
+            } = &position_status
+            {
+                // reset position_status because we will be looping on current chapter
+                let prev_start = prev_chapter.start;
+                position_status = PositionStatus::ChapterNotChanged;
 
-                    // unselect chapter in order to avoid tracing change to current timestamp
-                    self.chapter_manager.unselect();
-                    self.repeat_at(prev_start);
-                }
+                // unselect chapter in order to avoid tracing change to current timestamp
+                self.chapter_manager.unselect();
+                self.repeat_at(prev_start);
             }
         }
 

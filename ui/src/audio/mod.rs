@@ -11,7 +11,7 @@ use crate::UIEventChannel;
 
 #[derive(Debug)]
 pub enum Event {
-    AreaEvent(AreaEvent),
+    Area(AreaEvent),
     UpdateRenderingCndt(Option<(f64, f64)>),
     Refresh,
     // FIXME those 2 are not audio specific, rather for a dedicated playback
@@ -23,7 +23,7 @@ pub enum Event {
 }
 
 fn area_event(event: AreaEvent) {
-    UIEventChannel::send(Event::AreaEvent(event));
+    UIEventChannel::send(Event::Area(event));
 }
 
 pub fn update_rendering_cndt(dimensions: Option<(f64, f64)>) {

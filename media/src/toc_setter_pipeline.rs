@@ -153,11 +153,9 @@ impl TocSetterPipeline {
                 muxer_sink_pad.add_probe(
                     gst::PadProbeType::EVENT_DOWNSTREAM,
                     |_pad, probe_info| {
-                        if let Some(ref data) = probe_info.data {
-                            if let gst::PadProbeData::Event(ref event) = *data {
-                                if let gst::EventView::Toc(ref _toc) = event.view() {
-                                    return gst::PadProbeReturn::Drop;
-                                }
+                        if let Some(gst::PadProbeData::Event(ref event)) = probe_info.data {
+                            if let gst::EventView::Toc(ref _toc) = event.view() {
+                                return gst::PadProbeReturn::Drop;
                             }
                         }
                         gst::PadProbeReturn::Ok
