@@ -21,12 +21,9 @@ jobs:
   build:
     name: "Build, tests & clippy"
     runs-on: ubuntu-latest
-    container:
-      image: ubuntu:20.10
-
     steps:
-    - run: apt-get update -y
-    - run: apt-get install -y curl gcc libgtk-3-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+    - run: sudo apt-get update -y
+    - run: sudo apt-get install -y curl gcc libgtk-3-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
       with:
@@ -39,4 +36,4 @@ jobs:
     - name: All features
       run: cargo test --all-features
     - name: Clippy
-      run: cargo clippy --tests -- --deny warnings
+      run: cargo clippy --tests --all-features -- --deny warnings
