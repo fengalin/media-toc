@@ -147,19 +147,19 @@ impl ControllerImpl {
             src_info: None,
             selected_audio: None,
 
-            split_list: builder.get_object(Self::LIST_NAME).unwrap(),
-            split_to_flac_row: builder.get_object("flac_split-row").unwrap(),
-            flac_warning_lbl: builder.get_object("flac_warning-lbl").unwrap(),
-            split_to_wave_row: builder.get_object("wave_split-row").unwrap(),
-            wave_warning_lbl: builder.get_object("wave_warning-lbl").unwrap(),
-            split_to_opus_row: builder.get_object("opus_split-row").unwrap(),
-            opus_warning_lbl: builder.get_object("opus_warning-lbl").unwrap(),
-            split_to_vorbis_row: builder.get_object("vorbis_split-row").unwrap(),
-            vorbis_warning_lbl: builder.get_object("vorbis_warning-lbl").unwrap(),
-            split_to_mp3_row: builder.get_object("mp3_split-row").unwrap(),
-            mp3_warning_lbl: builder.get_object("mp3_warning-lbl").unwrap(),
+            split_list: builder.object(Self::LIST_NAME).unwrap(),
+            split_to_flac_row: builder.object("flac_split-row").unwrap(),
+            flac_warning_lbl: builder.object("flac_warning-lbl").unwrap(),
+            split_to_wave_row: builder.object("wave_split-row").unwrap(),
+            wave_warning_lbl: builder.object("wave_warning-lbl").unwrap(),
+            split_to_opus_row: builder.object("opus_split-row").unwrap(),
+            opus_warning_lbl: builder.object("opus_warning-lbl").unwrap(),
+            split_to_vorbis_row: builder.object("vorbis_split-row").unwrap(),
+            vorbis_warning_lbl: builder.object("vorbis_warning-lbl").unwrap(),
+            split_to_mp3_row: builder.object("mp3_split-row").unwrap(),
+            mp3_warning_lbl: builder.object("mp3_warning-lbl").unwrap(),
 
-            split_btn: builder.get_object(Self::BTN_NAME).unwrap(),
+            split_btn: builder.object(Self::BTN_NAME).unwrap(),
         };
 
         update_list_with_format!(ctrl, Format::Flac, split_to_flac_row, flac_warning_lbl);
@@ -219,10 +219,10 @@ impl Processor {
         }
 
         let track_title = chapter
-            .get_tags()
+            .tags()
             .and_then(|tags| {
                 tags.get::<gst::tags::Title>()
-                    .and_then(|tag| tag.get().map(str::to_string))
+                    .map(|tag| tag.get().to_string())
             })
             .unwrap_or_else(default_chapter_title);
 
@@ -231,9 +231,9 @@ impl Processor {
         let lang = self.selected_audio.as_ref().and_then(|stream| {
             stream
                 .tags
-                .get_index::<gst::tags::LanguageName>(0)
-                .or_else(|| stream.tags.get_index::<gst::tags::LanguageCode>(0))
-                .and_then(|value| value.get().map(str::to_string))
+                .index::<gst::tags::LanguageName>(0)
+                .or_else(|| stream.tags.index::<gst::tags::LanguageCode>(0))
+                .map(|value| value.get().to_string())
         });
         if let Some(lang) = lang {
             split_name += &format!(" ({})", lang);

@@ -90,13 +90,13 @@ impl ControllerImpl {
         let ctrl = ControllerImpl {
             src_info: None,
 
-            export_list: builder.get_object(Self::LIST_NAME).unwrap(),
-            mkvmerge_txt_row: builder.get_object("mkvmerge_text_export-row").unwrap(),
-            mkvmerge_txt_warning_lbl: builder.get_object("mkvmerge_text_warning-lbl").unwrap(),
-            cue_row: builder.get_object("cue_sheet_export-row").unwrap(),
-            mkv_row: builder.get_object("matroska_export-row").unwrap(),
+            export_list: builder.object(Self::LIST_NAME).unwrap(),
+            mkvmerge_txt_row: builder.object("mkvmerge_text_export-row").unwrap(),
+            mkvmerge_txt_warning_lbl: builder.object("mkvmerge_text_warning-lbl").unwrap(),
+            cue_row: builder.object("cue_sheet_export-row").unwrap(),
+            mkv_row: builder.object("matroska_export-row").unwrap(),
 
-            export_btn: builder.get_object(Self::BTN_NAME).unwrap(),
+            export_btn: builder.object(Self::BTN_NAME).unwrap(),
         };
 
         match TocSetterPipeline::check_requirements() {

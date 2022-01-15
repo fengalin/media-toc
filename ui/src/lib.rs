@@ -18,7 +18,10 @@ use futures::{
     prelude::*,
 };
 
-use gio::prelude::*;
+use gtk::{
+    gio::{self, prelude::*},
+    glib,
+};
 use log::warn;
 
 use std::future::Future;
@@ -45,11 +48,10 @@ pub fn run(args: CommandLineArguments) {
     register_resource(include_bytes!("../../target/resources/icons.gresource"));
     register_resource(include_bytes!("../../target/resources/ui.gresource"));
 
-    let gtk_app = gtk::Application::new(Some(&APP_ID), gio::ApplicationFlags::empty())
-        .expect("Failed to initialize GtkApplication");
+    let gtk_app = gtk::Application::new(Some(&APP_ID), gio::ApplicationFlags::empty());
 
     gtk_app.connect_activate(move |gtk_app| main::Dispatcher::setup(gtk_app, &args));
-    gtk_app.run(&[]);
+    gtk_app.run();
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

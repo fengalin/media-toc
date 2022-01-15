@@ -6,7 +6,7 @@ use futures::{
 };
 
 use gettextrs::gettext;
-use gtk::prelude::*;
+use gtk::{gio, glib, prelude::*};
 
 use log::debug;
 
@@ -286,20 +286,20 @@ pub struct Controller<Impl> {
 
 impl<Impl: OutputControllerImpl + 'static> Controller<Impl> {
     pub fn new_generic(impl_: Impl, builder: &gtk::Builder) -> Self {
-        let btn: gtk::Button = builder.get_object(Impl::BTN_NAME).unwrap();
+        let btn: gtk::Button = builder.object(Impl::BTN_NAME).unwrap();
         btn.set_sensitive(false);
-        let list: gtk::ListBox = builder.get_object(Impl::LIST_NAME).unwrap();
+        let list: gtk::ListBox = builder.object(Impl::LIST_NAME).unwrap();
         let page: gtk::Widget = list
-            .get_parent()
+            .parent()
             .unwrap_or_else(|| panic!("Couldn't get parent for list {}", Impl::LIST_NAME));
 
         Controller {
             impl_,
-            btn_default_label: btn.get_label().unwrap(),
+            btn_default_label: btn.label().unwrap(),
             btn,
             list,
-            progress_bar: builder.get_object(Impl::PROGRESS_BAR_NAME).unwrap(),
-            perspective_selector: builder.get_object("perspective-menu-btn").unwrap(),
+            progress_bar: builder.object(Impl::PROGRESS_BAR_NAME).unwrap(),
+            perspective_selector: builder.object("perspective-menu-btn").unwrap(),
             open_action: None,
             page,
             is_busy: false,
@@ -371,7 +371,7 @@ impl<Impl: OutputControllerImpl> UIController for Controller<Impl> {
 
     fn grab_focus(&self) {
         self.btn.grab_default();
-        if let Some(selected_row) = self.list.get_selected_row() {
+        if let Some(selected_row) = self.list.selected_row() {
             selected_row.grab_focus();
         }
     }

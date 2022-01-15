@@ -1,8 +1,8 @@
-use glib::{glib_wrapper, prelude::*};
+use gst::{glib, prelude::*};
 
 pub(crate) mod bin;
 
-glib_wrapper! {
+glib::wrapper! {
     pub struct RendererBin(ObjectSubclass<bin::RendererBin>) @extends gst::Bin, gst::Element, gst::Object;
 }
 
@@ -11,7 +11,7 @@ unsafe impl Sync for RendererBin {}
 
 pub use bin::NAME as RENDERER_BIN_NAME;
 
-glib_wrapper! {
+glib::wrapper! {
     pub struct Renderer(ObjectSubclass<renderer::Renderer>) @extends gst::Element, gst::Object;
 }
 
@@ -26,9 +26,7 @@ pub use renderer::{
 
 pub(crate) use renderer::GET_WINDOW_TIMESTAMPS_SIGNAL;
 
-use gst::gst_plugin_define;
-
-gst_plugin_define!(
+gst::plugin_define!(
     mediatocvisu,
     env!("CARGO_PKG_DESCRIPTION"),
     plugin_init,

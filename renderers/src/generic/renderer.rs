@@ -58,7 +58,7 @@ pub trait Renderer: Send {
             return None;
         }
 
-        Some(Timestamp::new(query.get_result().get_value() as u64))
+        Some(Timestamp::new(query.result().value() as u64))
     }
 
     // FIXME remove print_state

@@ -63,26 +63,26 @@ impl Writer for CueSheetFormat {
             write_fmt!(destination, "  TRACK{:02} AUDIO\n", index);
 
             let title = chapter
-                .get_tags()
+                .tags()
                 .and_then(|tags| {
                     tags.get::<gst::tags::Title>()
-                        .and_then(|value| value.get().map(ToString::to_string))
+                        .map(|value| value.get().to_string())
                 })
                 .or_else(|| media_title.clone())
                 .unwrap_or_else(default_chapter_title);
             write_fmt!(destination, "    TITLE \"{}\"\n", &title);
 
             let artist = chapter
-                .get_tags()
+                .tags()
                 .and_then(|tags| {
                     tags.get::<gst::tags::Artist>()
-                        .and_then(|value| value.get().map(ToString::to_string))
+                        .map(|value| value.get().to_string())
                 })
                 .or_else(|| media_artist.clone())
                 .unwrap_or_else(default_chapter_title);
             write_fmt!(destination, "    PERFORMER \"{}\"\n", &artist);
 
-            if let Some((start, _end)) = chapter.get_start_stop_times() {
+            if let Some((start, _end)) = chapter.start_stop_times() {
                 let start_ts = Timestamp4Humans::from_nano(start as u64);
                 write_fmt!(
                     destination,

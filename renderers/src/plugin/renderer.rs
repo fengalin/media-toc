@@ -1,10 +1,12 @@
-use glib::{glib_object_subclass, subclass::prelude::*};
 use gst::{
-    gst_debug, gst_error, gst_error_msg, gst_info, gst_trace, gst_warning, prelude::*,
-    subclass::prelude::*, ClockTime, Element, Event, Pad,
+    glib::{self, subclass::Signal},
+    gst_debug, gst_error, gst_info, gst_trace, gst_warning,
+    prelude::*,
+    subclass::prelude::*,
+    ClockTime, Element, Event, Pad,
 };
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 
 use std::{convert::TryInto, sync::Mutex};
 
@@ -28,45 +30,13 @@ pub const SEGMENT_DONE_SIGNAL: &str = "segment-done";
 // FIXME remove when widget is handled locally
 pub const MUST_REFRESH_SIGNAL: &str = "must-refresh";
 
-lazy_static! {
-    static ref CAT: gst::DebugCategory = gst::DebugCategory::new(
+static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
+    gst::DebugCategory::new(
         NAME,
         gst::DebugColorFlags::empty(),
         Some("media-toc Renderer"),
-    );
-}
-
-pub(crate) static PROPERTIES: [glib::subclass::Property; 3] = [
-    glib::subclass::Property(DBL_RENDERER_IMPL_PROP, |name| {
-        glib::ParamSpec::boxed(
-            name,
-            "Double Renderer",
-            "Implementation for the Double Renderer",
-            GBoxedDoubleRendererImpl::get_type(),
-            glib::ParamFlags::READWRITE,
-        )
-    }),
-    glib::subclass::Property(CLOCK_REF_PROP, |name| {
-        glib::ParamSpec::object(
-            name,
-            "Clock reference",
-            "Element providing the clock reference",
-            gst::Element::static_type(),
-            glib::ParamFlags::WRITABLE,
-        )
-    }),
-    glib::subclass::Property(BUFFER_SIZE_PROP, |name| {
-        glib::ParamSpec::uint64(
-            name,
-            "Renderer Size (ns)",
-            "Internal buffer size in ns",
-            1_000u64,
-            u64::MAX,
-            DEFAULT_BUFFER_SIZE.as_u64(),
-            glib::ParamFlags::WRITABLE,
-        )
-    }),
-];
+    )
+});
 
 pub enum SegmentField {
     InitTwoStages,
@@ -194,7 +164,7 @@ impl Renderer {
 
                 // FIXME push renderered buffer when we have a Visualization widget
                 if must_notify {
-                    element.emit(MUST_REFRESH_SIGNAL, &[]).unwrap();
+                    element.emit_by_name(MUST_REFRESH_SIGNAL, &[]).unwrap();
                 }
             }
             TwoStages => {
@@ -214,10 +184,10 @@ impl Renderer {
                     obj: pad,
                     "seek with target {} done @ buffer {}",
                     target_ts,
-                    buffer.get_pts(),
+                    buffer.pts().display(),
                 );
 
-                element.emit(MUST_REFRESH_SIGNAL, &[]).unwrap();
+                element.emit_by_name(MUST_REFRESH_SIGNAL, &[]).unwrap();
             }
         }
 
@@ -233,7 +203,7 @@ impl Renderer {
                     .lock()
                     .unwrap()
                     .dbl_renderer()
-                    .set_caps(caps_evt.get_caps());
+                    .set_caps(caps_evt.caps());
             }
             Eos(_) => {
                 let mut ctx = self.ctx.lock().unwrap();
@@ -256,35 +226,28 @@ impl Renderer {
             }
             Segment(evt) => {
                 let mut ctx = self.ctx.lock().unwrap();
-                let segment = evt.get_segment();
+                let segment = evt.segment();
                 let segment = match segment.downcast_ref::<gst::format::Time>() {
                     Some(segment) => segment,
                     None => {
                         // Not a Time segment, keep the event as is
                         drop(ctx);
-                        gst_debug!(
-                            CAT,
-                            obj: pad,
-                            "not Time {:?} {:?}",
-                            segment,
-                            event.get_seqnum()
-                        );
+                        gst_debug!(CAT, obj: pad, "not Time {:?} {:?}", segment, event.seqnum());
                         return pad.event_default(Some(element), event);
                     }
                 };
 
-                // FIXME we used to replace None with zero here, can't remember the edge case
-                let start = segment.get_time();
+                let start = segment.time().unwrap_or(gst::ClockTime::ZERO);
 
                 let mut was_handled = false;
-                if let Some(structure) = evt.get_structure() {
+                if let Some(structure) = evt.structure() {
                     if structure.has_field(SegmentField::InitTwoStages.as_str()) {
                         gst_info!(
                             CAT,
                             obj: pad,
                             "starting 2 stages seek to {} {:?}",
-                            start,
-                            event.get_seqnum(),
+                            start.display(),
+                            event.seqnum(),
                         );
                         ctx.dbl_renderer().seek_start();
                         ctx.seek = SeekState::TwoStages;
@@ -294,8 +257,8 @@ impl Renderer {
                             CAT,
                             obj: pad,
                             "got stage 1 segment starting @ {} {:?}",
-                            start,
-                            event.get_seqnum(),
+                            start.display(),
+                            event.seqnum(),
                         );
                         ctx.dbl_renderer().have_gst_segment(segment);
                         was_handled = true;
@@ -304,8 +267,8 @@ impl Renderer {
                             CAT,
                             obj: pad,
                             "got stage 2 segment starting @ {} {:?}",
-                            start,
-                            event.get_seqnum(),
+                            start.display(),
+                            event.seqnum(),
                         );
                         ctx.dbl_renderer().have_gst_segment(segment);
                         ctx.seek = SeekState::DoneOn1stBuffer { target_ts: start };
@@ -316,7 +279,7 @@ impl Renderer {
                             obj: pad,
                             "got segment in window starting @ {} {:?}",
                             start,
-                            event.get_seqnum(),
+                            event.seqnum(),
                         );
                         ctx.dbl_renderer().freeze();
                         ctx.dbl_renderer().seek_start();
@@ -332,7 +295,7 @@ impl Renderer {
                         obj: pad,
                         "got segment starting @ {} {:?}",
                         start,
-                        event.get_seqnum(),
+                        event.seqnum(),
                     );
                     if ctx.state.is_playing() {
                         ctx.dbl_renderer().release();
@@ -343,8 +306,8 @@ impl Renderer {
                 }
             }
             SegmentDone(_) => {
-                gst_debug!(CAT, obj: pad, "got segment done {:?}", event.get_seqnum(),);
-                element.emit(SEGMENT_DONE_SIGNAL, &[]).unwrap();
+                gst_debug!(CAT, obj: pad, "got segment done {:?}", event.seqnum(),);
+                element.emit_by_name(SEGMENT_DONE_SIGNAL, &[]).unwrap();
             }
             StreamStart(_) => {
                 // FIXME isn't there a StreamChanged?
@@ -370,42 +333,14 @@ impl Renderer {
     }
 }
 
-/// Element init
-impl Renderer {
-    pub fn sink_pad_template() -> gst::PadTemplate {
-        let sink_caps = gst::Caps::new_simple(
-            "audio/x-raw",
-            &[
-                (
-                    "format",
-                    &gst::List::new(&[&gst_audio::AudioFormat::S16le.to_str()]),
-                ),
-                ("channels", &gst::IntRange::<i32>::new(1, 8)),
-                ("layout", &"interleaved"),
-            ],
-        );
-
-        gst::PadTemplate::new(
-            "sink",
-            gst::PadDirection::Sink,
-            gst::PadPresence::Always,
-            &sink_caps,
-        )
-        .unwrap()
-    }
-}
-
+#[glib::object_subclass]
 impl ObjectSubclass for Renderer {
     const NAME: &'static str = "MediaTocRenderer";
-    type Type = super::Renderer;
+    type Type = plugin::Renderer;
     type ParentType = Element;
-    type Instance = gst::subclass::ElementInstanceStruct<Self>;
-    type Class = glib::subclass::simple::ClassStruct<Self>;
 
-    glib_object_subclass!();
-
-    fn with_class(klass: &glib::subclass::simple::ClassStruct<Self>) -> Self {
-        let templ = klass.get_pad_template("sink").unwrap();
+    fn with_class(klass: &Self::Class) -> Self {
+        let templ = klass.pad_template("sink").unwrap();
         let sinkpad = Pad::builder_with_template(&templ, Some("sink"))
             .chain_function(|pad, parent, buffer| {
                 Renderer::catch_panic_pad_function(
@@ -428,67 +363,54 @@ impl ObjectSubclass for Renderer {
             ctx: Mutex::new(Context::default()),
         }
     }
-
-    fn class_init(klass: &mut glib::subclass::simple::ClassStruct<Self>) {
-        klass.set_metadata(
-            "media-toc Audio Visualization Renderer",
-            "Visualization",
-            "Renders audio buffer so that the user can see samples before and after current position",
-            "François Laignel <fengalin@free.fr>",
-        );
-
-        klass.add_pad_template(Self::sink_pad_template());
-
-        klass.add_signal_with_class_handler(
-            GET_WINDOW_TIMESTAMPS_SIGNAL,
-            glib::SignalFlags::RUN_LAST | glib::SignalFlags::ACTION,
-            &[],
-            WindowTimestamps::static_type(),
-            |_, args| {
-                let obj = args[0]
-                    .get::<Self::Type>()
-                    .expect("Failed to get args[0]")
-                    .expect("Failed to get Object from args[0]");
-
-                let this = Self::from_instance(&obj);
-                let window_ts = this
-                    .ctx
-                    .lock()
-                    .unwrap()
-                    .dbl_renderer
-                    .as_mut()
-                    .and_then(|dbl_renderer| dbl_renderer.window_ts());
-                // FIXME also refresh rendering?
-                window_ts.as_ref().map(ToValue::to_value)
-            },
-        );
-
-        klass.add_signal(
-            SEGMENT_DONE_SIGNAL,
-            glib::SignalFlags::RUN_LAST,
-            &[],
-            glib::types::Type::Unit,
-        );
-
-        // FIXME this one could be avoided with a dedicated widget
-        klass.add_signal(
-            MUST_REFRESH_SIGNAL,
-            glib::SignalFlags::RUN_LAST,
-            &[],
-            glib::types::Type::Unit,
-        );
-
-        klass.install_properties(&PROPERTIES);
-    }
 }
 
 impl ObjectImpl for Renderer {
-    fn set_property(&self, _element: &plugin::Renderer, id: usize, value: &glib::Value) {
+    fn properties() -> &'static [glib::ParamSpec] {
+        static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
+            vec![
+                glib::ParamSpec::new_boxed(
+                    DBL_RENDERER_IMPL_PROP,
+                    "Double Renderer",
+                    "Implementation for the Double Renderer",
+                    GBoxedDoubleRendererImpl::static_type(),
+                    glib::ParamFlags::READWRITE,
+                ),
+                glib::ParamSpec::new_object(
+                    CLOCK_REF_PROP,
+                    "Clock reference",
+                    "Element providing the clock reference",
+                    gst::Element::static_type(),
+                    glib::ParamFlags::WRITABLE,
+                ),
+                // FIXME use a ClockTime
+                glib::ParamSpec::new_uint64(
+                    BUFFER_SIZE_PROP,
+                    "Renderer Size (ns)",
+                    "Internal buffer size in ns",
+                    1_000u64,
+                    u64::MAX,
+                    DEFAULT_BUFFER_SIZE.as_u64(),
+                    glib::ParamFlags::WRITABLE,
+                ),
+            ]
+        });
+
+        PROPERTIES.as_ref()
+    }
+
+    fn set_property(
+        &self,
+        _element: &Self::Type,
+        _id: usize,
+        value: &glib::Value,
+        pspec: &glib::ParamSpec,
+    ) {
         let mut ctx = self.ctx.lock().unwrap();
-        match PROPERTIES[id] {
-            glib::subclass::Property(DBL_RENDERER_IMPL_PROP, ..) => {
+        match pspec.name() {
+            DBL_RENDERER_IMPL_PROP => {
                 let gboxed = value
-                    .get_some::<&GBoxedDoubleRendererImpl>()
+                    .get::<&GBoxedDoubleRendererImpl>()
                     .expect("type checked upstream");
                 let dbl_renderer_impl: Option<Box<dyn DoubleRendererImpl>> = gboxed.into();
                 // FIXME don't panic log an error
@@ -497,26 +419,22 @@ impl ObjectImpl for Renderer {
                 }
                 ctx.settings.dbl_renderer_impl = dbl_renderer_impl;
             }
-            glib::subclass::Property(CLOCK_REF_PROP, ..) => {
-                let clock_ref = value
-                    .get::<gst::Element>()
-                    .expect("type checked upstream")
-                    // FIXME don't panic log an error
-                    .expect("Value is None");
+            CLOCK_REF_PROP => {
+                let clock_ref = value.get::<gst::Element>().expect("type checked upstream");
                 ctx.settings.clock_ref = Some(clock_ref);
             }
-            glib::subclass::Property(BUFFER_SIZE_PROP, ..) => {
-                let buffer_size = value.get_some::<u64>().expect("type checked upstream");
+            BUFFER_SIZE_PROP => {
+                let buffer_size = value.get::<u64>().expect("type checked upstream");
                 ctx.settings.buffer_size = Duration::from_nanos(buffer_size);
             }
             _ => unimplemented!(),
         }
     }
 
-    fn get_property(&self, _element: &plugin::Renderer, id: usize) -> glib::Value {
+    fn property(&self, _element: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
         let mut ctx = self.ctx.lock().unwrap();
-        match PROPERTIES[id] {
-            glib::subclass::Property(DBL_RENDERER_IMPL_PROP, ..) => {
+        match pspec.name() {
+            DBL_RENDERER_IMPL_PROP => {
                 if !matches!(ctx.state, State::Unprepared) {
                     panic!(
                         "retrieval of the dbl renderer impl in {:?} attempted",
@@ -537,7 +455,47 @@ impl ObjectImpl for Renderer {
         }
     }
 
-    fn constructed(&self, element: &plugin::Renderer) {
+    fn signals() -> &'static [Signal] {
+        static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
+            vec![
+                Signal::builder(
+                    GET_WINDOW_TIMESTAMPS_SIGNAL,
+                    &[],
+                    WindowTimestamps::static_type().into(),
+                )
+                .run_last()
+                .action()
+                .class_handler(|_token, args| {
+                    let obj = args[0]
+                        .get::<<Renderer as ObjectSubclass>::Type>()
+                        .expect("Failed to get args[0]");
+
+                    let this = Renderer::from_instance(&obj);
+                    let window_ts = this
+                        .ctx
+                        .lock()
+                        .unwrap()
+                        .dbl_renderer
+                        .as_mut()
+                        .and_then(|dbl_renderer| dbl_renderer.window_ts());
+                    // FIXME also refresh rendering?
+                    window_ts.as_ref().map(ToValue::to_value)
+                })
+                .build(),
+                Signal::builder(SEGMENT_DONE_SIGNAL, &[], glib::Type::UNIT.into())
+                    .run_last()
+                    .build(),
+                // FIXME this one could be avoided with a dedicated widget
+                Signal::builder(MUST_REFRESH_SIGNAL, &[], glib::Type::UNIT.into())
+                    .run_last()
+                    .build(),
+            ]
+        });
+
+        SIGNALS.as_ref()
+    }
+
+    fn constructed(&self, element: &Self::Type) {
         self.parent_constructed(element);
 
         element.add_pad(&self.sinkpad).unwrap();
@@ -553,13 +511,13 @@ impl Renderer {
         let dbl_renderer_impl = ctx.settings.dbl_renderer_impl.take().ok_or_else(|| {
             let msg = "Double Renderer implementation not set";
             gst_error!(CAT, "{}", &msg);
-            gst_error_msg!(gst::CoreError::StateChange, ["{}", &msg])
+            gst::error_msg!(gst::CoreError::StateChange, ["{}", &msg])
         })?;
 
         let clock_ref = ctx.settings.clock_ref.as_ref().ok_or_else(|| {
             let msg = "Clock reference element not set";
             gst_error!(CAT, "{}", &msg);
-            gst_error_msg!(gst::CoreError::StateChange, ["{}", &msg])
+            gst::error_msg!(gst::CoreError::StateChange, ["{}", &msg])
         })?;
 
         ctx.dbl_renderer = Some(DoubleRenderer::new(
@@ -621,6 +579,45 @@ impl Renderer {
 }
 
 impl ElementImpl for Renderer {
+    fn metadata() -> Option<&'static gst::subclass::ElementMetadata> {
+        static ELEMENT_METADATA: Lazy<gst::subclass::ElementMetadata> = Lazy::new(|| {
+            gst::subclass::ElementMetadata::new(
+                "media-toc Audio Visualization Renderer",
+                "Visualization",
+                "Renders audio buffer so that the user can see samples before and after current position",
+                "François Laignel <fengalin@free.fr>",
+            )
+        });
+
+        Some(&*ELEMENT_METADATA)
+    }
+
+    fn pad_templates() -> &'static [gst::PadTemplate] {
+        static PAD_TEMPLATES: Lazy<Vec<gst::PadTemplate>> = Lazy::new(|| {
+            let sink_caps = gst::Caps::new_simple(
+                "audio/x-raw",
+                &[
+                    (
+                        "format",
+                        &gst::List::new(&[&gst_audio::AudioFormat::S16le.to_str()]),
+                    ),
+                    ("channels", &gst::IntRange::<i32>::new(1, 8)),
+                    ("layout", &"interleaved"),
+                ],
+            );
+
+            vec![gst::PadTemplate::new(
+                "sink",
+                gst::PadDirection::Sink,
+                gst::PadPresence::Always,
+                &sink_caps,
+            )
+            .unwrap()]
+        });
+
+        PAD_TEMPLATES.as_ref()
+    }
+
     fn change_state(
         &self,
         element: &plugin::Renderer,

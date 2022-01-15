@@ -15,10 +15,10 @@ pub struct Controller {
 impl Controller {
     pub fn new(builder: &gtk::Builder) -> Self {
         let mut ctrl = Controller {
-            menu_btn: builder.get_object("perspective-menu-btn").unwrap(),
-            popover: builder.get_object("perspective-popovermenu").unwrap(),
-            stack: builder.get_object("perspective-stack").unwrap(),
-            split_btn: builder.get_object("perspective-split-btn").unwrap(),
+            menu_btn: builder.object("perspective-menu-btn").unwrap(),
+            popover: builder.object("perspective-popovermenu").unwrap(),
+            stack: builder.object("perspective-stack").unwrap(),
+            split_btn: builder.object("perspective-split-btn").unwrap(),
         };
 
         ctrl.cleanup();

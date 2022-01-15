@@ -11,7 +11,7 @@ impl PartialEq for TocVisit {
             TocVisit::EnteringChildren => matches!(*other, TocVisit::EnteringChildren),
             TocVisit::LeavingChildren => matches!(*other, TocVisit::LeavingChildren),
             TocVisit::Node(ref entry) => match *other {
-                TocVisit::Node(ref other_entry) => (entry.get_uid() == other_entry.get_uid()),
+                TocVisit::Node(ref other_entry) => (entry.uid() == other_entry.uid()),
                 _ => false,
             },
         }
@@ -46,7 +46,7 @@ pub struct TocVisitor {
 
 impl TocVisitor {
     pub fn new(toc: &gst::Toc) -> TocVisitor {
-        let entries = toc.get_entries();
+        let entries = toc.entries();
         let next_to_push = if !entries.is_empty() {
             Some(TocEntryIter::from(entries))
         } else {
@@ -63,7 +63,7 @@ impl TocVisitor {
         // Skip edition entry and enter chapters
         assert_eq!(Some(TocVisit::EnteringChildren), self.next());
         let found_edition = match self.next() {
-            Some(TocVisit::Node(entry)) => gst::TocEntryType::Edition == entry.get_entry_type(),
+            Some(TocVisit::Node(entry)) => gst::TocEntryType::Edition == entry.entry_type(),
             _ => false,
         };
 
@@ -86,7 +86,7 @@ impl TocVisitor {
                     match iter.next() {
                         Some((entry, _index)) => {
                             self.stack.push(iter);
-                            let subentries = entry.get_sub_entries();
+                            let subentries = entry.sub_entries();
                             if !subentries.is_empty() {
                                 self.next_to_push = Some(TocEntryIter::from(subentries));
                             }
@@ -109,7 +109,7 @@ impl TocVisitor {
             match self.next() {
                 Some(toc_visit) => {
                     if let TocVisit::Node(entry) = toc_visit {
-                        if let gst::TocEntryType::Chapter = entry.get_entry_type() {
+                        if let gst::TocEntryType::Chapter = entry.entry_type() {
                             return Some(entry);
                         }
                     }

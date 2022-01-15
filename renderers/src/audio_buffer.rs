@@ -1,6 +1,6 @@
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 
-use gst_audio::AudioFormat;
+use gst_audio::{prelude::*, AudioFormat};
 
 use log::{debug, trace};
 
@@ -98,12 +98,12 @@ impl StreamState {
 
     fn have_segment(&mut self, segment: &gst::FormattedSegment<gst::ClockTime>) {
         // FIXME use ClockTime everywhere
-        let gst_time = segment.get_time();
+        let gst_time = segment.time();
         let time = Timestamp::try_from(gst_time).unwrap();
 
         debug!(
             "have_gst_segment {} ({})",
-            gst_time,
+            gst_time.display(),
             time.sample_index(self.sample_duration),
         );
 
@@ -129,7 +129,7 @@ impl StreamState {
     fn have_buffer(&mut self, buffer: &gst::Buffer) -> SampleIndexRange {
         self.last_buffer_lower = self.last_buffer_upper;
         let incoming_range =
-            SampleIndexRange::new(buffer.get_size() / self.channels / self.bytes_per_channel);
+            SampleIndexRange::new(buffer.size() / self.channels / self.bytes_per_channel);
         self.last_buffer_upper += incoming_range;
 
         incoming_range
@@ -742,7 +742,7 @@ mod tests {
     ) {
         if is_new_segment {
             let mut segment = gst::FormattedSegment::new();
-            segment.set_start(buffer.get_pts());
+            segment.set_start(buffer.pts());
             audio_buffer.have_gst_segment(&segment);
         }
 

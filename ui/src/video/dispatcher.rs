@@ -1,5 +1,5 @@
 use gettextrs::gettext;
-use gtk::prelude::*;
+use gtk::{gdk, prelude::*};
 use log::error;
 
 use crate::{playback, prelude::*, spawn, video};

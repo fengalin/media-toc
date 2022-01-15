@@ -4,8 +4,11 @@ use futures::{
 };
 
 use gettextrs::gettext;
-use glib::{clone, prelude::*, Cast, ObjectExt};
-use gst::{prelude::*, ClockTime};
+use gst::{
+    glib::{self, clone, Cast},
+    prelude::*,
+    ClockTime,
+};
 
 use log::warn;
 
@@ -19,7 +22,7 @@ use std::{
 };
 
 use crate::{MediaEvent, QUEUE_SIZE};
-use metadata::{media_info, Duration, MediaInfo};
+use metadata::{media_info, MediaInfo};
 use renderers::{
     generic::{self, prelude::*},
     plugin, Timestamp,
@@ -272,9 +275,9 @@ impl PlaybackPipeline {
     pub fn take_dbl_renderer_impl(&self) -> Box<dyn DoubleRendererImpl> {
         let dbl_visu_renderer_impl: Option<Box<dyn DoubleRendererImpl>> = self
             .renderer
-            .get_property(plugin::DBL_RENDERER_IMPL_PROP)
+            .property(plugin::DBL_RENDERER_IMPL_PROP)
             .expect("Prop double visu renderer impl not found")
-            .get_some::<&generic::GBoxedDoubleRendererImpl>()
+            .get::<&generic::GBoxedDoubleRendererImpl>()
             .unwrap()
             .into();
         dbl_visu_renderer_impl.expect("double visu renderer impl already taken")
@@ -293,19 +296,19 @@ impl PlaybackPipeline {
                 let queue = args[0].get::<gst::Element>().unwrap().unwrap();
                 warn!(
                     "OVERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
-                    queue.get_name(),
+                    queue.name(),
                     queue
-                        .get_property("max-size-bytes")
+                        .property("max-size-bytes")
                         .unwrap()
                         .get_some::<u32>()
                         .unwrap(),
                     queue
-                        .get_property("max-size-buffers")
+                        .property("max-size-buffers")
                         .unwrap()
                         .get_some::<u32>()
                         .unwrap(),
                     queue
-                        .get_property("max-size-time")
+                        .property("max-size-time")
                         .unwrap()
                         .get_some::<u64>()
                         .unwrap(),
@@ -320,19 +323,19 @@ impl PlaybackPipeline {
                 let queue = args[0].get::<gst::Element>().unwrap().unwrap();
                 warn!(
                     "UNDERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
-                    queue.get_name(),
+                    queue.name(),
                     queue
-                        .get_property("max-size-bytes")
+                        .property("max-size-bytes")
                         .unwrap()
                         .get_some::<u32>()
                         .unwrap(),
                     queue
-                        .get_property("max-size-buffers")
+                        .property("max-size-buffers")
                         .unwrap()
                         .get_some::<u32>()
                         .unwrap(),
                     queue
-                        .get_property("max-size-time")
+                        .property("max-size-time")
                         .unwrap()
                         .get_some::<u64>()
                         .unwrap(),
@@ -348,7 +351,7 @@ impl PlaybackPipeline {
         self.pipeline.add(&decodebin).unwrap();
         // From decodebin3's documentation: "Children: multiqueue0"
         let decodebin_as_bin = decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
-        let decodebin_multiqueue = &decodebin_as_bin.get_children()[0];
+        let decodebin_multiqueue = &decodebin_as_bin.children()[0];
         PlaybackPipeline::setup_queue(decodebin_multiqueue);
         // Discard "interleave" as it modifies "max-size-time"
         decodebin_multiqueue
@@ -372,7 +375,7 @@ impl PlaybackPipeline {
 
         decodebin.connect_pad_added(move |_decodebin, src_pad| {
             let pipeline = &pipeline_clone;
-            let name = src_pad.get_name();
+            let name = src_pad.name();
 
             if name.starts_with("audio_") {
                 PlaybackPipeline::build_audio_pipeline(pipeline, src_pad, &audio_sink, &renderer);
@@ -399,7 +402,7 @@ impl PlaybackPipeline {
         audio_sink: &gst::Element,
         renderer: &gst::Element,
     ) {
-        if pipeline.get_by_name(RENDERER_BIN_NAME).is_none() {
+        if pipeline.by_name(RENDERER_BIN_NAME).is_none() {
             pipeline.add(renderer).unwrap();
             // FIXME move out when the bin's internal pipelines are constructed on demand
             renderer
@@ -416,7 +419,7 @@ impl PlaybackPipeline {
         pipeline.add_many(elements).unwrap();
 
         src_pad
-            .link(&renderer.get_request_pad("audio_sink").unwrap())
+            .link(&renderer.request_pad_simple("audio_sink").unwrap())
             .unwrap();
 
         renderer
@@ -437,7 +440,7 @@ impl PlaybackPipeline {
         video_sink: &gst::Element,
         renderer: &gst::Element,
     ) {
-        if pipeline.get_by_name(RENDERER_BIN_NAME).is_none() {
+        if pipeline.by_name(RENDERER_BIN_NAME).is_none() {
             pipeline.add(renderer).unwrap();
             renderer
                 .set_property(plugin::CLOCK_REF_PROP, video_sink)
@@ -445,7 +448,7 @@ impl PlaybackPipeline {
         }
 
         src_pad
-            .link(&renderer.get_request_pad("video_sink").unwrap())
+            .link(&renderer.request_pad_simple("video_sink").unwrap())
             .unwrap();
 
         let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
@@ -496,7 +499,7 @@ impl PlaybackPipeline {
         let mut streams_selected = false;
 
         pipeline
-            .get_bus()
+            .bus()
             .unwrap()
             .add_watch(move |_, msg| {
                 use gst::MessageView::*;
@@ -506,7 +509,7 @@ impl PlaybackPipeline {
                         let mut this = this.take().unwrap();
                         this.cleanup();
 
-                        if "sink" == err.get_src().unwrap().get_name() {
+                        if "sink" == err.src().unwrap().name() {
                             // Failure detected on a sink, this occurs when the GL sink
                             // can't operate properly
                             let _ = handler_res_tx
@@ -532,19 +535,14 @@ impl PlaybackPipeline {
                         let _ = handler_res_tx
                             .take()
                             .unwrap()
-                            .send(Err(OpenError::Generic(err.get_error().to_string())));
+                            .send(Err(OpenError::Generic(err.error().to_string())));
 
                         return glib::Continue(false);
                     }
                     Element(element_msg) => {
-                        let structure = element_msg.get_structure().unwrap();
-                        if structure.get_name() == "missing-plugin" {
-                            let plugin = structure
-                                .get_value("name")
-                                .unwrap()
-                                .get::<String>()
-                                .unwrap()
-                                .unwrap();
+                        let structure = element_msg.structure().unwrap();
+                        if structure.name() == "missing-plugin" {
+                            let plugin = structure.value("name").unwrap().get::<String>().unwrap();
 
                             warn!(
                                 "{}",
@@ -556,7 +554,7 @@ impl PlaybackPipeline {
                     StreamCollection(stream_collection) => {
                         let this = this.as_mut().unwrap();
                         stream_collection
-                            .get_stream_collection()
+                            .stream_collection()
                             .iter()
                             .for_each(|stream| this.info.write().unwrap().add_stream(&stream));
                     }
@@ -565,8 +563,8 @@ impl PlaybackPipeline {
                         streams_selected = true;
                     }
                     Tag(msg_tag) => {
-                        let tags = msg_tag.get_tags();
-                        if tags.get_scope() == gst::TagScope::Global {
+                        let tags = msg_tag.tags();
+                        if tags.scope() == gst::TagScope::Global {
                             this.as_mut().unwrap().info.write().unwrap().add_tags(&tags);
                         }
                     }
@@ -574,11 +572,11 @@ impl PlaybackPipeline {
                         // FIXME: use updated
                         let this = this.as_ref().unwrap();
                         if this.info.read().unwrap().toc.is_none() {
-                            let (toc, _updated) = msg_toc.get_toc();
-                            if toc.get_scope() == gst::TocScope::Global {
+                            let (toc, _updated) = msg_toc.toc();
+                            if toc.scope() == gst::TocScope::Global {
                                 this.info.write().unwrap().toc = Some(toc);
                             } else {
-                                warn!("skipping toc with scope: {:?}", toc.get_scope());
+                                warn!("skipping toc with scope: {:?}", toc.scope());
                             }
                         }
                     }
@@ -586,13 +584,11 @@ impl PlaybackPipeline {
                         if streams_selected {
                             let this = this.take().unwrap();
 
-                            let duration = Duration::from_nanos(
-                                this.pipeline
-                                    .query_duration::<gst::ClockTime>()
-                                    .unwrap_or_else(|| 0.into())
-                                    .nanoseconds()
-                                    .unwrap(),
-                            );
+                            let duration = this
+                                .pipeline
+                                .query_duration::<gst::ClockTime>()
+                                .unwrap_or(ClockTime::ZERO)
+                                .into();
                             this.info.write().unwrap().duration = duration;
 
                             let _ = handler_res_tx.take().unwrap().send(Ok(this));
@@ -609,7 +605,7 @@ impl PlaybackPipeline {
     }
 
     fn cleanup(&mut self) {
-        if let Some(video_sink) = self.pipeline.get_by_name("video_sink") {
+        if let Some(video_sink) = self.pipeline.by_name("video_sink") {
             self.pipeline.remove(&video_sink).unwrap();
         }
     }
@@ -624,7 +620,7 @@ impl PlaybackPipeline {
     ) {
         let bus_watch_src_id = self
             .pipeline
-            .get_bus()
+            .bus()
             .unwrap()
             .add_watch(move |_, msg| {
                 use gst::MessageView::*;
@@ -634,9 +630,7 @@ impl PlaybackPipeline {
                         int_evt_tx.unbounded_send(MediaEvent::AsyncDone).unwrap();
                     }
                     StateChanged(state_changed) => {
-                        if state_changed.get_src().unwrap().get_type()
-                            == gst::Pipeline::static_type()
-                        {
+                        if state_changed.src().unwrap().type_() == gst::Pipeline::static_type() {
                             int_evt_tx.unbounded_send(MediaEvent::StateChanged).unwrap();
                         }
                     }
@@ -646,11 +640,11 @@ impl PlaybackPipeline {
                     Error(err) => {
                         // FIXME avoid copying the error (use an Rc?)
                         ext_evt_tx
-                            .unbounded_send(MediaEvent::Error(err.get_error().to_string()))
+                            .unbounded_send(MediaEvent::Error(err.error().to_string()))
                             .unwrap();
 
                         int_evt_tx
-                            .unbounded_send(MediaEvent::Error(err.get_error().to_string()))
+                            .unbounded_send(MediaEvent::Error(err.error().to_string()))
                             .unwrap();
                     }
                     _ => (),
@@ -666,7 +660,7 @@ impl PlaybackPipeline {
     pub fn current_ts(&self) -> Option<Timestamp> {
         let mut position_query = gst::query::Position::new(gst::Format::Time);
         self.pipeline.query(&mut position_query);
-        let position = position_query.get_result().get_value();
+        let position = position_query.result().value();
         if position < 0 {
             None
         } else {
@@ -746,13 +740,13 @@ impl PlaybackPipeline {
             1f64,
             gst::SeekFlags::FLUSH | flags,
             gst::SeekType::Set,
-            target.into(),
+            Some(target.into()),
             // FIXME does this remove current segment's end?
             gst::SeekType::None,
-            ClockTime::none(),
+            ClockTime::NONE,
         );
 
-        let seqnum = seek_evt.get_seqnum();
+        let seqnum = seek_evt.seqnum();
         if !self.pipeline.send_event(seek_evt) {
             panic!("failed to seek {:?}", seqnum);
         }

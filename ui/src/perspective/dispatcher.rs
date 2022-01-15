@@ -1,6 +1,4 @@
-use gio::prelude::*;
-use glib::Cast;
-use gtk::prelude::*;
+use gtk::{gio, glib::Cast, prelude::*};
 
 use crate::{perspective, prelude::*};
 
@@ -11,7 +9,7 @@ macro_rules! gtk_downcast(
             .unwrap_or_else(|_| panic!("Unexpected type for perspective item {:?}", $item_name))
     };
     ($source:expr, $item_index:expr, $target_type:ty, $item_name:expr) => {
-        $source.get_children()
+        $source.children()
             .get($item_index)
             .expect(&format!("PerspectiveController no child at index {} for perspective item {:?}",
                 $item_index,
@@ -32,7 +30,7 @@ impl UIDispatcher for Dispatcher {
         let menu_btn_box = gtk_downcast!(
             perspective_ctrl
                 .menu_btn
-                .get_child()
+                .child()
                 .expect("perspective::Controller no box for menu button"),
             gtk::Box,
             "menu button"
@@ -41,8 +39,8 @@ impl UIDispatcher for Dispatcher {
 
         let popover_box = gtk_downcast!(perspective_ctrl.popover, 0, gtk::Box, "popover");
 
-        let stack_children = perspective_ctrl.stack.get_children();
-        for (index, perspective_box_child) in popover_box.get_children().iter().enumerate() {
+        let stack_children = perspective_ctrl.stack.children();
+        for (index, perspective_box_child) in popover_box.children().iter().enumerate() {
             let stack_child = stack_children.get(index).unwrap_or_else(|| {
                 panic!(
                     "perspective::Controller no stack child for index {:?}",
@@ -51,9 +49,9 @@ impl UIDispatcher for Dispatcher {
             });
 
             let button = gtk_downcast!(perspective_box_child, gtk::Button, "popover box");
-            let button_name = button.get_widget_name();
+            let button_name = button.widget_name();
             let button_box = gtk_downcast!(
-                button.get_child().unwrap_or_else(|| panic!(
+                button.child().unwrap_or_else(|| panic!(
                     "perspective::Controller no box for button {:?}",
                     button_name
                 )),
@@ -62,7 +60,7 @@ impl UIDispatcher for Dispatcher {
             );
 
             let perspective_icon_name = gtk_downcast!(button_box, 0, gtk::Image, button_name)
-                .get_property_icon_name()
+                .icon_name()
                 .unwrap_or_else(|| {
                     panic!(
                         "perspective::Controller no icon name for button {:?}",
@@ -72,7 +70,7 @@ impl UIDispatcher for Dispatcher {
 
             let stack_child_name = perspective_ctrl
                 .stack
-                .get_child_name(stack_child)
+                .child_name(stack_child)
                 .unwrap_or_else(|| {
                     panic!(
                         "perspective::Controller no name for stack page matching {:?}",
@@ -83,7 +81,7 @@ impl UIDispatcher for Dispatcher {
 
             if index == 0 {
                 // set the default perspective
-                menu_btn_image.set_property_icon_name(Some(perspective_icon_name.as_str()));
+                menu_btn_image.set_icon_name(Some(perspective_icon_name.as_str()));
                 perspective_ctrl
                     .stack
                     .set_visible_child_name(&stack_child_name);
@@ -95,17 +93,16 @@ impl UIDispatcher for Dispatcher {
             let stack_clone = perspective_ctrl.stack.clone();
             let popover_clone = perspective_ctrl.popover.clone();
             let event = move || {
-                menu_btn_image.set_property_icon_name(Some(perspective_icon_name.as_str()));
+                menu_btn_image.set_icon_name(Some(perspective_icon_name.as_str()));
                 stack_clone.set_visible_child_name(&stack_child_name);
                 // popdown is available from GTK 3.22
                 // current package used on travis is GTK 3.18
                 popover_clone.hide();
             };
 
-            match button.get_action_name() {
+            match button.action_name() {
                 Some(action_name) => {
-                    let accel_key =
-                        gtk_downcast!(button_box, 2, gtk::Label, button_name).get_text();
+                    let accel_key = gtk_downcast!(button_box, 2, gtk::Label, button_name).text();
                     let action_splits: Vec<&str> = action_name.splitn(2, '.').collect();
                     if action_splits.len() != 2 {
                         panic!(

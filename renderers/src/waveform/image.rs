@@ -336,10 +336,10 @@ impl WaveformImage {
         self.last.y_values = smallvec![self.half_range_y; audio_buffer.channels];
 
         exposed_image.with_surface(|image_surface| {
-            let cr = cairo::Context::new(image_surface);
+            let cr = cairo::Context::new(image_surface).unwrap();
 
             cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
-            cr.paint();
+            cr.paint().unwrap();
 
             self.draw_samples(d, &cr, audio_buffer, lower, upper);
         });
@@ -374,11 +374,12 @@ impl WaveformImage {
             // translate exposed image on secondary_image
             // secondary_image becomes the exposed image
             secondary_image.with_surface(|secondary_surface| {
-                let cr = cairo::Context::new(secondary_surface);
+                let cr = cairo::Context::new(secondary_surface).unwrap();
 
                 exposed_image.with_surface_external_context(&cr, |cr, exposed_surface| {
-                    cr.set_source_surface(exposed_surface, -x_offset, 0f64);
-                    cr.paint();
+                    cr.set_source_surface(exposed_surface, -x_offset, 0f64)
+                        .unwrap();
+                    cr.paint().unwrap();
                 });
 
                 self.lower = lower;
@@ -394,7 +395,7 @@ impl WaveformImage {
         } else {
             // Don't translate => reuse exposed image
             exposed_image.with_surface(|exposed_surface| {
-                let cr = cairo::Context::new(exposed_surface);
+                let cr = cairo::Context::new(exposed_surface).unwrap();
                 self.draw_samples(d, &cr, audio_buffer, self.upper, upper)
             });
 
@@ -467,7 +468,7 @@ impl WaveformImage {
 
                 cr.move_to(self.last.x, self.last.y_values[channel]);
                 cr.line_to(x, y);
-                cr.stroke();
+                cr.stroke().unwrap();
 
                 self.last.y_values[channel] = y;
             }
@@ -494,7 +495,7 @@ impl WaveformImage {
 
         cr.move_to(start_x, self.half_range_y);
         cr.line_to(self.last.x, self.half_range_y);
-        cr.stroke();
+        cr.stroke().unwrap();
 
         self.upper = upper;
     }
@@ -503,7 +504,7 @@ impl WaveformImage {
     fn clear_area(&self, cr: &cairo::Context, first_x: f64, limit_x: f64) {
         cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
         cr.rectangle(first_x, 0f64, limit_x - first_x, self.full_range_y);
-        cr.fill();
+        cr.fill().unwrap();
     }
 }
 
@@ -660,7 +661,7 @@ mod tests {
         lower: SampleIndex,
     ) {
         let incoming_lower = lower;
-        let incoming_upper = lower + SampleIndexRange::new(buffer.get_size() / CHANNELS / 2);
+        let incoming_upper = lower + SampleIndexRange::new(buffer.size() / CHANNELS / 2);
 
         push_test_buffer(audio_buffer, buffer, lower);
 

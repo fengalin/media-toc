@@ -2,7 +2,7 @@ use futures::channel::mpsc as async_mpsc;
 
 use gettextrs::gettext;
 
-use gst::prelude::*;
+use gst::{glib, prelude::*};
 
 use log::{info, warn};
 
@@ -81,7 +81,7 @@ impl TocSetterPipeline {
     pub fn current_ts(&self) -> Timestamp {
         let mut position_query = gst::query::Position::new(gst::Format::Time);
         self.pipeline.query(&mut position_query);
-        let position = position_query.get_result().get_value();
+        let position = position_query.result().value();
         if position >= 0 {
             position.into()
         } else {
@@ -125,21 +125,21 @@ impl TocSetterPipeline {
             let queue = gst::ElementFactory::make("queue2", None).unwrap();
             pipeline_cb.add(&queue).unwrap();
 
-            pad.link(&queue.get_static_pad("sink").unwrap()).unwrap();
+            pad.link(&queue.static_pad("sink").unwrap()).unwrap();
             queue.sync_state_with_parent().unwrap();
 
-            let queue_src_pad = queue.get_static_pad("src").unwrap();
+            let queue_src_pad = queue.static_pad("src").unwrap();
 
             if streams
                 .read()
                 .expect("TocSetterPipeline: `paserbin.pad_added` cand read streams to use")
                 .contains(
-                    pad.get_stream_id()
+                    pad.stream_id()
                         .expect("TocSetterPipeline::build_pipeline no stream_id for src pad")
                         .as_str(),
                 )
             {
-                let muxer_sink_pad = muxer.get_compatible_pad(&queue_src_pad, None).unwrap();
+                let muxer_sink_pad = muxer.compatible_pad(&queue_src_pad, None).unwrap();
                 queue_src_pad.link(&muxer_sink_pad).unwrap();
                 muxer.sync_state_with_parent().unwrap();
 
@@ -159,7 +159,7 @@ impl TocSetterPipeline {
                 let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
                 pipeline_cb.add(&fakesink).unwrap();
                 queue_src_pad
-                    .link(&fakesink.get_static_pad("sink").unwrap())
+                    .link(&fakesink.static_pad("sink").unwrap())
                     .unwrap();
                 fakesink.sync_state_with_parent().unwrap();
             }
@@ -176,7 +176,7 @@ impl TocSetterPipeline {
     fn register_bus_inspector(&self, mut sender: async_mpsc::Sender<MediaEvent>) {
         let mut init_done = false;
         self.pipeline
-            .get_bus()
+            .bus()
             .unwrap()
             .add_watch(move |_, msg| {
                 match msg.view() {
@@ -185,8 +185,8 @@ impl TocSetterPipeline {
                         return glib::Continue(false);
                     }
                     gst::MessageView::Error(err) => {
-                        let _ = sender
-                            .try_send(MediaEvent::FailedToExport(err.get_error().to_string()));
+                        let _ =
+                            sender.try_send(MediaEvent::FailedToExport(err.error().to_string()));
                         return glib::Continue(false);
                     }
                     gst::MessageView::AsyncDone(_) => {

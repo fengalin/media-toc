@@ -1,7 +1,7 @@
 #[cfg(target_family = "unix")]
 use directories::{BaseDirs, ProjectDirs};
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 
 use std::fs::{create_dir_all, File};
 use std::io::{ErrorKind, Read};
@@ -13,14 +13,14 @@ use std::fs::read_dir;
 #[cfg(target_family = "unix")]
 use std::io::Write;
 
-lazy_static! {
-    // Remove "-application" from `CARGO_PKG_NAME`
-    pub static ref APP_NAME: String = env!("CARGO_PKG_NAME")
+// Remove "-application" from `CARGO_PKG_NAME`
+pub static APP_NAME: Lazy<String> = Lazy::new(|| {
+    env!("CARGO_PKG_NAME")
         .rsplitn(2, '-')
         .last()
         .unwrap()
-        .to_string();
-}
+        .to_string()
+});
 
 fn po_path() -> PathBuf {
     PathBuf::from("..").join("po")

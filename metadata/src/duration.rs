@@ -57,6 +57,12 @@ impl From<Duration> for gst::ClockTime {
     }
 }
 
+impl From<gst::ClockTime> for Duration {
+    fn from(clock_time: gst::ClockTime) -> Self {
+        Duration(clock_time.nseconds())
+    }
+}
+
 impl Div for Duration {
     type Output = Duration;
 

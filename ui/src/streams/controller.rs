@@ -1,5 +1,5 @@
 use gettextrs::gettext;
-use gtk::prelude::*;
+use gtk::{glib, prelude::*};
 
 use std::sync::Arc;
 
@@ -82,7 +82,7 @@ pub(super) trait UIStreamImpl {
         col.set_title(title);
 
         let renderer = gtk::CellRendererText::new();
-        renderer.set_alignment(alignment, ALIGN_CENTER);
+        gtk::prelude::CellRendererExt::set_alignment(&renderer, alignment, ALIGN_CENTER);
         col.pack_start(&renderer, true);
         col.add_attribute(&renderer, "text", col_id as i32);
 
@@ -126,16 +126,15 @@ impl<Impl: UIStreamImpl> UIStream<Impl> {
         let sorted_collection = streams.collection(Impl::TYPE).sorted();
         for stream in sorted_collection {
             let iter = self.add_stream(stream);
-            let caps_structure = stream.caps.get_structure(0).unwrap();
+            let caps_structure = stream.caps.structure(0).unwrap();
             Impl::new_media(&self.store, &iter, caps_structure);
         }
 
-        self.selected = self.store.get_iter_first().map(|ref iter| {
-            self.treeview.get_selection().select_iter(iter);
+        self.selected = self.store.iter_first().map(|ref iter| {
+            self.treeview.selection().select_iter(iter);
             self.store
-                .get_value(iter, STREAM_ID_COL as i32)
+                .value(iter, STREAM_ID_COL as i32)
                 .get::<String>()
-                .unwrap()
                 .unwrap()
                 .into()
         });
@@ -151,23 +150,26 @@ impl<Impl: UIStreamImpl> UIStream<Impl> {
 
         let iter = self.store.insert_with_values(
             None,
-            &[EXPORT_FLAG_COL, STREAM_ID_COL, STREAM_ID_DISPLAY_COL],
-            &[&true, &stream.id.as_ref(), &stream_id_display],
+            &[
+                (EXPORT_FLAG_COL, &true),
+                (STREAM_ID_COL, &stream.id.as_ref()),
+                (STREAM_ID_DISPLAY_COL, &stream_id_display),
+            ],
         );
 
         let lang = stream
             .tags
-            .get_index::<gst::tags::LanguageName>(0)
-            .or_else(|| stream.tags.get_index::<gst::tags::LanguageCode>(0))
-            .and_then(glib::TypedValue::get)
+            .index::<gst::tags::LanguageName>(0)
+            .or_else(|| stream.tags.index::<gst::tags::LanguageCode>(0))
+            .map(|value| value.get())
             .unwrap_or("-");
         self.store
             .set_value(&iter, LANGUAGE_COL, &glib::Value::from(lang));
 
         if let Some(comment) = stream
             .tags
-            .get_index::<gst::tags::Comment>(0)
-            .and_then(|value| value.get())
+            .index::<gst::tags::Comment>(0)
+            .map(|value| value.get())
         {
             self.store
                 .set_value(&iter, COMMENT_COL, &glib::Value::from(comment));
@@ -184,9 +186,9 @@ impl<Impl: UIStreamImpl> UIStream<Impl> {
 
     pub(super) fn export_renderer(&self) -> gtk::CellRendererToggle {
         self.treeview
-            .get_column(EXPORT_FLAG_COL as i32)
+            .column(EXPORT_FLAG_COL as i32)
             .unwrap()
-            .get_cells()
+            .cells()
             .pop()
             .unwrap()
             .downcast::<gtk::CellRendererToggle>()
@@ -194,13 +196,12 @@ impl<Impl: UIStreamImpl> UIStream<Impl> {
     }
 
     fn stream_clicked(&mut self) -> ClickedStatus {
-        if let (Some(cursor_path), _) = self.treeview.get_cursor() {
-            if let Some(iter) = self.store.get_iter(&cursor_path) {
+        if let (Some(cursor_path), _) = self.treeview.cursor() {
+            if let Some(iter) = self.store.iter(&cursor_path) {
                 let stream = self
                     .store
-                    .get_value(&iter, STREAM_ID_COL as i32)
+                    .value(&iter, STREAM_ID_COL as i32)
                     .get::<String>()
-                    .unwrap()
                     .unwrap()
                     .into();
                 let stream_to_select = match &self.selected {
@@ -226,17 +227,16 @@ impl<Impl: UIStreamImpl> UIStream<Impl> {
     }
 
     fn export_toggled(&self, tree_path: gtk::TreePath) -> Option<(glib::GString, bool)> {
-        self.store.get_iter(&tree_path).map(|iter| {
+        self.store.iter(&tree_path).map(|iter| {
             let stream_id = self
                 .store
-                .get_value(&iter, STREAM_ID_COL as i32)
+                .value(&iter, STREAM_ID_COL as i32)
                 .get::<glib::GString>()
-                .unwrap()
                 .unwrap();
             let must_export = !self
                 .store
-                .get_value(&iter, EXPORT_FLAG_COL as i32)
-                .get_some::<bool>()
+                .value(&iter, EXPORT_FLAG_COL as i32)
+                .get::<bool>()
                 .unwrap();
             self.store
                 .set_value(&iter, EXPORT_FLAG_COL, &glib::Value::from(&must_export));
@@ -256,10 +256,10 @@ impl UIStreamImpl for UIStreamVideoImpl {
     const TYPE: gst::StreamType = gst::StreamType::VIDEO;
 
     fn new_media(store: &gtk::ListStore, iter: &gtk::TreeIter, caps_struct: &gst::StructureRef) {
-        if let Ok(Some(width)) = caps_struct.get::<i32>("width") {
+        if let Ok(width) = caps_struct.get::<i32>("width") {
             store.set_value(iter, Self::VIDEO_WIDTH_COL, &glib::Value::from(&width));
         }
-        if let Ok(Some(height)) = caps_struct.get::<i32>("height") {
+        if let Ok(height) = caps_struct.get::<i32>("height") {
             store.set_value(iter, Self::VIDEO_HEIGHT_COL, &glib::Value::from(&height));
         }
     }
@@ -295,10 +295,10 @@ impl UIStreamImpl for UIStreamAudioImpl {
     const TYPE: gst::StreamType = gst::StreamType::AUDIO;
 
     fn new_media(store: &gtk::ListStore, iter: &gtk::TreeIter, caps_struct: &gst::StructureRef) {
-        if let Ok(Some(rate)) = caps_struct.get::<i32>("rate") {
+        if let Ok(rate) = caps_struct.get::<i32>("rate") {
             store.set_value(iter, Self::AUDIO_RATE_COL, &glib::Value::from(&rate));
         }
-        if let Ok(Some(channels)) = caps_struct.get::<i32>("channels") {
+        if let Ok(channels) = caps_struct.get::<i32>("channels") {
             store.set_value(
                 iter,
                 Self::AUDIO_CHANNELS_COL,
@@ -340,7 +340,7 @@ impl UIStreamImpl for UIStreamTextImpl {
     const ENABLE_EXPORT: bool = false;
 
     fn new_media(store: &gtk::ListStore, iter: &gtk::TreeIter, caps_struct: &gst::StructureRef) {
-        if let Ok(Some(format)) = caps_struct.get::<&str>("format") {
+        if let Ok(format) = caps_struct.get::<&str>("format") {
             store.set_value(iter, Self::TEXT_FORMAT_COL, &glib::Value::from(&format));
         }
     }
@@ -393,21 +393,21 @@ impl UIController for Controller {
 impl Controller {
     pub fn new(builder: &gtk::Builder) -> Self {
         let mut ctrl = Controller {
-            page: builder.get_object("streams-grid").unwrap(),
+            page: builder.object("streams-grid").unwrap(),
 
             video: UIStream::new(
-                builder.get_object("video_streams-treeview").unwrap(),
-                builder.get_object("video_streams-liststore").unwrap(),
+                builder.object("video_streams-treeview").unwrap(),
+                builder.object("video_streams-liststore").unwrap(),
             ),
 
             audio: UIStream::new(
-                builder.get_object("audio_streams-treeview").unwrap(),
-                builder.get_object("audio_streams-liststore").unwrap(),
+                builder.object("audio_streams-treeview").unwrap(),
+                builder.object("audio_streams-liststore").unwrap(),
             ),
 
             text: UIStream::new(
-                builder.get_object("text_streams-treeview").unwrap(),
-                builder.get_object("text_streams-liststore").unwrap(),
+                builder.object("text_streams-treeview").unwrap(),
+                builder.object("text_streams-liststore").unwrap(),
             ),
         };
 

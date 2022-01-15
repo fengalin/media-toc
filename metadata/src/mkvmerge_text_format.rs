@@ -83,10 +83,10 @@ fn parse_chapter_test() {
     let res = parse_chapter("CHAPTER01=00:00:01.000\nCHAPTER01NAME=test\n");
     let (i, toc_entry) = res.unwrap();
     assert_eq!(0, i.input_len());
-    assert_eq!(1_000_000_000, toc_entry.get_start_stop_times().unwrap().0);
+    assert_eq!(1_000_000_000, toc_entry.start_stop_times().unwrap().0);
     assert_eq!(
         Some("test".to_string()),
-        toc_entry.get_tags().and_then(|tags| tags
+        toc_entry.tags().and_then(|tags| tags
             .get::<gst::tags::Title>()
             .and_then(|tag| tag.get().map(|value| value.to_string()))),
     );
@@ -94,10 +94,10 @@ fn parse_chapter_test() {
     let res = parse_chapter("CHAPTER01=00:00:01.000\r\nCHAPTER01NAME=test\r\n");
     let (i, toc_entry) = res.unwrap();
     assert_eq!(0, i.input_len());
-    assert_eq!(1_000_000_000, toc_entry.get_start_stop_times().unwrap().0);
+    assert_eq!(1_000_000_000, toc_entry.start_stop_times().unwrap().0);
     assert_eq!(
         Some("test".to_owned()),
-        toc_entry.get_tags().and_then(|tags| tags
+        toc_entry.tags().and_then(|tags| tags
             .get::<gst::tags::Title>()
             .and_then(|tag| tag.get().map(|value| value.to_string()))),
     );
@@ -175,8 +175,8 @@ impl Reader for MKVMergeTextFormat {
 
                 if let Some(mut prev_chapter) = last_chapter.take() {
                     // Update previous chapter's end
-                    let prev_start = prev_chapter.get_start_stop_times().unwrap().0;
-                    let cur_start = cur_chapter.get_start_stop_times().unwrap().0;
+                    let prev_start = prev_chapter.start_stop_times().unwrap().0;
+                    let cur_start = cur_chapter.start_stop_times().unwrap().0;
                     prev_chapter
                         .get_mut()
                         .unwrap()
@@ -200,7 +200,7 @@ impl Reader for MKVMergeTextFormat {
                     Err(error_msg)
                 },
                 |mut last_chapter| {
-                    let last_start = last_chapter.get_start_stop_times().unwrap().0;
+                    let last_start = last_chapter.start_stop_times().unwrap().0;
                     last_chapter
                         .get_mut()
                         .unwrap()
@@ -237,7 +237,7 @@ impl Writer for MKVMergeTextFormat {
         let mut index = 0;
         let mut toc_visitor = TocVisitor::new(info.toc.as_ref().unwrap());
         while let Some(chapter) = toc_visitor.next_chapter() {
-            if let Some((start, _end)) = chapter.get_start_stop_times() {
+            if let Some((start, _end)) = chapter.start_stop_times() {
                 index += 1;
                 let prefix = format!("{}{:02}", CHAPTER_TAG, index);
                 write_fmt!(
@@ -250,10 +250,10 @@ impl Writer for MKVMergeTextFormat {
                 );
 
                 let title = chapter
-                    .get_tags()
+                    .tags()
                     .and_then(|tags| {
                         tags.get::<gst::tags::Title>()
-                            .map(|tag| tag.get().unwrap().to_owned())
+                            .map(|tag| tag.get().to_owned())
                     })
                     .unwrap_or_else(default_chapter_title);
                 write_fmt!(destination, "{}{}={}\n", prefix, NAME_TAG, &title);
