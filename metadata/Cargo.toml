@@ -1,7 +1,7 @@
 [package]
 authors = ["François Laignel <fengalin@free.fr>"]
 description = "metadata modules for media-toc"
-edition = '2018'
+edition = '2021'
 homepage = "https://github.com/fengalin/media-toc"
 keywords = ["multimedia", "chapter", "table-of-contents", "gtk3", "gstreamer"]
 license = "MIT"
