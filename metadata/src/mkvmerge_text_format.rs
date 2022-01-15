@@ -88,7 +88,7 @@ fn parse_chapter_test() {
         Some("test".to_string()),
         toc_entry.tags().and_then(|tags| tags
             .get::<gst::tags::Title>()
-            .and_then(|tag| tag.get().map(|value| value.to_string()))),
+            .map(|tag| tag.get().to_string())),
     );
 
     let res = parse_chapter("CHAPTER01=00:00:01.000\r\nCHAPTER01NAME=test\r\n");
@@ -99,13 +99,13 @@ fn parse_chapter_test() {
         Some("test".to_owned()),
         toc_entry.tags().and_then(|tags| tags
             .get::<gst::tags::Title>()
-            .and_then(|tag| tag.get().map(|value| value.to_string()))),
+            .map(|tag| tag.get().to_string())),
     );
 
     let res = parse_chapter("CHAPTER0x=00:00:01.000");
     let err = res.unwrap_err();
     if let nom::Err::Error(err) = err {
-        assert_eq!("x=00:00:01.000", i);
+        assert_eq!("x=00:00:01.000", err.input);
         assert_eq!(ErrorKind::Tag, err.code);
     } else {
         panic!("unexpected error type returned");
@@ -114,7 +114,7 @@ fn parse_chapter_test() {
     let res = parse_chapter("CHAPTER01=00:00:01.000\nCHAPTER02NAME=test\n");
     let err = res.unwrap_err();
     if let nom::Err::Error(err) = err {
-        assert_eq!("02NAME=test\n", i);
+        assert_eq!("02NAME=test\n", err.input);
         assert_eq!(ErrorKind::Verify, err.code);
     } else {
         panic!("unexpected error type returned");

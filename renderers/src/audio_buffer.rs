@@ -710,7 +710,7 @@ mod tests {
         let mut buffer = gst::Buffer::with_size(samples_u8_len).unwrap();
         {
             let buffer_mut = buffer.get_mut().unwrap();
-            buffer_mut.set_pts(gst::ClockTime::from(pts.as_u64()));
+            buffer_mut.set_pts(gst::ClockTime::from(pts));
 
             let mut buffer_map = buffer_mut.map_writable().unwrap();
             let buffer_slice = buffer_map.as_mut();
@@ -743,6 +743,7 @@ mod tests {
         if is_new_segment {
             let mut segment = gst::FormattedSegment::new();
             segment.set_start(buffer.pts());
+            segment.set_time(buffer.pts());
             audio_buffer.have_gst_segment(&segment);
         }
 
@@ -850,7 +851,7 @@ mod tests {
                 if channel == 0 {
                     assert_eq!(*value, SampleValue::from(expected_value));
                 } else {
-                    assert_eq!(*value, SampleValue::from(-1 * expected_value));
+                    assert_eq!(*value, SampleValue::from(-expected_value));
                 }
             }
         }
@@ -876,18 +877,18 @@ mod tests {
 
         // buffer ranges: front: [, ], back: [100, 200]
         // check bounds
-        check_iter(&audio_buffer, 100, 110, 5, &vec![100, 105]);
-        check_iter(&audio_buffer, 196, 200, 3, &vec![196, 199]);
+        check_iter(&audio_buffer, 100, 110, 5, &[100, 105]);
+        check_iter(&audio_buffer, 196, 200, 3, &[196, 199]);
 
         // 2. appending to the beginning
         push_test_buffer(&mut audio_buffer, &build_buffer(50, 100), true);
 
         // buffer ranges: front: [50, 100], back: [100, 200]
         // check beginning
-        check_iter(&audio_buffer, 50, 60, 5, &vec![50, 55]);
+        check_iter(&audio_buffer, 50, 60, 5, &[50, 55]);
 
         // check overlap between 1 & 2
-        check_iter(&audio_buffer, 90, 110, 5, &vec![90, 95, 100, 105]);
+        check_iter(&audio_buffer, 90, 110, 5, &[90, 95, 100, 105]);
 
         // 3. appending to the beginning
         push_test_buffer(&mut audio_buffer, &build_buffer(0, 75), true);
@@ -895,7 +896,7 @@ mod tests {
         // buffer ranges: front: [0, 100], back: [100, 200]
 
         // check overlap between 2 & 3
-        check_iter(&audio_buffer, 40, 60, 5, &vec![40, 45, 50, 55]);
+        check_iter(&audio_buffer, 40, 60, 5, &[40, 45, 50, 55]);
 
         // appending to the end
         // 4
@@ -904,19 +905,19 @@ mod tests {
         // buffer ranges: front: [0, 100], back: [100, 300]
 
         // check overlap between 1 & 4
-        check_iter(&audio_buffer, 190, 210, 5, &vec![190, 195, 200, 205]);
+        check_iter(&audio_buffer, 190, 210, 5, &[190, 195, 200, 205]);
 
         // 5 append in same segment
         push_test_buffer(&mut audio_buffer, &build_buffer(300, 400), false);
 
         // buffer ranges: front: [0, 100], back: [100, 400]
         // check end
-        check_iter(&audio_buffer, 396, 400, 3, &vec![396, 399]);
+        check_iter(&audio_buffer, 396, 400, 3, &[396, 399]);
 
         // check overlap between 4 & 5
-        check_iter(&audio_buffer, 290, 310, 5, &vec![290, 295, 300, 305]);
+        check_iter(&audio_buffer, 290, 310, 5, &[290, 295, 300, 305]);
 
         // check overlap between 4 & 5
-        check_iter(&audio_buffer, 290, 310, 5, &vec![290, 295, 300, 305]);
+        check_iter(&audio_buffer, 290, 310, 5, &[290, 295, 300, 305]);
     }
 }
