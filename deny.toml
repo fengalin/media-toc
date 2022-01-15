@@ -1,0 +1,36 @@
+[licenses]
+unlicensed = "deny"
+allow = [
+  "Apache-2.0",
+  "MIT",
+]
+deny = [
+  "GPL-1.0",
+  "GPL-2.0",
+  "GPL-3.0",
+  "AGPL-1.0",
+  "AGPL-3.0",
+]
+copyleft = "deny"
+allow-osi-fsf-free = "either"
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "deny"
+wildcards = "allow"
+highlight = "all"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-git = [
+#  "https://github.com/gtk-rs/gtk-rs-core",
+#  "https://github.com/gtk-rs/gtk3-rs",
+#  "https://freedesktop.org/gstreamer-rs",
+#  "https://freedesktop.org/gst-plugins-rs",
+]
+
+# ignore duplicated heck dependency because various crates depend on an old version
+[[bans.skip]]
+name = "heck"
+version = "0.3"
