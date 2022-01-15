@@ -75,6 +75,12 @@ impl From<Timestamp> for gst::ClockTime {
     }
 }
 
+impl From<gst::ClockTime> for Timestamp {
+    fn from(clock_time: gst::ClockTime) -> Self {
+        Timestamp(clock_time.nseconds())
+    }
+}
+
 #[derive(Debug)]
 pub struct TimestampTryFromError;
 
@@ -86,12 +92,11 @@ impl fmt::Display for TimestampTryFromError {
 
 impl Error for TimestampTryFromError {}
 
-impl TryFrom<gst::ClockTime> for Timestamp {
+impl TryFrom<Option<gst::ClockTime>> for Timestamp {
     type Error = TimestampTryFromError;
-    fn try_from(clock_time: gst::ClockTime) -> Result<Self, Self::Error> {
-        clock_time
-            .nseconds()
-            .map(Timestamp)
+    fn try_from(opt_clock_time: Option<gst::ClockTime>) -> Result<Self, Self::Error> {
+        opt_clock_time
+            .map(Timestamp::from)
             .ok_or(TimestampTryFromError)
     }
 }

@@ -71,7 +71,7 @@ fn build_buffer(lower_value: usize, upper_value: usize) -> gst::Buffer {
 
 fn push_test_buffer(audio_buffer: &mut AudioBuffer, buffer: &gst::Buffer, is_new_segment: bool) {
     if is_new_segment {
-        audio_buffer.have_gst_segment(buffer.get_pts().nseconds().unwrap().into());
+        audio_buffer.have_gst_segment(buffer.pts().nseconds().unwrap().into());
     }
 
     audio_buffer.push_gst_buffer(buffer, SampleIndex::default()); // never drain buffer in this test

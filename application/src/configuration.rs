@@ -1,7 +1,7 @@
 use directories::ProjectDirs;
 use gettextrs::gettext;
-use lazy_static::lazy_static;
 use log::{debug, error};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use std::{
@@ -16,9 +16,7 @@ use super::{APP_NAME, SLD, TLD};
 
 const CONFIG_FILENAME: &str = "config.ron";
 
-lazy_static! {
-    pub static ref CONFIG: RwLock<GlobalConfig> = RwLock::new(GlobalConfig::new());
-}
+pub static CONFIG: Lazy<RwLock<GlobalConfig>> = Lazy::new(|| RwLock::new(GlobalConfig::new()));
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct UI {

@@ -1,4 +1,4 @@
-use gtk::prelude::*;
+use gtk::{gdk, gio, glib, prelude::*};
 use log::{debug, trace};
 
 use std::{
@@ -141,11 +141,11 @@ impl Controller {
             positions: Rc::new(RefCell::new(ImagePositions::default())),
             boundaries,
 
-            container: builder.get_object("audio-container").unwrap(),
-            drawingarea: builder.get_object("audio-drawingarea").unwrap(),
-            zoom_in_btn: builder.get_object("audio_zoom_in-toolbutton").unwrap(),
+            container: builder.object("audio-container").unwrap(),
+            drawingarea: builder.object("audio-drawingarea").unwrap(),
+            zoom_in_btn: builder.object("audio_zoom_in-toolbutton").unwrap(),
             zoom_in_action: gio::SimpleAction::new("zoom_in", None),
-            zoom_out_btn: builder.get_object("audio_zoom_out-toolbutton").unwrap(),
+            zoom_out_btn: builder.object("audio_zoom_out-toolbutton").unwrap(),
             zoom_out_action: gio::SimpleAction::new("zoom_out", None),
 
             step_forward_action: gio::SimpleAction::new("step_forward", None),
@@ -162,7 +162,7 @@ impl Controller {
 
             tick_cb_id: None,
 
-            ref_lbl: builder.get_object("title-caption").unwrap(),
+            ref_lbl: builder.object("title-caption").unwrap(),
         };
 
         ctrl.cleanup();
@@ -384,7 +384,7 @@ impl Controller {
         &mut self,
         event_motion: gdk::EventMotion,
     ) -> Option<(Timestamp, Timestamp)> {
-        let (x, _y) = event_motion.get_position();
+        let (x, _y) = event_motion.position();
 
         match self.state {
             State::Playing => (),
@@ -424,10 +424,10 @@ impl Controller {
     }
 
     pub fn button_pressed(&mut self, event_button: gdk::EventButton) {
-        match event_button.get_button() {
+        match event_button.button() {
             1 => {
                 // left button
-                if let Some(ts) = self.ts_at(event_button.get_position().0) {
+                if let Some(ts) = self.ts_at(event_button.position().0) {
                     match self.state {
                         State::Playing
                         | State::PlayingRange(_)
@@ -444,7 +444,7 @@ impl Controller {
             }
             3 => {
                 // right button => range playback in Paused state
-                if let Some(start) = self.ts_at(event_button.get_position().0) {
+                if let Some(start) = self.ts_at(event_button.position().0) {
                     let to_restore = match self.state {
                         State::Paused => self
                             .positions
@@ -469,7 +469,7 @@ impl Controller {
 
     pub fn button_released(&mut self, event_button: gdk::EventButton) {
         if let State::MovingBoundary(boundary) = self.state {
-            if 1 == event_button.get_button() {
+            if 1 == event_button.button() {
                 // left button
                 self.state = State::CursorAboveBoundary(boundary);
             }

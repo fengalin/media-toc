@@ -4,7 +4,7 @@ use futures::{
 };
 
 use gettextrs::{gettext, ngettext};
-use gtk::prelude::*;
+use gtk::{glib, prelude::*};
 
 use log::{error, info};
 
@@ -87,7 +87,7 @@ impl Controller {
 
         file_dlg.connect_response(|file_dlg, response| {
             file_dlg.hide();
-            match (response, file_dlg.get_filename()) {
+            match (response, file_dlg.filename()) {
                 (gtk::ResponseType::Accept, Some(path)) => main::open_media(path),
                 _ => main::cancel_select_media(),
             }
@@ -97,9 +97,9 @@ impl Controller {
             window: window.clone(),
             window_delete_id: None,
 
-            header_bar: builder.get_object("header-bar").unwrap(),
-            playback_paned: builder.get_object("playback-paned").unwrap(),
-            play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
+            header_bar: builder.object("header-bar").unwrap(),
+            playback_paned: builder.object("playback-paned").unwrap(),
+            play_pause_btn: builder.object("play_pause-toolbutton").unwrap(),
             file_dlg,
 
             perspective: perspective::Controller::new(builder),
@@ -148,8 +148,8 @@ impl Controller {
         self.split.cancel();
 
         if let Some(window_delete_id) = self.window_delete_id.take() {
-            let size = self.window.get_size();
-            let paned_pos = self.playback_paned.get_position();
+            let size = self.window.size();
+            let paned_pos = self.playback_paned.position();
             let mut config = CONFIG.write().unwrap();
             config.ui.width = size.0;
             config.ui.height = size.1;

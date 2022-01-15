@@ -3,8 +3,7 @@ use futures::{
     prelude::*,
 };
 
-use gio::prelude::*;
-use gtk::prelude::*;
+use gtk::{gio, prelude::*};
 
 use log::{debug, trace};
 
@@ -25,11 +24,11 @@ impl UIDispatcher for Dispatcher {
         app.add_action(&toggle_show_list);
         let show_chapters_btn = info.show_chapters_btn.clone();
         toggle_show_list.connect_activate(move |_, _| {
-            show_chapters_btn.set_active(!show_chapters_btn.get_active());
+            show_chapters_btn.set_active(!show_chapters_btn.is_active());
         });
 
         info.show_chapters_btn.connect_toggled(|toggle_button| {
-            info::toggle_chapter_list(!toggle_button.get_active());
+            info::toggle_chapter_list(!toggle_button.is_active());
         });
 
         // Scale seek
@@ -78,11 +77,11 @@ impl UIDispatcher for Dispatcher {
         app.add_action(&toggle_repeat_chapter);
         let repeat_btn = info.repeat_btn.clone();
         toggle_repeat_chapter.connect_activate(move |_, _| {
-            repeat_btn.set_active(!repeat_btn.get_active());
+            repeat_btn.set_active(!repeat_btn.is_active());
         });
 
         info.repeat_btn
-            .connect_clicked(|button| info::toggle_repeat(button.get_active()));
+            .connect_clicked(|button| info::toggle_repeat(button.is_active()));
 
         // Register next chapter action
         app.add_action(&info.next_chapter_action);

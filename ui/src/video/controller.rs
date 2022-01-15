@@ -1,5 +1,4 @@
-use glib::{signal::SignalHandlerId, ObjectExt};
-use gtk::prelude::*;
+use gtk::{glib::signal::SignalHandlerId, prelude::*};
 use log::debug;
 
 use application::{CommandLineArguments, CONFIG};
@@ -23,7 +22,7 @@ impl UIController for Controller {
         if let Some(video_widget) = self.video_widget() {
             if self.cleaner_id.is_none() {
                 self.cleaner_id = Some(video_widget.connect_draw(|widget, cr| {
-                    let allocation = widget.get_allocation();
+                    let allocation = widget.allocation();
                     cr.set_source_rgb(0f64, 0f64, 0f64);
                     cr.rectangle(
                         0f64,
@@ -31,7 +30,7 @@ impl UIController for Controller {
                         f64::from(allocation.width),
                         f64::from(allocation.height),
                     );
-                    cr.fill();
+                    cr.fill().unwrap();
 
                     Inhibit(true)
                 }));
@@ -43,7 +42,7 @@ impl UIController for Controller {
     fn streams_changed(&mut self, info: &MediaInfo) {
         if self.video_output.is_some() {
             if let Some(cleaner_id) = self.cleaner_id.take() {
-                self.container.get_children()[0].disconnect(cleaner_id);
+                self.container.children()[0].disconnect(cleaner_id);
             }
 
             if info.streams.is_video_selected() {
@@ -59,7 +58,7 @@ impl UIController for Controller {
 
 impl Controller {
     pub fn new(builder: &gtk::Builder, args: &CommandLineArguments) -> Self {
-        let container: gtk::Box = builder.get_object("video-container").unwrap();
+        let container: gtk::Box = builder.object("video-container").unwrap();
 
         let video_output = if !args.disable_gl && !CONFIG.read().unwrap().media.is_gl_disabled {
             gst::ElementFactory::make("gtkglsink", Some("gtkglsink"))
@@ -74,13 +73,12 @@ impl Controller {
                     VideoOutput {
                         sink: glsinkbin,
                         widget: gtkglsink
-                            .get_property("widget")
+                            .property("widget")
                             .expect("video::Controller: couldn't get `widget` from `gtkglsink`")
                             .get::<gtk::Widget>()
                             .expect(
                                 "video::Controller: unexpected type for `widget` in `gtkglsink`",
-                            )
-                            .expect("video::Controller: `widget` not found in `gtkglsink`"),
+                            ),
                     }
                 })
                 .ok()
@@ -94,11 +92,10 @@ impl Controller {
                     VideoOutput {
                         sink: sink.clone(),
                         widget: sink
-                            .get_property("widget")
+                            .property("widget")
                             .expect("video::Controller: couldn't get `widget` from `gtksink`")
                             .get::<gtk::Widget>()
-                            .expect("video::Controller: unexpected type for `widget` in `gtksink`")
-                            .expect("video::Controller: `widget` not found in `gtksink`"),
+                            .expect("video::Controller: unexpected type for `widget` in `gtksink`"),
                     }
                 })
                 .ok()

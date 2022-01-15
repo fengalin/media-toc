@@ -1,5 +1,4 @@
-use glib::subclass::prelude::*;
-use glib::GBoxed;
+use gst::glib::{self, GBoxed};
 
 use log::info;
 

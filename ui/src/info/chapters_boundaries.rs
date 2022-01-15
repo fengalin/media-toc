@@ -198,9 +198,7 @@ impl Deref for ChaptersBoundaries {
 #[cfg(all(test, not(target_os = "macos")))]
 mod tests {
     use super::*;
-    use glib;
-    use gtk;
-    use gtk::TreeStoreExt;
+    use gtk::{self, glib, TreeStoreExt};
 
     use renderers::Timestamp;
 

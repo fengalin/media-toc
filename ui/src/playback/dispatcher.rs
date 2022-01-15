@@ -1,7 +1,6 @@
 use futures::{future::LocalBoxFuture, prelude::*};
 
-use gio::prelude::*;
-use gtk::prelude::*;
+use gtk::{gio, prelude::*};
 
 use log::debug;
 

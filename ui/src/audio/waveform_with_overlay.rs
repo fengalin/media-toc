@@ -1,4 +1,4 @@
-use gtk::prelude::*;
+use gtk::{cairo, pango, prelude::*};
 
 use log::debug;
 
@@ -59,13 +59,13 @@ impl TextMetrics {
             }
             None => {
                 // Get font specs from the reference label
-                let ref_layout = self.ref_lbl.as_ref().unwrap().get_layout().unwrap();
-                let ref_ctx = ref_layout.get_context().unwrap();
-                let font_desc = ref_ctx.get_font_description().unwrap();
+                let ref_layout = self.ref_lbl.as_ref().unwrap().layout().unwrap();
+                let ref_ctx = ref_layout.context().unwrap();
+                let font_desc = ref_ctx.font_description().unwrap();
 
-                let family = font_desc.get_family().unwrap();
+                let family = font_desc.family().unwrap();
                 cr.select_font_face(&family, cairo::FontSlant::Normal, cairo::FontWeight::Normal);
-                let font_size = f64::from(ref_layout.get_baseline() / pango::SCALE);
+                let font_size = f64::from(ref_layout.baseline() / pango::SCALE);
                 cr.set_font_size(font_size);
 
                 self.font_family = Some(family.to_string());
@@ -73,11 +73,11 @@ impl TextMetrics {
                 self.twice_font_size = 2f64 * font_size;
                 self.half_font_size = 0.5f64 * font_size;
 
-                self.limit_mn_width = cr.text_extents(LIMIT_TEXT_MN).width;
-                self.limit_h_width = cr.text_extents(LIMIT_TEXT_H).width;
+                self.limit_mn_width = cr.text_extents(LIMIT_TEXT_MN).unwrap().width;
+                self.limit_h_width = cr.text_extents(LIMIT_TEXT_H).unwrap().width;
                 self.limit_y = 2f64 * font_size;
-                self.cursor_mn_width = cr.text_extents(CURSOR_TEXT_MN).width;
-                self.cursor_h_width = cr.text_extents(CURSOR_TEXT_H).width;
+                self.cursor_mn_width = cr.text_extents(CURSOR_TEXT_MN).unwrap().width;
+                self.cursor_h_width = cr.text_extents(CURSOR_TEXT_H).unwrap().width;
                 self.cursor_y = font_size;
             }
         }
@@ -110,7 +110,7 @@ impl WaveformWithOverlay {
 
     pub fn draw(&mut self, da: &gtk::DrawingArea, cr: &cairo::Context) {
         cr.set_source_rgb(BACKGROUND_COLOR.0, BACKGROUND_COLOR.1, BACKGROUND_COLOR.2);
-        cr.paint();
+        cr.paint().unwrap();
 
         let (positions, state) = {
             let waveform_renderer = &mut *self.waveform_renderer_mtx.lock().unwrap();
@@ -134,8 +134,9 @@ impl WaveformWithOverlay {
             };
 
             image.with_surface_external_context(cr, |cr, surface| {
-                cr.set_source_surface(surface, -positions.offset.x, 0f64);
-                cr.paint();
+                cr.set_source_surface(surface, -positions.offset.x, 0f64)
+                    .unwrap();
+                cr.paint().unwrap();
             });
 
             (positions, state)
@@ -154,7 +155,7 @@ impl WaveformWithOverlay {
             2f64 + self.text_metrics.limit_h_width
         };
         cr.move_to(2f64, self.text_metrics.twice_font_size);
-        cr.show_text(&first_text);
+        cr.show_text(&first_text).unwrap();
 
         // last position
         let last_text = positions.last.ts.for_humans().to_string();
@@ -169,7 +170,7 @@ impl WaveformWithOverlay {
                 positions.last.x - last_text_start,
                 self.text_metrics.twice_font_size,
             );
-            cr.show_text(&last_text);
+            cr.show_text(&last_text).unwrap();
         }
 
         // Draw in-range chapters boundaries
@@ -178,7 +179,7 @@ impl WaveformWithOverlay {
         let chapter_range =
             boundaries.range((Included(&positions.offset.ts), Included(&positions.last.ts)));
 
-        let allocation = da.get_allocation();
+        let allocation = da.allocation();
         let (area_width, area_height) = (allocation.width as f64, allocation.width as f64);
 
         cr.set_source_rgb(0.5f64, 0.6f64, 1f64);
@@ -196,19 +197,19 @@ impl WaveformWithOverlay {
                     / positions.sample_step;
                 cr.move_to(x, boundary_y0);
                 cr.line_to(x, area_height);
-                cr.stroke();
+                cr.stroke().unwrap();
 
                 if let Some(ref prev_chapter) = chapters.prev {
                     cr.move_to(
-                        x - 5f64 - cr.text_extents(&prev_chapter.title).width,
+                        x - 5f64 - cr.text_extents(&prev_chapter.title).unwrap().width,
                         text_base,
                     );
-                    cr.show_text(&prev_chapter.title);
+                    cr.show_text(&prev_chapter.title).unwrap();
                 }
 
                 if let Some(ref next_chapter) = chapters.next {
                     cr.move_to(x + 5f64, text_base);
-                    cr.show_text(&next_chapter.title);
+                    cr.show_text(&next_chapter.title).unwrap();
                 }
             }
         }
@@ -229,12 +230,12 @@ impl WaveformWithOverlay {
                 cursor.x - cursor_text_end
             };
             cr.move_to(cursor_text_x, self.text_metrics.font_size);
-            cr.show_text(&cursor_text);
+            cr.show_text(&cursor_text).unwrap();
 
             cr.set_line_width(1f64);
             cr.move_to(cursor.x, 0f64);
             cr.line_to(cursor.x, area_height - self.text_metrics.twice_font_size);
-            cr.stroke();
+            cr.stroke().unwrap();
 
             let cursor_ts = cursor.ts;
 

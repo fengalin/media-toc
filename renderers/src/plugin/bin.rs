@@ -1,10 +1,12 @@
-use glib::{clone, glib_object_subclass, subclass::prelude::*};
 use gst::{
-    gst_debug, gst_error, gst_info, gst_trace, gst_warning, prelude::*, subclass::prelude::*,
+    glib::{self, clone, subclass::Signal},
+    gst_debug, gst_error, gst_info, gst_trace, gst_warning,
+    prelude::*,
+    subclass::prelude::*,
     ClockTime, GhostPad, Seqnum,
 };
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 
 use std::{
     ops::Deref,
@@ -18,15 +20,13 @@ use crate::{
 
 pub const NAME: &str = "mediatocrendererbin";
 
-lazy_static! {
-    static ref CAT: gst::DebugCategory = gst::DebugCategory::new(
+static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
+    gst::DebugCategory::new(
         NAME,
         gst::DebugColorFlags::empty(),
         Some("media-toc Renderer Bin"),
-    );
-}
-
-static PROPERTIES: &[glib::subclass::Property; 3] = &plugin::renderer::PROPERTIES;
+    )
+});
 
 /// Seek state machine state for two stages seeks.
 ///
@@ -149,6 +149,7 @@ struct AudioPipeline {
     audio_queue_sinkpad: gst::Pad,
 }
 
+#[derive(Debug)]
 enum Audio {
     Uninitialized(RendererInit),
     Initialized(AudioPipeline),
@@ -191,6 +192,7 @@ impl Deref for VideoGuard<'_> {
     }
 }
 
+#[derive(Debug, Default)]
 pub struct RendererBin {
     state: Arc<Mutex<State>>,
     audio: RwLock<Audio>,
@@ -260,17 +262,17 @@ impl RendererBin {
         match event.view() {
             // FIXME only retain actually selected streams among Video & Audio
             StreamCollection(evt) => {
-                self.state.lock().unwrap().stream_count = evt.get_stream_collection().len();
+                self.state.lock().unwrap().stream_count = evt.stream_collection().len();
             }
             FlushStart(_) | FlushStop(_) => {
                 let state = self.state.lock().unwrap();
                 if let Some(expected_seqnum) = state.seek.expected_seqnum() {
-                    let seqnum = event.get_seqnum();
+                    let seqnum = event.seqnum();
                     if expected_seqnum == seqnum {
                         match state.seek {
                             InitSegment { .. } => (),
                             Stage1Segment { .. } => {
-                                let event_type = event.get_type();
+                                let event_type = event.type_();
                                 if PadStream::Audio == pad_stream {
                                     gst_debug!(
                                         CAT,
@@ -324,7 +326,7 @@ impl RendererBin {
                     return pad.event_default(Some(bin), event);
                 }
 
-                let seqnum = event.get_seqnum();
+                let seqnum = event.seqnum();
 
                 match &mut state.seek {
                     None => return self.handle_new_segment(state, pad_stream, pad, bin, event),
@@ -464,7 +466,7 @@ impl RendererBin {
                 // Maybe we could use a custom upstream event that would indicate
                 // that the renderer element got the SegmentDone.
 
-                let seqnum = event.get_seqnum();
+                let seqnum = event.seqnum();
 
                 let mut state = self.state.lock().unwrap();
 
@@ -517,20 +519,24 @@ impl RendererBin {
             obj: pad,
             "{:?}: got {:?} with {:?}",
             state.seek,
-            event.get_type(),
-            event.get_seqnum(),
+            event.type_(),
+            event.seqnum(),
         );
 
         self.handle_new_segment(state, pad_stream, pad, bin, event)
     }
 
-    fn are_in_window(start: ClockTime, end: ClockTime, window_ts: &WindowTimestamps) -> bool {
+    fn are_in_window(
+        start: ClockTime,
+        end: Option<ClockTime>,
+        window_ts: &WindowTimestamps,
+    ) -> bool {
         if window_ts.start.is_none() || window_ts.end.is_none() {
             return false;
         }
 
         let window_start = window_ts.start.unwrap();
-        if start.is_none() || start < window_start {
+        if start < window_start {
             return false;
         }
 
@@ -539,7 +545,7 @@ impl RendererBin {
             || start >= window_end
             // Take a margin with the requested end ts because it might be rounded up
             // FIXME find a better way to deal with this
-            || end.saturating_sub(window_ts.window / 10).unwrap() > (window_start + window_end)
+            || end.unwrap().saturating_sub(window_ts.window / 10) > (window_start + window_end)
         {
             return false;
         }
@@ -551,11 +557,9 @@ impl RendererBin {
         target: ClockTime,
         window_ts: &WindowTimestamps,
     ) -> Option<ClockTime> {
-        let wanted_first = ClockTime::from_nseconds(
-            target
-                .nanoseconds()?
-                .checked_sub(window_ts.window.nanoseconds()? / 2)?,
-        );
+        let wanted_first = target.checked_sub(window_ts.window / 2)?;
+
+        // FIXME use opt_ge and opt_lt
         if window_ts.start.is_some()
             && wanted_first >= window_ts.start.unwrap()
             && window_ts.end.is_some()
@@ -578,7 +582,7 @@ impl RendererBin {
         state.seek = SeekState::None;
 
         let segment = match event.view() {
-            gst::EventView::Segment(segment_evt) => segment_evt.get_segment(),
+            gst::EventView::Segment(segment_evt) => segment_evt.segment(),
             other => unreachable!("unexpected {:?}", other),
         };
 
@@ -588,7 +592,7 @@ impl RendererBin {
             return pad.event_default(Some(bin), event);
         }
 
-        let segment_seqnum = event.get_seqnum();
+        let segment_seqnum = event.seqnum();
 
         let segment = match segment.downcast_ref::<gst::format::Time>() {
             Some(segment) => segment,
@@ -600,26 +604,28 @@ impl RendererBin {
             }
         };
 
-        let target_ts = segment.get_time();
+        let target_ts = if let Some(target_ts) = segment.time() {
+            target_ts
+        } else {
+            drop(state);
+            gst_debug!(CAT, obj: pad, "Segment time is None");
+            return pad.event_default(Some(bin), event);
+        };
 
         // FIXME handle playing backward
 
         let window_ts_res = self
             .audio()
             .renderer
-            .emit(plugin::GET_WINDOW_TIMESTAMPS_SIGNAL, &[]);
+            .emit_by_name(plugin::GET_WINDOW_TIMESTAMPS_SIGNAL, &[]);
         let window_ts = match window_ts_res.as_ref() {
-            Ok(Some(window_ts)) => {
-                window_ts
-                    .get_some::<&WindowTimestamps>()
-                    .unwrap_or_else(|err| {
-                        panic!(
-                            "signal {} returned value: {}",
-                            plugin::GET_WINDOW_TIMESTAMPS_SIGNAL,
-                            err
-                        )
-                    })
-            }
+            Ok(Some(window_ts)) => window_ts.get::<&WindowTimestamps>().unwrap_or_else(|err| {
+                panic!(
+                    "signal {} returned value: {}",
+                    plugin::GET_WINDOW_TIMESTAMPS_SIGNAL,
+                    err
+                )
+            }),
             Ok(None) => {
                 drop(state);
                 gst_debug!(
@@ -639,7 +645,7 @@ impl RendererBin {
             }
         };
 
-        let stop_ts = segment.get_stop();
+        let stop_ts = segment.stop();
         if Self::are_in_window(target_ts, stop_ts, window_ts) {
             drop(state);
             gst_debug!(
@@ -647,7 +653,7 @@ impl RendererBin {
                 obj: pad,
                 "segment [{}, {}] in window {:?}",
                 target_ts,
-                stop_ts,
+                stop_ts.display(),
                 segment_seqnum,
             );
             event
@@ -659,7 +665,8 @@ impl RendererBin {
 
         if let Some(stage_1_start) = Self::first_ts_for_two_stages_seek(target_ts, window_ts) {
             // Make sure stage 1 includes target_ts
-            let stage_1_end = segment.get_start() + gst::USECOND;
+            // FIXME use start / time correctly (this also includes AudioBuffer impl)
+            let stage_1_end = target_ts + ClockTime::MSECOND;
 
             gst_info!(
                 CAT,
@@ -690,7 +697,7 @@ impl RendererBin {
                 CAT,
                 obj: pad,
                 "regular segment starting @ {} in Paused",
-                target_ts,
+                target_ts.display(),
             );
         }
 
@@ -716,7 +723,7 @@ impl RendererBin {
             stage_1_end,
         );
 
-        let seqnum = seek_event.get_seqnum();
+        let seqnum = seek_event.seqnum();
         state.seek = SeekState::Stage1Segment {
             expected_seqnum: seqnum,
             remaining_streams: state.stream_count,
@@ -753,13 +760,13 @@ impl RendererBin {
             1f64,
             gst::SeekFlags::ACCURATE | gst::SeekFlags::FLUSH,
             gst::SeekType::Set,
-            target_ts,
+            Some(target_ts),
             // FIXME restore the end defined prior to the 2 stages seek
             gst::SeekType::Set,
-            ClockTime::none(),
+            ClockTime::NONE,
         );
 
-        let seqnum = seek_event.get_seqnum();
+        let seqnum = seek_event.seqnum();
         state.seek = SeekState::Stage2Segment {
             expected_seqnum: seqnum,
             remaining_streams: state.stream_count,
@@ -807,10 +814,10 @@ impl RendererBin {
         let audio_tee = gst::ElementFactory::make("tee", Some("renderer-audio-tee")).unwrap();
 
         let renderer_queue = Self::new_queue("renderer-queue");
-        let renderer_queue_sinkpad = renderer_queue.get_static_pad("sink").unwrap();
+        let renderer_queue_sinkpad = renderer_queue.static_pad("sink").unwrap();
 
         let audio_queue = Self::new_queue("audio-queue");
-        let audio_queue_sinkpad = audio_queue.get_static_pad("sink").unwrap();
+        let audio_queue_sinkpad = audio_queue.static_pad("sink").unwrap();
 
         // Rendering elements
         let renderer_audioconvert =
@@ -828,14 +835,14 @@ impl RendererBin {
 
         // Audio tee
         bin.add(&audio_tee).unwrap();
-        let audio_tee_renderer_src = audio_tee.get_request_pad("src_%u").unwrap();
+        let audio_tee_renderer_src = audio_tee.request_pad_simple("src_%u").unwrap();
         audio_tee_renderer_src
             .link(&renderer_queue_sinkpad)
             .unwrap();
 
-        let audio_tee_audio_src = audio_tee.get_request_pad("src_%u").unwrap();
+        let audio_tee_audio_src = audio_tee.request_pad_simple("src_%u").unwrap();
         audio_tee_audio_src
-            .link(&audio_queue.get_static_pad("sink").unwrap())
+            .link(&audio_queue.static_pad("sink").unwrap())
             .unwrap();
 
         let mut elements = vec![&audio_tee, &audio_queue];
@@ -843,7 +850,7 @@ impl RendererBin {
 
         // GhostPads
         let sinkpad = GhostPad::builder_with_template(
-            &bin.get_pad_template("audio_sink").unwrap(),
+            &bin.pad_template("audio_sink").unwrap(),
             Some("audio_sink"),
         )
         .chain_function(|pad, parent, buffer| {
@@ -863,18 +870,18 @@ impl RendererBin {
         .build();
 
         sinkpad
-            .set_target(Some(&audio_tee.get_static_pad("sink").unwrap()))
+            .set_target(Some(&audio_tee.static_pad("sink").unwrap()))
             .unwrap();
         bin.add_pad(&sinkpad).unwrap();
 
         let srcpad = GhostPad::builder_with_template(
-            &bin.get_pad_template("audio_src").unwrap(),
+            &bin.pad_template("audio_src").unwrap(),
             Some("audio_src"),
         )
         .build();
 
         srcpad
-            .set_target(Some(&audio_queue.get_static_pad("src").unwrap()))
+            .set_target(Some(&audio_queue.static_pad("src").unwrap()))
             .unwrap();
         bin.add_pad(&srcpad).unwrap();
 
@@ -896,7 +903,7 @@ impl RendererBin {
             .connect(
                 plugin::renderer::SEGMENT_DONE_SIGNAL,
                 true,
-                clone!(@weak bin => move |args| {
+                clone!(@weak bin => @default-panic, move |_args| {
                     let this = Self::from_instance(&bin);
                     let mut state = this.state.lock().unwrap();
 
@@ -921,9 +928,9 @@ impl RendererBin {
             .connect(
                 plugin::renderer::MUST_REFRESH_SIGNAL,
                 true,
-                clone!(@weak bin => move |_| {
+                clone!(@weak bin => @default-panic, move |_| {
                     bin
-                        .emit(plugin::renderer::MUST_REFRESH_SIGNAL, &[])
+                        .emit_by_name(plugin::renderer::MUST_REFRESH_SIGNAL, &[])
                         .unwrap()
                 }),
             )
@@ -947,7 +954,7 @@ impl RendererBin {
         bin.add(&queue).unwrap();
 
         let sinkpad = GhostPad::builder_with_template(
-            &bin.get_pad_template("video_sink").unwrap(),
+            &bin.pad_template("video_sink").unwrap(),
             Some("video_sink"),
         )
         .chain_function(|pad, parent, buffer| {
@@ -967,18 +974,18 @@ impl RendererBin {
         .build();
 
         sinkpad
-            .set_target(Some(&queue.get_static_pad("sink").unwrap()))
+            .set_target(Some(&queue.static_pad("sink").unwrap()))
             .unwrap();
         bin.add_pad(&sinkpad).unwrap();
 
         let srcpad = GhostPad::builder_with_template(
-            &bin.get_pad_template("video_src").unwrap(),
+            &bin.pad_template("video_src").unwrap(),
             Some("video_src"),
         )
         .build();
 
         srcpad
-            .set_target(Some(&queue.get_static_pad("src").unwrap()))
+            .set_target(Some(&queue.static_pad("src").unwrap()))
             .unwrap();
         bin.add_pad(&srcpad).unwrap();
 
@@ -986,100 +993,62 @@ impl RendererBin {
     }
 }
 
+#[glib::object_subclass]
 impl ObjectSubclass for RendererBin {
     const NAME: &'static str = "MediaTocRendererBin";
     type Type = super::RendererBin;
     type ParentType = gst::Bin;
-    type Instance = gst::subclass::ElementInstanceStruct<Self>;
-    type Class = glib::subclass::simple::ClassStruct<Self>;
-
-    glib_object_subclass!();
-
-    fn with_class(_klass: &glib::subclass::simple::ClassStruct<Self>) -> Self {
-        RendererBin {
-            state: Arc::new(Mutex::new(State::default())),
-            audio: RwLock::new(Audio::default()),
-            video: RwLock::new(None),
-        }
-    }
-
-    fn class_init(klass: &mut glib::subclass::simple::ClassStruct<Self>) {
-        klass.set_metadata(
-            "media-toc Audio Visualizer Renderer Bin",
-            "Visualization",
-            "Automates the construction of the elements required to render the media-toc Renderer",
-            "François Laignel <fengalin@free.fr>",
-        );
-
-        let audio_caps = gst::ElementFactory::make("audioconvert", None)
-            .unwrap()
-            .get_static_pad("sink")
-            .unwrap()
-            .get_pad_template()
-            .unwrap()
-            .get_caps();
-
-        let video_caps = gst::Caps::new_any();
-
-        let audio_sinkpad_tmpl = gst::PadTemplate::new(
-            "audio_sink",
-            gst::PadDirection::Sink,
-            gst::PadPresence::Request,
-            &audio_caps,
-        )
-        .unwrap();
-        klass.add_pad_template(audio_sinkpad_tmpl);
-
-        let video_sinkpad_tmpl = gst::PadTemplate::new(
-            "video_sink",
-            gst::PadDirection::Sink,
-            gst::PadPresence::Request,
-            &video_caps,
-        )
-        .unwrap();
-        klass.add_pad_template(video_sinkpad_tmpl);
-
-        let audio_srcpad_tmpl = gst::PadTemplate::new(
-            "audio_src",
-            gst::PadDirection::Src,
-            gst::PadPresence::Sometimes,
-            &audio_caps,
-        )
-        .unwrap();
-        klass.add_pad_template(audio_srcpad_tmpl);
-
-        let video_srcpad_tmpl = gst::PadTemplate::new(
-            "video_src",
-            gst::PadDirection::Src,
-            gst::PadPresence::Sometimes,
-            &video_caps,
-        )
-        .unwrap();
-        klass.add_pad_template(video_srcpad_tmpl);
-
-        // FIXME this one could be avoided with a dedicated widget
-        klass.add_signal(
-            plugin::renderer::MUST_REFRESH_SIGNAL,
-            glib::SignalFlags::RUN_LAST,
-            &[],
-            glib::types::Type::Unit,
-        );
-
-        klass.install_properties(PROPERTIES);
-    }
 }
 
 impl ObjectImpl for RendererBin {
-    fn set_property(&self, _bin: &plugin::RendererBin, id: usize, value: &glib::Value) {
-        use glib::subclass::*;
-        match PROPERTIES[id] {
-            Property(plugin::renderer::DBL_RENDERER_IMPL_PROP, ..) => {
+    fn properties() -> &'static [glib::ParamSpec] {
+        static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
+            vec![
+                glib::ParamSpec::new_boxed(
+                    plugin::renderer::DBL_RENDERER_IMPL_PROP,
+                    "Double Renderer",
+                    "Implementation for the Double Renderer",
+                    GBoxedDoubleRendererImpl::static_type(),
+                    glib::ParamFlags::READWRITE,
+                ),
+                glib::ParamSpec::new_object(
+                    plugin::renderer::CLOCK_REF_PROP,
+                    "Clock reference",
+                    "Element providing the clock reference",
+                    gst::Element::static_type(),
+                    glib::ParamFlags::WRITABLE,
+                ),
+                // FIXME use a ClockTime
+                glib::ParamSpec::new_uint64(
+                    plugin::renderer::BUFFER_SIZE_PROP,
+                    "Renderer Size (ns)",
+                    "Internal buffer size in ns",
+                    1_000u64,
+                    u64::MAX,
+                    plugin::renderer::DEFAULT_BUFFER_SIZE.as_u64(),
+                    glib::ParamFlags::WRITABLE,
+                ),
+            ]
+        });
+
+        PROPERTIES.as_ref()
+    }
+
+    fn set_property(
+        &self,
+        _bin: &Self::Type,
+        _id: usize,
+        value: &glib::Value,
+        pspec: &glib::ParamSpec,
+    ) {
+        match pspec.name() {
+            plugin::renderer::DBL_RENDERER_IMPL_PROP => {
                 let mut audio = self.audio.write().unwrap();
                 match *audio {
                     Audio::Uninitialized(ref mut renderer_init) => {
                         renderer_init.dbl_renderer_impl = Some(
                             value
-                                .get_some::<&GBoxedDoubleRendererImpl>()
+                                .get::<&GBoxedDoubleRendererImpl>()
                                 .expect("type checked upstream")
                                 .clone(),
                         );
@@ -1087,22 +1056,18 @@ impl ObjectImpl for RendererBin {
                     _ => panic!("AudioPipeline already initialized"),
                 }
             }
-            Property(plugin::renderer::CLOCK_REF_PROP, ..) => {
+            plugin::renderer::CLOCK_REF_PROP => {
                 let mut audio = self.audio.write().unwrap();
                 match *audio {
                     Audio::Uninitialized(ref mut renderer_init) => {
-                        renderer_init.clock_ref = Some(
-                            value
-                                .get::<gst::Element>()
-                                .expect("type checked upstream")
-                                .expect("Value is None"),
-                        );
+                        renderer_init.clock_ref =
+                            Some(value.get::<gst::Element>().expect("type checked upstream"));
                     }
                     _ => panic!("AudioPipeline already initialized"),
                 }
             }
-            Property(plugin::renderer::BUFFER_SIZE_PROP, ..) => {
-                let buffer_size = value.get_some::<u64>().expect("type checked upstream");
+            plugin::renderer::BUFFER_SIZE_PROP => {
+                let buffer_size = value.get::<u64>().expect("type checked upstream");
                 if let Audio::Initialized(ref audio) = *self.audio.read().unwrap() {
                     audio
                         .renderer
@@ -1129,19 +1094,30 @@ impl ObjectImpl for RendererBin {
         }
     }
 
-    fn get_property(&self, _bin: &plugin::RendererBin, id: usize) -> glib::Value {
-        match PROPERTIES[id] {
-            glib::subclass::Property(plugin::renderer::DBL_RENDERER_IMPL_PROP, ..) => {
-                match *self.audio.read().unwrap() {
-                    Audio::Initialized(ref audio) => audio
-                        .renderer
-                        .get_property(plugin::renderer::DBL_RENDERER_IMPL_PROP)
-                        .unwrap(),
-                    _ => GBoxedDoubleRendererImpl::none().to_value(),
-                }
-            }
+    fn property(&self, _bin: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
+        match pspec.name() {
+            plugin::renderer::DBL_RENDERER_IMPL_PROP => match *self.audio.read().unwrap() {
+                Audio::Initialized(ref audio) => audio
+                    .renderer
+                    .property(plugin::renderer::DBL_RENDERER_IMPL_PROP)
+                    .unwrap(),
+                _ => GBoxedDoubleRendererImpl::none().to_value(),
+            },
             _ => unimplemented!(),
         }
+    }
+
+    fn signals() -> &'static [Signal] {
+        static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
+            vec![
+                // FIXME this one could be avoided with a dedicated widget
+                Signal::builder(plugin::MUST_REFRESH_SIGNAL, &[], glib::Type::UNIT.into())
+                    .run_last()
+                    .build(),
+            ]
+        });
+
+        SIGNALS.as_ref()
     }
 }
 
@@ -1187,6 +1163,66 @@ impl RendererBin {
 }
 
 impl ElementImpl for RendererBin {
+    fn metadata() -> Option<&'static gst::subclass::ElementMetadata> {
+        static ELEMENT_METADATA: Lazy<gst::subclass::ElementMetadata> = Lazy::new(|| {
+            gst::subclass::ElementMetadata::new(
+                "media-toc Audio Visualizer Renderer Bin",
+                "Visualization",
+                "Automates the construction of the elements required to render the media-toc Renderer",
+                "François Laignel <fengalin@free.fr>",
+            )
+        });
+
+        Some(&*ELEMENT_METADATA)
+    }
+
+    fn pad_templates() -> &'static [gst::PadTemplate] {
+        static PAD_TEMPLATES: Lazy<Vec<gst::PadTemplate>> = Lazy::new(|| {
+            let audio_caps = gst::ElementFactory::make("audioconvert", None)
+                .unwrap()
+                .static_pad("sink")
+                .unwrap()
+                .pad_template()
+                .unwrap()
+                .caps();
+
+            let video_caps = gst::Caps::new_any();
+
+            vec![
+                gst::PadTemplate::new(
+                    "audio_sink",
+                    gst::PadDirection::Sink,
+                    gst::PadPresence::Request,
+                    &audio_caps,
+                )
+                .unwrap(),
+                gst::PadTemplate::new(
+                    "video_sink",
+                    gst::PadDirection::Sink,
+                    gst::PadPresence::Request,
+                    &video_caps,
+                )
+                .unwrap(),
+                gst::PadTemplate::new(
+                    "audio_src",
+                    gst::PadDirection::Src,
+                    gst::PadPresence::Sometimes,
+                    &audio_caps,
+                )
+                .unwrap(),
+                gst::PadTemplate::new(
+                    "video_src",
+                    gst::PadDirection::Src,
+                    gst::PadPresence::Sometimes,
+                    &video_caps,
+                )
+                .unwrap(),
+            ]
+        });
+
+        PAD_TEMPLATES.as_ref()
+    }
+
     fn request_new_pad(
         &self,
         bin: &Self::Type,

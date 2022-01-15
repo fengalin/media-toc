@@ -13,19 +13,14 @@ version = "0.7.99"
 [dependencies]
 application = { path = "../application", package = "media-toc-application"  }
 bitflags = "1"
-cairo-rs = { git = "https://github.com/gtk-rs/gtk-rs" }
 futures = "0.3.19"
-gdk = { git = "https://github.com/gtk-rs/gtk-rs" }
 gettext-rs = { version = "0.7", features = ["gettext-system"] }
-gio = { git = "https://github.com/gtk-rs/gtk-rs" }
-glib = { git = "https://github.com/gtk-rs/gtk-rs" }
-gst = { package = "gstreamer", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
-gst-audio = { package = "gstreamer-audio", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
-gtk = { git = "https://github.com/gtk-rs/gtk-rs", features = ["v3_20"] }
+gst = { package = "gstreamer", version = "0.17", features = ["v1_10"] }
+gst-audio = { package = "gstreamer-audio", version = "0.17", features = ["v1_10"] }
+gtk = { version = "0.14", features = ["v3_20"] }
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 media = { path = "../media", package = "media-toc-media"  }
 metadata = { path = "../metadata", package = "media-toc-metadata"  }
-pango = { git = "https://github.com/gtk-rs/gtk-rs" }
 renderers = { path = "../renderers", package = "media-toc-renderers"  }
 ron = "0.7"
 serde = "1"

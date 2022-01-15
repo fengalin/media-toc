@@ -1,5 +1,5 @@
 use gettextrs::gettext;
-use gtk::prelude::*;
+use gtk::{cairo, gio, glib, prelude::*};
 use log::{info, warn};
 
 use std::{cell::RefCell, fs::File, rc::Rc};
@@ -76,7 +76,7 @@ impl UIController for Controller {
                 .set_label(&Timestamp4Humans::from_duration(info.duration).to_string());
 
             let mut thumbnail = info.media_image().and_then(|image| {
-                image.get_buffer().and_then(|image_buffer| {
+                image.buffer().and_then(|image_buffer| {
                     image_buffer.map_readable().ok().and_then(|image_map| {
                         Image::from_unknown(image_map.as_slice())
                             .map_err(|err| warn!("{}", err))
@@ -149,7 +149,7 @@ impl UIController for Controller {
             Some(sel_chapter) => {
                 // position is in a chapter => select it
                 self.chapter_treeview
-                    .get_selection()
+                    .selection()
                     .select_iter(sel_chapter.iter());
                 self.del_chapter_btn.set_sensitive(true);
                 self.del_chapter_action.set_enabled(true);
@@ -185,7 +185,7 @@ impl UIController for Controller {
         if let Some(thumbnail_handler) = self.thumbnail_handler.take() {
             glib::signal_handler_disconnect(&self.drawingarea, thumbnail_handler);
         }
-        self.chapter_treeview.get_selection().unselect_all();
+        self.chapter_treeview.selection().unselect_all();
         self.chapter_manager.clear();
         self.add_chapter_btn.set_sensitive(false);
         self.add_chapter_action.set_enabled(false);
@@ -250,33 +250,31 @@ impl UIController for Controller {
 
 impl Controller {
     pub fn new(builder: &gtk::Builder, boundaries: Rc<RefCell<ChaptersBoundaries>>) -> Self {
-        let mut chapter_manager = ChapterTreeManager::new(
-            builder.get_object("chapters-tree-store").unwrap(),
-            boundaries,
-        );
-        let chapter_treeview: gtk::TreeView = builder.get_object("chapter-treeview").unwrap();
+        let mut chapter_manager =
+            ChapterTreeManager::new(builder.object("chapters-tree-store").unwrap(), boundaries);
+        let chapter_treeview: gtk::TreeView = builder.object("chapter-treeview").unwrap();
         chapter_manager.init_treeview(&chapter_treeview);
 
         let mut ctrl = Controller {
-            info_container: builder.get_object("info-chapter_list-grid").unwrap(),
-            show_chapters_btn: builder.get_object("show_chapters-toggle").unwrap(),
+            info_container: builder.object("info-chapter_list-grid").unwrap(),
+            show_chapters_btn: builder.object("show_chapters-toggle").unwrap(),
 
-            drawingarea: builder.get_object("thumbnail-drawingarea").unwrap(),
+            drawingarea: builder.object("thumbnail-drawingarea").unwrap(),
 
-            title_lbl: builder.get_object("title-lbl").unwrap(),
-            artist_lbl: builder.get_object("artist-lbl").unwrap(),
-            container_lbl: builder.get_object("container-lbl").unwrap(),
-            audio_codec_lbl: builder.get_object("audio_codec-lbl").unwrap(),
-            video_codec_lbl: builder.get_object("video_codec-lbl").unwrap(),
-            duration_lbl: builder.get_object("duration-lbl").unwrap(),
+            title_lbl: builder.object("title-lbl").unwrap(),
+            artist_lbl: builder.object("artist-lbl").unwrap(),
+            container_lbl: builder.object("container-lbl").unwrap(),
+            audio_codec_lbl: builder.object("audio_codec-lbl").unwrap(),
+            video_codec_lbl: builder.object("video_codec-lbl").unwrap(),
+            duration_lbl: builder.object("duration-lbl").unwrap(),
 
-            timeline_scale: builder.get_object("timeline-scale").unwrap(),
-            repeat_btn: builder.get_object("repeat-toolbutton").unwrap(),
+            timeline_scale: builder.object("timeline-scale").unwrap(),
+            repeat_btn: builder.object("repeat-toolbutton").unwrap(),
 
             chapter_treeview,
-            add_chapter_btn: builder.get_object("add_chapter-toolbutton").unwrap(),
+            add_chapter_btn: builder.object("add_chapter-toolbutton").unwrap(),
             add_chapter_action: gio::SimpleAction::new("add_chapter", None),
-            del_chapter_btn: builder.get_object("del_chapter-toolbutton").unwrap(),
+            del_chapter_btn: builder.object("del_chapter-toolbutton").unwrap(),
             del_chapter_action: gio::SimpleAction::new("del_chapter", None),
 
             next_chapter_action: gio::SimpleAction::new("next_chapter", None),
@@ -317,7 +315,7 @@ impl Controller {
         drawingarea: &gtk::DrawingArea,
         cairo_ctx: &cairo::Context,
     ) {
-        let allocation = drawingarea.get_allocation();
+        let allocation = drawingarea.allocation();
         let alloc_width_f: f64 = allocation.width.into();
         let alloc_height_f: f64 = allocation.height.into();
 
@@ -336,8 +334,8 @@ impl Controller {
 
         thumbnail.with_surface_external_context(cairo_ctx, |cr, surface| {
             cr.scale(scale, scale);
-            cr.set_source_surface(surface, x, y);
-            cr.paint();
+            cr.set_source_surface(surface, x, y).unwrap();
+            cr.paint().unwrap();
         })
     }
 
@@ -385,7 +383,7 @@ impl Controller {
                 Some(sel_chapter) => {
                     // timestamp is in a chapter => select it
                     self.chapter_treeview
-                        .get_selection()
+                        .selection()
                         .select_iter(sel_chapter.iter());
                     self.del_chapter_btn.set_sensitive(true);
                     self.del_chapter_action.set_enabled(true);
@@ -396,7 +394,7 @@ impl Controller {
                     if let Some(prev_chapter) = prev_chapter {
                         // but a previous chapter was selected => unselect it
                         self.chapter_treeview
-                            .get_selection()
+                            .selection()
                             .unselect_iter(&prev_chapter.iter);
                         self.del_chapter_btn.set_sensitive(false);
                         self.del_chapter_action.set_enabled(false);
@@ -423,7 +421,7 @@ impl Controller {
         }
 
         if let Some(new_iter) = self.chapter_manager.add_chapter(ts, self.duration) {
-            self.chapter_treeview.get_selection().select_iter(&new_iter);
+            self.chapter_treeview.selection().select_iter(&new_iter);
             self.update_marks();
             self.del_chapter_btn.set_sensitive(true);
             self.del_chapter_action.set_enabled(true);
@@ -432,9 +430,9 @@ impl Controller {
 
     pub fn remove_chapter(&mut self) {
         match self.chapter_manager.remove_selected_chapter() {
-            Some(new_iter) => self.chapter_treeview.get_selection().select_iter(&new_iter),
+            Some(new_iter) => self.chapter_treeview.selection().select_iter(&new_iter),
             None => {
-                self.chapter_treeview.get_selection().unselect_all();
+                self.chapter_treeview.selection().unselect_all();
                 self.del_chapter_btn.set_sensitive(false);
                 self.del_chapter_action.set_enabled(false);
             }

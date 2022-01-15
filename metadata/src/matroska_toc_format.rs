@@ -1,4 +1,4 @@
-use gst::{prelude::*, TagSetterExt, TocSetterExt};
+use gst::prelude::*;
 
 use super::{Exporter, MediaInfo};
 

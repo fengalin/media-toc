@@ -3,8 +3,7 @@ use futures::{
     prelude::*,
 };
 
-use gio::prelude::*;
-use gtk::prelude::*;
+use gtk::{gdk, prelude::*};
 
 use log::{debug, trace};
 
@@ -140,7 +139,7 @@ impl Dispatcher {
         use AreaEvent::*;
 
         match event {
-            Button(event) => match event.get_event_type() {
+            Button(event) => match event.event_type() {
                 gdk::EventType::ButtonPress => main_ctrl.audio.button_pressed(event),
                 gdk::EventType::ButtonRelease => main_ctrl.audio.button_released(event),
                 gdk::EventType::Scroll => {

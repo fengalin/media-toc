@@ -2,8 +2,7 @@ use futures::channel::oneshot;
 
 use gettextrs::gettext;
 
-use gio::prelude::*;
-use gtk::prelude::*;
+use gtk::{glib, prelude::*};
 
 use log::{error, info};
 
@@ -28,7 +27,7 @@ impl UIController for Controller {
 
 impl Controller {
     pub fn new(builder: &gtk::Builder) -> Self {
-        let info_bar: gtk::InfoBar = builder.get_object("info_bar").unwrap();
+        let info_bar: gtk::InfoBar = builder.object("info_bar").unwrap();
         let ok_btn = info_bar
             .add_button(&gettext("Yes"), gtk::ResponseType::Yes)
             .unwrap();
@@ -37,14 +36,14 @@ impl Controller {
         info_bar.add_button(&gettext("Cancel"), gtk::ResponseType::Cancel);
         info_bar.set_default_response(gtk::ResponseType::Yes);
 
-        let revealer: gtk::Revealer = builder.get_object("info_bar-revealer").unwrap();
+        let revealer: gtk::Revealer = builder.object("info_bar-revealer").unwrap();
 
         info_bar::Controller {
             info_bar,
             revealer,
             ok_btn,
-            label: builder.get_object("info_bar-lbl").unwrap(),
-            btn_box: builder.get_object("info_bar-btnbox").unwrap(),
+            label: builder.object("info_bar-lbl").unwrap(),
+            btn_box: builder.object("info_bar-btnbox").unwrap(),
             response_src: None,
         }
     }

@@ -1,9 +1,11 @@
 use futures::prelude::*;
 
-use gdk::{Cursor, CursorType};
 use gettextrs::gettext;
-use gio::prelude::*;
-use gtk::prelude::*;
+use gtk::{
+    gdk::{Cursor, CursorType},
+    gio,
+    prelude::*,
+};
 
 use application::{CommandLineArguments, APP_PATH, CONFIG};
 use media::PlaybackPipeline;
@@ -27,7 +29,7 @@ impl Dispatcher {
 
         let builder = gtk::Builder::from_resource(&format!("{}/{}", *APP_PATH, "media-toc.ui"));
 
-        let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
+        let window: gtk::ApplicationWindow = builder.object("application-window").unwrap();
         window.set_application(Some(app));
 
         let mut main_ctrl = main::Controller::new(&window, args, &builder);
@@ -77,7 +79,7 @@ impl Dispatcher {
             main_section.append(Some(&gettext("Open media file")), Some("app.open"));
             app.set_accels_for_action("app.open", &["<Ctrl>O"]);
 
-            let display_page: gtk::Box = builder.get_object("display-box").unwrap();
+            let display_page: gtk::Box = builder.object("display-box").unwrap();
             display_page.connect_map(|_| main::switch_to(UIFocusContext::PlaybackPage));
 
             perspective::Dispatcher::setup(&mut this.main_ctrl.perspective, app);
@@ -102,7 +104,7 @@ impl Dispatcher {
                 }
             }
 
-            let open_btn: gtk::Button = builder.get_object("open-btn").unwrap();
+            let open_btn: gtk::Button = builder.object("open-btn").unwrap();
             open_btn.set_sensitive(true);
 
             Self::spawn_event_handlers(this);
@@ -180,25 +182,25 @@ impl Dispatcher {
     }
 
     fn set_cursor_waiting(&self) {
-        if let Some(gdk_window) = self.window.get_window() {
-            gdk_window.set_cursor(Some(&Cursor::new_for_display(
-                &gdk_window.get_display(),
+        if let Some(gdk_window) = self.window.window() {
+            gdk_window.set_cursor(Some(&Cursor::for_display(
+                &gdk_window.display(),
                 CursorType::Watch,
             )));
         }
     }
 
     fn set_cursor_double_arrow(&self) {
-        if let Some(gdk_window) = self.window.get_window() {
-            gdk_window.set_cursor(Some(&Cursor::new_for_display(
-                &gdk_window.get_display(),
+        if let Some(gdk_window) = self.window.window() {
+            gdk_window.set_cursor(Some(&Cursor::for_display(
+                &gdk_window.display(),
                 CursorType::SbHDoubleArrow,
             )));
         }
     }
 
     fn reset_cursor(&self) {
-        if let Some(gdk_window) = self.window.get_window() {
+        if let Some(gdk_window) = self.window.window() {
             gdk_window.set_cursor(None);
         }
     }

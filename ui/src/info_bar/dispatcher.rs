@@ -3,9 +3,7 @@ use futures::{
     prelude::*,
 };
 
-use gio::prelude::*;
-use glib::clone;
-use gtk::prelude::*;
+use gtk::{gio, glib::clone, prelude::*};
 
 use log::debug;
 
