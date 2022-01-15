@@ -429,7 +429,7 @@ impl WaveformImage {
             cr.set_source_rgb(0f64, 0f64, 1f64);
             cr.move_to(self.last.x + d.x_step_f, 0f64);
             cr.line_to(self.last.x + d.x_step_f, 0.5f64 * self.half_range_y);
-            cr.stroke();
+            cr.stroke().unwrap();
         }
 
         // There are two approches to trace the waveform:
@@ -485,7 +485,7 @@ impl WaveformImage {
             cr.set_source_rgb(1f64, 0f64, 1f64);
             cr.move_to(self.last.x, 1.5f64 * self.half_range_y);
             cr.line_to(self.last.x, self.full_range_y);
-            cr.stroke();
+            cr.stroke().unwrap();
         }
 
         // FIXME: draw axis first (get x range from samples_iter)
@@ -642,13 +642,17 @@ mod tests {
         mut buffer: gst::Buffer,
         segment_lower: SampleIndex,
     ) {
-        let pts: gst::ClockTime = segment_lower.as_ts(SAMPLE_DURATION).into();
+        use gst::ClockTime;
+
+        let pts: ClockTime = segment_lower.as_ts(SAMPLE_DURATION).into();
         {
             let buffer_mut = buffer.get_mut().unwrap();
             buffer_mut.set_pts(pts);
         }
 
-        audio_buffer.have_gst_segment(&pts.into());
+        let segment = gst::FormattedSegment::<ClockTime>::new();
+        segment.clip(Some(pts), None);
+        audio_buffer.have_gst_segment(&segment);
         audio_buffer.push_gst_buffer(&buffer, SampleIndex::default()); // never drain buffer in this test
     }
 
@@ -700,7 +704,7 @@ mod tests {
             "rendering: [{}, {}] incoming [{}, {}]",
             lower_to_extract, upper_to_extract, incoming_lower, incoming_upper
         );
-        waveform.render(d, &audio_buffer, lower_to_extract, upper_to_extract);
+        waveform.render(d, audio_buffer, lower_to_extract, upper_to_extract);
 
         let lower = waveform.lower;
         let upper = waveform.upper;
@@ -726,7 +730,7 @@ mod tests {
         render(
             "additive_0 init",
             &mut waveform,
-            d.clone(),
+            d,
             &mut audio_buffer,
             build_buffer(100, 200),
             SampleIndex::new(100),
@@ -734,7 +738,7 @@ mod tests {
         render(
             "additive_1 overlap on the left and on the right",
             &mut waveform,
-            d.clone(),
+            d,
             &mut audio_buffer,
             build_buffer(50, 250),
             SampleIndex::new(50),
@@ -742,7 +746,7 @@ mod tests {
         render(
             "additive_2 overlap on the left",
             &mut waveform,
-            d.clone(),
+            d,
             &mut audio_buffer,
             build_buffer(0, 100),
             SampleIndex::new(0),
@@ -750,7 +754,7 @@ mod tests {
         render(
             "additive_3 scrolling and overlap on the right",
             &mut waveform,
-            d.clone(),
+            d,
             &mut audio_buffer,
             build_buffer(150, 340),
             SampleIndex::new(150),
@@ -758,7 +762,7 @@ mod tests {
         render(
             "additive_4 scrolling and overlaping on the right",
             &mut waveform,
-            d.clone(),
+            d,
             &mut audio_buffer,
             build_buffer(0, 200),
             SampleIndex::new(250),
@@ -772,7 +776,7 @@ mod tests {
         render(
             "link_0",
             &mut waveform,
-            d.clone(),
+            d,
             &mut audio_buffer,
             build_buffer(100, 200),
             SampleIndex::new(100),
@@ -781,7 +785,7 @@ mod tests {
         render(
             "link_1",
             &mut waveform,
-            d.clone(),
+            d,
             &mut audio_buffer,
             build_buffer(25, 125),
             SampleIndex::new(0),
@@ -790,7 +794,7 @@ mod tests {
         render(
             "link_2",
             &mut waveform,
-            d.clone(),
+            d,
             &mut audio_buffer,
             build_buffer(175, 275),
             SampleIndex::new(200),
@@ -804,7 +808,7 @@ mod tests {
         render(
             "seek_0",
             &mut waveform,
-            d.clone(),
+            d,
             &mut audio_buffer,
             build_buffer(0, 100),
             SampleIndex::new(100),
@@ -813,7 +817,7 @@ mod tests {
         render(
             "seek_1",
             &mut waveform,
-            d.clone(),
+            d,
             &mut audio_buffer,
             build_buffer(0, 100),
             SampleIndex::new(500),
@@ -822,7 +826,7 @@ mod tests {
         render(
             "seek_2",
             &mut waveform,
-            d.clone(),
+            d,
             &mut audio_buffer,
             build_buffer(100, 200),
             SampleIndex::new(600),
@@ -831,7 +835,7 @@ mod tests {
         render(
             "seek_3",
             &mut waveform,
-            d.clone(),
+            d,
             &mut audio_buffer,
             build_buffer(200, 300),
             SampleIndex::new(700),
@@ -845,7 +849,7 @@ mod tests {
         render(
             "oveflow_0",
             &mut waveform,
-            d.clone(),
+            d,
             &mut audio_buffer,
             build_buffer(0, 200),
             SampleIndex::new(250),
@@ -854,7 +858,7 @@ mod tests {
         render(
             "oveflow_1",
             &mut waveform,
-            d.clone(),
+            d,
             &mut audio_buffer,
             build_buffer(0, 300),
             SampleIndex::new(0),
@@ -863,7 +867,7 @@ mod tests {
         render(
             "oveflow_2",
             &mut waveform,
-            d.clone(),
+            d,
             &mut audio_buffer,
             build_buffer(0, 100),
             SampleIndex::new(400),

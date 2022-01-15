@@ -25,7 +25,7 @@ fn build_buffer(lower_value: usize, upper_value: usize) -> gst::Buffer {
     let mut buffer = gst::Buffer::with_size(samples_u8_len).unwrap();
     {
         let buffer_mut = buffer.get_mut().unwrap();
-        buffer_mut.set_pts(gst::ClockTime::from(pts.as_u64()));
+        buffer_mut.set_pts(gst::ClockTime::from(pts));
 
         let mut buffer_map = buffer_mut.map_writable().unwrap();
         let buffer_slice = buffer_map.as_mut();
@@ -52,7 +52,10 @@ fn build_buffer(lower_value: usize, upper_value: usize) -> gst::Buffer {
 
 fn push_test_buffer(audio_buffer: &mut AudioBuffer, buffer: &gst::Buffer, is_new_segment: bool) {
     if is_new_segment {
-        audio_buffer.have_gst_segment(buffer.pts().nseconds().unwrap().into());
+        let mut segment = gst::FormattedSegment::new();
+        segment.set_start(buffer.pts());
+        segment.set_time(buffer.pts());
+        audio_buffer.have_gst_segment(&segment);
     }
 
     audio_buffer.push_gst_buffer(buffer, SampleIndex::default()); // never drain buffer in this test

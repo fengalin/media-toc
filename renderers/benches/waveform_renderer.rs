@@ -11,8 +11,7 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use mediatocrenderers::{
     generic::{prelude::*, renderer},
-    AudioBuffer, AudioChannel, AudioChannelSide, SampleExtractor, SampleIndex, SampleIndexRange,
-    Timestamp,
+    AudioBuffer, AudioChannel, AudioChannelSide, SampleIndex, SampleIndexRange, Timestamp,
 };
 use mediatocrenderers::{
     waveform::{image::ChannelColors, renderer::SharedState, Dimensions},
@@ -44,7 +43,7 @@ fn build_buffer(lower_value: usize, upper_value: usize) -> gst::Buffer {
     let mut buffer = gst::Buffer::with_size(samples_u8_len).unwrap();
     {
         let buffer_mut = buffer.get_mut().unwrap();
-        buffer_mut.set_pts(gst::ClockTime::from(pts.as_u64()));
+        buffer_mut.set_pts(gst::ClockTime::from(pts));
 
         let mut buffer_map = buffer_mut.map_writable().unwrap();
         let buffer_slice = buffer_map.as_mut();
@@ -71,7 +70,10 @@ fn build_buffer(lower_value: usize, upper_value: usize) -> gst::Buffer {
 
 fn push_test_buffer(audio_buffer: &mut AudioBuffer, buffer: &gst::Buffer, is_new_segment: bool) {
     if is_new_segment {
-        audio_buffer.have_gst_segment(buffer.pts().nseconds().unwrap().into());
+        let mut segment = gst::FormattedSegment::new();
+        segment.set_start(buffer.pts());
+        segment.set_time(buffer.pts());
+        audio_buffer.have_gst_segment(&segment);
     }
 
     audio_buffer.push_gst_buffer(buffer, SampleIndex::default()); // never drain buffer in this test
@@ -147,7 +149,7 @@ fn render_buffers(
             shared_state.cursor_sample = (first_visible + SAMPLES_PER_BUFFER / 2).into();
         }
 
-        waveform_renderer.extract_samples(&audio_buffer);
+        waveform_renderer.render(&audio_buffer);
 
         if let Some(extra_op) = extra_op.as_mut() {
             extra_op(idx, waveform_renderer);
@@ -186,14 +188,15 @@ fn bench_render_buffers_and_display(b: &mut Bencher) {
             .expect("image surface");
 
     let mut render_to_display = |idx: usize, waveform_renderer: &mut WaveformRenderer| {
-        let cr = cairo::Context::new(&display_surface);
+        let cr = cairo::Context::new(&display_surface).unwrap();
 
         waveform_renderer
             .image
             .image()
             .with_surface_external_context(&cr, |cr, surface| {
-                cr.set_source_surface(surface, -((idx % 20) as f64), 0f64);
-                cr.paint();
+                cr.set_source_surface(surface, -((idx % 20) as f64), 0f64)
+                    .unwrap();
+                cr.paint().unwrap();
             });
     };
 

@@ -198,7 +198,7 @@ impl Deref for ChaptersBoundaries {
 #[cfg(all(test, not(target_os = "macos")))]
 mod tests {
     use super::*;
-    use gtk::{self, glib, TreeStoreExt};
+    use gtk::{self, glib, prelude::*};
 
     use renderers::Timestamp;
 
@@ -217,7 +217,7 @@ mod tests {
             return;
         }
         // fake store
-        let store = gtk::TreeStore::new(&[glib::Type::Bool]);
+        let store = gtk::TreeStore::new(&[glib::Type::BOOL]);
 
         let mut boundaries = ChaptersBoundaries::new();
 
