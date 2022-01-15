@@ -7,7 +7,7 @@ use nom::{
     Err, IResult,
 };
 
-use std::{convert::TryFrom, fmt, string::ToString};
+use std::{fmt, string::ToString};
 
 use super::{parse_to, Duration};
 

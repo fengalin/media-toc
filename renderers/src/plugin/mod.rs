@@ -6,6 +6,8 @@ glib::wrapper! {
     pub struct RendererBin(ObjectSubclass<bin::RendererBin>) @extends gst::Bin, gst::Element, gst::Object;
 }
 
+// Discard this clippy lint as it triggers false positives for now
+#[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl Send for RendererBin {}
 unsafe impl Sync for RendererBin {}
 
@@ -15,6 +17,8 @@ glib::wrapper! {
     pub struct Renderer(ObjectSubclass<renderer::Renderer>) @extends gst::Element, gst::Object;
 }
 
+// Discard this clippy lint as it triggers false positives for now
+#[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl Send for Renderer {}
 unsafe impl Sync for Renderer {}
 

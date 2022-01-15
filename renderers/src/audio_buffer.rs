@@ -8,7 +8,6 @@ use dasp_sample::Sample;
 
 use std::{
     collections::vec_deque::VecDeque,
-    convert::TryFrom,
     io::{Cursor, Read},
 };
 

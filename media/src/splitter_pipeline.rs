@@ -7,7 +7,6 @@ use gst::{glib, prelude::*, ClockTime};
 use log::{debug, error, info, warn};
 
 use std::{
-    convert::TryFrom,
     path::Path,
     sync::{Arc, Mutex},
 };
