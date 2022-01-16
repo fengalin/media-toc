@@ -526,26 +526,15 @@ impl RendererBin {
         self.handle_new_segment(state, pad_stream, pad, bin, event)
     }
 
-    fn are_in_window(
-        start: ClockTime,
-        end: Option<ClockTime>,
-        window_ts: &WindowTimestamps,
-    ) -> bool {
-        if window_ts.start.is_none() || window_ts.end.is_none() {
+    fn are_in_window(start: ClockTime, end: Option<ClockTime>, window: &WindowTimestamps) -> bool {
+        if start.opt_lt(window.start).unwrap_or(true) {
             return false;
         }
 
-        let window_start = window_ts.start.unwrap();
-        if start < window_start {
-            return false;
-        }
-
-        let window_end = window_ts.end.unwrap();
-        if end.is_none()
-            || start >= window_end
+        if start.opt_ge(window.end).unwrap_or(true)
             // Take a margin with the requested end ts because it might be rounded up
             // FIXME find a better way to deal with this
-            || end.unwrap().saturating_sub(window_ts.window / 10) > (window_start + window_end)
+            || end.opt_saturating_sub(window.range / 10).opt_gt(window.start.opt_add(window.end)).unwrap_or(true)
         {
             return false;
         }
@@ -555,15 +544,13 @@ impl RendererBin {
 
     fn first_ts_for_two_stages_seek(
         target: ClockTime,
-        window_ts: &WindowTimestamps,
+        window: &WindowTimestamps,
     ) -> Option<ClockTime> {
-        let wanted_first = target.checked_sub(window_ts.window / 2)?;
+        let wanted_first = target.checked_sub(window.range / 2)?;
 
         // FIXME use opt_ge and opt_lt
-        if window_ts.start.is_some()
-            && wanted_first >= window_ts.start.unwrap()
-            && window_ts.end.is_some()
-            && wanted_first < window_ts.end.unwrap()
+        if wanted_first.opt_ge(window.start).unwrap_or(false)
+            && wanted_first.opt_lt(window.end).unwrap_or(false)
         {
             return None;
         }
@@ -581,8 +568,9 @@ impl RendererBin {
     ) -> bool {
         state.seek = SeekState::None;
 
-        let segment = match event.view() {
-            gst::EventView::Segment(segment_evt) => segment_evt.segment(),
+        let evt_view = event.view();
+        let segment = match evt_view {
+            gst::EventView::Segment(ref segment_evt) => segment_evt.segment(),
             other => unreachable!("unexpected {:?}", other),
         };
 
@@ -614,19 +602,14 @@ impl RendererBin {
 
         // FIXME handle playing backward
 
-        let window_ts_res = self
+        let window_ts = self
             .audio()
             .renderer
-            .emit_by_name(plugin::GET_WINDOW_TIMESTAMPS_SIGNAL, &[]);
-        let window_ts = match window_ts_res.as_ref() {
-            Ok(Some(window_ts)) => window_ts.get::<&WindowTimestamps>().unwrap_or_else(|err| {
-                panic!(
-                    "signal {} returned value: {}",
-                    plugin::GET_WINDOW_TIMESTAMPS_SIGNAL,
-                    err
-                )
-            }),
-            Ok(None) => {
+            .emit_by_name::<Option<WindowTimestamps>>(plugin::GET_WINDOW_TIMESTAMPS_SIGNAL, &[]);
+
+        let window_ts = match window_ts {
+            Some(window_ts) => window_ts,
+            None => {
                 drop(state);
                 gst_debug!(
                     CAT,
@@ -636,17 +619,10 @@ impl RendererBin {
                 );
                 return pad.event_default(Some(bin), event);
             }
-            Err(err) => {
-                panic!(
-                    "renderer bin failed to emit signal {}: {}",
-                    plugin::GET_WINDOW_TIMESTAMPS_SIGNAL,
-                    err,
-                );
-            }
         };
 
         let stop_ts = segment.stop();
-        if Self::are_in_window(target_ts, stop_ts, window_ts) {
+        if Self::are_in_window(target_ts, stop_ts, &window_ts) {
             drop(state);
             gst_debug!(
                 CAT,
@@ -663,7 +639,7 @@ impl RendererBin {
             return pad.event_default(Some(bin), event);
         }
 
-        if let Some(stage_1_start) = Self::first_ts_for_two_stages_seek(target_ts, window_ts) {
+        if let Some(stage_1_start) = Self::first_ts_for_two_stages_seek(target_ts, &window_ts) {
             // Make sure stage 1 includes target_ts
             // FIXME use start / time correctly (this also includes AudioBuffer impl)
             let stage_1_end = target_ts + ClockTime::MSECOND;
@@ -793,14 +769,12 @@ impl RendererBin {
 impl RendererBin {
     fn new_queue(name: &str) -> gst::Element {
         let queue = gst::ElementFactory::make("queue2", Some(name)).unwrap();
-        queue.set_property("max-size-bytes", &0u32).unwrap();
-        queue.set_property("max-size-buffers", &0u32).unwrap();
-        queue
-            .set_property(
-                "max-size-time",
-                &plugin::renderer::DEFAULT_BUFFER_SIZE.as_u64(),
-            )
-            .unwrap();
+        queue.set_property("max-size-bytes", &0u32);
+        queue.set_property("max-size-buffers", &0u32);
+        queue.set_property(
+            "max-size-time",
+            &plugin::renderer::DEFAULT_BUFFER_SIZE.as_u64(),
+        );
         queue
     }
 
@@ -885,56 +859,47 @@ impl RendererBin {
             .unwrap();
         bin.add_pad(&srcpad).unwrap();
 
-        renderer
-            .set_property(
-                plugin::renderer::DBL_RENDERER_IMPL_PROP,
-                renderer_init.dbl_renderer_impl.as_ref().unwrap(),
-            )
-            .unwrap();
+        renderer.set_property(
+            plugin::renderer::DBL_RENDERER_IMPL_PROP,
+            renderer_init.dbl_renderer_impl.as_ref().unwrap(),
+        );
 
-        renderer
-            .set_property(
-                plugin::renderer::CLOCK_REF_PROP,
-                renderer_init.clock_ref.as_ref().unwrap(),
-            )
-            .unwrap();
+        renderer.set_property(
+            plugin::renderer::CLOCK_REF_PROP,
+            renderer_init.clock_ref.as_ref().unwrap(),
+        );
 
-        renderer
-            .connect(
-                plugin::renderer::SEGMENT_DONE_SIGNAL,
-                true,
-                clone!(@weak bin => @default-panic, move |_args| {
-                    let this = Self::from_instance(&bin);
-                    let mut state = this.state.lock().unwrap();
+        renderer.connect(
+            plugin::renderer::SEGMENT_DONE_SIGNAL,
+            true,
+            clone!(@weak bin => @default-panic, move |_args| {
+                let this = Self::from_instance(&bin);
+                let mut state = this.state.lock().unwrap();
 
-                    use SeekState::*;
-                    match &mut state.seek {
-                        Stage1Segment { target_ts, .. } => {
-                            let target_ts = *target_ts;
-                            this.send_stage_2_seek(state, &bin, target_ts);
-                        }
-                        other => {
-                            gst_debug!(CAT, obj: &bin, "renderer sent segment done in {:?}", other);
-                        }
+                use SeekState::*;
+                match &mut state.seek {
+                    Stage1Segment { target_ts, .. } => {
+                        let target_ts = *target_ts;
+                        this.send_stage_2_seek(state, &bin, target_ts);
                     }
+                    other => {
+                        gst_debug!(CAT, obj: &bin, "renderer sent segment done in {:?}", other);
+                    }
+                }
 
-                    Option::None
-                }),
-            )
-            .unwrap();
+                Option::None
+            }),
+        );
 
         // FIXME remove
-        renderer
-            .connect(
-                plugin::renderer::MUST_REFRESH_SIGNAL,
-                true,
-                clone!(@weak bin => @default-panic, move |_| {
-                    bin
-                        .emit_by_name(plugin::renderer::MUST_REFRESH_SIGNAL, &[])
-                        .unwrap()
-                }),
-            )
-            .unwrap();
+        renderer.connect(
+            plugin::renderer::MUST_REFRESH_SIGNAL,
+            true,
+            clone!(@weak bin => @default-panic, move |_| {
+                bin.emit_by_name::<()>(plugin::renderer::MUST_REFRESH_SIGNAL, &[]);
+                None
+            }),
+        );
 
         *audio = Audio::Initialized(AudioPipeline {
             sinkpad,
@@ -1004,14 +969,14 @@ impl ObjectImpl for RendererBin {
     fn properties() -> &'static [glib::ParamSpec] {
         static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
             vec![
-                glib::ParamSpec::new_boxed(
+                glib::ParamSpecBoxed::new(
                     plugin::renderer::DBL_RENDERER_IMPL_PROP,
                     "Double Renderer",
                     "Implementation for the Double Renderer",
                     GBoxedDoubleRendererImpl::static_type(),
                     glib::ParamFlags::READWRITE,
                 ),
-                glib::ParamSpec::new_object(
+                glib::ParamSpecObject::new(
                     plugin::renderer::CLOCK_REF_PROP,
                     "Clock reference",
                     "Element providing the clock reference",
@@ -1019,7 +984,7 @@ impl ObjectImpl for RendererBin {
                     glib::ParamFlags::WRITABLE,
                 ),
                 // FIXME use a ClockTime
-                glib::ParamSpec::new_uint64(
+                glib::ParamSpecUInt64::new(
                     plugin::renderer::BUFFER_SIZE_PROP,
                     "Renderer Size (ns)",
                     "Internal buffer size in ns",
@@ -1071,23 +1036,17 @@ impl ObjectImpl for RendererBin {
                 if let Audio::Initialized(ref audio) = *self.audio.read().unwrap() {
                     audio
                         .renderer
-                        .set_property(plugin::renderer::BUFFER_SIZE_PROP, &buffer_size)
-                        .unwrap();
+                        .set_property(plugin::renderer::BUFFER_SIZE_PROP, &buffer_size);
                     audio
                         .renderer_queue
-                        .set_property("max-size-time", &buffer_size)
-                        .unwrap();
+                        .set_property("max-size-time", &buffer_size);
                     audio
                         .audio_queue
-                        .set_property("max-size-time", &buffer_size)
-                        .unwrap();
+                        .set_property("max-size-time", &buffer_size);
                 }
 
                 if let Some(ref video) = *self.video.read().unwrap() {
-                    video
-                        .queue
-                        .set_property("max-size-time", &buffer_size)
-                        .unwrap();
+                    video.queue.set_property("max-size-time", &buffer_size);
                 }
             }
             _ => unimplemented!(),
@@ -1099,8 +1058,7 @@ impl ObjectImpl for RendererBin {
             plugin::renderer::DBL_RENDERER_IMPL_PROP => match *self.audio.read().unwrap() {
                 Audio::Initialized(ref audio) => audio
                     .renderer
-                    .property(plugin::renderer::DBL_RENDERER_IMPL_PROP)
-                    .unwrap(),
+                    .property(plugin::renderer::DBL_RENDERER_IMPL_PROP),
                 _ => GBoxedDoubleRendererImpl::none().to_value(),
             },
             _ => unimplemented!(),
@@ -1161,6 +1119,8 @@ impl RendererBin {
         Ok(())
     }
 }
+
+impl GstObjectImpl for RendererBin {}
 
 impl ElementImpl for RendererBin {
     fn metadata() -> Option<&'static gst::subclass::ElementMetadata> {

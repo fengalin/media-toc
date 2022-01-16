@@ -5,7 +5,7 @@ use futures::{
 
 use gettextrs::gettext;
 use gst::{
-    glib::{self, clone, Cast},
+    glib::{self, Cast},
     prelude::*,
     ClockTime,
 };
@@ -203,30 +203,24 @@ impl PlaybackPipeline {
         // and avoid keeping it as a field.
         let renderer =
             gst::ElementFactory::make(plugin::RENDERER_BIN_NAME, Some(RENDERER_BIN_NAME)).unwrap();
-        renderer
-            .set_property(
-                plugin::DBL_RENDERER_IMPL_PROP,
-                &generic::GBoxedDoubleRendererImpl::from(dbl_visu_renderer),
-            )
-            .unwrap();
-        renderer
-            .set_property(plugin::BUFFER_SIZE_PROP, &QUEUE_SIZE.as_u64())
-            .unwrap();
+        renderer.set_property(
+            plugin::DBL_RENDERER_IMPL_PROP,
+            &generic::GBoxedDoubleRendererImpl::from(dbl_visu_renderer),
+        );
+        renderer.set_property(plugin::BUFFER_SIZE_PROP, &QUEUE_SIZE.as_u64());
 
         let (ext_evt_tx, ext_evt_rx) = async_mpsc::unbounded();
         let (int_evt_tx, int_evt_rx) = async_mpsc::unbounded();
 
         // FIXME remove in favor of a dedicate Visualization widget
-        renderer
-            .connect(
-                plugin::MUST_REFRESH_SIGNAL,
-                false,
-                clone!(@strong ext_evt_tx => move |_| {
-                    ext_evt_tx.unbounded_send(MediaEvent::MustRefresh).unwrap();
-                    None
-                }),
-            )
-            .unwrap();
+        renderer.connect(
+            plugin::MUST_REFRESH_SIGNAL,
+            false,
+            glib::clone!(@strong ext_evt_tx => move |_| {
+                ext_evt_tx.unbounded_send(MediaEvent::MustRefresh).unwrap();
+                None
+            }),
+        );
 
         let mut this = PlaybackPipeline {
             pipeline: gst::Pipeline::new(Some("playback_pipeline")),
@@ -275,75 +269,44 @@ impl PlaybackPipeline {
     pub fn take_dbl_renderer_impl(&self) -> Box<dyn DoubleRendererImpl> {
         let dbl_visu_renderer_impl: Option<Box<dyn DoubleRendererImpl>> = self
             .renderer
-            .property(plugin::DBL_RENDERER_IMPL_PROP)
-            .expect("Prop double visu renderer impl not found")
-            .get::<&generic::GBoxedDoubleRendererImpl>()
-            .unwrap()
+            .property::<generic::GBoxedDoubleRendererImpl>(plugin::DBL_RENDERER_IMPL_PROP)
             .into();
         dbl_visu_renderer_impl.expect("double visu renderer impl already taken")
     }
 
     fn setup_queue(queue: &gst::Element) {
-        queue.set_property("max-size-bytes", &0u32).unwrap();
-        queue.set_property("max-size-buffers", &0u32).unwrap();
-        queue
-            .set_property("max-size-time", &QUEUE_SIZE.as_u64())
-            .unwrap();
+        queue.set_property("max-size-bytes", &0u32);
+        queue.set_property("max-size-buffers", &0u32);
+        queue.set_property("max-size-time", &QUEUE_SIZE.as_u64());
 
         #[cfg(feature = "trace-playback-queues")]
-        queue
-            .connect("overrun", false, |args| {
-                let queue = args[0].get::<gst::Element>().unwrap();
+        queue.connect_closure(
+            "overrun",
+            false,
+            glib::closure_local!(|queue: gst::Element| {
                 warn!(
                     "OVERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
                     queue.name(),
-                    queue
-                        .property("max-size-bytes")
-                        .unwrap()
-                        .get::<u32>()
-                        .unwrap(),
-                    queue
-                        .property("max-size-buffers")
-                        .unwrap()
-                        .get::<u32>()
-                        .unwrap(),
-                    queue
-                        .property("max-size-time")
-                        .unwrap()
-                        .get::<u64>()
-                        .unwrap(),
+                    queue.property::<u32>("max-size-bytes"),
+                    queue.property::<u32>("max-size-buffers"),
+                    queue.property::<u64>("max-size-time"),
                 );
-                None
-            })
-            .ok()
-            .unwrap();
+            }),
+        );
         #[cfg(feature = "trace-playback-queues")]
-        queue
-            .connect("underrun", false, |args| {
-                let queue = args[0].get::<gst::Element>().unwrap();
+        queue.connect_closure(
+            "underrun",
+            false,
+            glib::closure_local!(|queue: gst::Element| {
                 warn!(
                     "UNDERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
                     queue.name(),
-                    queue
-                        .property("max-size-bytes")
-                        .unwrap()
-                        .get::<u32>()
-                        .unwrap(),
-                    queue
-                        .property("max-size-buffers")
-                        .unwrap()
-                        .get::<u32>()
-                        .unwrap(),
-                    queue
-                        .property("max-size-time")
-                        .unwrap()
-                        .get::<u64>()
-                        .unwrap(),
+                    queue.property::<u32>("max-size-bytes"),
+                    queue.property::<u32>("max-size-buffers"),
+                    queue.property::<u64>("max-size-time"),
                 );
-                None
-            })
-            .ok()
-            .unwrap();
+            }),
+        );
     }
 
     fn build_pipeline(&mut self, path: &Path, video_sink: &Option<gst::Element>) {
@@ -354,14 +317,10 @@ impl PlaybackPipeline {
         let decodebin_multiqueue = &decodebin_as_bin.children()[0];
         PlaybackPipeline::setup_queue(decodebin_multiqueue);
         // Discard "interleave" as it modifies "max-size-time"
-        decodebin_multiqueue
-            .set_property("use-interleave", &false)
-            .unwrap();
+        decodebin_multiqueue.set_property("use-interleave", &false);
 
         let file_src = gst::ElementFactory::make("filesrc", Some("filesrc")).unwrap();
-        file_src
-            .set_property("location", &path.to_str().unwrap())
-            .unwrap();
+        file_src.set_property("location", &path.to_str().unwrap());
         self.pipeline.add(&file_src).unwrap();
         file_src.link(&decodebin).unwrap();
 
@@ -405,9 +364,7 @@ impl PlaybackPipeline {
         if pipeline.by_name(RENDERER_BIN_NAME).is_none() {
             pipeline.add(renderer).unwrap();
             // FIXME move out when the bin's internal pipelines are constructed on demand
-            renderer
-                .set_property(plugin::CLOCK_REF_PROP, audio_sink)
-                .unwrap();
+            renderer.set_property(plugin::CLOCK_REF_PROP, audio_sink);
         }
 
         let audio_convert =
@@ -442,9 +399,7 @@ impl PlaybackPipeline {
     ) {
         if pipeline.by_name(RENDERER_BIN_NAME).is_none() {
             pipeline.add(renderer).unwrap();
-            renderer
-                .set_property(plugin::CLOCK_REF_PROP, video_sink)
-                .unwrap();
+            renderer.set_property(plugin::CLOCK_REF_PROP, video_sink);
         }
 
         src_pad
@@ -719,7 +674,7 @@ impl PlaybackPipeline {
 
     pub fn stop(&mut self) -> Result<(), StateChangeError> {
         if let Some(bus_watch_src_id) = self.bus_watch_src_id.take() {
-            glib::source_remove(bus_watch_src_id);
+            bus_watch_src_id.remove();
         }
 
         let res = self.pipeline.set_state(gst::State::Null);

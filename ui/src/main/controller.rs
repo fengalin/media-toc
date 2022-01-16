@@ -77,7 +77,7 @@ impl Controller {
     ) -> Self {
         let chapters_boundaries = Rc::new(RefCell::new(ChaptersBoundaries::new()));
 
-        let file_dlg = gtk::FileChooserNativeBuilder::new()
+        let file_dlg = gtk::FileChooserNative::builder()
             .title(&gettext("Open a media file"))
             .transient_for(window)
             .modal(true)

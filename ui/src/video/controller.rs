@@ -1,8 +1,8 @@
 use gtk::{glib::signal::SignalHandlerId, prelude::*};
 use log::debug;
 
-use application::{CommandLineArguments, CONFIG};
-use metadata::MediaInfo;
+use ::application::{CommandLineArguments, CONFIG};
+use ::metadata::MediaInfo;
 
 use crate::prelude::*;
 
@@ -27,8 +27,8 @@ impl UIController for Controller {
                     cr.rectangle(
                         0f64,
                         0f64,
-                        f64::from(allocation.width),
-                        f64::from(allocation.height),
+                        f64::from(allocation.width()),
+                        f64::from(allocation.height()),
                     );
                     cr.fill().unwrap();
 
@@ -65,20 +65,12 @@ impl Controller {
                 .map(|gtkglsink| {
                     let glsinkbin = gst::ElementFactory::make("glsinkbin", Some("video_sink"))
                         .expect("PlaybackPipeline: couldn't get `glsinkbin` from `gtkglsink`");
-                    glsinkbin
-                        .set_property("sink", &gtkglsink)
-                        .expect("video::Controller: couldn't set `sink` for `glsinkbin`");
+                    glsinkbin.set_property("sink", &gtkglsink);
 
                     debug!("Using gtkglsink");
                     VideoOutput {
                         sink: glsinkbin,
-                        widget: gtkglsink
-                            .property("widget")
-                            .expect("video::Controller: couldn't get `widget` from `gtkglsink`")
-                            .get::<gtk::Widget>()
-                            .expect(
-                                "video::Controller: unexpected type for `widget` in `gtkglsink`",
-                            ),
+                        widget: gtkglsink.property::<gtk::Widget>("widget"),
                     }
                 })
                 .ok()
@@ -91,11 +83,7 @@ impl Controller {
                     debug!("Using gtksink");
                     VideoOutput {
                         sink: sink.clone(),
-                        widget: sink
-                            .property("widget")
-                            .expect("video::Controller: couldn't get `widget` from `gtksink`")
-                            .get::<gtk::Widget>()
-                            .expect("video::Controller: unexpected type for `widget` in `gtksink`"),
+                        widget: sink.property::<gtk::Widget>("widget"),
                     }
                 })
                 .ok()

@@ -47,7 +47,7 @@ impl PartialEq for Chapter {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq, Debug)]
 pub struct SuccessiveChapters {
     pub prev: Option<Chapter>,
     pub next: Option<Chapter>,
@@ -64,7 +64,7 @@ impl ChaptersBoundaries {
         self.0.clear();
     }
 
-    pub fn add_chapter<Title>(&mut self, ts: ChapterTimestamps, title: Title, iter: &gtk::TreeIter)
+    pub fn add_chapter<Title>(&mut self, ts: ChapterTimestamps, title: Title, iter: gtk::TreeIter)
     where
         Title: ToString,
     {
@@ -80,7 +80,7 @@ impl ChaptersBoundaries {
                     boundary_at_start.next = Some(Chapter {
                         title: title.clone(),
                         ts,
-                        iter: iter.clone(),
+                        iter,
                     });
                     (true, prev_next_chapter)
                 });
@@ -89,11 +89,7 @@ impl ChaptersBoundaries {
             self.0.insert(
                 ts.end,
                 SuccessiveChapters {
-                    prev: Some(Chapter {
-                        title,
-                        ts,
-                        iter: iter.clone(),
-                    }),
+                    prev: Some(Chapter { title, ts, iter }),
                     next: prev_next_chapter,
                 },
             );
@@ -106,7 +102,7 @@ impl ChaptersBoundaries {
                     chapters_at_end.prev = Some(Chapter {
                         title: title.clone(),
                         ts,
-                        iter: iter.clone(),
+                        iter,
                     });
                     (true, prev_chapter)
                 }
@@ -120,7 +116,7 @@ impl ChaptersBoundaries {
                     next: Some(Chapter {
                         title: title.clone(),
                         ts,
-                        iter: iter.clone(),
+                        iter,
                     }),
                 },
             );
@@ -129,11 +125,7 @@ impl ChaptersBoundaries {
                 self.0.insert(
                     ts.end,
                     SuccessiveChapters {
-                        prev: Some(Chapter {
-                            title,
-                            ts,
-                            iter: iter.clone(),
-                        }),
+                        prev: Some(Chapter { title, ts, iter }),
                         next: None,
                     },
                 );
@@ -226,7 +218,7 @@ mod tests {
         // Add incrementally
 
         let chapter_1 = new_chapter(&store, "1", ChapterTimestamps::new_from_u64(0, 1));
-        boundaries.add_chapter(chapter_1.ts, &chapter_1.title, &chapter_1.iter);
+        boundaries.add_chapter(chapter_1.ts, &chapter_1.title, chapter_1.iter);
         assert_eq!(2, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
@@ -244,7 +236,7 @@ mod tests {
         );
 
         let chapter_2 = new_chapter(&store, "2", ChapterTimestamps::new_from_u64(1, 2));
-        boundaries.add_chapter(chapter_2.ts, &chapter_2.title, &chapter_2.iter);
+        boundaries.add_chapter(chapter_2.ts, &chapter_2.title, chapter_2.iter);
         assert_eq!(3, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
@@ -269,7 +261,7 @@ mod tests {
         );
 
         let chapter_3 = new_chapter(&store, "3", ChapterTimestamps::new_from_u64(2, 4));
-        boundaries.add_chapter(chapter_3.ts, &chapter_3.title, &chapter_3.iter);
+        boundaries.add_chapter(chapter_3.ts, &chapter_3.title, chapter_3.iter);
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
@@ -424,7 +416,7 @@ mod tests {
 
         // Add in the middle
         let chapter_n2 = new_chapter(&store, "n2", ChapterTimestamps::new_from_u64(1, 2));
-        boundaries.add_chapter(chapter_n2.ts, &chapter_n2.title, &chapter_n2.iter);
+        boundaries.add_chapter(chapter_n2.ts, &chapter_n2.title, chapter_n2.iter);
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
@@ -482,7 +474,7 @@ mod tests {
 
         // Add first
         let chapter_n1 = new_chapter(&store, "n1", ChapterTimestamps::new_from_u64(0, 1));
-        boundaries.add_chapter(chapter_n1.ts, &chapter_n1.title, &chapter_n1.iter);
+        boundaries.add_chapter(chapter_n1.ts, &chapter_n1.title, chapter_n1.iter);
         assert_eq!(4, boundaries.len());
         assert_eq!(
             Some(&SuccessiveChapters {
