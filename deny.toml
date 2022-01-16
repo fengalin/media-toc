@@ -26,8 +26,8 @@ unknown-git = "deny"
 allow-git = [
 #  "https://github.com/gtk-rs/gtk-rs-core",
 #  "https://github.com/gtk-rs/gtk3-rs",
-#  "https://freedesktop.org/gstreamer-rs",
-#  "https://freedesktop.org/gst-plugins-rs",
+#  "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs",
+#  "https://gitlab.freedesktop.org/gstreamer/gst-plugins-rs",
 ]
 
 # ignore duplicated heck dependency because various crates depend on an old version

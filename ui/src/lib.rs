@@ -48,9 +48,13 @@ pub fn run(args: CommandLineArguments) {
     register_resource(include_bytes!("../../target/resources/icons.gresource"));
     register_resource(include_bytes!("../../target/resources/ui.gresource"));
 
-    let gtk_app = gtk::Application::new(Some(&APP_ID), gio::ApplicationFlags::empty());
+    let gtk_app = gtk::Application::new(Some(&APP_ID), gio::ApplicationFlags::HANDLES_COMMAND_LINE);
 
-    gtk_app.connect_activate(move |gtk_app| main::Dispatcher::setup(gtk_app, &args));
+    // Command line is handle by claps before reaching here.
+    gtk_app.connect_command_line(move |gtk_app, _cmd_line| {
+        main::Dispatcher::setup(gtk_app, &args);
+        0i32
+    });
     gtk_app.run();
 }
 

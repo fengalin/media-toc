@@ -36,7 +36,10 @@ impl UIDispatcher for Dispatcher {
 
         // widget size changed
         audio.drawingarea.connect_size_allocate(|_, alloc| {
-            audio::update_rendering_cndt(Some((f64::from(alloc.width), f64::from(alloc.height))));
+            audio::update_rendering_cndt(Some((
+                f64::from(alloc.width()),
+                f64::from(alloc.height()),
+            )));
         });
 
         // Move cursor over drawing_area

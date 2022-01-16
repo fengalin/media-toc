@@ -5,8 +5,6 @@ use test::Bencher;
 
 use byteorder::{ByteOrder, LittleEndian};
 
-use cairo;
-
 use std::sync::{Arc, Mutex, RwLock};
 
 use mediatocrenderers::{
@@ -149,7 +147,7 @@ fn render_buffers(
             shared_state.cursor_sample = (first_visible + SAMPLES_PER_BUFFER / 2).into();
         }
 
-        waveform_renderer.render(&audio_buffer);
+        waveform_renderer.render(audio_buffer);
 
         if let Some(extra_op) = extra_op.as_mut() {
             extra_op(idx, waveform_renderer);

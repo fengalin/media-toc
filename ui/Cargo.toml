@@ -15,9 +15,9 @@ application = { path = "../application", package = "media-toc-application"  }
 bitflags = "1"
 futures = "0.3.19"
 gettext-rs = { version = "0.7", features = ["gettext-system"] }
-gst = { package = "gstreamer", version = "0.17", features = ["v1_10"] }
-gst-audio = { package = "gstreamer-audio", version = "0.17", features = ["v1_10"] }
-gtk = { version = "0.14", features = ["v3_20"] }
+gst = { package = "gstreamer", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_16"] }
+gst-audio = { package = "gstreamer-audio", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_16"] }
+gtk = { git = "https://github.com/gtk-rs/gtk3-rs", features = ["v3_24"] }
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 media = { path = "../media", package = "media-toc-media"  }
 metadata = { path = "../metadata", package = "media-toc-metadata"  }

@@ -164,7 +164,7 @@ impl Renderer {
 
                 // FIXME push renderered buffer when we have a Visualization widget
                 if must_notify {
-                    element.emit_by_name(MUST_REFRESH_SIGNAL, &[]).unwrap();
+                    element.emit_by_name::<()>(MUST_REFRESH_SIGNAL, &[]);
                 }
             }
             TwoStages => {
@@ -187,7 +187,7 @@ impl Renderer {
                     buffer.pts().display(),
                 );
 
-                element.emit_by_name(MUST_REFRESH_SIGNAL, &[]).unwrap();
+                element.emit_by_name::<()>(MUST_REFRESH_SIGNAL, &[]);
             }
         }
 
@@ -307,7 +307,7 @@ impl Renderer {
             }
             SegmentDone(_) => {
                 gst_debug!(CAT, obj: pad, "got segment done {:?}", event.seqnum(),);
-                element.emit_by_name(SEGMENT_DONE_SIGNAL, &[]).unwrap();
+                element.emit_by_name::<()>(SEGMENT_DONE_SIGNAL, &[]);
             }
             StreamStart(_) => {
                 // FIXME isn't there a StreamChanged?
@@ -369,14 +369,14 @@ impl ObjectImpl for Renderer {
     fn properties() -> &'static [glib::ParamSpec] {
         static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
             vec![
-                glib::ParamSpec::new_boxed(
+                glib::ParamSpecBoxed::new(
                     DBL_RENDERER_IMPL_PROP,
                     "Double Renderer",
                     "Implementation for the Double Renderer",
                     GBoxedDoubleRendererImpl::static_type(),
                     glib::ParamFlags::READWRITE,
                 ),
-                glib::ParamSpec::new_object(
+                glib::ParamSpecObject::new(
                     CLOCK_REF_PROP,
                     "Clock reference",
                     "Element providing the clock reference",
@@ -384,7 +384,7 @@ impl ObjectImpl for Renderer {
                     glib::ParamFlags::WRITABLE,
                 ),
                 // FIXME use a ClockTime
-                glib::ParamSpec::new_uint64(
+                glib::ParamSpecUInt64::new(
                     BUFFER_SIZE_PROP,
                     "Renderer Size (ns)",
                     "Internal buffer size in ns",
@@ -410,7 +410,7 @@ impl ObjectImpl for Renderer {
         match pspec.name() {
             DBL_RENDERER_IMPL_PROP => {
                 let gboxed = value
-                    .get::<&GBoxedDoubleRendererImpl>()
+                    .get::<GBoxedDoubleRendererImpl>()
                     .expect("type checked upstream");
                 let dbl_renderer_impl: Option<Box<dyn DoubleRendererImpl>> = gboxed.into();
                 // FIXME don't panic log an error
@@ -479,7 +479,7 @@ impl ObjectImpl for Renderer {
                         .as_mut()
                         .and_then(|dbl_renderer| dbl_renderer.window_ts());
                     // FIXME also refresh rendering?
-                    window_ts.as_ref().map(ToValue::to_value)
+                    Some(window_ts.as_ref().to_value())
                 })
                 .build(),
                 Signal::builder(SEGMENT_DONE_SIGNAL, &[], glib::Type::UNIT.into())
@@ -577,6 +577,8 @@ impl Renderer {
         gst_debug!(CAT, obj: element, "Unprepared");
     }
 }
+
+impl GstObjectImpl for Renderer {}
 
 impl ElementImpl for Renderer {
     fn metadata() -> Option<&'static gst::subclass::ElementMetadata> {

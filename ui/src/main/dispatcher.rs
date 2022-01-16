@@ -183,19 +183,16 @@ impl Dispatcher {
 
     fn set_cursor_waiting(&self) {
         if let Some(gdk_window) = self.window.window() {
-            gdk_window.set_cursor(Some(&Cursor::for_display(
-                &gdk_window.display(),
-                CursorType::Watch,
-            )));
+            gdk_window
+                .set_cursor(Cursor::for_display(&gdk_window.display(), CursorType::Watch).as_ref());
         }
     }
 
     fn set_cursor_double_arrow(&self) {
         if let Some(gdk_window) = self.window.window() {
-            gdk_window.set_cursor(Some(&Cursor::for_display(
-                &gdk_window.display(),
-                CursorType::SbHDoubleArrow,
-            )));
+            gdk_window.set_cursor(
+                Cursor::for_display(&gdk_window.display(), CursorType::SbHDoubleArrow).as_ref(),
+            );
         }
     }
 

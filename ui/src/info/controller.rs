@@ -316,8 +316,8 @@ impl Controller {
         cairo_ctx: &cairo::Context,
     ) {
         let allocation = drawingarea.allocation();
-        let alloc_width_f: f64 = allocation.width.into();
-        let alloc_height_f: f64 = allocation.height.into();
+        let alloc_width_f: f64 = allocation.width().into();
+        let alloc_height_f: f64 = allocation.height().into();
 
         let image_width_f: f64 = thumbnail.width().into();
         let image_height_f: f64 = thumbnail.height().into();

@@ -164,9 +164,7 @@ impl SplitterPipeline {
 
         // Input
         let filesrc = gst::ElementFactory::make("filesrc", None).unwrap();
-        filesrc
-            .set_property("location", &input_path.to_str().unwrap())
-            .unwrap();
+        filesrc.set_property("location", &input_path.to_str().unwrap());
         let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
 
         self.pipeline.add_many(&[&filesrc, &decodebin]).unwrap();
@@ -275,9 +273,7 @@ impl SplitterPipeline {
 
         // Output sink
         let outsink = gst::ElementFactory::make("filesink", Some("filesink")).unwrap();
-        outsink
-            .set_property("location", &output_path.to_str().unwrap())
-            .unwrap();
+        outsink.set_property("location", &output_path.to_str().unwrap());
 
         self.pipeline.add(&outsink).unwrap();
         audio_muxer.link(&outsink).unwrap();

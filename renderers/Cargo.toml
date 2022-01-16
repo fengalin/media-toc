@@ -16,9 +16,9 @@ path = "src/lib.rs"
 
 [dependencies]
 byteorder = "1"
-cairo-rs = "0.14"
-gst = { package = "gstreamer", version = "0.17", features = ["v1_10"] }
-gst-audio = { package = "gstreamer-audio", version = "0.17", features = ["v1_10"] }
+cairo = { package = "cairo-rs", git = "https://github.com/gtk-rs/gtk-rs-core" }
+gst = { package = "gstreamer", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_16"] }
+gst-audio = { package = "gstreamer-audio", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_16"] }
 metadata = { path = "../metadata", package = "media-toc-metadata" }
 once_cell = "1.0"
 image = "0.23.14"
@@ -28,8 +28,8 @@ smallvec = "1.8"
 
 [dev-dependencies]
 byteorder = "1"
-cairo-rs = { version = "0.14", features = ["png"] }
-gst-audio = { package = "gstreamer-audio", version = "0.17", features = ["v1_10"] }
+cairo = { package = "cairo-rs", git = "https://github.com/gtk-rs/gtk-rs-core", features = ["png"] }
+gst-audio = { package = "gstreamer-audio", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_16"] }
 
 [build-dependencies]
-gst-plugin-version-helper = "0.7.3"
+gst-plugin-version-helper = { version = "0.7.3" }

@@ -1,4 +1,4 @@
-use gst::glib::{self, GBoxed};
+use gst::glib;
 
 use log::info;
 
@@ -23,8 +23,8 @@ pub trait DoubleRendererImpl: std::fmt::Debug + Send + 'static {
     );
 }
 
-#[derive(Clone, Debug, GBoxed)]
-#[gboxed(type_name = "DoubleRendererImpl")]
+#[derive(Clone, Debug, glib::Boxed)]
+#[boxed_type(name = "DoubleRendererImpl")]
 pub struct GBoxedDoubleRendererImpl(Arc<Mutex<Option<Box<dyn DoubleRendererImpl>>>>);
 
 impl GBoxedDoubleRendererImpl {
@@ -33,8 +33,8 @@ impl GBoxedDoubleRendererImpl {
     }
 }
 
-impl From<&GBoxedDoubleRendererImpl> for Option<Box<dyn DoubleRendererImpl>> {
-    fn from(gboxed_: &GBoxedDoubleRendererImpl) -> Self {
+impl From<GBoxedDoubleRendererImpl> for Option<Box<dyn DoubleRendererImpl>> {
+    fn from(gboxed_: GBoxedDoubleRendererImpl) -> Self {
         gboxed_.0.lock().unwrap().take()
     }
 }
@@ -45,12 +45,12 @@ impl From<Box<dyn DoubleRendererImpl>> for GBoxedDoubleRendererImpl {
     }
 }
 
-#[derive(Clone, Debug, GBoxed)]
-#[gboxed(type_name = "WindowTimestamps")]
+#[derive(Clone, Debug, glib::Boxed)]
+#[boxed_type(name = "WindowTimestamps", nullable)]
 pub struct WindowTimestamps {
     pub start: Option<gst::ClockTime>,
     pub end: Option<gst::ClockTime>,
-    pub window: gst::ClockTime,
+    pub range: gst::ClockTime,
 }
 
 /// A double buffering mechanism to render visualizations of the audio signal.
@@ -234,7 +234,7 @@ impl DoubleRenderer {
         self.sample_window.map(|sample_window| WindowTimestamps {
             start: fvs.map(|fvs| fvs.as_ts(self.sample_duration).into()),
             end: fvs.map(|fvs| (fvs + sample_window).as_ts(self.sample_duration).into()),
-            window: sample_window.duration(self.sample_duration).into(),
+            range: sample_window.duration(self.sample_duration).into(),
         })
     }
 }

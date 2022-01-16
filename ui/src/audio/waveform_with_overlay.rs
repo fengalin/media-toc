@@ -180,12 +180,12 @@ impl WaveformWithOverlay {
             boundaries.range((Included(&positions.offset.ts), Included(&positions.last.ts)));
 
         let allocation = da.allocation();
-        let (area_width, area_height) = (allocation.width as f64, allocation.width as f64);
+        let (area_width, area_height) = (allocation.width() as f64, allocation.width() as f64);
 
         cr.set_source_rgb(0.5f64, 0.6f64, 1f64);
         cr.set_line_width(1f64);
         let boundary_y0 = self.text_metrics.twice_font_size + 5f64;
-        let text_base = allocation.height as f64 - self.text_metrics.half_font_size;
+        let text_base = allocation.height() as f64 - self.text_metrics.half_font_size;
 
         for (boundary, chapters) in chapter_range {
             if *boundary >= positions.offset.ts {

@@ -170,7 +170,7 @@ impl ChapterTree {
         self.selected = match &self.iter_chapter() {
             Some(first_chapter) => {
                 if first_chapter.start() == Timestamp::default() {
-                    self.iter.clone()
+                    self.iter
                 } else {
                     None
                 }
@@ -233,11 +233,10 @@ impl ChapterTree {
     }
 
     fn pick_next(&self) -> Option<ChapterEntry<'_>> {
-        match self.selected.as_ref() {
-            Some(selected) => {
-                let iter = selected.clone();
-                if self.store.iter_next(&iter) {
-                    Some(ChapterEntry::new_owned(&self.store, iter))
+        match self.selected {
+            Some(prev_iter) => {
+                if self.store.iter_next(&prev_iter) {
+                    Some(ChapterEntry::new_owned(&self.store, prev_iter))
                 } else {
                     // FIXME: with hierarchical tocs, this might be a case where
                     // we should check whether the parent node contains something
@@ -269,9 +268,8 @@ impl ChapterTree {
     }
 
     fn pick_previous(&self) -> Option<ChapterEntry<'_>> {
-        match self.selected.as_ref() {
-            Some(selected) => {
-                let prev_iter = selected.clone();
+        match self.selected {
+            Some(prev_iter) => {
                 if self.store.iter_previous(&prev_iter) {
                     Some(ChapterEntry::new_owned(&self.store, prev_iter))
                 } else {
@@ -280,11 +278,8 @@ impl ChapterTree {
                     None
                 }
             }
-            None => self.store.iter_first().map(|iter| {
-                let mut last_iter = iter.clone();
-                while self.store.iter_next(&iter) {
-                    last_iter = iter.clone();
-                }
+            None => self.store.iter_first().map(|last_iter| {
+                while self.store.iter_next(&last_iter) {}
                 ChapterEntry::new_owned(&self.store, last_iter)
             }),
         }
@@ -404,8 +399,8 @@ impl ChapterTree {
             ],
         );
 
-        self.selected = Some(new_iter.clone());
-        self.iter = Some(new_iter.clone());
+        self.selected = Some(new_iter);
+        self.iter = Some(new_iter);
 
         Some(ChapterIterEnd {
             iter: new_iter,
@@ -437,7 +432,7 @@ impl ChapterTree {
                             (END_STR_COL, &rem_ts.end.for_humans().to_string()),
                         ],
                     );
-                    self.selected = self.iter.clone();
+                    self.selected = self.iter;
                 }
 
                 self.store.remove(&iter_to_remove);
@@ -448,7 +443,7 @@ impl ChapterTree {
 
                 Some(ChapterRemovalResult {
                     removed_ts: rem_ts,
-                    selected_iter: self.selected.clone(),
+                    selected_iter: self.selected,
                 })
             }
             None => None,
@@ -481,12 +476,12 @@ impl ChapterTree {
                 let iter_ts = self.iter_timestamps().expect("couldn't get start & end");
                 if ts >= iter_ts.start && ts < iter_ts.end {
                     // current timestamp is in current chapter
-                    self.selected = self.iter.clone();
+                    self.selected = self.iter;
                     // ChapterChanged
                     return prev_sel_chapter.into();
                 } else if ts >= iter_ts.end && searching_forward {
                     // current timestamp is after iter and we were already searching forward
-                    let cur_iter = self.iter.clone();
+                    let cur_iter = self.iter;
                     self.next();
                     if self.iter.is_none() {
                         // No more chapter => keep track of last iter:
@@ -654,7 +649,7 @@ impl ChapterTreeManager {
                         .unwrap_or_else(default_chapter_title);
 
                     let iter = self.tree.add_unchecked(ts, &title);
-                    self.boundaries.borrow_mut().add_chapter(ts, title, &iter);
+                    self.boundaries.borrow_mut().add_chapter(ts, title, iter);
                 }
             }
         }
@@ -677,7 +672,7 @@ impl ChapterTreeManager {
             self.boundaries.borrow_mut().add_chapter(
                 ChapterTimestamps::new(target, new_chapter.end),
                 &default_chapter_title(),
-                &new_chapter.iter,
+                new_chapter.iter,
             );
 
             new_chapter.iter
@@ -707,11 +702,11 @@ impl ChapterTreeManager {
             boundaries.get(&boundary).map_or((None, None), |chapters| {
                 (
                     chapters.prev.as_ref().map(|prev| ChapterIterStart {
-                        iter: prev.iter.clone(),
+                        iter: prev.iter,
                         start: prev.ts.start,
                     }),
                     chapters.next.as_ref().map(|next| ChapterIterEnd {
-                        iter: next.iter.clone(),
+                        iter: next.iter,
                         end: next.ts.end,
                     }),
                 )
@@ -814,7 +809,6 @@ impl<'store> Iterator for Iter<'store> {
         }
 
         self.iter
-            .clone()
             .map(|iter| ChapterEntry::new_owned(self.store, iter))
     }
 }
