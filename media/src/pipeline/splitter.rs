@@ -14,15 +14,15 @@ use std::{
 use metadata::Format;
 use renderers::Timestamp;
 
-use super::MediaEvent;
+use crate::MediaEvent;
 
-pub struct SplitterPipeline {
+pub struct Splitter {
     pipeline: gst::Pipeline,
     format: Format,
     chapter: gst::TocEntry,
 }
 
-impl SplitterPipeline {
+impl Splitter {
     pub fn check_requirements(format: Format) -> Result<(), String> {
         match format {
             Format::Flac => {
@@ -87,7 +87,7 @@ impl SplitterPipeline {
                     })
             }
             _ => panic!(
-                "SplitterPipeline::check_requirements unsupported format: {:?}",
+                "Splitter::check_requirements unsupported format: {:?}",
                 format
             ),
         }
@@ -100,14 +100,14 @@ impl SplitterPipeline {
         format: Format,
         chapter: gst::TocEntry,
         sender: async_mpsc::Sender<MediaEvent>,
-    ) -> Result<SplitterPipeline, String> {
+    ) -> Result<Splitter, String> {
         info!(
             "{}",
             gettext("Splitting {}...").replacen("{}", output_path.to_str().unwrap(), 1)
         );
         debug!("stream id {:?}", stream_id);
 
-        let mut this = SplitterPipeline {
+        let mut this = Splitter {
             pipeline: gst::Pipeline::new(Some("splitter_pipeline")),
             format,
             chapter,
@@ -179,7 +179,7 @@ impl SplitterPipeline {
             Format::Vorbis => gst::ElementFactory::make("vorbisenc", None).unwrap(),
             Format::MP3 => gst::ElementFactory::make("lamemp3enc", None).unwrap(),
             _ => panic!(
-                "SplitterPipeline::build_pipeline unsupported format: {:?}",
+                "Splitter::build_pipeline unsupported format: {:?}",
                 self.format
             ),
         };
@@ -260,10 +260,7 @@ impl SplitterPipeline {
                 audio_enc.link(&id3v2_muxer).unwrap();
                 (id3v2_muxer.clone(), id3v2_muxer)
             }
-            _ => unimplemented!(
-                "SplitterPipeline::build_pipeline for format: {:?}",
-                self.format
-            ),
+            _ => unimplemented!("Splitter::build_pipeline for format: {:?}", self.format),
         };
 
         if let Some(tags) = self.chapter.tags() {
@@ -288,7 +285,7 @@ impl SplitterPipeline {
                 stream_id.as_str()
                     == pad
                         .stream_id()
-                        .expect("SplitterPipeline::build_pipeline no stream_id for audio src pad")
+                        .expect("Splitter::build_pipeline no stream_id for audio src pad")
             });
 
             if name.starts_with("audio/") && is_selected_stream_id {

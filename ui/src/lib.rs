@@ -27,7 +27,7 @@ use log::warn;
 use std::future::Future;
 
 use application::{CommandLineArguments, APP_ID};
-use media::PlaybackPipeline;
+use media::pipeline;
 
 pub fn spawn<Fut: Future<Output = ()> + 'static>(fut: Fut) {
     glib::MainContext::ref_thread_default().spawn_local(fut);
@@ -69,7 +69,7 @@ pub enum UIFocusContext {
 }
 
 pub trait UIController {
-    fn new_media(&mut self, _pipeline: &PlaybackPipeline) {}
+    fn new_media(&mut self, _pipeline: &pipeline::Playback) {}
     fn cleanup(&mut self);
     fn streams_changed(&mut self, _info: &metadata::MediaInfo) {}
     fn grab_focus(&self) {}

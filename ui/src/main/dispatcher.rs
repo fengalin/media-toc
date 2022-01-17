@@ -8,7 +8,7 @@ use gtk::{
 };
 
 use application::{CommandLineArguments, APP_PATH, CONFIG};
-use media::PlaybackPipeline;
+use media::pipeline;
 
 use crate::{
     audio, export, info, info_bar, main, perspective, playback, prelude::*, spawn, split, streams,
@@ -67,7 +67,7 @@ impl Dispatcher {
         app_section.append(Some(&gettext("Quit")), Some("app.quit"));
 
         if gst_init_res.is_ok() {
-            let _ = PlaybackPipeline::check_requirements().map_err(info_bar::show_error);
+            let _ = pipeline::Playback::check_requirements().map_err(info_bar::show_error);
 
             let main_section = gio::Menu::new();
             app_menu.insert_section(0, None, &main_section);

@@ -12,15 +12,16 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use super::MediaEvent;
 use renderers::Timestamp;
 
-pub struct TocSetterPipeline {
+use crate::MediaEvent;
+
+pub struct TocSetter {
     pipeline: gst::Pipeline,
     muxer: Option<gst::Element>,
 }
 
-impl TocSetterPipeline {
+impl TocSetter {
     pub fn check_requirements() -> Result<(), String> {
         // Exporting to Mastroska containers is only
         // available from gst-plugins-good 1.13.1
@@ -47,13 +48,13 @@ impl TocSetterPipeline {
         output_path: &Path,
         streams: Arc<RwLock<HashSet<String>>>,
         sender: async_mpsc::Sender<MediaEvent>,
-    ) -> Result<TocSetterPipeline, String> {
+    ) -> Result<TocSetter, String> {
         info!(
             "{}",
             gettext("Exporting to {}...").replacen("{}", output_path.to_str().unwrap(), 1)
         );
 
-        let mut this = TocSetterPipeline {
+        let mut this = TocSetter {
             pipeline: gst::Pipeline::new(Some("toc_setter_pipeline")),
             muxer: None,
         };
@@ -128,10 +129,10 @@ impl TocSetterPipeline {
 
             if streams
                 .read()
-                .expect("TocSetterPipeline: `paserbin.pad_added` cand read streams to use")
+                .expect("TocSetter: `paserbin.pad_added` cand read streams to use")
                 .contains(
                     pad.stream_id()
-                        .expect("TocSetterPipeline::build_pipeline no stream_id for src pad")
+                        .expect("TocSetter::build_pipeline no stream_id for src pad")
                         .as_str(),
                 )
             {

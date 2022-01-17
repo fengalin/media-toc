@@ -10,7 +10,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use media::{MediaEvent, PlaybackPipeline, SplitterPipeline};
+use media::{pipeline, MediaEvent};
 use metadata::{default_chapter_title, Duration, Format, MediaInfo, Stream, TocVisitor};
 
 use crate::{
@@ -32,7 +32,7 @@ impl Controller {
 
 macro_rules! update_list_with_format(
     ($self_:expr, $format:expr, $row:ident, $label:ident) => {
-        match SplitterPipeline::check_requirements($format) {
+        match pipeline::Splitter::check_requirements($format) {
             Ok(_) => if !$self_.is_usable {
                 $self_.split_list.select_row(Some(&$self_.$row));
                 $self_.is_usable = true;
@@ -121,7 +121,7 @@ impl OutputControllerImpl for ControllerImpl {
 }
 
 impl UIController for ControllerImpl {
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+    fn new_media(&mut self, pipeline: &pipeline::Playback) {
         let info_arc = Arc::clone(&pipeline.info);
         self.src_info = Some(info_arc);
     }
@@ -187,7 +187,7 @@ pub struct Processor {
     split_file_info: Option<OutputMediaFileInfo>,
     idx: usize,
     toc_visitor: Option<TocVisitor>,
-    splitter_pipeline: Option<SplitterPipeline>,
+    splitter_pipeline: Option<pipeline::Splitter>,
     last_progress: f64,
     current_chapter: Option<gst::TocEntry>,
     current_path: Option<Rc<Path>>,
@@ -319,7 +319,7 @@ impl MediaProcessorImpl for Processor {
 
             let (sender, receiver) = async_mpsc::channel(MEDIA_EVENT_CHANNEL_CAPACITY);
 
-            let res = SplitterPipeline::try_new(
+            let res = pipeline::Splitter::try_new(
                 &src_info.path,
                 output_path,
                 stream_id,
@@ -379,7 +379,7 @@ impl MediaProcessorImpl for Processor {
             if let Some(ts) = self
                 .splitter_pipeline
                 .as_ref()
-                .and_then(SplitterPipeline::current_ts)
+                .and_then(pipeline::Splitter::current_ts)
             {
                 self.last_progress = ts.as_f64() / duration.as_f64()
             }

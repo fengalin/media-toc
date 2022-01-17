@@ -3,7 +3,7 @@ use gtk::{glib, prelude::*};
 
 use std::sync::Arc;
 
-use media::PlaybackPipeline;
+use media::pipeline;
 
 use crate::{prelude::*, spawn};
 
@@ -368,7 +368,7 @@ pub struct Controller {
 }
 
 impl UIController for Controller {
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+    fn new_media(&mut self, pipeline: &pipeline::Playback) {
         self.video.new_media(&pipeline.info.read().unwrap().streams);
         self.audio.new_media(&pipeline.info.read().unwrap().streams);
         self.text.new_media(&pipeline.info.read().unwrap().streams);

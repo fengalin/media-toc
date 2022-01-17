@@ -11,7 +11,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use media::{MediaEvent, PlaybackPipeline, TocSetterPipeline};
+use media::{pipeline, MediaEvent};
 use metadata::{Duration, Exporter, Format, MatroskaTocFormat, MediaInfo};
 
 use crate::{
@@ -76,7 +76,7 @@ impl OutputControllerImpl for ControllerImpl {
 }
 
 impl UIController for ControllerImpl {
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+    fn new_media(&mut self, pipeline: &pipeline::Playback) {
         self.src_info = Some(Arc::clone(&pipeline.info));
     }
 
@@ -99,7 +99,7 @@ impl ControllerImpl {
             export_btn: builder.object(Self::BTN_NAME).unwrap(),
         };
 
-        match TocSetterPipeline::check_requirements() {
+        match pipeline::TocSetter::check_requirements() {
             Ok(_) => ctrl.export_list.select_row(Some(&ctrl.mkvmerge_txt_row)),
             Err(err) => {
                 warn!("{}", err);
@@ -118,7 +118,7 @@ pub struct Processor {
     src_info: Arc<RwLock<MediaInfo>>,
     idx: usize,
     export_file_info: Option<OutputMediaFileInfo>,
-    toc_setter_pipeline: Option<TocSetterPipeline>,
+    toc_setter_pipeline: Option<pipeline::TocSetter>,
 }
 
 impl Iterator for Processor {
@@ -168,7 +168,7 @@ impl MediaProcessorImpl for Processor {
             Format::Matroska => {
                 let (sender, receiver) = async_mpsc::channel(MEDIA_EVENT_CHANNEL_CAPACITY);
 
-                let toc_setter_pipeline = TocSetterPipeline::try_new(
+                let toc_setter_pipeline = pipeline::TocSetter::try_new(
                     &self.src_info.read().unwrap().path,
                     output_path,
                     Arc::clone(&self.export_file_info.as_ref().unwrap().stream_ids),
@@ -239,7 +239,7 @@ impl MediaProcessorImpl for Processor {
         if duration > Duration::default() {
             self.toc_setter_pipeline
                 .as_ref()
-                .map(TocSetterPipeline::current_ts)
+                .map(pipeline::TocSetter::current_ts)
                 .map_or(0f64, |ts| ts.as_f64() / duration.as_f64())
         } else {
             0f64

@@ -11,9 +11,7 @@ use log::{error, info};
 use std::{borrow::ToOwned, cell::RefCell, path::PathBuf, rc::Rc, sync::Arc};
 
 use application::{CommandLineArguments, APP_ID, CONFIG};
-use media::{
-    MediaEvent, MissingPlugins, OpenError, PlaybackPipeline, SeekError, SelectStreamsError,
-};
+use media::{pipeline, MediaEvent, MissingPlugins, OpenError, SeekError, SelectStreamsError};
 use renderers::Timestamp;
 
 use crate::{
@@ -63,7 +61,7 @@ pub struct Controller {
     pub(crate) split: split::Controller,
     pub(crate) streams: streams::Controller,
 
-    pub(crate) pipeline: Option<PlaybackPipeline>,
+    pub(crate) pipeline: Option<pipeline::Playback>,
     pub(crate) state: State,
 
     media_msg_abort_handle: Option<AbortHandle>,
@@ -514,7 +512,7 @@ impl Controller {
             gettext("Opening {}...").replacen("{}", path.to_str().unwrap(), 1)
         );
 
-        match PlaybackPipeline::try_new(
+        match pipeline::Playback::try_new(
             path.as_ref(),
             self.audio
                 .dbl_renderer_impl

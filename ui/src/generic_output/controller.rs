@@ -19,7 +19,7 @@ use std::{
     time::Duration,
 };
 
-use media::{MediaEvent, PlaybackPipeline};
+use media::{pipeline, MediaEvent};
 use metadata::{Format, MediaInfo};
 
 use crate::{generic_output, info_bar, main, prelude::*, spawn, UIEvent};
@@ -354,7 +354,7 @@ impl<Impl: OutputControllerImpl + 'static> Controller<Impl> {
 }
 
 impl<Impl: OutputControllerImpl> UIController for Controller<Impl> {
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+    fn new_media(&mut self, pipeline: &pipeline::Playback) {
         self.btn.set_sensitive(true);
         self.impl_.new_media(pipeline);
     }

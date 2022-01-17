@@ -9,7 +9,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use media::PlaybackPipeline;
+use media::pipeline;
 use metadata::{Duration, MediaInfo};
 use renderers::{
     generic::prelude::*, DoubleWaveformRenderer, ImagePositions, Timestamp, WaveformRenderer,
@@ -75,7 +75,7 @@ pub struct Controller {
 }
 
 impl UIController for Controller {
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+    fn new_media(&mut self, pipeline: &pipeline::Playback) {
         let is_audio_selected = {
             let info = pipeline.info.read().unwrap();
             info.streams.is_audio_selected()

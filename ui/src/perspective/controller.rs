@@ -1,6 +1,6 @@
 use gtk::prelude::*;
 
-use media::PlaybackPipeline;
+use media::pipeline;
 use metadata::MediaInfo;
 
 use crate::prelude::*;
@@ -28,7 +28,7 @@ impl Controller {
 }
 
 impl UIController for Controller {
-    fn new_media(&mut self, _pipeline: &PlaybackPipeline) {
+    fn new_media(&mut self, _pipeline: &pipeline::Playback) {
         self.menu_btn.set_sensitive(true);
     }
 

@@ -179,7 +179,7 @@ impl fmt::Display for SelectStreamsError {
 }
 impl std::error::Error for SelectStreamsError {}
 
-pub struct PlaybackPipeline {
+pub struct Playback {
     pipeline: gst::Pipeline,
     renderer: gst::Element,
 
@@ -190,12 +190,12 @@ pub struct PlaybackPipeline {
 }
 
 /// Initialization
-impl PlaybackPipeline {
+impl Playback {
     pub async fn try_new(
         path: &Path,
         dbl_visu_renderer: Box<dyn DoubleRendererImpl>,
         video_sink: &Option<gst::Element>,
-    ) -> Result<(PlaybackPipeline, async_mpsc::UnboundedReceiver<MediaEvent>), OpenError> {
+    ) -> Result<(Playback, async_mpsc::UnboundedReceiver<MediaEvent>), OpenError> {
         plugin::init();
 
         // FIXME once we get rid of DBL_RENDERER_IMPL_PROP,
@@ -222,7 +222,7 @@ impl PlaybackPipeline {
             }),
         );
 
-        let mut this = PlaybackPipeline {
+        let mut this = Playback {
             pipeline: gst::Pipeline::new(Some("playback_pipeline")),
             renderer,
             // FIXME use pbutils
@@ -315,7 +315,7 @@ impl PlaybackPipeline {
         // From decodebin3's documentation: "Children: multiqueue0"
         let decodebin_as_bin = decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
         let decodebin_multiqueue = &decodebin_as_bin.children()[0];
-        PlaybackPipeline::setup_queue(decodebin_multiqueue);
+        Playback::setup_queue(decodebin_multiqueue);
         // Discard "interleave" as it modifies "max-size-time"
         decodebin_multiqueue.set_property("use-interleave", &false);
 
@@ -337,12 +337,10 @@ impl PlaybackPipeline {
             let name = src_pad.name();
 
             if name.starts_with("audio_") {
-                PlaybackPipeline::build_audio_pipeline(pipeline, src_pad, &audio_sink, &renderer);
+                Playback::build_audio_pipeline(pipeline, src_pad, &audio_sink, &renderer);
             } else if name.starts_with("video_") {
                 if let Some(ref video_sink) = video_sink {
-                    PlaybackPipeline::build_video_pipeline(
-                        pipeline, src_pad, video_sink, &renderer,
-                    );
+                    Playback::build_video_pipeline(pipeline, src_pad, video_sink, &renderer);
                 }
             } else {
                 // TODO: handle subtitles
@@ -421,7 +419,7 @@ impl PlaybackPipeline {
         renderer.sync_state_with_parent().unwrap();
         for e in elements {
             // Silently ignore the state sync issues
-            // and rely on the PlaybackPipeline state to return an error.
+            // and rely on the Playback state to return an error.
             // Can't use sender to return the error because
             // the bus catches it first.
             let _res = e.sync_state_with_parent();
@@ -475,7 +473,7 @@ impl PlaybackPipeline {
                             return glib::Continue(false);
                         }
 
-                        let PlaybackPipeline {
+                        let Playback {
                             missing_plugins, ..
                         } = this;
                         if !missing_plugins.is_empty() {
@@ -567,7 +565,7 @@ impl PlaybackPipeline {
 }
 
 /// Operations
-impl PlaybackPipeline {
+impl Playback {
     fn register_operations_bus_watch(
         &mut self,
         int_evt_tx: async_mpsc::UnboundedSender<MediaEvent>,
@@ -876,7 +874,7 @@ impl PlaybackPipeline {
                                         }
                                     }
                                     _ => unreachable!(format!(
-                                        "PlaybackPipeline bus inspector, `StateChanged` to {:?}",
+                                        "Playback bus inspector, `StateChanged` to {:?}",
                                         msg_state_changed.get_current(),
                                     )),
                                 }
@@ -942,7 +940,7 @@ impl PlaybackPipeline {
                             }
                         }
                         PipelineState::StreamsSelected => unreachable!(concat!(
-                            "PlaybackPipeline received msg `StreamsSelected` while already ",
+                            "Playback received msg `StreamsSelected` while already ",
                             "being in state `StreamsSelected`",
                         )),
                     },

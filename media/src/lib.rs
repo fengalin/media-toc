@@ -1,13 +1,5 @@
-pub mod playback_pipeline;
-pub use self::playback_pipeline::{
-    MissingPlugins, OpenError, PlaybackPipeline, SeekError, SelectStreamsError, StateChangeError,
-};
-
-pub mod splitter_pipeline;
-pub use self::splitter_pipeline::SplitterPipeline;
-
-pub mod toc_setter_pipeline;
-pub use self::toc_setter_pipeline::TocSetterPipeline;
+pub mod pipeline;
+pub use pipeline::{MissingPlugins, OpenError, SeekError, SelectStreamsError};
 
 use metadata::Duration;
 

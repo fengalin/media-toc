@@ -5,7 +5,7 @@ use log::{info, warn};
 use std::{cell::RefCell, fs::File, rc::Rc};
 
 use application::CONFIG;
-use media::PlaybackPipeline;
+use media::pipeline;
 use metadata::{Duration, MediaInfo, Timestamp4Humans};
 use renderers::{Image, Timestamp};
 
@@ -49,7 +49,7 @@ pub struct Controller {
 }
 
 impl UIController for Controller {
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+    fn new_media(&mut self, pipeline: &pipeline::Playback) {
         let toc_extensions = metadata::Factory::extensions();
 
         {
