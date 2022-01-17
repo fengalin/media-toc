@@ -100,45 +100,45 @@ fn generate_resources() {
 }
 
 fn generate_translations() {
-    if let Ok(mut linguas_file) = File::open(&po_path().join("LINGUAS")) {
-        let mut linguas = String::new();
-        linguas_file
-            .read_to_string(&mut linguas)
-            .expect("Couldn't read po/LINGUAS as string");
+    let mut linguas_file =
+        File::open(&po_path().join("LINGUAS")).expect("Couldn't find po/LINGUAS");
+    let mut linguas = String::new();
+    linguas_file
+        .read_to_string(&mut linguas)
+        .expect("Couldn't read po/LINGUAS as string");
 
-        for lingua in linguas.lines() {
-            let mo_path = target_path()
-                .join("locale")
-                .join(lingua)
-                .join("LC_MESSAGES");
-            create_dir_all(&mo_path).unwrap();
+    for lingua in linguas.lines() {
+        let mo_path = target_path()
+            .join("locale")
+            .join(lingua)
+            .join("LC_MESSAGES");
+        create_dir_all(&mo_path).unwrap();
 
-            let mut msgfmt = Command::new("msgfmt");
-            msgfmt
-                .arg(format!(
-                    "--output-file={}",
-                    mo_path.join("media-toc.mo").to_str().unwrap()
-                ))
-                .arg(format!("--directory={}", po_path().to_str().unwrap()))
-                .arg(format!("{}.po", lingua));
+        let mut msgfmt = Command::new("msgfmt");
+        msgfmt
+            .arg(format!(
+                "--output-file={}",
+                mo_path.join("media-toc.mo").to_str().unwrap()
+            ))
+            .arg(format!("--directory={}", po_path().to_str().unwrap()))
+            .arg(format!("{}.po", lingua));
 
-            match msgfmt.status() {
-                Ok(status) => {
-                    if !status.success() {
-                        panic!(
-                            "Failed to generate mo file for lingua {}\n{:?}",
-                            lingua, msgfmt,
-                        );
-                    }
+        match msgfmt.status() {
+            Ok(status) => {
+                if !status.success() {
+                    panic!(
+                        "Failed to generate mo file for lingua {}\n{:?}",
+                        lingua, msgfmt,
+                    );
                 }
-                Err(ref error) => match error.kind() {
-                    ErrorKind::NotFound => {
-                        eprintln!("Can't generate translations: command `msgfmt` not available");
-                        return;
-                    }
-                    _ => panic!("Error invoking `msgfmt`: {}", error),
-                },
             }
+            Err(ref error) => match error.kind() {
+                ErrorKind::NotFound => {
+                    eprintln!("Can't generate translations: command `msgfmt` not available");
+                    return;
+                }
+                _ => panic!("Error invoking `msgfmt`: {}", error),
+            },
         }
     }
 }

@@ -3,9 +3,9 @@
 res/ui/media-toc.ui
 application/src/command_line.rs
 application/src/configuration.rs
-media/src/playback_pipeline.rs
-media/src/splitter_pipeline.rs
-media/src/toc_setter_pipeline.rs
+media/src/pipeline/playback.rs
+media/src/pipeline/splitter.rs
+media/src/pipeline/toc_setter.rs
 metadata/src/cue_sheet_format.rs
 metadata/src/media_info.rs
 metadata/src/mkvmerge_text_format.rs
