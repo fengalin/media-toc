@@ -466,12 +466,12 @@ impl ObjectImpl for Renderer {
                 .run_last()
                 .action()
                 .class_handler(|_token, args| {
-                    let obj = args[0]
+                    let element = args[0]
                         .get::<<Renderer as ObjectSubclass>::Type>()
                         .expect("Failed to get args[0]");
 
-                    let this = Renderer::from_instance(&obj);
-                    let window_ts = this
+                    let window_ts = element
+                        .imp()
                         .ctx
                         .lock()
                         .unwrap()

@@ -873,14 +873,13 @@ impl RendererBin {
             plugin::renderer::SEGMENT_DONE_SIGNAL,
             true,
             clone!(@weak bin => @default-panic, move |_args| {
-                let this = Self::from_instance(&bin);
-                let mut state = this.state.lock().unwrap();
+                let mut state = bin.imp().state.lock().unwrap();
 
                 use SeekState::*;
                 match &mut state.seek {
                     Stage1Segment { target_ts, .. } => {
                         let target_ts = *target_ts;
-                        this.send_stage_2_seek(state, &bin, target_ts);
+                        bin.imp().send_stage_2_seek(state, &bin, target_ts);
                     }
                     other => {
                         gst_debug!(CAT, obj: &bin, "renderer sent segment done in {:?}", other);
