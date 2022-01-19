@@ -61,6 +61,14 @@ impl UIDispatcher for Dispatcher {
                         .seek(seek_ts.unwrap_or_default(), gst::SeekFlags::ACCURATE)
                         .await;
                 }
+                ClearSeek => {
+                    main_ctrl.seek_manager = playback::SeekManager::default();
+                }
+                SeekRequest { target, flags } => {
+                    if main_ctrl.seek_manager.can_seek_now(target, flags) {
+                        let _ = main_ctrl.seek(target, flags).await;
+                    }
+                }
                 Seek { target, flags } => {
                     let _ = main_ctrl.seek(target, flags).await;
                 }

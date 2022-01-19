@@ -63,6 +63,7 @@ pub struct Controller {
 
     pub(crate) pipeline: Option<pipeline::Playback>,
     pub(crate) state: State,
+    pub(crate) seek_manager: playback::SeekManager,
 
     media_msg_abort_handle: Option<AbortHandle>,
 }
@@ -111,6 +112,7 @@ impl Controller {
 
             pipeline: None,
             state: State::Stopped,
+            seek_manager: playback::SeekManager::default(),
 
             media_msg_abort_handle: None,
         }
