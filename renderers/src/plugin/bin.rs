@@ -470,16 +470,11 @@ impl RendererBin {
 
                 let mut state = self.state.lock().unwrap();
 
-                match &mut state.seek {
-                    Stage1Segment {
-                        expected_seqnum, ..
-                    } => {
-                        if seqnum != *expected_seqnum {
-                            gst_debug!(CAT, obj: pad, "unexpected SegmentDone {:?}", seqnum);
-                            state.seek = None;
-                            return pad.event_default(Some(bin), event);
-                        }
-
+                if let Stage1Segment {
+                    expected_seqnum, ..
+                } = state.seek
+                {
+                    if seqnum == expected_seqnum {
                         if PadStream::Audio == pad_stream {
                             gst_debug!(CAT, obj: pad, "forwarding stage 1 audio SegmentDone");
                             if !self.audio().renderer_queue_sinkpad.send_event(event) {
@@ -492,9 +487,9 @@ impl RendererBin {
 
                         return true;
                     }
-                    other => {
-                        todo!("SegmentDone in {:?}", other);
-                    }
+
+                    gst_debug!(CAT, obj: pad, "unexpected SegmentDone {:?}", seqnum);
+                    state.seek = None;
                 }
             }
             _ => (),
