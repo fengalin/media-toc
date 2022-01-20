@@ -9,7 +9,7 @@ use crate::{info::ChapterEntry, main, playback, prelude::*};
 pub struct Dispatcher;
 
 impl UIDispatcher for Dispatcher {
-    // FIXME use a dedicateds playback::Controller?
+    // FIXME use a dedicated playback::Controller
     type Controller = main::Controller;
     type Event = playback::Event;
 

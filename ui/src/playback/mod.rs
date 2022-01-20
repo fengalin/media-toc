@@ -65,13 +65,13 @@ pub fn seek(target: impl Into<Timestamp>, flags: gst::SeekFlags) {
 ///
 /// This is used to prevent flooding the Playback pipeline
 /// with successive seeks (e.g. using the timeline).
-/// If more than MAX_SUCCESSIVE are triggered:
+/// If more than MAX_SUCCESSIVE seeks are triggered:
 ///
 /// - The seek state switches to DelayedSeek.
 /// - The last seek is delayed for DEBOUNCE_DELAY.
 /// - During that delay, if another seek is received, it
 ///   replaces previous last seek and it is also delayed.
-/// - When the last delay is elapsed, the last seek is
+/// - When the last delay has elapsed, the last seek is
 ///   triggered.
 #[derive(Debug)]
 pub enum SeekManager {
@@ -89,7 +89,13 @@ impl SeekManager {
     pub(crate) const MAX_SUCCESSIVE: usize = 2;
     pub(crate) const DEBOUNCE_DELAY: Duration = Duration::from_millis(200);
 
-    /// Returns true if seek can be handle immediately.
+    /// Checks if seek can be performed now.
+    ///
+    /// # Returns
+    ///
+    /// - `true` if seek can be handled immediately.
+    /// - `false` if seek shouldn't be handled immediately,
+    ///   in which case, the seek is automatically delayed.
     pub(crate) fn can_seek_now(&mut self, target: Timestamp, flags: gst::SeekFlags) -> bool {
         use SeekManager::*;
 
