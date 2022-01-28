@@ -39,7 +39,6 @@ static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
 });
 
 pub enum SegmentField {
-    InitTwoStages,
     InWindow,
     Stage1,
     Stage2,
@@ -49,7 +48,6 @@ impl SegmentField {
     pub const fn as_str(&self) -> &str {
         use SegmentField::*;
         match self {
-            InitTwoStages => "init-2-stages",
             InWindow => "in-window",
             Stage1 => "stage-1",
             Stage2 => "stage-2",
@@ -182,9 +180,9 @@ impl Renderer {
                 gst_info!(
                     CAT,
                     obj: pad,
-                    "seek with target {} done @ buffer {}",
-                    target_ts,
+                    "Done @ buffer {} target {}",
                     buffer.pts().display(),
+                    target_ts.display(),
                 );
 
                 element.emit_by_name::<()>(MUST_REFRESH_SIGNAL, &[]);
@@ -241,18 +239,7 @@ impl Renderer {
 
                 let mut was_handled = false;
                 if let Some(structure) = evt.structure() {
-                    if structure.has_field(SegmentField::InitTwoStages.as_str()) {
-                        gst_info!(
-                            CAT,
-                            obj: pad,
-                            "starting 2 stages seek to {} {:?}",
-                            start.display(),
-                            event.seqnum(),
-                        );
-                        ctx.dbl_renderer().seek_start();
-                        ctx.seek = SeekState::TwoStages;
-                        was_handled = true;
-                    } else if structure.has_field(SegmentField::Stage1.as_str()) {
+                    if structure.has_field(SegmentField::Stage1.as_str()) {
                         gst_debug!(
                             CAT,
                             obj: pad,
@@ -260,7 +247,9 @@ impl Renderer {
                             start.display(),
                             event.seqnum(),
                         );
+                        ctx.dbl_renderer().seek_start();
                         ctx.dbl_renderer().have_gst_segment(segment);
+                        ctx.seek = SeekState::TwoStages;
                         was_handled = true;
                     } else if structure.has_field(SegmentField::Stage2.as_str()) {
                         gst_debug!(

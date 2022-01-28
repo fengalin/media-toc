@@ -225,9 +225,7 @@ impl Playback {
         let mut this = Playback {
             pipeline: gst::Pipeline::new(Some("playback_pipeline")),
             renderer,
-            // FIXME use pbutils
             info: Arc::new(RwLock::new(MediaInfo::new(path))),
-            // FIXME use pbutils
             missing_plugins: MissingPlugins::new(),
             int_evt_rx,
             bus_watch_src_id: None,
@@ -283,7 +281,7 @@ impl Playback {
         queue.connect_closure(
             "overrun",
             false,
-            glib::closure_local!(|queue: gst::Element| {
+            glib::closure!(|queue: gst::Element| {
                 warn!(
                     "OVERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
                     queue.name(),
@@ -297,7 +295,7 @@ impl Playback {
         queue.connect_closure(
             "underrun",
             false,
-            glib::closure_local!(|queue: gst::Element| {
+            glib::closure!(|queue: gst::Element| {
                 warn!(
                     "UNDERRUN {} (max-sizes: bytes {:?}, buffers {:?}, time {:?})",
                     queue.name(),

@@ -228,7 +228,7 @@ impl DoubleRenderer {
         self.impl_.swap();
     }
 
-    /// Checks if the provided timestamps are contained in current window.
+    /// Returns details about current displayable samples.
     pub fn window_ts(&self) -> Option<WindowTimestamps> {
         let fvs = self.impl_.working().first_visible_sample();
         self.sample_window.map(|sample_window| WindowTimestamps {
