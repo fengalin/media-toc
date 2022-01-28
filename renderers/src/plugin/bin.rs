@@ -74,6 +74,7 @@ enum SeekState {
     Stage2 {
         expected_seqnum: Seqnum,
         remaining_streams: usize,
+        accepts_video_buffers: bool,
     },
 }
 
@@ -204,22 +205,28 @@ impl RendererBin {
         bin: &plugin::RendererBin,
         buffer: gst::Buffer,
     ) -> Result<gst::FlowSuccess, gst::FlowError> {
-        use SeekState::*;
-
         let state = self.state.lock().unwrap();
-        let seek_state = state.seek;
-        match seek_state {
-            Uncontrolled | InWindow { .. } | Stage2 { .. } => (),
-            Stage1 {
+        match state.seek {
+            SeekState::Stage1 {
                 accepts_audio_buffers,
                 ..
             } => {
-                if accepts_audio_buffers && PadStream::Audio == pad_stream {
+                if PadStream::Audio == pad_stream && accepts_audio_buffers {
+                    drop(state);
                     return self.audio().renderer_queue_sinkpad.chain(buffer);
                 }
 
                 return Ok(gst::FlowSuccess::Ok);
             }
+            SeekState::Stage2 {
+                accepts_video_buffers,
+                ..
+            } => {
+                if PadStream::Video == pad_stream && !accepts_video_buffers {
+                    return Ok(gst::FlowSuccess::Ok);
+                }
+            }
+            _ => (),
         }
         drop(state);
 
@@ -284,7 +291,7 @@ impl RendererBin {
                         *remaining_streams -= 1;
 
                         if PadStream::Audio == pad_stream {
-                            gst_debug!(CAT, obj: pad, "forwarding stage 1 segment {:?}", seqnum,);
+                            gst_debug!(CAT, obj: pad, "forwarding stage 1 segment {:?}", seqnum);
 
                             *accepts_audio_buffers = true;
                             event
@@ -306,33 +313,32 @@ impl RendererBin {
 
                             return true;
                         } else {
-                            gst_debug!(CAT, obj: pad, "filtering stage 1 segment {:?}", seqnum,);
+                            gst_debug!(CAT, obj: pad, "filtering stage 1 segment {:?}", seqnum);
                             return true;
                         }
                     }
                     Stage2 {
                         expected_seqnum,
                         remaining_streams,
+                        accepts_video_buffers,
                     } => {
                         if seqnum != *expected_seqnum {
                             return self.unexpected_segment(state, pad_stream, pad, bin, event);
                         }
 
-                        if PadStream::Audio == pad_stream {
-                            gst_debug!(CAT, obj: pad, "got stage 2 segment {:?}", seqnum,);
-                            event
-                                .make_mut()
-                                .structure_mut()
-                                .set(plugin::SegmentField::Stage2.as_str(), &"");
-                        } else {
-                            gst_debug!(CAT, obj: pad, "got stage 2 segment {:?}", seqnum);
-                        }
+                        gst_debug!(CAT, obj: pad, "got stage 2 segment {:?}", seqnum);
+                        event
+                            .make_mut()
+                            .structure_mut()
+                            .set(plugin::SegmentField::Stage2.as_str(), &"");
 
                         *remaining_streams -= 1;
                         if *remaining_streams == 0 {
                             gst_info!(CAT, obj: pad, "got all stage 2 segments {:?}", seqnum);
 
                             state.seek = Uncontrolled;
+                        } else if PadStream::Video == pad_stream {
+                            *accepts_video_buffers = true;
                         }
                     }
                 }
@@ -401,9 +407,11 @@ impl RendererBin {
         use gst::EventView::*;
 
         // FIXME there are many Qos overflow showing up on Video Stream while playing
+        /*
         if let gst::EventView::Qos(evt) = event.view() {
-            //println!("{:?} {:?}", pad_stream, evt);
+            println!("{:?} {:?}", pad_stream, evt);
         }
+        */
 
         if let Seek(_) = event.view() {
             return self.handle_seek(pad, bin, event);
@@ -415,58 +423,6 @@ impl RendererBin {
 
 /// Seek handler.
 impl RendererBin {
-    fn unexpected_segment(
-        &self,
-        state: MutexGuard<State>,
-        pad_stream: PadStream,
-        pad: &GhostPad,
-        bin: &plugin::RendererBin,
-        event: gst::Event,
-    ) -> bool {
-        gst_warning!(
-            CAT,
-            obj: pad,
-            "{:?}: got {:?} with {:?} on {:?}",
-            state.seek,
-            event.type_(),
-            event.seqnum(),
-            pad_stream,
-        );
-
-        pad.event_default(Some(bin), event)
-    }
-
-    fn are_in_window(start: ClockTime, end: Option<ClockTime>, window: &WindowTimestamps) -> bool {
-        if start.opt_lt(window.start).unwrap_or(true) {
-            return false;
-        }
-
-        if start.opt_ge(window.end).unwrap_or(true)
-            // Take a margin with the requested end ts because it might be rounded up
-            // FIXME find a better way to deal with this
-            || end.opt_saturating_sub(window.range / 10).opt_gt(window.start.opt_add(window.end)).unwrap_or(true)
-        {
-            return false;
-        }
-
-        true
-    }
-
-    fn first_ts_for_two_stages_seek(
-        target: ClockTime,
-        window: &WindowTimestamps,
-    ) -> Option<ClockTime> {
-        let wanted_first = target.saturating_sub(window.range / 2);
-
-        if wanted_first.opt_ge(window.start).unwrap_or(false)
-            && wanted_first.opt_lt(window.end).unwrap_or(false)
-        {
-            return None;
-        }
-
-        Some(wanted_first)
-    }
-
     fn handle_seek(&self, pad: &GhostPad, bin: &plugin::RendererBin, event: gst::Event) -> bool {
         let seqnum = event.seqnum();
 
@@ -649,6 +605,58 @@ impl RendererBin {
         pad.event_default(Some(bin), event)
     }
 
+    fn are_in_window(start: ClockTime, end: Option<ClockTime>, window: &WindowTimestamps) -> bool {
+        if start.opt_lt(window.start).unwrap_or(true) {
+            return false;
+        }
+
+        if start.opt_ge(window.end).unwrap_or(true)
+            // Take a margin with the requested end ts because it might be rounded up
+            // FIXME find a better way to deal with this
+            || end.opt_saturating_sub(window.range / 10).opt_gt(window.start.opt_add(window.end)).unwrap_or(true)
+        {
+            return false;
+        }
+
+        true
+    }
+
+    fn first_ts_for_two_stages_seek(
+        target: ClockTime,
+        window: &WindowTimestamps,
+    ) -> Option<ClockTime> {
+        let wanted_first = target.saturating_sub(window.range / 2);
+
+        if wanted_first.opt_ge(window.start).unwrap_or(false)
+            && wanted_first.opt_lt(window.end).unwrap_or(false)
+        {
+            return None;
+        }
+
+        Some(wanted_first)
+    }
+
+    fn unexpected_segment(
+        &self,
+        state: MutexGuard<State>,
+        pad_stream: PadStream,
+        pad: &GhostPad,
+        bin: &plugin::RendererBin,
+        event: gst::Event,
+    ) -> bool {
+        gst_warning!(
+            CAT,
+            obj: pad,
+            "{:?}: got {:?} with {:?} on {:?}",
+            state.seek,
+            event.type_(),
+            event.seqnum(),
+            pad_stream,
+        );
+
+        pad.event_default(Some(bin), event)
+    }
+
     fn send_stage_2_seek(
         &self,
         mut state: MutexGuard<State>,
@@ -669,6 +677,7 @@ impl RendererBin {
         state.seek = SeekState::Stage2 {
             expected_seqnum: seqnum,
             remaining_streams: state.stream_count,
+            accepts_video_buffers: false,
         };
 
         drop(state);

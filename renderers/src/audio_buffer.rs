@@ -25,7 +25,6 @@ pub struct StreamState {
 
     eos: bool,
 
-    is_new_segment: bool,
     segment_start: Option<Timestamp>,
     segment_lower: SampleIndex,
 
@@ -44,7 +43,6 @@ impl StreamState {
 
             eos: false,
 
-            is_new_segment: true,
             segment_start: None,
             segment_lower: SampleIndex::default(),
             last_buffer_lower: SampleIndex::default(),
@@ -72,7 +70,6 @@ impl StreamState {
 
     fn forget_past(&mut self) {
         self.eos = false;
-        self.is_new_segment = true;
         // don't cleanup self.segment_start in order to maintain continuity
         self.segment_lower = SampleIndex::default();
         self.last_buffer_lower = SampleIndex::default();
@@ -97,31 +94,22 @@ impl StreamState {
 
     fn have_segment(&mut self, segment: &gst::FormattedSegment<gst::ClockTime>) {
         // FIXME use ClockTime everywhere
-        let gst_time = segment.time();
-        let time = Timestamp::try_from(gst_time).unwrap();
-
-        debug!(
-            "have_gst_segment {} ({})",
-            gst_time.display(),
-            time.sample_index(self.sample_duration),
-        );
+        let segment_time = segment.time();
+        let incoming_ts = Timestamp::try_from(segment_time).unwrap();
 
         match self.segment_start {
-            Some(cur_segment_start) => {
-                if cur_segment_start != time {
-                    self.is_new_segment = true;
-                }
-                // else: same segment => might be an async_done after a pause
-                //       or a seek back to the segment's start
-            }
-            None => self.is_new_segment = true,
-        }
+            Some(cur_time) if cur_time == incoming_ts => (),
+            _ => {
+                debug!(
+                    "have_segment {} ({})",
+                    segment_time.display(),
+                    incoming_ts.sample_index(self.sample_duration),
+                );
 
-        if self.is_new_segment {
-            self.segment_start = Some(time);
-            self.segment_lower = SampleIndex::from_ts(time, self.sample_duration);
-            self.last_buffer_upper = self.segment_lower;
-            self.is_new_segment = false;
+                self.segment_start = Some(incoming_ts);
+                self.segment_lower = SampleIndex::from_ts(incoming_ts, self.sample_duration);
+                self.last_buffer_upper = self.segment_lower;
+            }
         }
     }
 
@@ -229,7 +217,7 @@ impl AudioBuffer {
         self.stream_state.segment_start = None;
     }
 
-    pub fn have_gst_segment(&mut self, segment: &gst::FormattedSegment<gst::ClockTime>) {
+    pub fn have_segment(&mut self, segment: &gst::FormattedSegment<gst::ClockTime>) {
         self.stream_state.have_segment(segment);
     }
 
@@ -238,13 +226,13 @@ impl AudioBuffer {
     // in order to be able to represent the audio at any given precision.
     // Incoming samples are merged to the existing buffer when possible
     // Returns: number of samples received
-    pub fn push_gst_buffer(
+    pub fn push_buffer(
         &mut self,
         gst_buffer: &gst::Buffer,
         lower_to_keep: SampleIndex,
     ) -> SampleIndexRange {
         if self.stream_state.channels == 0 {
-            debug!("push_gst_buffer: audio characterists not defined yet");
+            debug!("push_buffer: audio characterists not defined yet");
             return SampleIndexRange::default();
         }
 
@@ -743,28 +731,24 @@ mod tests {
             let mut segment = gst::FormattedSegment::new();
             segment.set_start(buffer.pts());
             segment.set_time(buffer.pts());
-            audio_buffer.have_gst_segment(&segment);
+            audio_buffer.have_segment(&segment);
         }
 
-        audio_buffer.push_gst_buffer(buffer, SampleIndex::default()); // never drain buffer in this test
+        audio_buffer.push_buffer(buffer, SampleIndex::default()); // never drain buffer in this test
     }
 
-    macro_rules! check_values(
-        ($audio_buffer:expr, $idx:expr, $expected:expr) => (
-            assert_eq!(
-                $audio_buffer.get($idx),
-                Some(&[SampleValue::from($expected), SampleValue::from(-$expected)][..])
-            );
+    fn check_values(audio_buffer: &AudioBuffer, idx: SampleIndex, expected: i16) {
+        assert_eq!(
+            audio_buffer.get(idx),
+            Some(&[SampleValue::from(expected), SampleValue::from(-expected)][..])
         );
-    );
+    }
 
-    macro_rules! check_last_values(
-        ($audio_buffer:expr, $expected:expr) => (
-            let mut last = $audio_buffer.upper;
-            last.try_dec().expect("checking last values");
-            check_values!($audio_buffer, last, $expected);
-        );
-    );
+    fn check_last_values(audio_buffer: &AudioBuffer, expected: i16) {
+        let mut last = audio_buffer.upper;
+        last.try_dec().expect("checking last values");
+        check_values(audio_buffer, last, expected);
+    }
 
     #[test]
     fn multiple_gst_buffers() {
@@ -782,50 +766,50 @@ mod tests {
         push_test_buffer(&mut audio_buffer, &build_buffer(100, 200), true);
         assert_eq!(audio_buffer.lower, SampleIndex::new(100));
         assert_eq!(audio_buffer.upper, SampleIndex::new(200));
-        check_values!(audio_buffer, audio_buffer.lower, 100);
-        check_last_values!(audio_buffer, 199);
+        check_values(&audio_buffer, audio_buffer.lower, 100);
+        check_last_values(&audio_buffer, 199);
 
         info!("samples [50:100]: appending to the begining");
         push_test_buffer(&mut audio_buffer, &build_buffer(50, 100), true);
         assert_eq!(audio_buffer.lower, SampleIndex::new(50));
         assert_eq!(audio_buffer.upper, SampleIndex::new(200));
-        check_values!(audio_buffer, audio_buffer.lower, 50);
-        check_last_values!(audio_buffer, 199);
+        check_values(&audio_buffer, audio_buffer.lower, 50);
+        check_last_values(&audio_buffer, 199);
 
         info!("samples [0:75]: overlaping on the begining");
         push_test_buffer(&mut audio_buffer, &build_buffer(0, 75), true);
         assert_eq!(audio_buffer.lower, SampleIndex::new(0));
         assert_eq!(audio_buffer.upper, SampleIndex::new(200));
-        check_values!(audio_buffer, audio_buffer.lower, 0);
-        check_last_values!(audio_buffer, 199);
+        check_values(&audio_buffer, audio_buffer.lower, 0);
+        check_last_values(&audio_buffer, 199);
 
         info!("samples [200:300]: appending to the end - different segment");
         push_test_buffer(&mut audio_buffer, &build_buffer(200, 300), true);
         assert_eq!(audio_buffer.lower, SampleIndex::new(0));
         assert_eq!(audio_buffer.upper, SampleIndex::new(300));
-        check_values!(audio_buffer, audio_buffer.lower, 0);
-        check_last_values!(audio_buffer, 299);
+        check_values(&audio_buffer, audio_buffer.lower, 0);
+        check_last_values(&audio_buffer, 299);
 
         info!("samples [250:275]: contained in current - different segment");
         push_test_buffer(&mut audio_buffer, &build_buffer(250, 275), true);
         assert_eq!(audio_buffer.lower, SampleIndex::new(0));
         assert_eq!(audio_buffer.upper, SampleIndex::new(300));
-        check_values!(audio_buffer, audio_buffer.lower, 0);
-        check_last_values!(audio_buffer, 299);
+        check_values(&audio_buffer, audio_buffer.lower, 0);
+        check_last_values(&audio_buffer, 299);
 
         info!("samples [275:400]: overlaping on the end");
         push_test_buffer(&mut audio_buffer, &build_buffer(275, 400), false);
         assert_eq!(audio_buffer.lower, SampleIndex::new(0));
         assert_eq!(audio_buffer.upper, SampleIndex::new(400));
-        check_values!(audio_buffer, audio_buffer.lower, 0);
-        check_last_values!(audio_buffer, 399);
+        check_values(&audio_buffer, audio_buffer.lower, 0);
+        check_last_values(&audio_buffer, 399);
 
         info!("samples [400:450]: appending to the end");
         push_test_buffer(&mut audio_buffer, &build_buffer(400, 450), false);
         assert_eq!(audio_buffer.lower, SampleIndex::new(0));
         assert_eq!(audio_buffer.upper, SampleIndex::new(450));
-        check_values!(audio_buffer, audio_buffer.lower, 0);
-        check_last_values!(audio_buffer, 449);
+        check_values(&audio_buffer, audio_buffer.lower, 0);
+        check_last_values(&audio_buffer, 449);
     }
 
     fn check_iter(

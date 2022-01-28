@@ -158,16 +158,14 @@ impl DoubleRenderer {
         self.sample_gauge = None;
     }
 
-    pub fn have_gst_segment(&mut self, segment: &gst::FormattedSegment<gst::ClockTime>) {
-        self.audio_buffer.have_gst_segment(segment);
+    pub fn have_segment(&mut self, segment: &gst::FormattedSegment<gst::ClockTime>) {
+        self.audio_buffer.have_segment(segment);
         self.sample_gauge = Some(SampleIndex::default());
     }
 
-    pub fn push_gst_buffer(&mut self, buffer: &gst::Buffer) -> bool {
+    pub fn push_buffer(&mut self, buffer: &gst::Buffer) -> bool {
         // store incoming samples
-        let sample_nb = self
-            .audio_buffer
-            .push_gst_buffer(buffer, self.lower_to_keep);
+        let sample_nb = self.audio_buffer.push_buffer(buffer, self.lower_to_keep);
         self.samples_since_last_extract += sample_nb;
 
         let must_notify = if let Some(gauge) = self.sample_gauge.as_mut() {

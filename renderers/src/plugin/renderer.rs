@@ -153,11 +153,11 @@ impl Renderer {
         use SeekState::*;
 
         let mut ctx = self.ctx.lock().unwrap();
-        gst_trace!(CAT, obj: pad, "{:?} / {:?}", buffer, ctx.seek);
+        //gst_trace!(CAT, obj: pad, "{:?} / {:?}", buffer, ctx.seek);
         match ctx.seek {
             None => {
                 let must_notify =
-                    ctx.dbl_renderer().push_gst_buffer(&buffer) && !ctx.state.is_playing();
+                    ctx.dbl_renderer().push_buffer(&buffer) && !ctx.state.is_playing();
                 drop(ctx);
 
                 // FIXME push renderered buffer when we have a Visualization widget
@@ -166,10 +166,10 @@ impl Renderer {
                 }
             }
             TwoStages => {
-                ctx.dbl_renderer().push_gst_buffer(&buffer);
+                ctx.dbl_renderer().push_buffer(&buffer);
             }
             DoneOn1stBuffer { target_ts } => {
-                ctx.dbl_renderer().push_gst_buffer(&buffer);
+                ctx.dbl_renderer().push_buffer(&buffer);
                 if let State::Paused = ctx.state {
                     ctx.dbl_renderer().refresh();
                 }
@@ -177,13 +177,7 @@ impl Renderer {
                 ctx.seek = None;
                 drop(ctx);
 
-                gst_info!(
-                    CAT,
-                    obj: pad,
-                    "Done @ buffer {} target {}",
-                    buffer.pts().display(),
-                    target_ts.display(),
-                );
+                gst_info!(CAT, obj: pad, "Streaming from {}", target_ts.display());
 
                 element.emit_by_name::<()>(MUST_REFRESH_SIGNAL, &[]);
             }
@@ -248,7 +242,7 @@ impl Renderer {
                             event.seqnum(),
                         );
                         ctx.dbl_renderer().seek_start();
-                        ctx.dbl_renderer().have_gst_segment(segment);
+                        ctx.dbl_renderer().have_segment(segment);
                         ctx.seek = SeekState::TwoStages;
                         was_handled = true;
                     } else if structure.has_field(SegmentField::Stage2.as_str()) {
@@ -259,7 +253,7 @@ impl Renderer {
                             start.display(),
                             event.seqnum(),
                         );
-                        ctx.dbl_renderer().have_gst_segment(segment);
+                        ctx.dbl_renderer().have_segment(segment);
                         ctx.seek = SeekState::DoneOn1stBuffer { target_ts: start };
                         was_handled = true;
                     } else if structure.has_field(SegmentField::InWindow.as_str()) {
@@ -272,7 +266,7 @@ impl Renderer {
                         );
                         ctx.dbl_renderer().freeze();
                         ctx.dbl_renderer().seek_start();
-                        ctx.dbl_renderer().have_gst_segment(segment);
+                        ctx.dbl_renderer().have_segment(segment);
                         ctx.seek = SeekState::DoneOn1stBuffer { target_ts: start };
                         was_handled = true;
                     }
@@ -290,7 +284,7 @@ impl Renderer {
                         ctx.dbl_renderer().release();
                     }
                     ctx.dbl_renderer().seek_start();
-                    ctx.dbl_renderer().have_gst_segment(segment);
+                    ctx.dbl_renderer().have_segment(segment);
                     ctx.seek = SeekState::DoneOn1stBuffer { target_ts: start };
                 }
             }
