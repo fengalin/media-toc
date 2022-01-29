@@ -210,7 +210,7 @@ fn generate_install_script() {
                 }
 
                 #[cfg(feature = "gettext")]
-                generate_install_translations_script(&mut install_file, &data_dir);
+                generate_install_translations_script(&mut install_file, data_dir);
 
                 install_file
                     .write_all(b"\n# Install desktop file\n")
@@ -315,7 +315,7 @@ fn generate_uninstall_script() {
                 }
 
                 #[cfg(feature = "gettext")]
-                generate_uninstall_translations_script(&mut install_file, &data_dir);
+                generate_uninstall_translations_script(&mut install_file, data_dir);
 
                 install_file
                     .write_all(b"\n# Uninstall desktop file\n")
