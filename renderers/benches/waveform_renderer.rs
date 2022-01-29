@@ -71,10 +71,10 @@ fn push_test_buffer(audio_buffer: &mut AudioBuffer, buffer: &gst::Buffer, is_new
         let mut segment = gst::FormattedSegment::new();
         segment.set_start(buffer.pts());
         segment.set_time(buffer.pts());
-        audio_buffer.have_gst_segment(&segment);
+        audio_buffer.have_segment(&segment);
     }
 
-    audio_buffer.push_gst_buffer(buffer, SampleIndex::default()); // never drain buffer in this test
+    audio_buffer.push_buffer(buffer, SampleIndex::default()); // never drain buffer in this test
 }
 
 fn prepare_buffers() -> (AudioBuffer, WaveformRenderer, Arc<RwLock<SharedState>>) {
