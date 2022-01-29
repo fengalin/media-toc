@@ -1,14 +1,11 @@
 use futures::channel::oneshot;
-
-use gettextrs::gettext;
-
 use gtk::{glib, prelude::*};
-
 use log::{error, info};
 
 use std::cell::RefCell;
 
 use crate::{info_bar, main, prelude::*};
+use application::gettext;
 
 pub struct Controller {
     pub(super) info_bar: gtk::InfoBar,

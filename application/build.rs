@@ -4,7 +4,11 @@ use directories::{BaseDirs, ProjectDirs};
 use once_cell::sync::Lazy;
 
 use std::fs::{create_dir_all, File};
-use std::io::{ErrorKind, Read};
+use std::io::ErrorKind;
+#[cfg(feature = "gettext")]
+use std::io::Read;
+#[cfg(feature = "gettext")]
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -22,6 +26,7 @@ pub static APP_NAME: Lazy<String> = Lazy::new(|| {
         .to_string()
 });
 
+#[cfg(feature = "gettext")]
 fn po_path() -> PathBuf {
     PathBuf::from("..").join("po")
 }
@@ -99,6 +104,7 @@ fn generate_resources() {
     }
 }
 
+#[cfg(feature = "gettext")]
 fn generate_translations() {
     let mut linguas_file =
         File::open(&po_path().join("LINGUAS")).expect("Couldn't find po/LINGUAS");
@@ -203,22 +209,8 @@ fn generate_install_script() {
                     }
                 }
 
-                install_file
-                    .write_all(b"\n# Install translations\n")
-                    .unwrap();
-                install_file
-                    .write_all(format!("mkdir -p {:?}\n", data_dir).as_bytes())
-                    .unwrap();
-                install_file
-                    .write_all(
-                        format!(
-                            "cp -r {:?} {:?}\n",
-                            target_path().join("locale").canonicalize().unwrap(),
-                            data_dir,
-                        )
-                        .as_bytes(),
-                    )
-                    .unwrap();
+                #[cfg(feature = "gettext")]
+                generate_install_translations_script(&mut install_file, &data_dir);
 
                 install_file
                     .write_all(b"\n# Install desktop file\n")
@@ -244,6 +236,26 @@ fn generate_install_script() {
             Err(err) => panic!("Couldn't create file `target/install`: {:?}", err),
         }
     }
+}
+
+#[cfg(feature = "gettext")]
+fn generate_install_translations_script(install_file: &mut File, data_dir: &Path) {
+    install_file
+        .write_all(b"\n# Install translations\n")
+        .unwrap();
+    install_file
+        .write_all(format!("mkdir -p {:?}\n", data_dir).as_bytes())
+        .unwrap();
+    install_file
+        .write_all(
+            format!(
+                "cp -r {:?} {:?}\n",
+                target_path().join("locale").canonicalize().unwrap(),
+                data_dir,
+            )
+            .as_bytes(),
+        )
+        .unwrap();
 }
 
 // FIXME: figure out macOS conventions for icons & translations
@@ -302,33 +314,8 @@ fn generate_uninstall_script() {
                     }
                 }
 
-                if let Ok(mut linguas_file) = File::open(&po_path().join("LINGUAS")) {
-                    let mut linguas = String::new();
-                    linguas_file
-                        .read_to_string(&mut linguas)
-                        .expect("Couldn't read po/LINGUAS as string");
-
-                    install_file
-                        .write_all(b"\n# Uninstall translations\n")
-                        .unwrap();
-                    let locale_base_dir = data_dir.join("locale");
-                    for lingua in linguas.lines() {
-                        let lingua_dir = locale_base_dir.join(lingua).join("LC_MESSAGES");
-                        install_file
-                            .write_all(
-                                format!(
-                                    "rm {:?}\n",
-                                    lingua_dir.join(&format!("{}.mo", *APP_NAME)),
-                                )
-                                .as_bytes(),
-                            )
-                            .unwrap();
-
-                        install_file
-                            .write_all(format!("rmdir -p {:?}\n", lingua_dir).as_bytes())
-                            .unwrap();
-                    }
-                }
+                #[cfg(feature = "gettext")]
+                generate_uninstall_translations_script(&mut install_file, &data_dir);
 
                 install_file
                     .write_all(b"\n# Uninstall desktop file\n")
@@ -352,8 +339,36 @@ fn generate_uninstall_script() {
     }
 }
 
+#[cfg(feature = "gettext")]
+fn generate_uninstall_translations_script(install_file: &mut File, data_dir: &Path) {
+    if let Ok(mut linguas_file) = File::open(&po_path().join("LINGUAS")) {
+        let mut linguas = String::new();
+        linguas_file
+            .read_to_string(&mut linguas)
+            .expect("Couldn't read po/LINGUAS as string");
+
+        install_file
+            .write_all(b"\n# Uninstall translations\n")
+            .unwrap();
+        let locale_base_dir = data_dir.join("locale");
+        for lingua in linguas.lines() {
+            let lingua_dir = locale_base_dir.join(lingua).join("LC_MESSAGES");
+            install_file
+                .write_all(
+                    format!("rm {:?}\n", lingua_dir.join(&format!("{}.mo", *APP_NAME)),).as_bytes(),
+                )
+                .unwrap();
+
+            install_file
+                .write_all(format!("rmdir -p {:?}\n", lingua_dir).as_bytes())
+                .unwrap();
+        }
+    }
+}
+
 fn main() {
     generate_resources();
+    #[cfg(feature = "gettext")]
     generate_translations();
 
     #[cfg(target_family = "unix")]

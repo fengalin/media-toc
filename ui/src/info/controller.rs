@@ -1,10 +1,9 @@
-use gettextrs::gettext;
 use gtk::{cairo, gio, glib, prelude::*};
 use log::{info, warn};
 
 use std::{cell::RefCell, fs::File, rc::Rc};
 
-use application::CONFIG;
+use application::{gettext, CONFIG};
 use media::pipeline;
 use metadata::{Duration, MediaInfo, Timestamp4Humans};
 use renderers::{Image, Timestamp};

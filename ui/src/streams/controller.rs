@@ -1,8 +1,8 @@
-use gettextrs::gettext;
 use gtk::{glib, prelude::*};
 
 use std::sync::Arc;
 
+use application::gettext;
 use media::pipeline;
 
 use crate::{prelude::*, spawn};

@@ -1,6 +1,5 @@
+use crate::gettext;
 use clap::{App, Arg};
-use gettextrs::gettext;
-
 use std::path::PathBuf;
 
 pub struct CommandLineArguments {

@@ -4,10 +4,7 @@ use futures::{
     prelude::*,
     stream,
 };
-
-use gettextrs::gettext;
 use gtk::{gio, glib, prelude::*};
-
 use log::debug;
 
 use std::{
@@ -19,6 +16,7 @@ use std::{
     time::Duration,
 };
 
+use application::gettext;
 use media::{pipeline, MediaEvent};
 use metadata::{Format, MediaInfo};
 

@@ -865,7 +865,6 @@ name = "media-toc"
 version = "0.7.99"
 dependencies = [
  "env_logger",
- "gettext-rs",
  "gtk",
  "log",
  "media-toc-application",
@@ -876,6 +875,7 @@ dependencies = [
 name = "media-toc-application"
 version = "0.7.99"
 dependencies = [
+ "cfg-if",
  "clap",
  "directories",
  "gettext-rs",
@@ -891,9 +891,9 @@ name = "media-toc-media"
 version = "0.7.99"
 dependencies = [
  "futures",
- "gettext-rs",
  "gstreamer",
  "log",
+ "media-toc-application",
  "media-toc-metadata",
  "media-toc-renderers",
 ]
@@ -902,9 +902,9 @@ dependencies = [
 name = "media-toc-metadata"
 version = "0.7.99"
 dependencies = [
- "gettext-rs",
  "gstreamer",
  "log",
+ "media-toc-application",
  "nom",
  "once_cell",
 ]
@@ -933,7 +933,6 @@ dependencies = [
  "bitflags",
  "byteorder",
  "futures",
- "gettext-rs",
  "gstreamer",
  "gstreamer-audio",
  "gtk",

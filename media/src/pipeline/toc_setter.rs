@@ -1,9 +1,5 @@
 use futures::channel::mpsc as async_mpsc;
-
-use gettextrs::gettext;
-
 use gst::{glib, prelude::*};
-
 use log::{info, warn};
 
 use std::{
@@ -12,6 +8,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use application::gettext;
 use renderers::Timestamp;
 
 use crate::MediaEvent;

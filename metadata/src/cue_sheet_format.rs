@@ -1,10 +1,7 @@
-use gettextrs::gettext;
-
-use log::error;
-
-use std::{io::Write, string::ToString};
-
 use super::{default_chapter_title, MediaInfo, Timestamp4Humans, TocVisitor, Writer};
+use application::gettext;
+use log::error;
+use std::{io::Write, string::ToString};
 
 static EXTENSION: &str = "cue";
 

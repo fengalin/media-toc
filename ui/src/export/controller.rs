@@ -1,6 +1,4 @@
 use futures::channel::mpsc as async_mpsc;
-
-use gettextrs::gettext;
 use gtk::prelude::*;
 use log::{error, warn};
 
@@ -11,6 +9,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use application::gettext;
 use media::{pipeline, MediaEvent};
 use metadata::{Duration, Exporter, Format, MatroskaTocFormat, MediaInfo};
 

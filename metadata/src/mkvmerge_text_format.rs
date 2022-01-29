@@ -1,7 +1,4 @@
-use gettextrs::gettext;
-
 use log::error;
-
 use nom::{
     bytes::complete::tag,
     character::complete::{line_ending, not_line_ending},
@@ -17,6 +14,7 @@ use super::{
     default_chapter_title, parse_timestamp, parse_to, MediaInfo, Reader, Timestamp4Humans,
     TocVisitor, Writer,
 };
+use application::gettext;
 
 static EXTENSION: &str = "txt";
 

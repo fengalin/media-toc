@@ -1,8 +1,8 @@
-use gettextrs::gettext;
 use gtk::{gdk, prelude::*};
 use log::error;
 
 use crate::{playback, prelude::*, spawn, video};
+use application::gettext;
 
 pub enum Event {}
 

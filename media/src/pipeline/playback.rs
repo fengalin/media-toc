@@ -3,7 +3,6 @@ use futures::{
     prelude::*,
 };
 
-use gettextrs::gettext;
 use gst::{
     glib::{self, Cast},
     prelude::*,
@@ -21,12 +20,14 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::{MediaEvent, QUEUE_SIZE};
+use application::gettext;
 use metadata::{media_info, MediaInfo};
 use renderers::{
     generic::{self, prelude::*},
     plugin, Timestamp,
 };
+
+use crate::{MediaEvent, QUEUE_SIZE};
 
 const RENDERER_BIN_NAME: &str = "media-toc-renderer-bin";
 

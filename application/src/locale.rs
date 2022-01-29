@@ -1,5 +1,5 @@
 use directories::ProjectDirs;
-use gettextrs::{TextDomain, TextDomainError};
+use gettext::{TextDomain, TextDomainError};
 use log::{error, info, warn};
 
 use super::{APP_NAME, SLD, TLD};

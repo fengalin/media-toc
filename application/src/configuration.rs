@@ -1,5 +1,4 @@
 use directories::ProjectDirs;
-use gettextrs::gettext;
 use log::{debug, error};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -12,7 +11,7 @@ use std::{
     sync::RwLock,
 };
 
-use super::{APP_NAME, SLD, TLD};
+use crate::{gettext, APP_NAME, SLD, TLD};
 
 const CONFIG_FILENAME: &str = "config.ron";
 

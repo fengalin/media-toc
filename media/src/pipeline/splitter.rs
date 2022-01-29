@@ -1,9 +1,5 @@
 use futures::channel::mpsc as async_mpsc;
-
-use gettextrs::gettext;
-
 use gst::{glib, prelude::*, ClockTime};
-
 use log::{debug, error, info, warn};
 
 use std::{
@@ -11,6 +7,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use application::gettext;
 use metadata::Format;
 use renderers::Timestamp;
 

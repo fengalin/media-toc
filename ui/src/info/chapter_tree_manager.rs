@@ -1,6 +1,4 @@
 use bitflags::bitflags;
-
-use gettextrs::gettext;
 use gtk::{
     glib::{self, GString},
     prelude::*,
@@ -8,6 +6,7 @@ use gtk::{
 
 use std::{borrow::Cow, cell::RefCell, rc::Rc, string::ToString};
 
+use application::gettext;
 use metadata::{default_chapter_title, Duration, Timestamp4Humans, TocVisitor};
 use renderers::Timestamp;
 

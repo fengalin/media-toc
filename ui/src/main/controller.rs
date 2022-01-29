@@ -2,15 +2,12 @@ use futures::{
     future::{abortable, AbortHandle},
     prelude::*,
 };
-
-use gettextrs::{gettext, ngettext};
 use gtk::{glib, prelude::*};
-
 use log::{error, info};
 
 use std::{borrow::ToOwned, cell::RefCell, path::PathBuf, rc::Rc, sync::Arc};
 
-use application::{CommandLineArguments, APP_ID, CONFIG};
+use application::{gettext, ngettext, CommandLineArguments, APP_ID, CONFIG};
 use media::{pipeline, MediaEvent, MissingPlugins, OpenError, SeekError, SelectStreamsError};
 use renderers::Timestamp;
 

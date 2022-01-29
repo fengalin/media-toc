@@ -14,7 +14,6 @@ version = "0.7.99"
 application = { path = "../application", package = "media-toc-application"  }
 bitflags = "1"
 futures = "0.3.19"
-gettext-rs = { version = "0.7", features = ["gettext-system"] }
 gst = { package = "gstreamer", version = "0.18.1", features = ["v1_16"] }
 gst-audio = { package = "gstreamer-audio", version = "0.18.0", features = ["v1_16"] }
 gtk = { version = "0.15.2", features = ["v3_24"] }

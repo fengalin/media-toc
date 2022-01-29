@@ -1,13 +1,11 @@
 use futures::prelude::*;
-
-use gettextrs::gettext;
 use gtk::{
     gdk::{Cursor, CursorType},
     gio,
     prelude::*,
 };
 
-use application::{CommandLineArguments, APP_PATH, CONFIG};
+use application::{gettext, CommandLineArguments, APP_PATH, CONFIG};
 use media::pipeline;
 
 use crate::{

@@ -11,7 +11,7 @@ repository = "https://github.com/fengalin/media-toc"
 version = "0.7.99"
 
 [dependencies]
-gettext-rs = { version = "0.7", features = ["gettext-system"] }
+application = { path = "../application", package = "media-toc-application"  }
 gst = { package = "gstreamer", version = "0.18.1", features = ["v1_16"] }
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 nom = "7"

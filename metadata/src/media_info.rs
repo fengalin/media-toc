@@ -1,4 +1,3 @@
-use gettextrs::gettext;
 use gst::{tags, StreamType, Tag, TagList, TagMergeMode};
 use log::warn;
 use once_cell::sync::Lazy;
@@ -11,6 +10,7 @@ use std::{
 };
 
 use super::{Duration, Format, MediaContent};
+use application::gettext;
 
 #[derive(Debug)]
 pub struct SelectStreamError(Arc<str>);

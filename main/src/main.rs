@@ -1,7 +1,5 @@
-use gettextrs::gettext;
+use application::{command_line, gettext, init_locale};
 use log::error;
-
-use application::{command_line, init_locale};
 
 fn main() {
     env_logger::init();

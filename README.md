@@ -78,7 +78,7 @@ The following functions are bound to one or multiple key accelerators:
 | Add a chapter at current position                          | <kbd>+</kbd>                        |
 | Remove the chapter at current position                     | <kbd>-</kbd>                        |
 | Toggle show/hide chapters list                             | <kbd>L</kbd>                        |
-| Toggle repeat current chapter                              | <kbd>R</kbd>                        | 
+| Toggle repeat current chapter                              | <kbd>R</kbd>                        |
 | Show the Display perspective                               | <kbd>F5</kbd>                       |
 | Show the Streams perspective                               | <kbd>F6</kbd>                       |
 | Show the Export perspective                                | <kbd>F7</kbd>                       |
@@ -249,10 +249,14 @@ toolchain.
 Use the following command to build and generate locales:
 
 ```
-PATH="/usr/local/opt/gettext/bin:$PATH" cargo build --release
+PATH="/usr/local/opt/gettext/bin:$PATH" cargo build --release --features=gettext
 ```
 
 ### Windows
+
+Please note that I don't have any Windows box at hand ATM. These instructions
+might be out of date. If you figure out a proper set of dependencies, please
+submit a PR.
 
 - MSYS2: follow [this guide](http://www.msys2.org/).
 - Install the development toolchain, GTK and GStreamer<br>
@@ -261,6 +265,13 @@ Note: for a 32bits system, use `mingw-w64-i686-...`
   ```
   pacman --noconfirm -S mingw-w64-x86_64-pkg-config gettext-devel mingw-w64-x86_64-gtk3 mingw-w64-x86_64-gstreamer
   pacman --noconfirm -S mingw-w64-x86_64-gst-plugins-{base,good,bad,ugly} mingw-w64-x86_64-gst-libav
+  ```
+
+  If you want the application to be localized (currently only in French or Spanish),
+  also install:
+
+  ```
+  pacman --noconfirm -S gettext-devel
   ```
 
 - Launch the [rustup installer](https://www.rustup.rs/).
@@ -290,6 +301,13 @@ Use Cargo (from the root of the project):
 
 ```
 cargo run --release
+```
+
+If you want the application to be localized (currently only in French or Spanish),
+compile with `gettext` support:
+
+```
+cargo run --release --features=gettext
 ```
 
 On XDG compliant systems, you can install the application executable and related
@@ -339,12 +357,12 @@ with:
         is_gl_disabled: true,
 ```
 
-## Discarding the translations
+## Discarding translations
 
 *media-toc* is currently available in English, French and Spanish. The user
-locale should be automatically detected. If you want to use the English version
-or if you want to submit logs, you can discard the translations using the
-following command:
+locale should be automatically detected when the application is compiled with
+the `gettext` feature. If you want to use the English version or if you want
+to submit logs, you can discard the translations using the following command:
 
 ```
 LC_MESSAGES=C cargo run --release

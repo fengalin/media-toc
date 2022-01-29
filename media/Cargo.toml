@@ -14,8 +14,8 @@ name = "mediatocmedia"
 path = "src/lib.rs"
 
 [dependencies]
+application = { path = "../application", package = "media-toc-application"  }
 futures = "0.3.19"
-gettext-rs = { version = "0.7", features = ["gettext-system"] }
 gst = { package = "gstreamer", version = "0.18.1", features = ["v1_16"] }
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 metadata = { path = "../metadata", package = "media-toc-metadata" }

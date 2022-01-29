@@ -1,6 +1,4 @@
 use futures::channel::mpsc as async_mpsc;
-
-use gettextrs::gettext;
 use gtk::prelude::*;
 use log::warn;
 
@@ -10,6 +8,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use application::gettext;
 use media::{pipeline, MediaEvent};
 use metadata::{default_chapter_title, Duration, Format, MediaInfo, Stream, TocVisitor};
 
