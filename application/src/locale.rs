@@ -7,9 +7,7 @@ use super::{APP_NAME, SLD, TLD};
 pub fn init_locale() {
     // Search translations under `target` first
     // in order to reflect latest changes during development
-    let text_domain = TextDomain::new(&*APP_NAME)
-        .codeset("UTF-8")
-        .prepend("target");
+    let text_domain = TextDomain::new(&*APP_NAME).prepend("target");
 
     // Add user's data dir in the search path
     let project_dirs = ProjectDirs::from(TLD, SLD, &APP_NAME)
@@ -27,7 +25,11 @@ pub fn init_locale() {
     let text_domain = text_domain.prepend(_app_data_dir);
 
     match text_domain.init() {
-        Ok(locale) => info!("Translation found, `setlocale` returned {:?}", locale),
+        Ok(Some(locale)) => info!(
+            "Translation found, `setlocale` returned {}",
+            String::from_utf8_lossy(&locale),
+        ),
+        Ok(None) => warn!("`setlocale` returned None"),
         Err(TextDomainError::TranslationNotFound(lang)) => {
             warn!("Translation not found for language {}", lang)
         }
