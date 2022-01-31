@@ -62,14 +62,20 @@ static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
 #[derive(Clone, Copy, Debug)]
 enum SeekState {
     Uncontrolled,
-    InWindow {
+    PlayRange {
+        expected_seqnum: Seqnum,
+        remaining_streams: usize,
+        ts_to_restore: ClockTime,
+        stop_to_restore: Option<ClockTime>,
+    },
+    PlayRangeRestore {
         expected_seqnum: Seqnum,
     },
     Stage1 {
         expected_seqnum: Seqnum,
-        remaining_streams: usize,
         accepts_audio_buffers: bool,
         target_ts: ClockTime,
+        stop_to_restore: Option<ClockTime>,
     },
     Stage2 {
         expected_seqnum: Seqnum,
@@ -84,7 +90,7 @@ impl Default for SeekState {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum PlaybackState {
     Paused,
     Playing,
@@ -126,6 +132,7 @@ struct AudioPipeline {
     renderer_queue: gst::Element,
     audio_queue: gst::Element,
     audio_queue_sinkpad: gst::Pad,
+    clock_ref: gst::Element,
 }
 
 #[derive(Debug)]
@@ -244,14 +251,18 @@ impl RendererBin {
         use SeekState::*;
 
         match event.view() {
-            // FIXME only retain actually selected streams among Video & Audio
             StreamCollection(evt) => {
+                // FIXME only retain actually selected streams among Video & Audio
                 self.state.lock().unwrap().stream_count = evt.stream_collection().len();
             }
             FlushStart(_) | FlushStop(_) => {
                 if let Stage2 {
                     expected_seqnum, ..
-                } = self.state.lock().unwrap().seek
+                }
+                | PlayRange {
+                    expected_seqnum, ..
+                }
+                | PlayRangeRestore { expected_seqnum } = self.state.lock().unwrap().seek
                 {
                     // Don't flush the renderer queue
                     if PadStream::Audio == pad_stream && expected_seqnum == event.seqnum() {
@@ -266,29 +277,68 @@ impl RendererBin {
 
                 match &mut state.seek {
                     Uncontrolled => (),
-                    InWindow { expected_seqnum } => {
-                        if seqnum != *expected_seqnum {
-                            return self.unexpected_segment(state, pad_stream, pad, bin, event);
-                        }
-
-                        event
-                            .make_mut()
-                            .structure_mut()
-                            .set(plugin::SegmentField::InWindow.as_str(), &"");
-
-                        state.seek = Uncontrolled;
-                    }
-                    Stage1 {
+                    PlayRange {
                         expected_seqnum,
                         remaining_streams,
-                        accepts_audio_buffers,
                         ..
                     } => {
                         if seqnum != *expected_seqnum {
                             return self.unexpected_segment(state, pad_stream, pad, bin, event);
                         }
 
+                        if PadStream::Audio == pad_stream {
+                            event
+                                .make_mut()
+                                .structure_mut()
+                                .set(plugin::SegmentField::PlayRange.as_str(), &true);
+                        }
+
                         *remaining_streams -= 1;
+                        if *remaining_streams == 0 {
+                            gst_debug!(CAT, obj: pad, "Got all play range Segments {:?}", seqnum);
+
+                            drop(state);
+                            let ret = pad.event_default(Some(bin), event);
+                            if ret {
+                                bin.parent_call_async(move |_bin, parent| {
+                                    let _ = parent.set_state(gst::State::Playing);
+                                });
+                            }
+
+                            return ret;
+                        } else {
+                            gst_debug!(CAT, obj: pad, "Got play range Segment {:?}", seqnum);
+                        }
+                    }
+                    PlayRangeRestore { expected_seqnum } => {
+                        if seqnum != *expected_seqnum {
+                            return self.unexpected_segment(state, pad_stream, pad, bin, event);
+                        }
+
+                        if PadStream::Audio == pad_stream {
+                            event
+                                .make_mut()
+                                .structure_mut()
+                                .set(plugin::SegmentField::RestoringPosition.as_str(), &true);
+                            state.seek = Uncontrolled;
+                            bin.emit_by_name::<()>(plugin::PLAY_RANGE_DONE_SIGNAL, &[]);
+                        }
+
+                        gst_debug!(
+                            CAT,
+                            obj: pad,
+                            "Got play range restoring Segment {:?}",
+                            seqnum
+                        );
+                    }
+                    Stage1 {
+                        expected_seqnum,
+                        accepts_audio_buffers,
+                        ..
+                    } => {
+                        if seqnum != *expected_seqnum {
+                            return self.unexpected_segment(state, pad_stream, pad, bin, event);
+                        }
 
                         if PadStream::Audio == pad_stream {
                             gst_debug!(CAT, obj: pad, "forwarding stage 1 segment {:?}", seqnum);
@@ -297,7 +347,7 @@ impl RendererBin {
                             event
                                 .make_mut()
                                 .structure_mut()
-                                .set(plugin::SegmentField::Stage1.as_str(), &"");
+                                .set(plugin::SegmentField::Stage1.as_str(), &true);
 
                             drop(state);
                             let ret = self.audio().renderer_queue_sinkpad.send_event(event);
@@ -326,19 +376,24 @@ impl RendererBin {
                             return self.unexpected_segment(state, pad_stream, pad, bin, event);
                         }
 
-                        gst_debug!(CAT, obj: pad, "got stage 2 segment {:?}", seqnum);
-                        event
-                            .make_mut()
-                            .structure_mut()
-                            .set(plugin::SegmentField::Stage2.as_str(), &"");
+                        if PadStream::Audio == pad_stream {
+                            event
+                                .make_mut()
+                                .structure_mut()
+                                .set(plugin::SegmentField::Stage2.as_str(), &true);
+                        }
 
                         *remaining_streams -= 1;
                         if *remaining_streams == 0 {
-                            gst_info!(CAT, obj: pad, "got all stage 2 segments {:?}", seqnum);
+                            gst_debug!(CAT, obj: pad, "got all stage 2 segments {:?}", seqnum);
 
                             state.seek = Uncontrolled;
-                        } else if PadStream::Video == pad_stream {
-                            *accepts_video_buffers = true;
+                        } else {
+                            gst_debug!(CAT, obj: pad, "got stage 2 segment {:?}", seqnum);
+
+                            if PadStream::Video == pad_stream {
+                                *accepts_video_buffers = true;
+                            }
                         }
                     }
                 }
@@ -346,13 +401,7 @@ impl RendererBin {
             SegmentDone(_) => {
                 // FIXME can't send stage 2 seek as soon as SegmentDone is received
                 // by bin since it takes time for the buffers to reach the renderer
-                // meaning that buffers can be flushed before they reach the renderer
-                // => so the renderer must be in charge of sending the stage 2 seek
-                // upon reception of SegmentDone.
-                // It's kind of unfortunate since it spreads the seek logic
-                // among the bin and the renderer element.
-                // Maybe we could use a custom upstream event that would indicate
-                // that the renderer element got the SegmentDone.
+                // meaning that buffers can be flushed before they reach the renderer.
 
                 let seqnum = event.seqnum();
                 let mut state = self.state.lock().unwrap();
@@ -423,11 +472,17 @@ impl RendererBin {
 
 /// Seek handler.
 impl RendererBin {
-    fn handle_seek(&self, pad: &GhostPad, bin: &plugin::RendererBin, event: gst::Event) -> bool {
+    fn handle_seek(
+        &self,
+        pad: &GhostPad,
+        bin: &plugin::RendererBin,
+        mut event: gst::Event,
+    ) -> bool {
+        use SeekState::*;
+
         let seqnum = event.seqnum();
 
-        // FIXME handle the ignored fields
-        let (_rate, _flags, start_type, start, _stop_type, stop) = match event.view() {
+        let (_rate, _flags, start_type, start, stop_type, stop) = match event.view() {
             gst::EventView::Seek(seek) => seek.get(),
             evt => panic!("Unexpected {:?} in handle_seek", evt),
         };
@@ -448,8 +503,8 @@ impl RendererBin {
         match start_type {
             gst::SeekType::Set => (),
             other => {
-                drop(state);
                 gst_debug!(CAT, obj: pad, "seek start type {:?} {:?}", other, seqnum);
+                drop(state);
                 return pad.event_default(Some(bin), event);
             }
         }
@@ -457,7 +512,6 @@ impl RendererBin {
         let target_ts: ClockTime = match TryFrom::try_from(start) {
             Ok(Some(start)) => start,
             other => {
-                drop(state);
                 if other.is_err() {
                     gst_debug!(
                         CAT,
@@ -469,53 +523,66 @@ impl RendererBin {
                 } else {
                     gst_debug!(CAT, obj: pad, "seek start is None {:?}", seqnum);
                 }
+                drop(state);
                 return pad.event_default(Some(bin), event);
             }
+        };
+
+        let stop_to_restore = match stop_type {
+            gst::SeekType::Set => pad
+                .sticky_event::<gst::event::Segment<_>>(0)
+                .and_then(|evt| match evt.segment().stop() {
+                    gst::GenericFormattedValue::Time(opt_ct) => opt_ct,
+                    _ => None,
+                }),
+            _ => None,
         };
 
         let stop: Option<ClockTime> = match TryFrom::try_from(stop) {
             Ok(stop) => stop,
             _err => {
-                drop(state);
                 gst_debug!(CAT, obj: pad, "not Time seek stop {:?} {:?}", stop, seqnum);
+                drop(state);
                 return pad.event_default(Some(bin), event);
             }
         };
 
-        if state.playback.is_playing() {
-            drop(state);
-            return pad.event_default(Some(bin), event);
-        }
+        let is_incoming_play_range = event.structure().map_or(false, |evt_struct| {
+            evt_struct.has_field(plugin::SeekField::PlayRange.as_str())
+        });
 
         match state.seek {
-            SeekState::Stage1 {
+            Stage1 {
+                expected_seqnum, ..
+            }
+            | Stage2 {
                 expected_seqnum, ..
             } if expected_seqnum == seqnum => {
+                gst_debug!(CAT, obj: pad, "Filtering additional seek {:?}", seqnum);
                 drop(state);
-                gst_debug!(
-                    CAT,
-                    obj: pad,
-                    "Filtering initial / stage 1 seek {:?}",
-                    seqnum,
-                );
                 return true;
             }
-            SeekState::Stage2 {
+            PlayRange {
                 expected_seqnum, ..
-            } if expected_seqnum == seqnum => {
-                drop(state);
-                gst_debug!(
-                    CAT,
-                    obj: pad,
-                    "Filtering additional stage 2 seek {:?}",
-                    seqnum
-                );
-                return true;
+            } => {
+                if expected_seqnum == seqnum {
+                    gst_debug!(CAT, obj: pad, "Filtering additional seek {:?}", seqnum);
+                    drop(state);
+                    return true;
+                } else if !is_incoming_play_range {
+                    // Let play range complete before submitting
+                    // a regular seek so as to keep state management easy.
+                    gst_warning!(
+                        CAT,
+                        obj: pad,
+                        "Play range: reject regular seek {:?}",
+                        seqnum
+                    );
+                    return false;
+                }
             }
             _ => (),
         }
-
-        // FIXME handle playing backward
 
         let window_ts = self
             .audio()
@@ -525,115 +592,78 @@ impl RendererBin {
         let window_ts = match window_ts {
             Some(window_ts) => window_ts,
             None => {
-                state.seek = SeekState::Uncontrolled;
-                drop(state);
+                state.seek = Uncontrolled;
                 gst_debug!(
                     CAT,
                     obj: pad,
                     "unknown rendering conditions for Seek starting @ {}",
                     target_ts,
                 );
+                drop(state);
                 return pad.event_default(Some(bin), event);
             }
         };
 
-        if Self::are_in_window(target_ts, stop, &window_ts) {
-            state.seek = SeekState::InWindow {
-                expected_seqnum: seqnum,
-            };
-            drop(state);
+        if is_incoming_play_range {
+            event = self.prepare_play_range_seek(
+                &mut state,
+                pad,
+                seqnum,
+                target_ts,
+                window_ts.end,
+                stop_to_restore,
+            );
 
+            drop(state);
+            return pad.event_default(Some(bin), event);
+        }
+
+        if state.playback.is_playing() {
             gst_debug!(
                 CAT,
                 obj: pad,
-                "Seek [{}, {}] in window {:?}",
+                "Seek [{}, {}] playing {:?}",
                 target_ts,
                 stop.display(),
                 seqnum,
             );
-
+            drop(state);
             return pad.event_default(Some(bin), event);
         }
 
-        if let Some(stage_1_start) = Self::first_ts_for_two_stages_seek(target_ts, &window_ts) {
-            // Make sure stage 1 includes target_ts
-            // FIXME use start / time correctly (this also includes AudioBuffer impl)
-            let stage_1_end = target_ts + ClockTime::MSECOND;
+        let stage_1_start = target_ts.saturating_sub(window_ts.range / 2);
+        let stage_1_end = target_ts + ClockTime::MSECOND;
 
-            gst_info!(
-                CAT,
-                obj: pad,
-                "Seek {:?} starting 2 stages seek: 1st [{}, {}], 2d {}",
-                seqnum,
-                stage_1_start,
-                stage_1_end,
-                target_ts,
-            );
-            let seek = gst::event::Seek::builder(
-                1f64,
-                gst::SeekFlags::ACCURATE | gst::SeekFlags::SEGMENT | gst::SeekFlags::FLUSH,
-                gst::SeekType::Set,
-                stage_1_start,
-                gst::SeekType::Set,
-                stage_1_end,
-            )
-            .seqnum(seqnum)
-            .build();
-
-            state.seek = SeekState::Stage1 {
-                expected_seqnum: seqnum,
-                remaining_streams: state.stream_count,
-                // Wait for the segment to be received on the audio pad before accepting buffers
-                accepts_audio_buffers: false,
-                target_ts,
-            };
-
-            drop(state);
-            return pad.event_default(Some(bin), seek);
-        }
-
-        state.seek = SeekState::Uncontrolled;
-        drop(state);
-        gst_debug!(
+        gst_info!(
             CAT,
             obj: pad,
-            "regular seek {:?} starting @ {} in Paused",
+            "Seek {:?} starting 2 stages seek: 1st [{}, {}], 2d {}",
             seqnum,
-            target_ts.display(),
+            stage_1_start,
+            stage_1_end,
+            target_ts,
         );
+        event = gst::event::Seek::builder(
+            1f64,
+            gst::SeekFlags::ACCURATE | gst::SeekFlags::SEGMENT | gst::SeekFlags::FLUSH,
+            gst::SeekType::Set,
+            stage_1_start,
+            gst::SeekType::Set,
+            stage_1_end,
+        )
+        .seqnum(seqnum)
+        .build();
 
+        state.seek = Stage1 {
+            expected_seqnum: seqnum,
+            // Wait for the segment to be received on the audio pad before accepting buffers
+            accepts_audio_buffers: false,
+            target_ts,
+            stop_to_restore,
+        };
+
+        drop(state);
         pad.event_default(Some(bin), event)
-    }
-
-    fn are_in_window(start: ClockTime, end: Option<ClockTime>, window: &WindowTimestamps) -> bool {
-        if start.opt_lt(window.start).unwrap_or(true) {
-            return false;
-        }
-
-        if start.opt_ge(window.end).unwrap_or(true)
-            // Take a margin with the requested end ts because it might be rounded up
-            // FIXME find a better way to deal with this
-            || end.opt_saturating_sub(window.range / 10).opt_gt(window.start.opt_add(window.end)).unwrap_or(true)
-        {
-            return false;
-        }
-
-        true
-    }
-
-    fn first_ts_for_two_stages_seek(
-        target: ClockTime,
-        window: &WindowTimestamps,
-    ) -> Option<ClockTime> {
-        let wanted_first = target.saturating_sub(window.range / 2);
-
-        if wanted_first.opt_ge(window.start).unwrap_or(false)
-            && wanted_first.opt_lt(window.end).unwrap_or(false)
-        {
-            return None;
-        }
-
-        Some(wanted_first)
     }
 
     fn unexpected_segment(
@@ -657,20 +687,92 @@ impl RendererBin {
         pad.event_default(Some(bin), event)
     }
 
+    fn prepare_play_range_seek(
+        &self,
+        state: &mut MutexGuard<State>,
+        pad: &GhostPad,
+        seqnum: Seqnum,
+        target_ts: ClockTime,
+        window_end: Option<ClockTime>,
+        stop_to_restore: Option<ClockTime>,
+    ) -> gst::Event {
+        use SeekState::*;
+
+        let stream_count = state.stream_count;
+
+        if let PlayRange {
+            expected_seqnum,
+            remaining_streams,
+            ts_to_restore,
+            stop_to_restore,
+        } = &mut state.seek
+        {
+            gst_debug!(
+                CAT,
+                obj: pad,
+                "Updating play range [{}, {}] final [{}, {}] {:?}",
+                target_ts,
+                window_end.display(),
+                ts_to_restore,
+                stop_to_restore.display(),
+                seqnum,
+            );
+
+            *expected_seqnum = seqnum;
+            *remaining_streams = stream_count;
+        } else {
+            let mut position_query = gst::query::Position::new(gst::Format::Time);
+            self.audio().clock_ref.query(&mut position_query);
+            let ts_to_restore = match position_query.result() {
+                gst::GenericFormattedValue::Time(opt_ct) => opt_ct.unwrap(),
+                other => unreachable!("got {:?}", other),
+            };
+
+            gst_debug!(
+                CAT,
+                obj: pad,
+                "Seek [{}, {}] for range playing final [{}, {}] {:?}",
+                target_ts,
+                window_end.display(),
+                ts_to_restore,
+                stop_to_restore.display(),
+                seqnum,
+            );
+
+            state.seek = PlayRange {
+                expected_seqnum: seqnum,
+                remaining_streams: stream_count,
+                ts_to_restore,
+                stop_to_restore,
+            };
+        }
+
+        gst::event::Seek::builder(
+            1f64,
+            gst::SeekFlags::ACCURATE | gst::SeekFlags::FLUSH | gst::SeekFlags::SEGMENT,
+            gst::SeekType::Set,
+            Some(target_ts),
+            gst::SeekType::Set,
+            window_end,
+        )
+        .seqnum(seqnum)
+        .build()
+    }
+
     fn send_stage_2_seek(
         &self,
         mut state: MutexGuard<State>,
         bin: &plugin::RendererBin,
         target_ts: ClockTime,
+        stop_to_restore: Option<ClockTime>,
     ) {
         let seek_event = gst::event::Seek::new(
             1f64,
             gst::SeekFlags::ACCURATE | gst::SeekFlags::FLUSH,
             gst::SeekType::Set,
             Some(target_ts),
-            // FIXME restore the end defined prior to the 2 stages seek
             gst::SeekType::Set,
-            ClockTime::NONE,
+            stop_to_restore,
         );
 
         let seqnum = seek_event.seqnum();
@@ -680,20 +782,62 @@ impl RendererBin {
             accepts_video_buffers: false,
         };
 
-        drop(state);
-
-        gst_info!(
+        gst_debug!(
             CAT,
             obj: bin,
             "stage 1 segment handled, pushing stage 2 {} {:?}",
             target_ts,
             seqnum,
         );
-
         let sinkpad = self.audio().sinkpad.clone();
+
         bin.call_async(move |_| {
             sinkpad.push_event(seek_event);
         });
+    }
+
+    fn in_sync_probe(bin: plugin::RendererBin, info: &gst::PadProbeInfo) {
+        if let Some(gst::PadProbeData::Event(event)) = info.data.as_ref() {
+            if let gst::EventView::SegmentDone(_) = event.view() {
+                gst_debug!(CAT, obj: &bin, "Got SegmentDone from the in-sync stream");
+
+                let imp = bin.imp();
+                let mut state = imp.state.lock().unwrap();
+                if let SeekState::PlayRange {
+                    ts_to_restore,
+                    stop_to_restore,
+                    ..
+                } = state.seek
+                {
+                    let seek = gst::event::Seek::new(
+                        1f64,
+                        gst::SeekFlags::ACCURATE | gst::SeekFlags::FLUSH,
+                        gst::SeekType::Set,
+                        Some(ts_to_restore),
+                        gst::SeekType::Set,
+                        stop_to_restore,
+                    );
+
+                    state.seek = SeekState::PlayRangeRestore {
+                        expected_seqnum: seek.seqnum(),
+                    };
+
+                    let sinkpad = imp.audio().sinkpad.clone();
+                    bin.parent_call_async(move |bin, parent| {
+                        if parent.set_state(gst::State::Paused).is_ok() {
+                            gst_debug!(
+                                CAT,
+                                obj: bin,
+                                "Play range: restoring position with seek {:?}",
+                                seek.seqnum(),
+                            );
+
+                            sinkpad.push_event(seek);
+                        }
+                    });
+                }
+            }
+        }
     }
 }
 
@@ -717,7 +861,7 @@ impl RendererBin {
             _ => panic!("AudioPipeline already initialized"),
         };
 
-        let audio_tee = gst::ElementFactory::make("tee", Some("renderer-audio-tee")).unwrap();
+        let tee = gst::ElementFactory::make("tee", Some("renderer-audio-tee")).unwrap();
 
         let renderer_queue = Self::new_queue("renderer-queue");
         let renderer_queue_sinkpad = renderer_queue.static_pad("sink").unwrap();
@@ -740,18 +884,16 @@ impl RendererBin {
         bin.add(&audio_queue).unwrap();
 
         // Audio tee
-        bin.add(&audio_tee).unwrap();
-        let audio_tee_renderer_src = audio_tee.request_pad_simple("src_%u").unwrap();
-        audio_tee_renderer_src
-            .link(&renderer_queue_sinkpad)
-            .unwrap();
+        bin.add(&tee).unwrap();
+        let tee_renderer_src = tee.request_pad_simple("src_%u").unwrap();
+        tee_renderer_src.link(&renderer_queue_sinkpad).unwrap();
 
-        let audio_tee_audio_src = audio_tee.request_pad_simple("src_%u").unwrap();
-        audio_tee_audio_src
+        let tee_audio_src = tee.request_pad_simple("src_%u").unwrap();
+        tee_audio_src
             .link(&audio_queue.static_pad("sink").unwrap())
             .unwrap();
 
-        let mut elements = vec![&audio_tee, &audio_queue];
+        let mut elements = vec![&tee, &audio_queue];
         elements.extend_from_slice(renderer_elements);
 
         // GhostPads
@@ -776,7 +918,7 @@ impl RendererBin {
         .build();
 
         sinkpad
-            .set_target(Some(&audio_tee.static_pad("sink").unwrap()))
+            .set_target(Some(&tee.static_pad("sink").unwrap()))
             .unwrap();
         bin.add_pad(&sinkpad).unwrap();
 
@@ -793,20 +935,27 @@ impl RendererBin {
         })
         .build();
 
-        srcpad
-            .set_target(Some(&audio_queue.static_pad("src").unwrap()))
-            .unwrap();
+        let audio_queue_srcpad = audio_queue.static_pad("src").unwrap();
+        srcpad.set_target(Some(&audio_queue_srcpad)).unwrap();
         bin.add_pad(&srcpad).unwrap();
+
+        audio_queue_srcpad
+            .add_probe(
+                gst::PadProbeType::EVENT_DOWNSTREAM,
+                glib::clone!(@weak bin => @default-panic, move |_pad, info| {
+                    Self::in_sync_probe(bin, info);
+                    gst::PadProbeReturn::Ok
+                }),
+            )
+            .unwrap();
 
         renderer.set_property(
             plugin::renderer::DBL_RENDERER_IMPL_PROP,
             renderer_init.dbl_renderer_impl.as_ref().unwrap(),
         );
 
-        renderer.set_property(
-            plugin::renderer::CLOCK_REF_PROP,
-            renderer_init.clock_ref.as_ref().unwrap(),
-        );
+        let clock_ref = renderer_init.clock_ref.as_ref().unwrap().clone();
+        renderer.set_property(plugin::renderer::CLOCK_REF_PROP, &clock_ref);
 
         renderer.connect(
             plugin::renderer::SEGMENT_DONE_SIGNAL,
@@ -816,9 +965,10 @@ impl RendererBin {
 
                 use SeekState::*;
                 match &mut state.seek {
-                    Stage1 { target_ts, .. } => {
+                    Stage1 { target_ts, stop_to_restore, .. } => {
                         let target_ts = *target_ts;
-                        bin.imp().send_stage_2_seek(state, &bin, target_ts);
+                        let stop_to_restore = *stop_to_restore;
+                        bin.imp().send_stage_2_seek(state, &bin, target_ts, stop_to_restore);
                     }
                     other => {
                         gst_debug!(CAT, obj: &bin, "renderer sent segment done in {:?}", other);
@@ -846,6 +996,7 @@ impl RendererBin {
             renderer_queue,
             audio_queue,
             audio_queue_sinkpad,
+            clock_ref,
         });
     }
 
@@ -1013,6 +1164,9 @@ impl ObjectImpl for RendererBin {
     fn signals() -> &'static [Signal] {
         static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
             vec![
+                Signal::builder(plugin::PLAY_RANGE_DONE_SIGNAL, &[], glib::Type::UNIT.into())
+                    .run_last()
+                    .build(),
                 // FIXME this one could be avoided with a dedicated widget
                 Signal::builder(plugin::MUST_REFRESH_SIGNAL, &[], glib::Type::UNIT.into())
                     .run_last()
@@ -1028,38 +1182,40 @@ impl ObjectImpl for RendererBin {
 impl RendererBin {
     fn prepare(&self, bin: &plugin::RendererBin) -> Result<(), gst::ErrorMessage> {
         gst_debug!(CAT, obj: bin, "Preparing");
-        self.state.lock().unwrap().playback = PlaybackState::Prepared;
+        let mut state = self.state.lock().unwrap();
+        state.playback = PlaybackState::Prepared;
         gst_debug!(CAT, obj: bin, "Prepared");
         Ok(())
     }
 
     fn unprepare(&self, bin: &plugin::RendererBin) {
         gst_debug!(CAT, obj: bin, "Unpreparing");
-        self.state.lock().unwrap().playback = PlaybackState::Unprepared;
+        let mut state = self.state.lock().unwrap();
+        state.playback = PlaybackState::Unprepared;
         gst_debug!(CAT, obj: bin, "Unprepared");
     }
 
     fn stop(&self, bin: &plugin::RendererBin) -> Result<(), gst::ErrorMessage> {
         gst_debug!(CAT, obj: bin, "Stopping");
-        self.state.lock().unwrap().playback = PlaybackState::Stopped;
+        let mut state = self.state.lock().unwrap();
+        state.playback = PlaybackState::Stopped;
+        state.seek = SeekState::Uncontrolled;
         gst_debug!(CAT, obj: bin, "Stopped");
         Ok(())
     }
 
     fn play(&self, bin: &plugin::RendererBin) -> Result<(), gst::ErrorMessage> {
         gst_debug!(CAT, obj: bin, "Starting");
-        self.state.lock().unwrap().playback = PlaybackState::Playing;
+        let mut state = self.state.lock().unwrap();
+        state.playback = PlaybackState::Playing;
         gst_debug!(CAT, obj: bin, "Started");
         Ok(())
     }
 
     fn pause(&self, bin: &plugin::RendererBin) -> Result<(), gst::ErrorMessage> {
         gst_debug!(CAT, obj: bin, "Pausing");
-        {
-            let mut state = self.state.lock().unwrap();
-            state.playback = PlaybackState::Paused;
-            state.seek = SeekState::Uncontrolled;
-        }
+        let mut state = self.state.lock().unwrap();
+        state.playback = PlaybackState::Paused;
         gst_debug!(CAT, obj: bin, "Paused");
         Ok(())
     }

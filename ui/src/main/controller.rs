@@ -27,10 +27,10 @@ pub enum State {
     EosPaused,
     EosPlaying,
     Paused,
-    PausedPlayingRange(Timestamp),
+    PausedPlayingRange,
     PendingSelectMediaDecision,
     Playing,
-    PlayingRange(Timestamp),
+    PlayingRange,
     Stopped,
 }
 
@@ -190,15 +190,15 @@ impl Controller {
                     self.audio.play();
                 }
             }
-            PlayingRange(to_restore) => {
+            PlayingRange => {
                 self.pipeline.as_mut().unwrap().pause().await.unwrap();
                 self.audio.pause();
                 self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
-                self.state = PausedPlayingRange(to_restore);
+                self.state = PausedPlayingRange;
             }
-            PausedPlayingRange(to_restore) => {
+            PausedPlayingRange => {
                 self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
-                self.state = PlayingRange(to_restore);
+                self.state = PlayingRange;
                 self.pipeline.as_mut().unwrap().play().await.unwrap();
                 self.audio.play();
             }
@@ -255,59 +255,6 @@ impl Controller {
         Ok(())
     }
 
-    // FIXME remove
-    /*
-    pub fn seek(&mut self, mut ts: Timestamp, mut flags: gst::SeekFlags) {
-        match self.state {
-            State::Playing => {
-                self.state = State::Seeking(ts);
-                self.audio.seek();
-            }
-            State::Paused | State::PausedPlayingRange(_) => {
-                flags = gst::SeekFlags::ACCURATE;
-                let seek_1st_step = self.audio.first_ts_for_paused_seek(ts);
-                match seek_1st_step {
-                    Some(seek_1st_step) => {
-                        let seek_2d_step = ts;
-                        ts = seek_1st_step;
-                        self.state = State::TwoStepsSeek(seek_2d_step);
-                        self.audio.seek();
-                    }
-                    None => {
-                        self.state = State::Seeking(ts);
-                        self.audio.seek();
-                    }
-                }
-            }
-            State::PlayingRange(_) => {
-                self.state = State::PendingSeek(ts);
-                self.pipeline.as_ref().unwrap().pause().unwrap();
-                return;
-            }
-            State::TwoStepsSeek(target) => {
-                // seeked position and target might be different if the user
-                // seeks repeatedly and rapidly: we can receive a new seek while still
-                // being in the `TwoStepsSeek` step from previous seek.
-                // Currently, I think it is better to favor completing the in-progress
-                // `TwoStepsSeek` (which purpose is to center the cursor on the waveform)
-                // than reaching for the latest seeked position
-                ts = target;
-                self.state = State::Seeking(ts);
-            }
-            State::EOS => {
-                self.state = State::Seeking(ts);
-                self.audio.play();
-                self.audio.seek();
-            }
-            _ => return,
-        }
-
-        debug!("triggerging seek {} {:?}", ts, self.state);
-
-        self.pipeline.as_ref().unwrap().seek(ts, flags);
-    }
-    */
-
     fn stop(&mut self) {
         if let Some(mut pipeline) = self.pipeline.take() {
             let _ = pipeline.stop();
@@ -354,16 +301,40 @@ impl Controller {
         self.video.streams_changed(&info);
     }
 
-    pub fn play_range(&mut self, start: Timestamp, end: Timestamp, to_restore: Timestamp) {
+    pub async fn play_range(&mut self, start: Timestamp) -> Result<(), ()> {
         match self.state {
-            State::Paused | State::PlayingRange(_) | State::PausedPlayingRange(_) => {
+            State::Paused | State::PlayingRange | State::PausedPlayingRange => {
                 self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
-                self.audio.start_play_range(to_restore);
+                self.audio.start_play_range();
+                self.state = State::PlayingRange;
 
-                self.state = State::PlayingRange(to_restore);
-                self.pipeline.as_ref().unwrap().seek_range(start, end);
+                match self.pipeline.as_mut().unwrap().play_range(start).await {
+                    Ok(()) => {
+                        // FIXME probably need to reflect the state on the UI side
+                    }
+                    Err(SeekError::Eos) => {
+                        // FIXME used to be an event
+                        self.eos().await;
+                    }
+                    Err(SeekError::Unrecoverable) => {
+                        // FIXME probably would need to report an error
+                        self.stop();
+                        return Err(());
+                    }
+                }
             }
             _ => (),
+        }
+
+        Ok(())
+    }
+
+    pub async fn play_range_done(&mut self) {
+        self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
+
+        if let State::PlayingRange = self.state {
+            self.audio.stop_play_range();
+            self.state = State::Paused;
         }
     }
 
@@ -377,23 +348,9 @@ impl Controller {
                 self.state = EosPaused;
             }
             Playing => self.state = EosPlaying,
-            PlayingRange(pos_to_restore) => {
-                // FIXME still necessary?
+            PlayingRange => {
                 self.audio.stop_play_range();
-                if let Some(pipeline) = self.pipeline.as_mut() {
-                    // FIXME handle error
-                    pipeline.pause().await.unwrap();
-                    pipeline
-                        .seek(
-                            pos_to_restore,
-                            gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
-                        )
-                        .await
-                        .unwrap();
-                    self.state = Paused;
-                } else {
-                    unreachable!("Playing range without a pipeline");
-                }
+                self.state = EosPaused;
             }
             _ => (),
         }
@@ -408,85 +365,6 @@ impl Controller {
             pipeline.pause().await.unwrap();
         };
     }
-
-    // FIXME remove
-    /*
-    pub fn handle_media_event(&mut self, event: MediaEvent) {
-        match self.state {
-            State::Playing => match event {
-                MediaEvent::Eos => {
-                    self.state = State::EOS;
-                    self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
-                    self.audio.pause();
-                }
-                // FIXME select_stream might be eligible for an async impl
-                MediaEvent::StreamsSelected => self.streams_selected(),
-                _ => (),
-            },
-            State::PlayingRange(pos_to_restore) => match event {
-                MediaEvent::Eos => {
-                    // end of range => pause and seek back to pos_to_restore
-                    self.pipeline.as_ref().unwrap().pause().unwrap();
-                    self.state = State::CompletePlayRange(pos_to_restore);
-                }
-                // FIXME select_stream might be eligible for an async impl
-                MediaEvent::StreamsSelected => self.streams_selected(),
-                _ => (),
-            },
-            State::CompletePlayRange(pos_to_restore) => match event {
-                MediaEvent::ReadyToRefresh => {
-                    self.pipeline
-                        .as_ref()
-                        .unwrap()
-                        .seek(pos_to_restore, gst::SeekFlags::ACCURATE);
-                }
-                MediaEvent::AsyncDone(_) => {
-                    self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
-                    self.state = State::Paused;
-                    self.audio.stop_play_range();
-                }
-                _ => (),
-            },
-            State::Seeking(ts) => {
-                if let MediaEvent::AsyncDone(playback_state) = event {
-                    match playback_state {
-                        PlaybackState::Playing => self.state = State::Playing,
-                        PlaybackState::Paused => self.state = State::Paused,
-                    }
-
-                    debug!("seek to {} done", ts);
-                    self.info.seek_done(ts);
-                    self.audio.seek_done(ts);
-                }
-            }
-            State::TwoStepsSeek(target) => {
-                if let MediaEvent::ReadyToRefresh = event {
-                    self.seek(target, gst::SeekFlags::ACCURATE);
-                }
-            }
-            State::Paused => match event {
-                MediaEvent::ReadyToRefresh => self.audio.refresh(),
-                // FIXME select_stream might be eligible for an async impl
-                MediaEvent::StreamsSelected => self.streams_selected(),
-                _ => (),
-            },
-            State::EOS | State::PausedPlayingRange(_) => {
-                if let MediaEvent::StreamsSelected = event {
-                    // FIXME select_stream might be eligible for an async impl
-                    self.streams_selected();
-                }
-            }
-            // FIXME Pending states seem to be eligible for async implementations
-            State::PendingSeek(ts) => {
-                if let MediaEvent::ReadyToRefresh = event {
-                    self.state = State::Paused;
-                    self.seek(ts, gst::SeekFlags::ACCURATE);
-                }
-            }
-            State::Stopped | State::PendingSelectMediaDecision => (), // FIXME
-        }
-    }
-    */
 
     pub async fn select_media(&mut self) {
         if let State::Playing | State::EosPlaying = self.state {
@@ -557,6 +435,7 @@ impl Controller {
                                 break;
                             }
                             MustRefresh => audio::refresh(),
+                            PlayRangeDone => playback::play_range_done(),
                             other => unreachable!("{:?}", other),
                         }
                     }

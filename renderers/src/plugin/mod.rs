@@ -6,6 +6,20 @@ glib::wrapper! {
     pub struct RendererBin(ObjectSubclass<bin::RendererBin>) @extends gst::Bin, gst::Element, gst::Object;
 }
 
+impl RendererBin {
+    /// Asynchronoulsy call the provided function on the parent.
+    ///
+    /// This is useful to set the state of the pipeline.
+    fn parent_call_async(&self, f: impl FnOnce(&RendererBin, &gst::Element) + Send + 'static) {
+        match self.parent() {
+            Some(parent) => parent.downcast_ref::<gst::Element>().unwrap().call_async(
+                glib::clone!(@weak self as bin => @default-panic, move |parent| f(&bin, parent)),
+            ),
+            None => unreachable!("media-toc renderer bin has no parent"),
+        }
+    }
+}
+
 unsafe impl Send for RendererBin {}
 unsafe impl Sync for RendererBin {}
 
@@ -20,11 +34,13 @@ unsafe impl Sync for Renderer {}
 
 pub(crate) mod renderer;
 pub use renderer::{
-    SegmentField, BUFFER_SIZE_PROP, CLOCK_REF_PROP, DBL_RENDERER_IMPL_PROP, MUST_REFRESH_SIGNAL,
-    NAME as RENDERER_NAME, SEGMENT_DONE_SIGNAL,
+    SeekField, SegmentField, BUFFER_SIZE_PROP, CLOCK_REF_PROP, DBL_RENDERER_IMPL_PROP,
+    MUST_REFRESH_SIGNAL, NAME as RENDERER_NAME, SEGMENT_DONE_SIGNAL,
 };
 
 pub(crate) use renderer::GET_WINDOW_TIMESTAMPS_SIGNAL;
+
+pub const PLAY_RANGE_DONE_SIGNAL: &str = "play-range-done";
 
 gst::plugin_define!(
     mediatocvisu,

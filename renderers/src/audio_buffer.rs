@@ -275,12 +275,15 @@ impl AudioBuffer {
                 }
             } else if incoming_lower >= self.lower && incoming_upper <= self.upper {
                 // 2. incoming gst_buffer included in current container
-                debug!(
+                trace!(
                     concat!(
                         "case 2. contained in current container ",
                         "self [{}, {}], incoming [{}, {}]",
                     ),
-                    self.lower, self.upper, incoming_lower, incoming_upper
+                    self.lower,
+                    self.upper,
+                    incoming_lower,
+                    incoming_upper
                 );
 
                 ProcessingInstructions {
@@ -365,7 +368,7 @@ impl AudioBuffer {
             && lower_to_keep.min(incoming_lower)
                 > self.lower + SampleIndexRange::new(self.drain_size / self.channels)
         {
-            debug!("draining... len before: {}", self.samples.len());
+            trace!("draining... len before: {}", self.samples.len());
             self.samples.drain(..self.drain_size);
             self.lower += SampleIndexRange::new(self.drain_size / self.channels);
         }

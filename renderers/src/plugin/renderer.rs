@@ -38,8 +38,20 @@ static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     )
 });
 
+// FIXME: merge Fields in a single enum?
+pub enum SeekField {
+    PlayRange,
+}
+
+impl SeekField {
+    pub const fn as_str(&self) -> &str {
+        "play-range"
+    }
+}
+
 pub enum SegmentField {
-    InWindow,
+    PlayRange,
+    RestoringPosition,
     Stage1,
     Stage2,
 }
@@ -48,7 +60,8 @@ impl SegmentField {
     pub const fn as_str(&self) -> &str {
         use SegmentField::*;
         match self {
-            InWindow => "in-window",
+            PlayRange => "play-range",
+            RestoringPosition => "restore-ts",
             Stage1 => "stage-1",
             Stage2 => "stage-2",
         }
@@ -95,10 +108,11 @@ impl State {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum SeekState {
-    None,
+    Uncontrolled,
     DoneOn1stBuffer { target_ts: ClockTime },
+    PlayRange,
     TwoStages,
 }
 
@@ -109,13 +123,13 @@ impl SeekState {
     }
 
     fn take(&mut self) -> Self {
-        std::mem::replace(self, SeekState::None)
+        std::mem::replace(self, SeekState::Uncontrolled)
     }
 }
 
 impl Default for SeekState {
     fn default() -> Self {
-        SeekState::None
+        SeekState::Uncontrolled
     }
 }
 
@@ -124,7 +138,6 @@ struct Context {
     dbl_renderer: Option<DoubleRenderer>,
     seek: SeekState,
     segment_seqnum: Option<gst::Seqnum>,
-    in_window_segment: bool,
     state: State,
     settings: Settings,
 }
@@ -155,7 +168,7 @@ impl Renderer {
         let mut ctx = self.ctx.lock().unwrap();
         //gst_trace!(CAT, obj: pad, "{:?} / {:?}", buffer, ctx.seek);
         match ctx.seek {
-            None => {
+            Uncontrolled | PlayRange => {
                 let must_notify =
                     ctx.dbl_renderer().push_buffer(&buffer) && !ctx.state.is_playing();
                 drop(ctx);
@@ -170,11 +183,13 @@ impl Renderer {
             }
             DoneOn1stBuffer { target_ts } => {
                 ctx.dbl_renderer().push_buffer(&buffer);
+                ctx.dbl_renderer().seek_done(target_ts.try_into().unwrap());
                 if let State::Paused = ctx.state {
                     ctx.dbl_renderer().refresh();
+                } else {
+                    ctx.dbl_renderer().release();
                 }
-                ctx.dbl_renderer().seek_done(target_ts.try_into().unwrap());
-                ctx.seek = None;
+                ctx.seek = Uncontrolled;
                 drop(ctx);
 
                 gst_info!(CAT, obj: pad, "Streaming from {}", target_ts.display());
@@ -188,6 +203,7 @@ impl Renderer {
 
     fn sink_event(&self, pad: &Pad, element: &plugin::Renderer, event: Event) -> bool {
         use gst::EventView::*;
+        use SeekState::*;
 
         match event.view() {
             Caps(caps_evt) => {
@@ -210,10 +226,8 @@ impl Renderer {
                     ctx.dbl_renderer().handle_eos();
                     drop(ctx);
                     gst_debug!(CAT, obj: pad, "reached EOS");
-                    //element.emit(MUST_REFRESH_SIGNAL, &[]).unwrap();
                 }
 
-                // Don't foward yet, we still have frames to render.
                 return true;
             }
             Segment(evt) => {
@@ -243,7 +257,7 @@ impl Renderer {
                         );
                         ctx.dbl_renderer().seek_start();
                         ctx.dbl_renderer().have_segment(segment);
-                        ctx.seek = SeekState::TwoStages;
+                        ctx.seek = TwoStages;
                         was_handled = true;
                     } else if structure.has_field(SegmentField::Stage2.as_str()) {
                         gst_debug!(
@@ -254,43 +268,55 @@ impl Renderer {
                             event.seqnum(),
                         );
                         ctx.dbl_renderer().have_segment(segment);
-                        ctx.seek = SeekState::DoneOn1stBuffer { target_ts: start };
+                        ctx.seek = DoneOn1stBuffer { target_ts: start };
                         was_handled = true;
-                    } else if structure.has_field(SegmentField::InWindow.as_str()) {
-                        gst_info!(
+                    } else if structure.has_field(SegmentField::PlayRange.as_str()) {
+                        gst_debug!(
                             CAT,
                             obj: pad,
-                            "got segment in window starting @ {} {:?}",
+                            "got play range segment starting @ {} {:?}",
                             start,
                             event.seqnum(),
                         );
-                        ctx.dbl_renderer().freeze();
-                        ctx.dbl_renderer().seek_start();
                         ctx.dbl_renderer().have_segment(segment);
-                        ctx.seek = SeekState::DoneOn1stBuffer { target_ts: start };
+                        ctx.seek = PlayRange;
+                        was_handled = true;
+                    } else if structure.has_field(SegmentField::RestoringPosition.as_str()) {
+                        gst_info!(
+                            CAT,
+                            obj: pad,
+                            "got play range restoring segment starting @ {} {:?}",
+                            start,
+                            event.seqnum(),
+                        );
+                        ctx.dbl_renderer().have_segment(segment);
+                        ctx.seek = DoneOn1stBuffer { target_ts: start };
                         was_handled = true;
                     }
                 }
 
                 if !was_handled {
-                    gst_info!(
+                    gst_debug!(
                         CAT,
                         obj: pad,
                         "got segment starting @ {} {:?}",
                         start,
                         event.seqnum(),
                     );
+
                     if ctx.state.is_playing() {
                         ctx.dbl_renderer().release();
                     }
                     ctx.dbl_renderer().seek_start();
                     ctx.dbl_renderer().have_segment(segment);
-                    ctx.seek = SeekState::DoneOn1stBuffer { target_ts: start };
+                    ctx.seek = DoneOn1stBuffer { target_ts: start };
                 }
             }
             SegmentDone(_) => {
-                gst_debug!(CAT, obj: pad, "got segment done {:?}", event.seqnum(),);
-                element.emit_by_name::<()>(SEGMENT_DONE_SIGNAL, &[]);
+                if self.ctx.lock().unwrap().seek == SeekState::TwoStages {
+                    gst_debug!(CAT, obj: pad, "got segment done {:?}", event.seqnum());
+                    element.emit_by_name::<()>(SEGMENT_DONE_SIGNAL, &[]);
+                }
             }
             StreamStart(_) => {
                 // FIXME isn't there a StreamChanged?
@@ -488,8 +514,8 @@ impl ObjectImpl for Renderer {
 /// State change
 impl Renderer {
     fn prepare(&self, element: &plugin::Renderer) -> Result<(), gst::ErrorMessage> {
-        let mut ctx = self.ctx.lock().unwrap();
         gst_debug!(CAT, obj: element, "Preparing");
+        let mut ctx = self.ctx.lock().unwrap();
 
         let dbl_renderer_impl = ctx.settings.dbl_renderer_impl.take().ok_or_else(|| {
             let msg = "Double Renderer implementation not set";
@@ -515,47 +541,40 @@ impl Renderer {
     }
 
     fn play(&self, element: &plugin::Renderer) -> Result<(), gst::ErrorMessage> {
+        gst_debug!(CAT, obj: element, "Starting");
         let mut ctx = self.ctx.lock().unwrap();
-
-        if !(ctx.in_window_segment || ctx.seek.is_seeking()) {
+        if !(ctx.seek == SeekState::PlayRange || ctx.seek.is_seeking()) {
             ctx.dbl_renderer().release();
         }
         ctx.state = State::Playing;
-
-        gst_debug!(CAT, obj: element, "Playing");
+        gst_debug!(CAT, obj: element, "Started");
         Ok(())
     }
 
     fn pause(&self, element: &plugin::Renderer) -> Result<(), gst::ErrorMessage> {
-        let mut ctx = self.ctx.lock().unwrap();
         gst_debug!(CAT, obj: element, "Pausing");
-
+        let mut ctx = self.ctx.lock().unwrap();
         ctx.dbl_renderer().freeze();
         ctx.state = State::Paused;
-
         gst_debug!(CAT, obj: element, "Paused");
         Ok(())
     }
 
     fn stop(&self, element: &plugin::Renderer) -> Result<(), gst::ErrorMessage> {
-        let mut ctx = self.ctx.lock().unwrap();
         gst_debug!(CAT, obj: element, "Stopping");
-
+        let mut ctx = self.ctx.lock().unwrap();
         ctx.state = State::Stopped;
-
+        ctx.seek = SeekState::Uncontrolled;
         gst_debug!(CAT, obj: element, "Stopped");
         Ok(())
     }
 
     fn unprepare(&self, element: &plugin::Renderer) {
-        let mut ctx = self.ctx.lock().unwrap();
         gst_debug!(CAT, obj: element, "Unpreparing");
-
+        let mut ctx = self.ctx.lock().unwrap();
         let dbl_renderer_impl = ctx.dbl_renderer.take().map(DoubleRenderer::into_impl);
         assert!(dbl_renderer_impl.is_some());
-
         ctx.settings.dbl_renderer_impl = dbl_renderer_impl;
-
         ctx.state = State::Unprepared;
         gst_debug!(CAT, obj: element, "Unprepared");
     }

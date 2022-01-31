@@ -16,9 +16,8 @@ pub enum Event {
     PlayPause,
     PlayRange {
         start: Timestamp,
-        end: Timestamp,
-        ts_to_restore: Timestamp,
     },
+    PlayRangeDone,
     ClearSeek,
     Seek {
         target: Timestamp,
@@ -46,12 +45,12 @@ pub fn play_pause() {
     UIEventChannel::send(Event::PlayPause);
 }
 
-pub fn play_range(start: Timestamp, end: Timestamp, ts_to_restore: Timestamp) {
-    UIEventChannel::send(Event::PlayRange {
-        start,
-        end,
-        ts_to_restore,
-    });
+pub fn play_range(start: Timestamp) {
+    UIEventChannel::send(Event::PlayRange { start });
+}
+
+pub fn play_range_done() {
+    UIEventChannel::send(Event::PlayRangeDone);
 }
 
 pub fn seek(target: impl Into<Timestamp>, flags: gst::SeekFlags) {

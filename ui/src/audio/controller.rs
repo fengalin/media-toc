@@ -32,9 +32,9 @@ pub enum State {
     CursorAboveBoundary(Timestamp),
     MovingBoundary(Timestamp),
     Playing,
-    PlayingRange(Timestamp),
+    PlayingRange,
     Paused,
-    PausedPlayingRange(Timestamp),
+    PausedPlayingRange,
 }
 
 #[derive(Debug)]
@@ -184,8 +184,8 @@ impl Controller {
             State::Playing => {
                 self.state = State::Paused;
             }
-            State::PlayingRange(ts) => {
-                self.state = State::PausedPlayingRange(ts);
+            State::PlayingRange => {
+                self.state = State::PausedPlayingRange;
             }
             _ => return,
         }
@@ -200,8 +200,8 @@ impl Controller {
             State::Paused => {
                 self.state = State::Playing;
             }
-            State::PausedPlayingRange(ts) => {
-                self.state = State::PlayingRange(ts);
+            State::PausedPlayingRange => {
+                self.state = State::PlayingRange;
             }
             _ => return,
         }
@@ -209,22 +209,20 @@ impl Controller {
         self.register_tick_callback();
     }
 
-    pub fn start_play_range(&mut self, to_restore: Timestamp) {
+    pub fn start_play_range(&mut self) {
         match self.state {
-            State::PlayingRange(_) => {
-                self.state = State::PlayingRange(to_restore);
-            }
-            State::Paused | State::PausedPlayingRange(_) => {
-                self.state = State::PlayingRange(to_restore);
+            State::Paused | State::PausedPlayingRange => {
+                self.state = State::PlayingRange;
                 self.register_tick_callback();
             }
+            State::PlayingRange => (),
             _ => unreachable!("start_play_range in {:?}", self.state),
         }
     }
 
     pub fn stop_play_range(&mut self) {
         match self.state {
-            State::PlayingRange(_) => {
+            State::PlayingRange => {
                 self.remove_tick_callback();
                 self.state = State::Paused;
             }
@@ -374,7 +372,7 @@ impl Controller {
         }
 
         if can_redraw {
-            if let State::Playing | State::PlayingRange(_) = self.state {
+            if let State::Playing | State::PlayingRange = self.state {
                 self.redraw();
             }
         }
@@ -430,9 +428,9 @@ impl Controller {
                 if let Some(ts) = self.ts_at(event_button.position().0) {
                     match self.state {
                         State::Playing
-                        | State::PlayingRange(_)
+                        | State::PlayingRange
                         | State::Paused
-                        | State::PausedPlayingRange(_) => {
+                        | State::PausedPlayingRange => {
                             playback::seek(ts, gst::SeekFlags::ACCURATE);
                         }
                         State::CursorAboveBoundary(boundary) => {
@@ -445,22 +443,7 @@ impl Controller {
             3 => {
                 // right button => range playback in Paused state
                 if let Some(start) = self.ts_at(event_button.position().0) {
-                    let to_restore = match self.state {
-                        State::Paused => self
-                            .positions
-                            .borrow()
-                            .cursor
-                            .as_ref()
-                            .map(|cursor| cursor.ts),
-                        State::PlayingRange(to_restore) | State::PausedPlayingRange(to_restore) => {
-                            Some(to_restore)
-                        }
-                        _ => None,
-                    };
-
-                    if let Some(to_restore) = to_restore {
-                        playback::play_range(start, self.positions.borrow().last.ts, to_restore);
-                    }
+                    playback::play_range(start);
                 }
             }
             _ => (),

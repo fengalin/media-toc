@@ -45,13 +45,10 @@ impl UIDispatcher for Dispatcher {
                     }
                 }
                 PlayPause => main_ctrl.play_pause().await,
-                PlayRange {
-                    start,
-                    end,
-                    ts_to_restore,
-                } => {
-                    main_ctrl.play_range(start, end, ts_to_restore);
+                PlayRange { start } => {
+                    let _ = main_ctrl.play_range(start).await;
                 }
+                PlayRangeDone => main_ctrl.play_range_done().await,
                 PreviousChapter => {
                     let seek_ts = main_ctrl
                         .current_ts()

@@ -14,5 +14,6 @@ pub enum MediaEvent {
     MustRefresh,
     FailedToExport(String),
     InitDone,
+    PlayRangeDone,
     StateChanged,
 }
