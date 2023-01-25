@@ -9,7 +9,7 @@ use metadata::{Duration, MediaInfo, Timestamp4Humans};
 use renderers::{Image, Timestamp};
 
 use super::{ChapterTreeManager, ChaptersBoundaries, PositionStatus};
-use crate::{info_bar, main, playback, prelude::*};
+use crate::{info_bar, main_panel, playback, prelude::*};
 
 const EMPTY_REPLACEMENT: &str = "-";
 const GO_TO_PREV_CHAPTER_THRESHOLD: Duration = Duration::from_secs(1);
@@ -171,7 +171,7 @@ impl UIController for Controller {
             self.drawingarea.hide();
         }
 
-        main::update_focus();
+        main_panel::update_focus();
     }
 
     fn cleanup(&mut self) {
@@ -351,7 +351,7 @@ impl Controller {
         playback::seek(ts, gst::SeekFlags::ACCURATE)
     }
 
-    pub fn tick(&mut self, ts: Timestamp, state: main::State) {
+    pub fn tick(&mut self, ts: Timestamp, state: main_panel::State) {
         self.timeline_scale.set_value(ts.as_f64());
 
         let mut position_status = self.chapter_manager.update_ts(ts);
@@ -401,7 +401,7 @@ impl Controller {
                 }
             }
 
-            main::update_focus();
+            main_panel::update_focus();
         }
     }
 

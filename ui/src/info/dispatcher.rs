@@ -9,7 +9,7 @@ use log::{debug, trace};
 
 use crate::{
     info::{self, ChapterEntry},
-    main, playback,
+    main_panel, playback,
     prelude::*,
 };
 
@@ -45,16 +45,16 @@ impl UIDispatcher for Dispatcher {
 
         if let Some(ref title_renderer) = info.chapter_manager.title_renderer {
             title_renderer.connect_editing_started(|_, _, _| {
-                main::temporarily_switch_to(UIFocusContext::TextEntry);
+                main_panel::temporarily_switch_to(UIFocusContext::TextEntry);
             });
 
             title_renderer.connect_editing_canceled(|_| {
-                main::restore_context();
+                main_panel::restore_context();
             });
 
             title_renderer.connect_edited(|_, _tree_path, new_title| {
                 info::rename_chapter(new_title);
-                main::restore_context();
+                main_panel::restore_context();
             });
         }
 
@@ -62,14 +62,14 @@ impl UIDispatcher for Dispatcher {
         app.add_action(&info.add_chapter_action);
         info.add_chapter_action.connect_activate(|_, _| {
             info::add_chapter();
-            main::update_focus();
+            main_panel::update_focus();
         });
 
         // Register remove chapter action
         app.add_action(&info.del_chapter_action);
         info.del_chapter_action.connect_activate(|_, _| {
             info::remove_chapter();
-            main::update_focus();
+            main_panel::update_focus();
         });
 
         // Register Toggle repeat current chapter action
@@ -95,7 +95,7 @@ impl UIDispatcher for Dispatcher {
     }
 
     fn handle_event(
-        main_ctrl: &mut main::Controller,
+        main_ctrl: &mut main_panel::Controller,
         event: impl Into<Self::Event>,
     ) -> LocalBoxFuture<'_, ()> {
         use info::Event::*;

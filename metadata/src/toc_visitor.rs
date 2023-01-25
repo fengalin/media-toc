@@ -11,7 +11,7 @@ impl PartialEq for TocVisit {
             TocVisit::EnteringChildren => matches!(*other, TocVisit::EnteringChildren),
             TocVisit::LeavingChildren => matches!(*other, TocVisit::LeavingChildren),
             TocVisit::Node(ref entry) => match *other {
-                TocVisit::Node(ref other_entry) => (entry.uid() == other_entry.uid()),
+                TocVisit::Node(ref other_entry) => entry.uid() == other_entry.uid(),
                 _ => false,
             },
         }

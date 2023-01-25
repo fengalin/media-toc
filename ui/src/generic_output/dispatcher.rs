@@ -9,16 +9,16 @@ use log::debug;
 
 use crate::{
     generic_output::{self, prelude::*},
-    main,
+    main_panel,
     prelude::*,
 };
 
 pub trait OutputDispatcher {
     type CtrlImpl: OutputControllerImpl + 'static;
 
-    fn ctrl(main_ctrl: &main::Controller) -> &generic_output::Controller<Self::CtrlImpl>;
+    fn ctrl(main_ctrl: &main_panel::Controller) -> &generic_output::Controller<Self::CtrlImpl>;
     fn ctrl_mut(
-        main_ctrl: &mut main::Controller,
+        main_ctrl: &mut main_panel::Controller,
     ) -> &mut generic_output::Controller<Self::CtrlImpl>;
 }
 
@@ -28,7 +28,7 @@ impl<T: OutputDispatcher> UIDispatcher for T {
 
     fn setup(ctrl: &mut Self::Controller, app: &gtk::Application) {
         ctrl.page.connect_map(|_| {
-            main::switch_to(T::CtrlImpl::FOCUS_CONTEXT);
+            main_panel::switch_to(T::CtrlImpl::FOCUS_CONTEXT);
         });
 
         ctrl.btn.connect_clicked(|_| {
@@ -46,7 +46,7 @@ impl<T: OutputDispatcher> UIDispatcher for T {
     }
 
     fn handle_event(
-        main_ctrl: &mut main::Controller,
+        main_ctrl: &mut main_panel::Controller,
         event: impl Into<Self::Event>,
     ) -> LocalBoxFuture<'_, ()> {
         use generic_output::Event::*;

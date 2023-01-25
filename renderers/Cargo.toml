@@ -15,21 +15,20 @@ name = "mediatocrenderers"
 path = "src/lib.rs"
 
 [dependencies]
-byteorder = "1"
-cairo = { package = "cairo-rs", version = "0.15.1" }
-gst = { package = "gstreamer", version = "0.18.1", features = ["v1_16"] }
-gst-audio = { package = "gstreamer-audio", version = "0.18.0", features = ["v1_16"] }
+byteorder = { workspace = true }
+cairo = { workspace = true }
+dasp_sample = { workspace = true }
+gst = { workspace = true }
+gst-audio = { workspace = true }
 metadata = { path = "../metadata", package = "media-toc-metadata" }
-once_cell = "1.0"
-image = "0.23.14"
-log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
-dasp_sample = "0.11"
-smallvec = "1.8"
+once_cell = { workspace = true }
+image = { workspace = true }
+log = { workspace = true }
+smallvec = { workspace = true }
 
 [dev-dependencies]
-byteorder = "1"
-cairo = { package = "cairo-rs", version = "0.15.1", features = ["png"] }
-gst-audio = { package = "gstreamer-audio", version = "0.18.0", features = ["v1_16"] }
+cairo = { workspace = true, features = ["png"] }
+gst-audio = { workspace = true }
 
 [build-dependencies]
-gst-plugin-version-helper = { version = "0.7.3" }
+gst-plugin-version-helper = { workspace = true }

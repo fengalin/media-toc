@@ -1,7 +1,7 @@
 use crate::{
     export,
     generic_output::{self, prelude::*},
-    main,
+    main_panel,
 };
 
 #[derive(Debug)]
@@ -23,11 +23,11 @@ pub struct Dispatcher;
 impl OutputDispatcher for Dispatcher {
     type CtrlImpl = export::ControllerImpl;
 
-    fn ctrl(main_ctrl: &main::Controller) -> &export::Controller {
+    fn ctrl(main_ctrl: &main_panel::Controller) -> &export::Controller {
         &main_ctrl.export
     }
 
-    fn ctrl_mut(main_ctrl: &mut main::Controller) -> &mut export::Controller {
+    fn ctrl_mut(main_ctrl: &mut main_panel::Controller) -> &mut export::Controller {
         &mut main_ctrl.export
     }
 }

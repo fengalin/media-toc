@@ -20,7 +20,7 @@ use application::gettext;
 use media::{pipeline, MediaEvent};
 use metadata::{Format, MediaInfo};
 
-use crate::{generic_output, info_bar, main, prelude::*, spawn, UIEvent};
+use crate::{generic_output, info_bar, main_panel, prelude::*, spawn, UIEvent};
 
 pub const MEDIA_EVENT_CHANNEL_CAPACITY: usize = 1;
 const PROGRESS_TIMER_PERIOD: Duration = Duration::from_millis(250);
@@ -155,7 +155,7 @@ impl<CtrlImpl: OutputControllerImpl + 'static> MediaProcessor<CtrlImpl> {
 
                     // Path exists and overwrite_all is not true
                     self.btn.set_sensitive(false);
-                    main::reset_cursor();
+                    main_panel::reset_cursor();
 
                     let filename = path
                         .file_name()
@@ -186,7 +186,7 @@ impl<CtrlImpl: OutputControllerImpl + 'static> MediaProcessor<CtrlImpl> {
                         other => unimplemented!("{:?}", other),
                     };
 
-                    main::set_cursor_waiting();
+                    main_panel::set_cursor_waiting();
                     state = next_state;
                 }
             }
@@ -331,7 +331,7 @@ impl<Impl: OutputControllerImpl + 'static> Controller<Impl> {
         self.perspective_selector.set_sensitive(false);
         self.open_action.as_ref().unwrap().set_enabled(false);
 
-        main::set_cursor_waiting();
+        main_panel::set_cursor_waiting();
 
         self.is_busy = true;
     }
@@ -347,7 +347,7 @@ impl<Impl: OutputControllerImpl + 'static> Controller<Impl> {
         self.perspective_selector.set_sensitive(true);
         self.open_action.as_ref().unwrap().set_enabled(true);
 
-        main::reset_cursor();
+        main_panel::reset_cursor();
     }
 }
 

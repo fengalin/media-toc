@@ -9,13 +9,13 @@ use application::{gettext, CommandLineArguments, APP_PATH, CONFIG};
 use media::pipeline;
 
 use crate::{
-    audio, export, info, info_bar, main, perspective, playback, prelude::*, spawn, split, streams,
-    video, UIEvent,
+    audio, export, info, info_bar, main_panel, perspective, playback, prelude::*, spawn, split,
+    streams, video, UIEvent,
 };
 
 pub struct Dispatcher {
     app: gtk::Application,
-    main_ctrl: main::Controller,
+    main_ctrl: main_panel::Controller,
     window: gtk::ApplicationWindow,
     saved_context: Option<UIFocusContext>,
     focus: UIFocusContext,
@@ -30,9 +30,9 @@ impl Dispatcher {
         let window: gtk::ApplicationWindow = builder.object("application-window").unwrap();
         window.set_application(Some(app));
 
-        let mut main_ctrl = main::Controller::new(&window, args, &builder);
+        let mut main_ctrl = main_panel::Controller::new(&window, args, &builder);
         main_ctrl.window_delete_id = Some(window.connect_delete_event(|_, _| {
-            main::quit();
+            main_panel::quit();
             Inhibit(true)
         }));
 
@@ -53,14 +53,14 @@ impl Dispatcher {
         // About
         let about = gio::SimpleAction::new("about", None);
         app.add_action(&about);
-        about.connect_activate(|_, _| main::about());
+        about.connect_activate(|_, _| main_panel::about());
         app.set_accels_for_action("app.about", &["<Ctrl>A"]);
         app_section.append(Some(&gettext("About")), Some("app.about"));
 
         // Quit
         let quit = gio::SimpleAction::new("quit", None);
         app.add_action(&quit);
-        quit.connect_activate(|_, _| main::quit());
+        quit.connect_activate(|_, _| main_panel::quit());
         app.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
         app_section.append(Some(&gettext("Quit")), Some("app.quit"));
 
@@ -73,12 +73,12 @@ impl Dispatcher {
             // Register Open action
             let open = gio::SimpleAction::new("open", None);
             app.add_action(&open);
-            open.connect_activate(|_, _| main::select_media());
+            open.connect_activate(|_, _| main_panel::select_media());
             main_section.append(Some(&gettext("Open media file")), Some("app.open"));
             app.set_accels_for_action("app.open", &["<Ctrl>O"]);
 
             let display_page: gtk::Box = builder.object("display-box").unwrap();
-            display_page.connect_map(|_| main::switch_to(UIFocusContext::PlaybackPage));
+            display_page.connect_map(|_| main_panel::switch_to(UIFocusContext::PlaybackPage));
 
             perspective::Dispatcher::setup(&mut this.main_ctrl.perspective, app);
             video::Dispatcher::setup(&mut this.main_ctrl.video, app);
@@ -90,7 +90,7 @@ impl Dispatcher {
             streams::Dispatcher::setup(&mut this.main_ctrl.streams, app);
             playback::Dispatcher::setup(&mut this.main_ctrl, app);
 
-            main::switch_to(UIFocusContext::PlaybackPage);
+            main_panel::switch_to(UIFocusContext::PlaybackPage);
 
             {
                 let config = CONFIG.read().unwrap();
@@ -106,15 +106,15 @@ impl Dispatcher {
             open_btn.set_sensitive(true);
 
             Self::spawn_event_handlers(this);
-            main::show_all();
+            main_panel::show_all();
 
             if let Some(input_file) = args.input_file.to_owned() {
-                main::open_media(input_file);
+                main_panel::open_media(input_file);
             }
         } else {
             // GStreamer initialization failed
             Self::spawn_event_handlers(this);
-            main::show_all();
+            main_panel::show_all();
 
             let msg = gettext("Failed to initialize GStreamer, the application can't be used.");
             info_bar::show_error(msg);
@@ -143,7 +143,7 @@ impl Dispatcher {
             Info(event) => info::Dispatcher::handle_event(&mut self.main_ctrl, event).await,
             InfoBar(event) => info_bar::Dispatcher::handle_event(&mut self.main_ctrl, event).await,
             Main(event) => {
-                use main::Event::*;
+                use main_panel::Event::*;
                 match event {
                     About => self.main_ctrl.about(),
                     CancelSelectMedia => self.main_ctrl.cancel_select_media(),

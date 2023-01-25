@@ -16,7 +16,7 @@ use renderers::{
 };
 
 use super::WaveformWithOverlay;
-use crate::{audio, info::ChaptersBoundaries, main, playback, prelude::*};
+use crate::{audio, info::ChaptersBoundaries, main_panel, playback, prelude::*};
 
 const INIT_REQ_DURATION_FOR_1000PX: Duration = Duration::from_secs(4);
 const MIN_REQ_DURATION_FOR_1000PX: Duration = Duration::from_nanos(1_953_125); // 4s / 2^11
@@ -392,7 +392,7 @@ impl Controller {
             State::Paused => {
                 if let Some(boundary) = self.boundary_at(x) {
                     self.state = State::CursorAboveBoundary(boundary);
-                    main::set_cursor_double_arrow();
+                    main_panel::set_cursor_double_arrow();
                 }
             }
             State::CursorAboveBoundary(_) => {
@@ -400,7 +400,7 @@ impl Controller {
                     self.state = State::CursorAboveBoundary(boundary);
                 } else {
                     self.state = State::Paused;
-                    main::reset_cursor();
+                    main_panel::reset_cursor();
                 }
             }
             _ => (),
@@ -415,7 +415,7 @@ impl Controller {
             State::Paused => (),
             State::MovingBoundary(_) | State::CursorAboveBoundary(_) => {
                 self.state = State::Paused;
-                main::reset_cursor()
+                main_panel::reset_cursor()
             }
             _ => (),
         }
