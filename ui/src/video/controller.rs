@@ -61,9 +61,13 @@ impl Controller {
         let container: gtk::Box = builder.object("video-container").unwrap();
 
         let video_output = if !args.disable_gl && !CONFIG.read().unwrap().media.is_gl_disabled {
-            gst::ElementFactory::make("gtkglsink", Some("gtkglsink"))
+            gst::ElementFactory::make("gtkglsink")
+                .name("gtkglsink")
+                .build()
                 .map(|gtkglsink| {
-                    let glsinkbin = gst::ElementFactory::make("glsinkbin", Some("video_sink"))
+                    let glsinkbin = gst::ElementFactory::make("glsinkbin")
+                        .name("video_sink")
+                        .build()
                         .expect("PlaybackPipeline: couldn't get `glsinkbin` from `gtkglsink`");
                     glsinkbin.set_property("sink", &gtkglsink);
 
@@ -78,7 +82,9 @@ impl Controller {
             None
         }
         .or_else(|| {
-            gst::ElementFactory::make("gtksink", Some("video_sink"))
+            gst::ElementFactory::make("gtksink")
+                .name("video_sink")
+                .build()
                 .map(|sink| {
                     debug!("Using gtksink");
                     VideoOutput {

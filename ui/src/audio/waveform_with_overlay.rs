@@ -60,7 +60,7 @@ impl TextMetrics {
             None => {
                 // Get font specs from the reference label
                 let ref_layout = self.ref_lbl.as_ref().unwrap().layout().unwrap();
-                let ref_ctx = ref_layout.context().unwrap();
+                let ref_ctx = ref_layout.context();
                 let font_desc = ref_ctx.font_description().unwrap();
 
                 let family = font_desc.family().unwrap();
@@ -73,11 +73,11 @@ impl TextMetrics {
                 self.twice_font_size = 2f64 * font_size;
                 self.half_font_size = 0.5f64 * font_size;
 
-                self.limit_mn_width = cr.text_extents(LIMIT_TEXT_MN).unwrap().width;
-                self.limit_h_width = cr.text_extents(LIMIT_TEXT_H).unwrap().width;
+                self.limit_mn_width = cr.text_extents(LIMIT_TEXT_MN).unwrap().width();
+                self.limit_h_width = cr.text_extents(LIMIT_TEXT_H).unwrap().width();
                 self.limit_y = 2f64 * font_size;
-                self.cursor_mn_width = cr.text_extents(CURSOR_TEXT_MN).unwrap().width;
-                self.cursor_h_width = cr.text_extents(CURSOR_TEXT_H).unwrap().width;
+                self.cursor_mn_width = cr.text_extents(CURSOR_TEXT_MN).unwrap().width();
+                self.cursor_h_width = cr.text_extents(CURSOR_TEXT_H).unwrap().width();
                 self.cursor_y = font_size;
             }
         }
@@ -201,7 +201,7 @@ impl WaveformWithOverlay {
 
                 if let Some(ref prev_chapter) = chapters.prev {
                     cr.move_to(
-                        x - 5f64 - cr.text_extents(&prev_chapter.title).unwrap().width,
+                        x - 5f64 - cr.text_extents(&prev_chapter.title).unwrap().width(),
                         text_base,
                     );
                     cr.show_text(&prev_chapter.title).unwrap();

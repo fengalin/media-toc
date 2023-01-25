@@ -64,8 +64,8 @@ pub(super) trait UIStreamImpl {
         let renderer = gtk::CellRendererToggle::new();
         renderer.set_radio(false);
         renderer.set_activatable(true);
-        col.pack_start(&renderer, true);
-        col.add_attribute(&renderer, "active", col_id as i32);
+        CellLayoutExt::pack_start(&col, &renderer, true);
+        CellLayoutExt::add_attribute(&col, &renderer, "active", col_id as i32);
 
         treeview.append_column(&col);
         renderer
@@ -83,8 +83,8 @@ pub(super) trait UIStreamImpl {
 
         let renderer = gtk::CellRendererText::new();
         gtk::prelude::CellRendererExt::set_alignment(&renderer, alignment, ALIGN_CENTER);
-        col.pack_start(&renderer, true);
-        col.add_attribute(&renderer, "text", col_id as i32);
+        CellLayoutExt::pack_start(&col, &renderer, true);
+        CellLayoutExt::add_attribute(&col, &renderer, "text", col_id as i32);
 
         if let Some(width) = width {
             renderer.set_fixed_size(width, -1);

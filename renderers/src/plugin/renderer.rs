@@ -408,12 +408,7 @@ impl ObjectImpl for Renderer {
         PROPERTIES.as_ref()
     }
 
-    fn set_property(
-        &self,
-        _id: usize,
-        value: &glib::Value,
-        pspec: &glib::ParamSpec,
-    ) {
+    fn set_property(&self, _id: usize, value: &glib::Value, pspec: &glib::ParamSpec) {
         let mut ctx = self.ctx.lock().unwrap();
         match pspec.name() {
             DBL_RENDERER_IMPL_PROP => {
@@ -467,33 +462,29 @@ impl ObjectImpl for Renderer {
         static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
             vec![
                 Signal::builder(GET_WINDOW_TIMESTAMPS_SIGNAL)
-                .return_type_from(WindowTimestamps::static_type())
-                .run_last()
-                .action()
-                .class_handler(|_token, args| {
-                    let element = args[0]
-                        .get::<<Renderer as ObjectSubclass>::Type>()
-                        .expect("Failed to get args[0]");
+                    .return_type_from(WindowTimestamps::static_type())
+                    .run_last()
+                    .action()
+                    .class_handler(|_token, args| {
+                        let element = args[0]
+                            .get::<<Renderer as ObjectSubclass>::Type>()
+                            .expect("Failed to get args[0]");
 
-                    let window_ts = element
-                        .imp()
-                        .ctx
-                        .lock()
-                        .unwrap()
-                        .dbl_renderer
-                        .as_mut()
-                        .and_then(|dbl_renderer| dbl_renderer.window_ts());
-                    // FIXME also refresh rendering?
-                    Some(window_ts.as_ref().to_value())
-                })
-                .build(),
-                Signal::builder(SEGMENT_DONE_SIGNAL)
-                    .run_last()
+                        let window_ts = element
+                            .imp()
+                            .ctx
+                            .lock()
+                            .unwrap()
+                            .dbl_renderer
+                            .as_mut()
+                            .and_then(|dbl_renderer| dbl_renderer.window_ts());
+                        // FIXME also refresh rendering?
+                        Some(window_ts.as_ref().to_value())
+                    })
                     .build(),
+                Signal::builder(SEGMENT_DONE_SIGNAL).run_last().build(),
                 // FIXME this one could be avoided with a dedicated widget
-                Signal::builder(MUST_REFRESH_SIGNAL)
-                    .run_last()
-                    .build(),
+                Signal::builder(MUST_REFRESH_SIGNAL).run_last().build(),
             ]
         });
 
