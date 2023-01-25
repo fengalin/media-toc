@@ -30,15 +30,15 @@ impl Factory {
 
     pub fn reader(format: Format) -> Box<dyn Reader> {
         match format {
-            Format::MKVMergeText => Box::new(MKVMergeTextFormat::default()),
+            Format::MKVMergeText => Box::<MKVMergeTextFormat>::default(),
             format => unimplemented!("Reader for {:?}", format),
         }
     }
 
     pub fn writer(format: Format) -> Box<dyn Writer> {
         match format {
-            Format::CueSheet => Box::new(CueSheetFormat::default()),
-            Format::MKVMergeText => Box::new(MKVMergeTextFormat::default()),
+            Format::CueSheet => Box::<CueSheetFormat>::default(),
+            Format::MKVMergeText => Box::<MKVMergeTextFormat>::default(),
             format => unimplemented!("Writer for {:?}", format),
         }
     }

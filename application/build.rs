@@ -106,8 +106,7 @@ fn generate_resources() {
 
 #[cfg(feature = "gettext")]
 fn generate_translations() {
-    let mut linguas_file =
-        File::open(&po_path().join("LINGUAS")).expect("Couldn't find po/LINGUAS");
+    let mut linguas_file = File::open(po_path().join("LINGUAS")).expect("Couldn't find po/LINGUAS");
     let mut linguas = String::new();
     linguas_file
         .read_to_string(&mut linguas)
@@ -159,7 +158,7 @@ fn generate_install_script() {
         let app_data_dir = project_dirs.data_dir();
         let data_dir = app_data_dir.parent().unwrap();
 
-        match File::create(&target_path().join("install")) {
+        match File::create(target_path().join("install")) {
             Ok(mut install_file) => {
                 install_file
                     .write_all(format!("# User install script for {}\n", *APP_NAME).as_bytes())
@@ -191,7 +190,7 @@ fn generate_install_script() {
                     let entry = entry.unwrap();
                     let entry_path = entry.path();
                     if entry_path.is_dir() {
-                        let target_dir = icon_target_dir.join(&entry.file_name());
+                        let target_dir = icon_target_dir.join(entry.file_name());
                         install_file
                             .write_all(format!("mkdir -p {:?}\n", target_dir).as_bytes())
                             .unwrap();
@@ -224,7 +223,7 @@ fn generate_install_script() {
                         format!(
                             "cp {:?} {:?}\n",
                             res_path()
-                                .join(&format!("org.fengalin.{}.desktop", *APP_NAME))
+                                .join(format!("org.fengalin.{}.desktop", *APP_NAME))
                                 .canonicalize()
                                 .unwrap(),
                             desktop_target_dir,
@@ -268,7 +267,7 @@ fn generate_uninstall_script() {
         let app_data_dir = project_dirs.data_dir();
         let data_dir = app_data_dir.parent().unwrap();
 
-        match File::create(&target_path().join("uninstall")) {
+        match File::create(target_path().join("uninstall")) {
             Ok(mut install_file) => {
                 install_file
                     .write_all(format!("# User uninstall script for {}\n", *APP_NAME).as_bytes())
@@ -325,7 +324,7 @@ fn generate_uninstall_script() {
                     .write_all(
                         format!(
                             "rm {:?}\n",
-                            desktop_target_dir.join(&format!("org.fengalin.{}.desktop", *APP_NAME)),
+                            desktop_target_dir.join(format!("org.fengalin.{}.desktop", *APP_NAME)),
                         )
                         .as_bytes(),
                     )
@@ -341,7 +340,7 @@ fn generate_uninstall_script() {
 
 #[cfg(feature = "gettext")]
 fn generate_uninstall_translations_script(install_file: &mut File, data_dir: &Path) {
-    if let Ok(mut linguas_file) = File::open(&po_path().join("LINGUAS")) {
+    if let Ok(mut linguas_file) = File::open(po_path().join("LINGUAS")) {
         let mut linguas = String::new();
         linguas_file
             .read_to_string(&mut linguas)
@@ -355,7 +354,7 @@ fn generate_uninstall_translations_script(install_file: &mut File, data_dir: &Pa
             let lingua_dir = locale_base_dir.join(lingua).join("LC_MESSAGES");
             install_file
                 .write_all(
-                    format!("rm {:?}\n", lingua_dir.join(&format!("{}.mo", *APP_NAME)),).as_bytes(),
+                    format!("rm {:?}\n", lingua_dir.join(format!("{}.mo", *APP_NAME)),).as_bytes(),
                 )
                 .unwrap();
 

@@ -151,13 +151,13 @@ impl MediaProcessorImpl for Processor {
                 }
 
                 // export toc as a standalone file
-                fs::File::create(&output_path)
+                fs::File::create(output_path)
                     .map_err(|_| gettext("Failed to create the file for the table of contents"))
                     .and_then(|mut output_file| {
                         metadata::Factory::writer(format)
                             .write(&src_info, &mut output_file)
                             .map_err(|msg| {
-                                let _ = fs::remove_file(&output_path);
+                                let _ = fs::remove_file(output_path);
                                 msg
                             })
                     })?;

@@ -61,7 +61,7 @@ impl UIController for Controller {
                     .filter_map(|(extension, format)| {
                         let path = info
                             .path
-                            .with_file_name(&format!("{}.{}", info.name, extension));
+                            .with_file_name(format!("{}.{}", info.name, extension));
                         if path.is_file() {
                             Some((path, format))
                         } else {
