@@ -4,7 +4,6 @@ on:
   push:
     branches: [ master ]
   pull_request:
-    branches: [ master ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -14,7 +13,10 @@ jobs:
     name: RustFmt
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+
     - name: fmt
       run: cargo fmt -- --check
 
@@ -22,12 +24,12 @@ jobs:
     name: "Build, tests & clippy"
     runs-on: ubuntu-latest
     steps:
-    - run: sudo apt-get update -y
-    - run: sudo apt-get install -y curl gcc libgtk-3-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
-    - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
+    - uses: actions/checkout@v3
+
+    - run: sudo apt install libunwind-dev libgtk-3-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
 
     - name: Build
       run: cargo build
