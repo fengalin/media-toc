@@ -13,10 +13,10 @@ version = "0.7.99"
 build = "build.rs"
 
 [dependencies]
-clap = { workspace = true }
+clap = { workspace = true, features= ["string", "unicode"] }
 cfg-if = { workspace = true }
 directories = { workspace = true }
-gettext = { workspace = true, optional = true }
+gettext = { workspace = true, optional = true, features = ["gettext-system"] }
 log = { workspace = true }
 once_cell = { workspace = true }
 ron = { workspace = true }

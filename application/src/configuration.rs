@@ -52,26 +52,23 @@ impl GlobalConfig {
         let path = config_dir.join(CONFIG_FILENAME);
 
         let last = match File::open(&path) {
-            Ok(config_file) => {
-                let config: Result<Config, ron::de::Error> = ron::de::from_reader(config_file);
-                match config {
-                    Ok(config) => {
-                        debug!("read config: {:?}", config);
-                        config
-                    }
-                    Err(err) => {
-                        error!(
-                            "{}",
-                            &gettext("couldn't load configuration: {}").replacen(
-                                "{}",
-                                &format!("{:?}", err),
-                                1
-                            ),
-                        );
-                        Config::default()
-                    }
+            Ok(config_file) => match ron::de::from_reader(config_file) {
+                Ok(config) => {
+                    debug!("read config: {:?}", config);
+                    config
                 }
-            }
+                Err(err) => {
+                    error!(
+                        "{}",
+                        &gettext("couldn't load configuration: {}").replacen(
+                            "{}",
+                            &format!("{:?}", err),
+                            1
+                        ),
+                    );
+                    Config::default()
+                }
+            },
             Err(_) => Config::default(),
         };
 
