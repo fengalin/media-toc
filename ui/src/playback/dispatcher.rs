@@ -4,16 +4,16 @@ use gtk::{gio, prelude::*};
 
 use log::debug;
 
-use crate::{info::ChapterEntry, main, playback, prelude::*};
+use crate::{info::ChapterEntry, main_panel, playback, prelude::*};
 
 pub struct Dispatcher;
 
 impl UIDispatcher for Dispatcher {
     // FIXME use a dedicated playback::Controller
-    type Controller = main::Controller;
+    type Controller = main_panel::Controller;
     type Event = playback::Event;
 
-    fn setup(main_ctrl: &mut main::Controller, app: &gtk::Application) {
+    fn setup(main_ctrl: &mut main_panel::Controller, app: &gtk::Application) {
         // Register Play/Pause action
         let play_pause = gio::SimpleAction::new("play_pause", None);
         app.add_action(&play_pause);
@@ -22,7 +22,7 @@ impl UIDispatcher for Dispatcher {
     }
 
     fn handle_event(
-        main_ctrl: &mut main::Controller,
+        main_ctrl: &mut main_panel::Controller,
         event: impl Into<Self::Event>,
     ) -> LocalBoxFuture<'_, ()> {
         let event = event.into();

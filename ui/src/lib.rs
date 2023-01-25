@@ -3,7 +3,7 @@ mod export;
 mod generic_output;
 mod info;
 mod info_bar;
-mod main;
+mod main_panel;
 mod perspective;
 mod playback;
 mod split;
@@ -52,7 +52,7 @@ pub fn run(args: CommandLineArguments) {
 
     // Command line is handle by claps before reaching here.
     gtk_app.connect_command_line(move |gtk_app, _cmd_line| {
-        main::Dispatcher::setup(gtk_app, &args);
+        main_panel::Dispatcher::setup(gtk_app, &args);
         0i32
     });
     gtk_app.run();
@@ -81,7 +81,7 @@ pub trait UIDispatcher {
 
     fn setup(ctrl: &mut Self::Controller, app: &gtk::Application);
     fn handle_event(
-        _main_ctrl: &mut main::Controller,
+        _main_ctrl: &mut main_panel::Controller,
         _event: impl Into<Self::Event>,
     ) -> LocalBoxFuture<'_, ()> {
         future::ready(()).boxed_local()

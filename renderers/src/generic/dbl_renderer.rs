@@ -232,7 +232,7 @@ impl DoubleRenderer {
         self.sample_window.map(|sample_window| WindowTimestamps {
             start: fvs.map(|fvs| fvs.as_ts(self.sample_duration).into()),
             end: fvs.map(|fvs| (fvs + sample_window).as_ts(self.sample_duration).into()),
-            range: sample_window.duration(self.sample_duration).into(),
+            range: sample_window.duration(self.sample_duration).try_into().unwrap(),
         })
     }
 }

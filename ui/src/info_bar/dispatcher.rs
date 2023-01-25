@@ -7,7 +7,7 @@ use gtk::{gio, glib::clone, prelude::*};
 
 use log::debug;
 
-use crate::{info_bar, main, prelude::*};
+use crate::{info_bar, main_panel, prelude::*};
 
 pub struct Dispatcher;
 
@@ -22,7 +22,7 @@ impl UIDispatcher for Dispatcher {
 
         ctrl.info_bar.connect_response(|_, _| {
             info_bar::hide();
-            main::restore_context();
+            main_panel::restore_context();
         });
 
         if gst::init().is_ok() {
@@ -30,14 +30,14 @@ impl UIDispatcher for Dispatcher {
                 clone!(@strong ctrl.info_bar as info_bar => move |_, _| info_bar.emit_close()),
             );
         } else {
-            close_info_bar_action.connect_activate(|_, _| main::quit());
+            close_info_bar_action.connect_activate(|_, _| main_panel::quit());
 
-            ctrl.info_bar.connect_response(|_, _| main::quit());
+            ctrl.info_bar.connect_response(|_, _| main_panel::quit());
         }
     }
 
     fn handle_event(
-        main_ctrl: &mut main::Controller,
+        main_ctrl: &mut main_panel::Controller,
         event: impl Into<Self::Event>,
     ) -> LocalBoxFuture<'_, ()> {
         use info_bar::Event::*;

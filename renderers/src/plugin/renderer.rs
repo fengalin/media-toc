@@ -1,6 +1,6 @@
 use gst::{
+    self,
     glib::{self, subclass::Signal},
-    gst_debug, gst_error, gst_info, gst_trace, gst_warning,
     prelude::*,
     subclass::prelude::*,
     ClockTime, Element, Event, Pad,
@@ -166,7 +166,7 @@ impl Renderer {
         use SeekState::*;
 
         let mut ctx = self.ctx.lock().unwrap();
-        //gst_trace!(CAT, obj: pad, "{:?} / {:?}", buffer, ctx.seek);
+        //gst::trace!(CAT, obj: pad, "{:?} / {:?}", buffer, ctx.seek);
         match ctx.seek {
             Uncontrolled | PlayRange => {
                 let must_notify =
@@ -192,7 +192,7 @@ impl Renderer {
                 ctx.seek = Uncontrolled;
                 drop(ctx);
 
-                gst_info!(CAT, obj: pad, "Streaming from {}", target_ts.display());
+                gst::info!(CAT, obj: pad, "Streaming from {}", target_ts.display());
 
                 element.emit_by_name::<()>(MUST_REFRESH_SIGNAL, &[]);
             }
@@ -221,11 +221,11 @@ impl Renderer {
                     ctx.dbl_renderer().cancel_seek();
                     ctx.dbl_renderer().handle_eos();
                     drop(ctx);
-                    gst_warning!(CAT, obj: pad, "reached EOS while seeking");
+                    gst::warning!(CAT, obj: pad, "reached EOS while seeking");
                 } else {
                     ctx.dbl_renderer().handle_eos();
                     drop(ctx);
-                    gst_debug!(CAT, obj: pad, "reached EOS");
+                    gst::debug!(CAT, obj: pad, "reached EOS");
                 }
 
                 return true;
@@ -238,8 +238,8 @@ impl Renderer {
                     None => {
                         // Not a Time segment, keep the event as is
                         drop(ctx);
-                        gst_debug!(CAT, obj: pad, "not Time {:?} {:?}", segment, event.seqnum());
-                        return pad.event_default(Some(element), event);
+                        gst::debug!(CAT, obj: pad, "not Time {:?} {:?}", segment, event.seqnum());
+                        return gst::Pad::event_default(pad, Some(element), event);
                     }
                 };
 
@@ -248,7 +248,7 @@ impl Renderer {
                 let mut was_handled = false;
                 if let Some(structure) = evt.structure() {
                     if structure.has_field(SegmentField::Stage1.as_str()) {
-                        gst_debug!(
+                        gst::debug!(
                             CAT,
                             obj: pad,
                             "got stage 1 segment starting @ {} {:?}",
@@ -260,7 +260,7 @@ impl Renderer {
                         ctx.seek = TwoStages;
                         was_handled = true;
                     } else if structure.has_field(SegmentField::Stage2.as_str()) {
-                        gst_debug!(
+                        gst::debug!(
                             CAT,
                             obj: pad,
                             "got stage 2 segment starting @ {} {:?}",
@@ -271,7 +271,7 @@ impl Renderer {
                         ctx.seek = DoneOn1stBuffer { target_ts: start };
                         was_handled = true;
                     } else if structure.has_field(SegmentField::PlayRange.as_str()) {
-                        gst_debug!(
+                        gst::debug!(
                             CAT,
                             obj: pad,
                             "got play range segment starting @ {} {:?}",
@@ -282,7 +282,7 @@ impl Renderer {
                         ctx.seek = PlayRange;
                         was_handled = true;
                     } else if structure.has_field(SegmentField::RestoringPosition.as_str()) {
-                        gst_info!(
+                        gst::info!(
                             CAT,
                             obj: pad,
                             "got play range restoring segment starting @ {} {:?}",
@@ -296,7 +296,7 @@ impl Renderer {
                 }
 
                 if !was_handled {
-                    gst_debug!(
+                    gst::debug!(
                         CAT,
                         obj: pad,
                         "got segment starting @ {} {:?}",
@@ -314,7 +314,7 @@ impl Renderer {
             }
             SegmentDone(_) => {
                 if self.ctx.lock().unwrap().seek == SeekState::TwoStages {
-                    gst_debug!(CAT, obj: pad, "got segment done {:?}", event.seqnum());
+                    gst::debug!(CAT, obj: pad, "got segment done {:?}", event.seqnum());
                     element.emit_by_name::<()>(SEGMENT_DONE_SIGNAL, &[]);
                 }
             }
@@ -338,7 +338,7 @@ impl Renderer {
             _ => (),
         }
 
-        pad.event_default(Some(element), event)
+        gst::Pad::event_default(pad, Some(element), event)
     }
 }
 
@@ -355,14 +355,14 @@ impl ObjectSubclass for Renderer {
                 Renderer::catch_panic_pad_function(
                     parent,
                     || Err(gst::FlowError::Error),
-                    |this, element| this.sink_chain(pad, element, buffer),
+                    |this| this.sink_chain(pad, &this.obj(), buffer),
                 )
             })
             .event_function(|pad, parent, event| {
                 Renderer::catch_panic_pad_function(
                     parent,
                     || false,
-                    |this, element| this.sink_event(pad, element, event),
+                    |this| this.sink_event(pad, &this.obj(), event),
                 )
             })
             .build();
@@ -410,7 +410,6 @@ impl ObjectImpl for Renderer {
 
     fn set_property(
         &self,
-        _element: &Self::Type,
         _id: usize,
         value: &glib::Value,
         pspec: &glib::ParamSpec,
@@ -440,7 +439,7 @@ impl ObjectImpl for Renderer {
         }
     }
 
-    fn property(&self, _element: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
+    fn property(&self, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
         let mut ctx = self.ctx.lock().unwrap();
         match pspec.name() {
             DBL_RENDERER_IMPL_PROP => {
@@ -467,11 +466,8 @@ impl ObjectImpl for Renderer {
     fn signals() -> &'static [Signal] {
         static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
             vec![
-                Signal::builder(
-                    GET_WINDOW_TIMESTAMPS_SIGNAL,
-                    &[],
-                    WindowTimestamps::static_type().into(),
-                )
+                Signal::builder(GET_WINDOW_TIMESTAMPS_SIGNAL)
+                .return_type_from(WindowTimestamps::static_type())
                 .run_last()
                 .action()
                 .class_handler(|_token, args| {
@@ -491,11 +487,11 @@ impl ObjectImpl for Renderer {
                     Some(window_ts.as_ref().to_value())
                 })
                 .build(),
-                Signal::builder(SEGMENT_DONE_SIGNAL, &[], glib::Type::UNIT.into())
+                Signal::builder(SEGMENT_DONE_SIGNAL)
                     .run_last()
                     .build(),
                 // FIXME this one could be avoided with a dedicated widget
-                Signal::builder(MUST_REFRESH_SIGNAL, &[], glib::Type::UNIT.into())
+                Signal::builder(MUST_REFRESH_SIGNAL)
                     .run_last()
                     .build(),
             ]
@@ -504,28 +500,27 @@ impl ObjectImpl for Renderer {
         SIGNALS.as_ref()
     }
 
-    fn constructed(&self, element: &Self::Type) {
-        self.parent_constructed(element);
-
-        element.add_pad(&self.sinkpad).unwrap();
+    fn constructed(&self) {
+        self.parent_constructed();
+        self.obj().add_pad(&self.sinkpad).unwrap();
     }
 }
 
 /// State change
 impl Renderer {
-    fn prepare(&self, element: &plugin::Renderer) -> Result<(), gst::ErrorMessage> {
-        gst_debug!(CAT, obj: element, "Preparing");
+    fn prepare(&self) -> Result<(), gst::ErrorMessage> {
+        gst::debug!(CAT, imp: self, "Preparing");
         let mut ctx = self.ctx.lock().unwrap();
 
         let dbl_renderer_impl = ctx.settings.dbl_renderer_impl.take().ok_or_else(|| {
             let msg = "Double Renderer implementation not set";
-            gst_error!(CAT, "{}", &msg);
+            gst::error!(CAT, "{}", &msg);
             gst::error_msg!(gst::CoreError::StateChange, ["{}", &msg])
         })?;
 
         let clock_ref = ctx.settings.clock_ref.as_ref().ok_or_else(|| {
             let msg = "Clock reference element not set";
-            gst_error!(CAT, "{}", &msg);
+            gst::error!(CAT, "{}", &msg);
             gst::error_msg!(gst::CoreError::StateChange, ["{}", &msg])
         })?;
 
@@ -536,47 +531,47 @@ impl Renderer {
         ));
 
         ctx.state = State::Prepared;
-        gst_debug!(CAT, obj: element, "Prepared");
+        gst::debug!(CAT, imp: self, "Prepared");
         Ok(())
     }
 
-    fn play(&self, element: &plugin::Renderer) -> Result<(), gst::ErrorMessage> {
-        gst_debug!(CAT, obj: element, "Starting");
+    fn play(&self) -> Result<(), gst::ErrorMessage> {
+        gst::debug!(CAT, imp: self, "Starting");
         let mut ctx = self.ctx.lock().unwrap();
         if !(ctx.seek == SeekState::PlayRange || ctx.seek.is_seeking()) {
             ctx.dbl_renderer().release();
         }
         ctx.state = State::Playing;
-        gst_debug!(CAT, obj: element, "Started");
+        gst::debug!(CAT, imp: self, "Started");
         Ok(())
     }
 
-    fn pause(&self, element: &plugin::Renderer) -> Result<(), gst::ErrorMessage> {
-        gst_debug!(CAT, obj: element, "Pausing");
+    fn pause(&self) -> Result<(), gst::ErrorMessage> {
+        gst::debug!(CAT, imp: self, "Pausing");
         let mut ctx = self.ctx.lock().unwrap();
         ctx.dbl_renderer().freeze();
         ctx.state = State::Paused;
-        gst_debug!(CAT, obj: element, "Paused");
+        gst::debug!(CAT, imp: self, "Paused");
         Ok(())
     }
 
-    fn stop(&self, element: &plugin::Renderer) -> Result<(), gst::ErrorMessage> {
-        gst_debug!(CAT, obj: element, "Stopping");
+    fn stop(&self) -> Result<(), gst::ErrorMessage> {
+        gst::debug!(CAT, imp: self, "Stopping");
         let mut ctx = self.ctx.lock().unwrap();
         ctx.state = State::Stopped;
         ctx.seek = SeekState::Uncontrolled;
-        gst_debug!(CAT, obj: element, "Stopped");
+        gst::debug!(CAT, imp: self, "Stopped");
         Ok(())
     }
 
-    fn unprepare(&self, element: &plugin::Renderer) {
-        gst_debug!(CAT, obj: element, "Unpreparing");
+    fn unprepare(&self) {
+        gst::debug!(CAT, imp: self, "Unpreparing");
         let mut ctx = self.ctx.lock().unwrap();
         let dbl_renderer_impl = ctx.dbl_renderer.take().map(DoubleRenderer::into_impl);
         assert!(dbl_renderer_impl.is_some());
         ctx.settings.dbl_renderer_impl = dbl_renderer_impl;
         ctx.state = State::Unprepared;
-        gst_debug!(CAT, obj: element, "Unprepared");
+        gst::debug!(CAT, imp: self, "Unprepared");
     }
 }
 
@@ -624,38 +619,37 @@ impl ElementImpl for Renderer {
 
     fn change_state(
         &self,
-        element: &plugin::Renderer,
         transition: gst::StateChange,
     ) -> Result<gst::StateChangeSuccess, gst::StateChangeError> {
-        gst_trace!(CAT, obj: element, "Changing state {:?}", transition);
+        gst::trace!(CAT, imp: self, "Changing state {:?}", transition);
 
         match transition {
             gst::StateChange::NullToReady => {
-                self.prepare(element).map_err(|err| {
-                    element.post_error_message(err);
+                self.prepare().map_err(|err| {
+                    self.post_error_message(err);
                     gst::StateChangeError
                 })?;
             }
             gst::StateChange::PlayingToPaused => {
-                self.pause(element).map_err(|_| gst::StateChangeError)?;
+                self.pause().map_err(|_| gst::StateChangeError)?;
             }
             gst::StateChange::ReadyToNull => {
-                self.unprepare(element);
+                self.unprepare();
             }
             gst::StateChange::ReadyToPaused => {
-                self.pause(element).map_err(|_| gst::StateChangeError)?;
+                self.pause().map_err(|_| gst::StateChangeError)?;
             }
             _ => (),
         }
 
-        let success = self.parent_change_state(element, transition)?;
+        let success = self.parent_change_state(transition)?;
 
         match transition {
             gst::StateChange::PausedToPlaying => {
-                self.play(element).map_err(|_| gst::StateChangeError)?;
+                self.play().map_err(|_| gst::StateChangeError)?;
             }
             gst::StateChange::PausedToReady => {
-                self.stop(element).map_err(|_| gst::StateChangeError)?;
+                self.stop().map_err(|_| gst::StateChangeError)?;
             }
             _ => (),
         }

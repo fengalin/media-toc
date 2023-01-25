@@ -12,7 +12,7 @@ version = "0.7.99"
 
 [dependencies]
 application = { path = "../application", package = "media-toc-application"  }
-gst = { package = "gstreamer", version = "0.18.1", features = ["v1_16"] }
-log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
-nom = "7"
-once_cell = "1.0"
+gst = { workspace = true }
+log = { workspace = true }
+nom = { workspace = true }
+once_cell = { workspace = true }

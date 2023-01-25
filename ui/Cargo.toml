@@ -12,19 +12,19 @@ version = "0.7.99"
 
 [dependencies]
 application = { path = "../application", package = "media-toc-application"  }
-bitflags = "1"
-futures = "0.3.19"
-gst = { package = "gstreamer", version = "0.18.1", features = ["v1_16"] }
-gst-audio = { package = "gstreamer-audio", version = "0.18.0", features = ["v1_16"] }
-gtk = { version = "0.15.2", features = ["v3_24"] }
-log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
+bitflags = { workspace = true }
+futures = { workspace = true }
+gst = { workspace = true }
+gst-audio = { workspace = true }
+gtk = { workspace = true }
+log = { workspace = true }
 media = { path = "../media", package = "media-toc-media"  }
 metadata = { path = "../metadata", package = "media-toc-metadata"  }
 renderers = { path = "../renderers", package = "media-toc-renderers"  }
-ron = "0.7"
-serde = "1"
-serde_derive = "1"
+ron = { workspace = true }
+serde = { workspace = true }
+serde_derive = { workspace = true }
 
 [dev-dependencies]
-byteorder = "1"
-smallvec = "1.8"
+byteorder = { workspace = true }
+smallvec = { workspace = true }

@@ -1,6 +1,6 @@
 use gst::{
+    self,
     glib::{self, clone, subclass::Signal},
-    gst_debug, gst_error, gst_info, gst_trace, gst_warning,
     prelude::*,
     subclass::prelude::*,
     ClockTime, GhostPad, Seqnum,
@@ -237,7 +237,7 @@ impl RendererBin {
         }
         drop(state);
 
-        pad.chain_default(Some(bin), buffer)
+        pad.chain(buffer)
     }
 
     fn sink_event(
@@ -295,10 +295,10 @@ impl RendererBin {
 
                         *remaining_streams -= 1;
                         if *remaining_streams == 0 {
-                            gst_debug!(CAT, obj: pad, "Got all play range Segments {:?}", seqnum);
+                            gst::debug!(CAT, obj: pad, "Got all play range Segments {:?}", seqnum);
 
                             drop(state);
-                            let ret = pad.event_default(Some(bin), event);
+                            let ret = gst::Pad::event_default(pad, Some(bin), event);
                             if ret {
                                 bin.parent_call_async(move |_bin, parent| {
                                     let _ = parent.set_state(gst::State::Playing);
@@ -307,7 +307,7 @@ impl RendererBin {
 
                             return ret;
                         } else {
-                            gst_debug!(CAT, obj: pad, "Got play range Segment {:?}", seqnum);
+                            gst::debug!(CAT, obj: pad, "Got play range Segment {:?}", seqnum);
                         }
                     }
                     PlayRangeRestore { expected_seqnum } => {
@@ -324,7 +324,7 @@ impl RendererBin {
                             bin.emit_by_name::<()>(plugin::PLAY_RANGE_DONE_SIGNAL, &[]);
                         }
 
-                        gst_debug!(
+                        gst::debug!(
                             CAT,
                             obj: pad,
                             "Got play range restoring Segment {:?}",
@@ -341,7 +341,7 @@ impl RendererBin {
                         }
 
                         if PadStream::Audio == pad_stream {
-                            gst_debug!(CAT, obj: pad, "forwarding stage 1 segment {:?}", seqnum);
+                            gst::debug!(CAT, obj: pad, "forwarding stage 1 segment {:?}", seqnum);
 
                             *accepts_audio_buffers = true;
                             event
@@ -352,7 +352,7 @@ impl RendererBin {
                             drop(state);
                             let ret = self.audio().renderer_queue_sinkpad.send_event(event);
                             if !ret {
-                                gst_error!(
+                                gst::error!(
                                     CAT,
                                     obj: pad,
                                     "failed to forward stage 1 segment {:?}",
@@ -363,7 +363,7 @@ impl RendererBin {
 
                             return true;
                         } else {
-                            gst_debug!(CAT, obj: pad, "filtering stage 1 segment {:?}", seqnum);
+                            gst::debug!(CAT, obj: pad, "filtering stage 1 segment {:?}", seqnum);
                             return true;
                         }
                     }
@@ -385,11 +385,11 @@ impl RendererBin {
 
                         *remaining_streams -= 1;
                         if *remaining_streams == 0 {
-                            gst_debug!(CAT, obj: pad, "got all stage 2 segments {:?}", seqnum);
+                            gst::debug!(CAT, obj: pad, "got all stage 2 segments {:?}", seqnum);
 
                             state.seek = Uncontrolled;
                         } else {
-                            gst_debug!(CAT, obj: pad, "got stage 2 segment {:?}", seqnum);
+                            gst::debug!(CAT, obj: pad, "got stage 2 segment {:?}", seqnum);
 
                             if PadStream::Video == pad_stream {
                                 *accepts_video_buffers = true;
@@ -412,7 +412,7 @@ impl RendererBin {
                 {
                     if seqnum == expected_seqnum {
                         if PadStream::Audio == pad_stream {
-                            gst_debug!(
+                            gst::debug!(
                                 CAT,
                                 obj: pad,
                                 "forwarding stage 1 SegmentDone {:?}",
@@ -422,7 +422,7 @@ impl RendererBin {
                             drop(state);
                             let ret = self.audio().renderer_queue_sinkpad.send_event(event);
                             if !ret {
-                                gst_error!(
+                                gst::error!(
                                     CAT,
                                     obj: pad,
                                     "failed to forward SegmentDone {:?}",
@@ -433,20 +433,20 @@ impl RendererBin {
 
                             return ret;
                         } else {
-                            gst_debug!(CAT, obj: pad, "filtering stage 1 SegmentDone {:?}", seqnum);
+                            gst::debug!(CAT, obj: pad, "filtering stage 1 SegmentDone {:?}", seqnum);
                         };
 
                         return true;
                     }
 
-                    gst_debug!(CAT, obj: pad, "unexpected SegmentDone {:?}", seqnum);
+                    gst::debug!(CAT, obj: pad, "unexpected SegmentDone {:?}", seqnum);
                     state.seek = Uncontrolled;
                 }
             }
             _ => (),
         }
 
-        pad.event_default(Some(bin), event)
+        gst::Pad::event_default(pad, Some(bin), event)
     }
 }
 
@@ -466,7 +466,7 @@ impl RendererBin {
             return self.handle_seek(pad, bin, event);
         }
 
-        pad.event_default(Some(bin), event)
+        gst::Pad::event_default(pad, Some(bin), event)
     }
 }
 
@@ -488,7 +488,7 @@ impl RendererBin {
         };
 
         if matches!(*self.audio.read().unwrap(), Audio::Uninitialized(_)) {
-            gst_debug!(
+            gst::debug!(
                 CAT,
                 obj: pad,
                 "No audio => forwading seek to {} {:?}",
@@ -503,9 +503,9 @@ impl RendererBin {
         match start_type {
             gst::SeekType::Set => (),
             other => {
-                gst_debug!(CAT, obj: pad, "seek start type {:?} {:?}", other, seqnum);
+                gst::debug!(CAT, obj: pad, "seek start type {:?} {:?}", other, seqnum);
                 drop(state);
-                return pad.event_default(Some(bin), event);
+                return gst::Pad::event_default(pad, Some(bin), event);
             }
         }
 
@@ -513,7 +513,7 @@ impl RendererBin {
             Ok(Some(start)) => start,
             other => {
                 if other.is_err() {
-                    gst_debug!(
+                    gst::debug!(
                         CAT,
                         obj: pad,
                         "not Time seek start {:?} {:?}",
@@ -521,10 +521,10 @@ impl RendererBin {
                         seqnum
                     );
                 } else {
-                    gst_debug!(CAT, obj: pad, "seek start is None {:?}", seqnum);
+                    gst::debug!(CAT, obj: pad, "seek start is None {:?}", seqnum);
                 }
                 drop(state);
-                return pad.event_default(Some(bin), event);
+                return gst::Pad::event_default(pad, Some(bin), event);
             }
         };
 
@@ -541,9 +541,9 @@ impl RendererBin {
         let stop: Option<ClockTime> = match TryFrom::try_from(stop) {
             Ok(stop) => stop,
             _err => {
-                gst_debug!(CAT, obj: pad, "not Time seek stop {:?} {:?}", stop, seqnum);
+                gst::debug!(CAT, obj: pad, "not Time seek stop {:?} {:?}", stop, seqnum);
                 drop(state);
-                return pad.event_default(Some(bin), event);
+                return gst::Pad::event_default(pad, Some(bin), event);
             }
         };
 
@@ -558,7 +558,7 @@ impl RendererBin {
             | Stage2 {
                 expected_seqnum, ..
             } if expected_seqnum == seqnum => {
-                gst_debug!(CAT, obj: pad, "Filtering additional seek {:?}", seqnum);
+                gst::debug!(CAT, obj: pad, "Filtering additional seek {:?}", seqnum);
                 drop(state);
                 return true;
             }
@@ -566,13 +566,13 @@ impl RendererBin {
                 expected_seqnum, ..
             } => {
                 if expected_seqnum == seqnum {
-                    gst_debug!(CAT, obj: pad, "Filtering additional seek {:?}", seqnum);
+                    gst::debug!(CAT, obj: pad, "Filtering additional seek {:?}", seqnum);
                     drop(state);
                     return true;
                 } else if !is_incoming_play_range {
                     // Let play range complete before submitting
                     // a regular seek so as to keep state management easy.
-                    gst_warning!(
+                    gst::warning!(
                         CAT,
                         obj: pad,
                         "Play range: reject regular seek {:?}",
@@ -593,14 +593,14 @@ impl RendererBin {
             Some(window_ts) => window_ts,
             None => {
                 state.seek = Uncontrolled;
-                gst_debug!(
+                gst::debug!(
                     CAT,
                     obj: pad,
                     "unknown rendering conditions for Seek starting @ {}",
                     target_ts,
                 );
                 drop(state);
-                return pad.event_default(Some(bin), event);
+                return gst::Pad::event_default(pad, Some(bin), event);
             }
         };
 
@@ -615,11 +615,11 @@ impl RendererBin {
             );
 
             drop(state);
-            return pad.event_default(Some(bin), event);
+            return gst::Pad::event_default(pad, Some(bin), event);
         }
 
         if state.playback.is_playing() {
-            gst_debug!(
+            gst::debug!(
                 CAT,
                 obj: pad,
                 "Seek [{}, {}] playing {:?}",
@@ -628,13 +628,13 @@ impl RendererBin {
                 seqnum,
             );
             drop(state);
-            return pad.event_default(Some(bin), event);
+            return gst::Pad::event_default(pad, Some(bin), event);
         }
 
         let stage_1_start = target_ts.saturating_sub(window_ts.range / 2);
         let stage_1_end = target_ts + ClockTime::MSECOND;
 
-        gst_info!(
+        gst::info!(
             CAT,
             obj: pad,
             "Seek {:?} starting 2 stages seek: 1st [{}, {}], 2d {}",
@@ -663,7 +663,7 @@ impl RendererBin {
         };
 
         drop(state);
-        pad.event_default(Some(bin), event)
+        gst::Pad::event_default(pad, Some(bin), event)
     }
 
     fn unexpected_segment(
@@ -674,7 +674,7 @@ impl RendererBin {
         bin: &plugin::RendererBin,
         event: gst::Event,
     ) -> bool {
-        gst_warning!(
+        gst::warning!(
             CAT,
             obj: pad,
             "{:?}: got {:?} with {:?} on {:?}",
@@ -684,7 +684,7 @@ impl RendererBin {
             pad_stream,
         );
 
-        pad.event_default(Some(bin), event)
+        gst::Pad::event_default(pad, Some(bin), event)
     }
 
     fn prepare_play_range_seek(
@@ -707,7 +707,7 @@ impl RendererBin {
             stop_to_restore,
         } = &mut state.seek
         {
-            gst_debug!(
+            gst::debug!(
                 CAT,
                 obj: pad,
                 "Updating play range [{}, {}] final [{}, {}] {:?}",
@@ -728,7 +728,7 @@ impl RendererBin {
                 other => unreachable!("got {:?}", other),
             };
 
-            gst_debug!(
+            gst::debug!(
                 CAT,
                 obj: pad,
                 "Seek [{}, {}] for range playing final [{}, {}] {:?}",
@@ -782,7 +782,7 @@ impl RendererBin {
             accepts_video_buffers: false,
         };
 
-        gst_debug!(
+        gst::debug!(
             CAT,
             obj: bin,
             "stage 1 segment handled, pushing stage 2 {} {:?}",
@@ -799,7 +799,7 @@ impl RendererBin {
     fn in_sync_probe(bin: plugin::RendererBin, info: &gst::PadProbeInfo) {
         if let Some(gst::PadProbeData::Event(event)) = info.data.as_ref() {
             if let gst::EventView::SegmentDone(_) = event.view() {
-                gst_debug!(CAT, obj: &bin, "Got SegmentDone from the in-sync stream");
+                gst::debug!(CAT, obj: &bin, "Got SegmentDone from the in-sync stream");
 
                 let imp = bin.imp();
                 let mut state = imp.state.lock().unwrap();
@@ -825,7 +825,7 @@ impl RendererBin {
                     let sinkpad = imp.audio().sinkpad.clone();
                     bin.parent_call_async(move |bin, parent| {
                         if parent.set_state(gst::State::Paused).is_ok() {
-                            gst_debug!(
+                            gst::debug!(
                                 CAT,
                                 obj: bin,
                                 "Play range: restoring position with seek {:?}",
@@ -844,24 +844,26 @@ impl RendererBin {
 /// Initialization.
 impl RendererBin {
     fn new_queue(name: &str) -> gst::Element {
-        let queue = gst::ElementFactory::make("queue2", Some(name)).unwrap();
-        queue.set_property("max-size-bytes", &0u32);
-        queue.set_property("max-size-buffers", &0u32);
-        queue.set_property(
-            "max-size-time",
-            &plugin::renderer::DEFAULT_BUFFER_SIZE.as_u64(),
-        );
-        queue
+        gst::ElementFactory::make("queue2")
+            .name(name)
+            .property("max-size-bytes", &0u32)
+            .property("max-size-buffers", &0u32)
+            .property(
+                "max-size-time",
+                &plugin::renderer::DEFAULT_BUFFER_SIZE.as_u64(),
+            )
+            .build()
+            .unwrap()
     }
 
-    fn setup_audio_pipeline(&self, bin: &plugin::RendererBin) {
+    fn setup_audio_pipeline(&self) {
         let mut audio = self.audio.write().unwrap();
         let renderer_init = match *audio {
             Audio::Uninitialized(ref renderer_init) => renderer_init,
             _ => panic!("AudioPipeline already initialized"),
         };
 
-        let tee = gst::ElementFactory::make("tee", Some("renderer-audio-tee")).unwrap();
+        let tee = gst::ElementFactory::make("tee").name("renderer-audio-tee").build().unwrap();
 
         let renderer_queue = Self::new_queue("renderer-queue");
         let renderer_queue_sinkpad = renderer_queue.static_pad("sink").unwrap();
@@ -871,12 +873,13 @@ impl RendererBin {
 
         // Rendering elements
         let renderer_audioconvert =
-            gst::ElementFactory::make("audioconvert", Some("renderer-audioconvert")).unwrap();
+            gst::ElementFactory::make("audioconvert").name("renderer-audioconvert").build().unwrap();
 
-        let renderer = gst::ElementFactory::make(plugin::renderer::NAME, Some("renderer")).unwrap();
+        let renderer = gst::ElementFactory::make(plugin::renderer::NAME).name("renderer").build().unwrap();
 
         let renderer_elements = &[&renderer_queue, &renderer_audioconvert, &renderer];
 
+        let bin = self.obj();
         bin.add_many(renderer_elements).unwrap();
         gst::Element::link_many(renderer_elements).unwrap();
 
@@ -905,14 +908,14 @@ impl RendererBin {
             RendererBin::catch_panic_pad_function(
                 parent,
                 || Err(gst::FlowError::Error),
-                |this, bin| this.sink_chain(PadStream::Audio, pad, bin, buffer),
+                |this| this.sink_chain(PadStream::Audio, pad, &this.obj(), buffer),
             )
         })
         .event_function(|pad, parent, event| {
             RendererBin::catch_panic_pad_function(
                 parent,
                 || false,
-                |this, bin| this.sink_event(PadStream::Audio, pad, bin, event),
+                |this| this.sink_event(PadStream::Audio, pad, &this.obj(), event),
             )
         })
         .build();
@@ -930,7 +933,7 @@ impl RendererBin {
             RendererBin::catch_panic_pad_function(
                 parent,
                 || false,
-                |this, bin| this.src_event(pad, bin, event),
+                |this| this.src_event(pad, &this.obj(), event),
             )
         })
         .build();
@@ -971,7 +974,7 @@ impl RendererBin {
                         bin.imp().send_stage_2_seek(state, &bin, target_ts, stop_to_restore);
                     }
                     other => {
-                        gst_debug!(CAT, obj: &bin, "renderer sent segment done in {:?}", other);
+                        gst::debug!(CAT, obj: &bin, "renderer sent segment done in {:?}", other);
                     }
                 }
 
@@ -1000,7 +1003,9 @@ impl RendererBin {
         });
     }
 
-    fn setup_video_pipeline(&self, bin: &plugin::RendererBin) {
+    fn setup_video_pipeline(&self) {
+        let bin = self.obj();
+
         let mut video = self.video.write().unwrap();
         assert!(video.is_none(), "VideoPipeline already initialized");
 
@@ -1015,14 +1020,14 @@ impl RendererBin {
             RendererBin::catch_panic_pad_function(
                 parent,
                 || Err(gst::FlowError::Error),
-                |this, bin| this.sink_chain(PadStream::Video, pad, bin, buffer),
+                |this| this.sink_chain(PadStream::Video, pad, &this.obj(), buffer),
             )
         })
         .event_function(|pad, parent, event| {
             RendererBin::catch_panic_pad_function(
                 parent,
                 || false,
-                |this, bin| this.sink_event(PadStream::Video, pad, bin, event),
+                |this| this.sink_event(PadStream::Video, pad, &this.obj(), event),
             )
         })
         .build();
@@ -1040,7 +1045,7 @@ impl RendererBin {
             RendererBin::catch_panic_pad_function(
                 parent,
                 || false,
-                |this, bin| this.src_event(pad, bin, event),
+                |this| this.src_event(pad, &this.obj(), event),
             )
         })
         .build();
@@ -1097,7 +1102,6 @@ impl ObjectImpl for RendererBin {
 
     fn set_property(
         &self,
-        _bin: &Self::Type,
         _id: usize,
         value: &glib::Value,
         pspec: &glib::ParamSpec,
@@ -1149,7 +1153,7 @@ impl ObjectImpl for RendererBin {
         }
     }
 
-    fn property(&self, _bin: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
+    fn property(&self, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
         match pspec.name() {
             plugin::renderer::DBL_RENDERER_IMPL_PROP => match *self.audio.read().unwrap() {
                 Audio::Initialized(ref audio) => audio
@@ -1164,11 +1168,11 @@ impl ObjectImpl for RendererBin {
     fn signals() -> &'static [Signal] {
         static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
             vec![
-                Signal::builder(plugin::PLAY_RANGE_DONE_SIGNAL, &[], glib::Type::UNIT.into())
+                Signal::builder(plugin::PLAY_RANGE_DONE_SIGNAL)
                     .run_last()
                     .build(),
                 // FIXME this one could be avoided with a dedicated widget
-                Signal::builder(plugin::MUST_REFRESH_SIGNAL, &[], glib::Type::UNIT.into())
+                Signal::builder(plugin::MUST_REFRESH_SIGNAL)
                     .run_last()
                     .build(),
             ]
@@ -1180,43 +1184,43 @@ impl ObjectImpl for RendererBin {
 
 /// State change
 impl RendererBin {
-    fn prepare(&self, bin: &plugin::RendererBin) -> Result<(), gst::ErrorMessage> {
-        gst_debug!(CAT, obj: bin, "Preparing");
+    fn prepare(&self) -> Result<(), gst::ErrorMessage> {
+        gst::debug!(CAT, imp: self, "Preparing");
         let mut state = self.state.lock().unwrap();
         state.playback = PlaybackState::Prepared;
-        gst_debug!(CAT, obj: bin, "Prepared");
+        gst::debug!(CAT, imp: self, "Prepared");
         Ok(())
     }
 
-    fn unprepare(&self, bin: &plugin::RendererBin) {
-        gst_debug!(CAT, obj: bin, "Unpreparing");
+    fn unprepare(&self) {
+        gst::debug!(CAT, imp: self, "Unpreparing");
         let mut state = self.state.lock().unwrap();
         state.playback = PlaybackState::Unprepared;
-        gst_debug!(CAT, obj: bin, "Unprepared");
+        gst::debug!(CAT, imp: self, "Unprepared");
     }
 
-    fn stop(&self, bin: &plugin::RendererBin) -> Result<(), gst::ErrorMessage> {
-        gst_debug!(CAT, obj: bin, "Stopping");
+    fn stop(&self) -> Result<(), gst::ErrorMessage> {
+        gst::debug!(CAT, imp: self, "Stopping");
         let mut state = self.state.lock().unwrap();
         state.playback = PlaybackState::Stopped;
         state.seek = SeekState::Uncontrolled;
-        gst_debug!(CAT, obj: bin, "Stopped");
+        gst::debug!(CAT, imp: self, "Stopped");
         Ok(())
     }
 
-    fn play(&self, bin: &plugin::RendererBin) -> Result<(), gst::ErrorMessage> {
-        gst_debug!(CAT, obj: bin, "Starting");
+    fn play(&self) -> Result<(), gst::ErrorMessage> {
+        gst::debug!(CAT, imp: self, "Starting");
         let mut state = self.state.lock().unwrap();
         state.playback = PlaybackState::Playing;
-        gst_debug!(CAT, obj: bin, "Started");
+        gst::debug!(CAT, imp: self, "Started");
         Ok(())
     }
 
-    fn pause(&self, bin: &plugin::RendererBin) -> Result<(), gst::ErrorMessage> {
-        gst_debug!(CAT, obj: bin, "Pausing");
+    fn pause(&self) -> Result<(), gst::ErrorMessage> {
+        gst::debug!(CAT, imp: self, "Pausing");
         let mut state = self.state.lock().unwrap();
         state.playback = PlaybackState::Paused;
-        gst_debug!(CAT, obj: bin, "Paused");
+        gst::debug!(CAT, imp: self, "Paused");
         Ok(())
     }
 }
@@ -1239,7 +1243,8 @@ impl ElementImpl for RendererBin {
 
     fn pad_templates() -> &'static [gst::PadTemplate] {
         static PAD_TEMPLATES: Lazy<Vec<gst::PadTemplate>> = Lazy::new(|| {
-            let audio_caps = gst::ElementFactory::make("audioconvert", None)
+            let audio_caps = gst::ElementFactory::make("audioconvert")
+                .build()
                 .unwrap()
                 .static_pad("sink")
                 .unwrap()
@@ -1286,22 +1291,21 @@ impl ElementImpl for RendererBin {
 
     fn request_new_pad(
         &self,
-        bin: &Self::Type,
         _templ: &gst::PadTemplate,
-        name: Option<String>,
+        name: Option<&str>,
         _caps: Option<&gst::Caps>,
     ) -> Option<gst::Pad> {
         let name = name?;
 
-        match name.as_str() {
+        match name {
             "audio_sink" => {
-                self.setup_audio_pipeline(bin);
+                self.setup_audio_pipeline();
                 let audio_sinkpad = self.audio().sinkpad.clone();
 
                 Some(audio_sinkpad.upcast())
             }
             "video_sink" => {
-                self.setup_video_pipeline(bin);
+                self.setup_video_pipeline();
                 let video_sinkpad = self.video().sinkpad.clone();
 
                 Some(video_sinkpad.upcast())
@@ -1312,35 +1316,34 @@ impl ElementImpl for RendererBin {
 
     fn change_state(
         &self,
-        bin: &plugin::RendererBin,
         transition: gst::StateChange,
     ) -> Result<gst::StateChangeSuccess, gst::StateChangeError> {
-        gst_trace!(CAT, obj: bin, "Changing state {:?}", transition);
+        gst::trace!(CAT, imp: self, "Changing state {:?}", transition);
 
         match transition {
             gst::StateChange::NullToReady => {
-                self.prepare(bin).map_err(|err| {
-                    bin.post_error_message(err);
+                self.prepare().map_err(|err| {
+                    self.post_error_message(err);
                     gst::StateChangeError
                 })?;
             }
             gst::StateChange::PlayingToPaused => {
-                self.pause(bin).map_err(|_| gst::StateChangeError)?;
+                self.pause().map_err(|_| gst::StateChangeError)?;
             }
             gst::StateChange::ReadyToNull => {
-                self.unprepare(bin);
+                self.unprepare();
             }
             _ => (),
         }
 
-        let success = self.parent_change_state(bin, transition)?;
+        let success = self.parent_change_state(transition)?;
 
         match transition {
             gst::StateChange::PausedToPlaying => {
-                self.play(bin).map_err(|_| gst::StateChangeError)?;
+                self.play().map_err(|_| gst::StateChangeError)?;
             }
             gst::StateChange::PausedToReady => {
-                self.stop(bin).map_err(|_| gst::StateChangeError)?;
+                self.stop().map_err(|_| gst::StateChangeError)?;
             }
             _ => (),
         }

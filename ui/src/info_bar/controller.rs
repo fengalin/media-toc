@@ -4,7 +4,7 @@ use log::{error, info};
 
 use std::cell::RefCell;
 
-use crate::{info_bar, main, prelude::*};
+use crate::{info_bar, main_panel, prelude::*};
 use application::gettext;
 
 pub struct Controller {
@@ -65,7 +65,7 @@ impl Controller {
         self.label.set_label(msg);
         self.revealer.set_reveal_child(true);
 
-        main::temporarily_switch_to(UIFocusContext::InfoBar);
+        main_panel::temporarily_switch_to(UIFocusContext::InfoBar);
     }
 
     pub fn show_error(&mut self, msg: &str) {
@@ -91,7 +91,7 @@ impl Controller {
         let response_sender = RefCell::new(Some(response_sender));
         self.response_src = Some(self.info_bar.connect_response(move |_, response_type| {
             revealer.set_reveal_child(false);
-            main::restore_context();
+            main_panel::restore_context();
             response_sender
                 .borrow_mut()
                 .take()

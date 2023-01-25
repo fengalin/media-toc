@@ -14,7 +14,7 @@ use renderers::Timestamp;
 use crate::{
     audio, export,
     info::{self, ChaptersBoundaries},
-    info_bar, main, perspective, playback,
+    info_bar, main_panel, perspective, playback,
     prelude::*,
     spawn, split, streams, video,
 };
@@ -84,8 +84,8 @@ impl Controller {
         file_dlg.connect_response(|file_dlg, response| {
             file_dlg.hide();
             match (response, file_dlg.filename()) {
-                (gtk::ResponseType::Accept, Some(path)) => main::open_media(path),
-                _ => main::cancel_select_media(),
+                (gtk::ResponseType::Accept, Some(path)) => main_panel::open_media(path),
+                _ => main_panel::cancel_select_media(),
             }
         });
 
@@ -357,7 +357,7 @@ impl Controller {
     }
 
     pub async fn hold(&mut self) {
-        main::set_cursor_waiting();
+        main_panel::set_cursor_waiting();
         self.audio.pause();
         self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
 
@@ -449,10 +449,10 @@ impl Controller {
 
                 self.audio.pause();
                 self.state = State::Paused;
-                main::reset_cursor();
+                main_panel::reset_cursor();
             }
             Err(error) => {
-                main::reset_cursor();
+                main_panel::reset_cursor();
 
                 use OpenError::*;
                 let error = match error {

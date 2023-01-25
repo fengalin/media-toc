@@ -7,7 +7,7 @@ use gtk::prelude::*;
 
 use log::debug;
 
-use crate::{main, prelude::*, streams};
+use crate::{main_panel, prelude::*, streams};
 
 pub struct Dispatcher;
 impl UIDispatcher for Dispatcher {
@@ -50,11 +50,11 @@ impl UIDispatcher for Dispatcher {
 
         streams
             .page
-            .connect_map(|_| main::switch_to(UIFocusContext::StreamsPage));
+            .connect_map(|_| main_panel::switch_to(UIFocusContext::StreamsPage));
     }
 
     fn handle_event(
-        main_ctrl: &mut main::Controller,
+        main_ctrl: &mut main_panel::Controller,
         event: impl Into<Self::Event>,
     ) -> LocalBoxFuture<'_, ()> {
         use streams::Event::*;

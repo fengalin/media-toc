@@ -2,7 +2,7 @@ use futures::channel::mpsc as async_mpsc;
 
 use std::cell::{Cell, RefCell};
 
-use crate::{audio, export, info, info_bar, main, playback, split, streams};
+use crate::{audio, export, info, info_bar, main_panel, playback, split, streams};
 
 thread_local! {
     pub static UI_EVENT_CHANNEL: UIEventChannel = UIEventChannel::new();
@@ -40,7 +40,7 @@ pub enum UIEvent {
     Export(export::Event),
     Info(info::Event),
     InfoBar(info_bar::Event),
-    Main(main::Event),
+    Main(main_panel::Event),
     Playback(playback::Event),
     Split(split::Event),
     Streams(streams::Event),
@@ -70,8 +70,8 @@ impl From<info_bar::Event> for UIEvent {
     }
 }
 
-impl From<main::Event> for UIEvent {
-    fn from(event: main::Event) -> Self {
+impl From<main_panel::Event> for UIEvent {
+    fn from(event: main_panel::Event) -> Self {
         UIEvent::Main(event)
     }
 }

@@ -651,7 +651,7 @@ mod tests {
         }
 
         let segment = gst::FormattedSegment::<ClockTime>::new();
-        segment.clip(Some(pts), None);
+        segment.clip(pts, ClockTime::NONE);
         audio_buffer.have_segment(&segment);
         audio_buffer.push_buffer(&buffer, SampleIndex::default()); // never drain buffer in this test
     }

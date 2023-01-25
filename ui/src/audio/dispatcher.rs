@@ -9,7 +9,7 @@ use log::{debug, trace};
 
 use std::cell::RefCell;
 
-use crate::{audio, info::PositionStatus, main, prelude::*};
+use crate::{audio, info::PositionStatus, main_panel, prelude::*};
 use renderers::Timestamp;
 
 use super::AreaEvent;
@@ -92,7 +92,7 @@ impl UIDispatcher for Dispatcher {
     }
 
     fn handle_event(
-        main_ctrl: &mut main::Controller,
+        main_ctrl: &mut main_panel::Controller,
         event: impl Into<Self::Event>,
     ) -> LocalBoxFuture<'_, ()> {
         use audio::Event::*;
@@ -138,7 +138,7 @@ impl UIDispatcher for Dispatcher {
 }
 
 impl Dispatcher {
-    pub fn area_event(main_ctrl: &mut main::Controller, event: AreaEvent) {
+    pub fn area_event(main_ctrl: &mut main_panel::Controller, event: AreaEvent) {
         use AreaEvent::*;
 
         match event {
@@ -165,7 +165,7 @@ impl Dispatcher {
         }
     }
 
-    pub fn step_back(main_ctrl: &mut main::Controller) {
+    pub fn step_back(main_ctrl: &mut main_panel::Controller) {
         if let Some(current_ts) = main_ctrl.current_ts() {
             let seek_ts = {
                 let seek_step = main_ctrl.audio.seek_step;
@@ -179,7 +179,7 @@ impl Dispatcher {
         }
     }
 
-    pub fn step_forward(main_ctrl: &mut main::Controller) {
+    pub fn step_forward(main_ctrl: &mut main_panel::Controller) {
         if let Some(current_ts) = main_ctrl.current_ts() {
             let seek_ts = current_ts + main_ctrl.audio.seek_step;
             let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE);
