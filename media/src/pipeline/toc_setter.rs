@@ -24,7 +24,8 @@ impl TocSetter {
         // available from gst-plugins-good 1.13.1
         let (major, minor, _micro, _nano) = gst::version();
         if major >= 1 && minor >= 14 {
-            gst::ElementFactory::make("matroskamux", None)
+            gst::ElementFactory::make("matroskamux")
+                .build()
                 .map(drop)
                 .map_err(|_| {
                     gettext("Missing `{element}`\ncheck your gst-plugins-good install").replacen(
@@ -94,20 +95,27 @@ impl TocSetter {
         streams: Arc<RwLock<HashSet<String>>>,
     ) {
         // Input
-        let filesrc = gst::ElementFactory::make("filesrc", None).unwrap();
-        filesrc.set_property("location", &input_path.to_str().unwrap());
+        let filesrc = gst::ElementFactory::make("filesrc")
+            .property("location", &input_path.to_str().unwrap())
+            .build()
+            .unwrap();
 
-        let parsebin = gst::ElementFactory::make("parsebin", None).unwrap();
+        let parsebin = gst::ElementFactory::make("parsebin").build().unwrap();
 
         self.pipeline.add_many(&[&filesrc, &parsebin]).unwrap();
         filesrc.link(&parsebin).unwrap();
 
         // Muxer and output sink
-        let muxer = gst::ElementFactory::make("matroskamux", None).unwrap();
-        muxer.set_property("writing-app", &"media-toc");
+        let muxer = gst::ElementFactory::make("matroskamux")
+            .property("writing-app", &"media-toc")
+            .build()
+            .unwrap();
 
-        let filesink = gst::ElementFactory::make("filesink", Some("filesink")).unwrap();
-        filesink.set_property("location", &output_path.to_str().unwrap());
+        let filesink = gst::ElementFactory::make("filesink")
+            .name("filesink")
+            .property("location", &output_path.to_str().unwrap())
+            .build()
+            .unwrap();
 
         self.pipeline.add_many(&[&muxer, &filesink]).unwrap();
         muxer.link(&filesink).unwrap();
@@ -116,7 +124,7 @@ impl TocSetter {
 
         let pipeline_cb = self.pipeline.clone();
         parsebin.connect_pad_added(move |_element, pad| {
-            let queue = gst::ElementFactory::make("queue2", None).unwrap();
+            let queue = gst::ElementFactory::make("queue2").build().unwrap();
             pipeline_cb.add(&queue).unwrap();
 
             pad.link(&queue.static_pad("sink").unwrap()).unwrap();
@@ -150,7 +158,7 @@ impl TocSetter {
                     },
                 );
             } else {
-                let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
+                let fakesink = gst::ElementFactory::make("fakesink").build().unwrap();
                 pipeline_cb.add(&fakesink).unwrap();
                 queue_src_pad
                     .link(&fakesink.static_pad("sink").unwrap())

@@ -202,13 +202,15 @@ impl Playback {
         // FIXME once we get rid of DBL_RENDERER_IMPL_PROP,
         // we should be able to intantiate the renderer while building the pipeline
         // and avoid keeping it as a field.
-        let renderer =
-            gst::ElementFactory::make(plugin::RENDERER_BIN_NAME, Some(RENDERER_BIN_NAME)).unwrap();
-        renderer.set_property(
-            plugin::DBL_RENDERER_IMPL_PROP,
-            &generic::GBoxedDoubleRendererImpl::from(dbl_visu_renderer),
-        );
-        renderer.set_property(plugin::BUFFER_SIZE_PROP, &QUEUE_SIZE.as_u64());
+        let renderer = gst::ElementFactory::make(plugin::RENDERER_BIN_NAME)
+            .name(RENDERER_BIN_NAME)
+            .property(
+                plugin::DBL_RENDERER_IMPL_PROP,
+                &generic::GBoxedDoubleRendererImpl::from(dbl_visu_renderer),
+            )
+            .property(plugin::BUFFER_SIZE_PROP, &QUEUE_SIZE.as_u64())
+            .build()
+            .unwrap();
 
         let (ext_evt_tx, ext_evt_rx) = async_mpsc::unbounded();
         let (int_evt_tx, int_evt_rx) = async_mpsc::unbounded();
@@ -248,10 +250,12 @@ impl Playback {
     }
 
     pub fn check_requirements() -> Result<(), String> {
-        gst::ElementFactory::make("decodebin3", None)
+        gst::ElementFactory::make("decodebin3")
+            .build()
             .map(drop)
             .map_err(|_| gettext("Missing `decodebin3`\ncheck your gst-plugins-base install"))?;
-        gst::ElementFactory::make("gtksink", None)
+        gst::ElementFactory::make("gtksink")
+            .build()
             .map(drop)
             .map_err(|_| {
                 let (major, minor, _micro, _nano) = gst::version();
@@ -318,7 +322,10 @@ impl Playback {
     }
 
     fn build_pipeline(&mut self, path: &Path, video_sink: &Option<gst::Element>) {
-        let decodebin = gst::ElementFactory::make("decodebin3", Some("decodebin")).unwrap();
+        let decodebin = gst::ElementFactory::make("decodebin3")
+            .name("decodebin")
+            .build()
+            .unwrap();
         self.pipeline.add(&decodebin).unwrap();
         // From decodebin3's documentation: "Children: multiqueue0"
         let decodebin_as_bin = decodebin.clone().downcast::<gst::Bin>().ok().unwrap();
@@ -327,13 +334,18 @@ impl Playback {
         // Discard "interleave" as it modifies "max-size-time"
         decodebin_multiqueue.set_property("use-interleave", &false);
 
-        let file_src = gst::ElementFactory::make("filesrc", Some("filesrc")).unwrap();
-        file_src.set_property("location", &path.to_str().unwrap());
+        let file_src = gst::ElementFactory::make("filesrc")
+            .name("filesrc")
+            .property("location", &path.to_str().unwrap())
+            .build()
+            .unwrap();
         self.pipeline.add(&file_src).unwrap();
         file_src.link(&decodebin).unwrap();
 
-        let audio_sink =
-            gst::ElementFactory::make("autoaudiosink", Some("audio-playback-sink")).unwrap();
+        let audio_sink = gst::ElementFactory::make("autoaudiosink")
+            .name("audio-playback-sink")
+            .build()
+            .unwrap();
 
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
@@ -373,10 +385,14 @@ impl Playback {
             renderer.set_property(plugin::CLOCK_REF_PROP, audio_sink);
         }
 
-        let audio_convert =
-            gst::ElementFactory::make("audioconvert", Some("audio-audioconvert")).unwrap();
-        let audio_resample =
-            gst::ElementFactory::make("audioresample", Some("audio-audioresample")).unwrap();
+        let audio_convert = gst::ElementFactory::make("audioconvert")
+            .name("audio-audioconvert")
+            .build()
+            .unwrap();
+        let audio_resample = gst::ElementFactory::make("audioresample")
+            .name("audio-audioresample")
+            .build()
+            .unwrap();
 
         let elements = &[&audio_convert, &audio_resample, audio_sink];
         pipeline.add_many(elements).unwrap();
@@ -412,8 +428,8 @@ impl Playback {
             .link(&renderer.request_pad_simple("video_sink").unwrap())
             .unwrap();
 
-        let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
-        let scale = gst::ElementFactory::make("videoscale", None).unwrap();
+        let convert = gst::ElementFactory::make("videoconvert").build().unwrap();
+        let scale = gst::ElementFactory::make("videoscale").build().unwrap();
 
         let elements = &[&convert, &scale, video_sink];
         pipeline.add_many(elements).unwrap();
@@ -699,7 +715,7 @@ impl Playback {
             1f64,
             gst::SeekFlags::FLUSH | flags,
             gst::SeekType::Set,
-            Some(target.into()),
+            ClockTime::from(target),
             // FIXME does this remove current segment's end?
             gst::SeekType::None,
             ClockTime::NONE,
@@ -733,9 +749,9 @@ impl Playback {
             1f64,
             gst::SeekFlags::ACCURATE,
             gst::SeekType::Set,
-            Some(ClockTime::from(start)),
+            ClockTime::from(start),
             gst::SeekType::None,
-            None,
+            ClockTime::NONE,
         )
         .other_fields(&[(plugin::SeekField::PlayRange.as_str(), &true)])
         .build();

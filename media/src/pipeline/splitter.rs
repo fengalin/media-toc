@@ -23,7 +23,8 @@ impl Splitter {
     pub fn check_requirements(format: Format) -> Result<(), String> {
         match format {
             Format::Flac => {
-                gst::ElementFactory::make("flacenc", None)
+                gst::ElementFactory::make("flacenc")
+                    .build()
                     .map(drop)
                     .map_err(|_| {
                         gettext("Missing `{element}`\ncheck your gst-plugins-good install")
@@ -31,7 +32,8 @@ impl Splitter {
                     })
             }
             Format::Wave => {
-                gst::ElementFactory::make("wavenc", None)
+                gst::ElementFactory::make("wavenc")
+                    .build()
                     .map(drop)
                     .map_err(|_| {
                         gettext("Missing `{element}`\ncheck your gst-plugins-good install")
@@ -39,13 +41,15 @@ impl Splitter {
                     })
             }
             Format::Opus => {
-                gst::ElementFactory::make("opusenc", None)
+                gst::ElementFactory::make("opusenc")
+                    .build()
                     .map_err(|_| {
                         gettext("Missing `{element}`\ncheck your gst-plugins-good install")
                             .replacen("{element}", "opusenc", 1)
                     })
                     .and_then(|_| {
-                        gst::ElementFactory::make("oggmux", None)
+                        gst::ElementFactory::make("oggmux")
+                            .build()
                             .map(drop)
                             .map_err(|_| {
                                 gettext("Missing `{element}`\ncheck your gst-plugins-good install")
@@ -54,13 +58,15 @@ impl Splitter {
                     })
             }
             Format::Vorbis => {
-                gst::ElementFactory::make("vorbisenc", None)
+                gst::ElementFactory::make("vorbisenc")
+                    .build()
                     .map_err(|_| {
                         gettext("Missing `{element}`\ncheck your gst-plugins-good install")
                             .replacen("{element}", "vorbisenc", 1)
                     })
                     .and_then(|_| {
-                        gst::ElementFactory::make("oggmux", None)
+                        gst::ElementFactory::make("oggmux")
+                            .build()
                             .map(drop)
                             .map_err(|_| {
                                 gettext("Missing `{element}`\ncheck your gst-plugins-good install")
@@ -69,13 +75,15 @@ impl Splitter {
                     })
             }
             Format::MP3 => {
-                gst::ElementFactory::make("lamemp3enc", None)
+                gst::ElementFactory::make("lamemp3enc")
+                    .build()
                     .map_err(|_| {
                         gettext("Missing `{element}`\ncheck your gst-plugins-good install")
                             .replacen("{element}", "lamemp3enc", 1)
                     })
                     .and_then(|_| {
-                        gst::ElementFactory::make("id3v2mux", None)
+                        gst::ElementFactory::make("id3v2mux")
+                            .build()
                             .map(drop)
                             .map_err(|_| {
                                 gettext("Missing `{element}`\ncheck your gst-plugins-good install")
@@ -160,9 +168,11 @@ impl Splitter {
          * of this application */
 
         // Input
-        let filesrc = gst::ElementFactory::make("filesrc", None).unwrap();
-        filesrc.set_property("location", &input_path.to_str().unwrap());
-        let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
+        let filesrc = gst::ElementFactory::make("filesrc")
+            .property("location", &input_path.to_str().unwrap())
+            .build()
+            .unwrap();
+        let decodebin = gst::ElementFactory::make("decodebin").build().unwrap();
 
         self.pipeline.add_many(&[&filesrc, &decodebin]).unwrap();
 
@@ -170,11 +180,11 @@ impl Splitter {
 
         // Audio encoder
         let audio_enc = match self.format {
-            Format::Flac => gst::ElementFactory::make("flacenc", None).unwrap(),
-            Format::Wave => gst::ElementFactory::make("wavenc", None).unwrap(),
-            Format::Opus => gst::ElementFactory::make("opusenc", None).unwrap(),
-            Format::Vorbis => gst::ElementFactory::make("vorbisenc", None).unwrap(),
-            Format::MP3 => gst::ElementFactory::make("lamemp3enc", None).unwrap(),
+            Format::Flac => gst::ElementFactory::make("flacenc").build().unwrap(),
+            Format::Wave => gst::ElementFactory::make("wavenc").build().unwrap(),
+            Format::Opus => gst::ElementFactory::make("opusenc").build().unwrap(),
+            Format::Vorbis => gst::ElementFactory::make("vorbisenc").build().unwrap(),
+            Format::MP3 => gst::ElementFactory::make("lamemp3enc").build().unwrap(),
             _ => panic!(
                 "Splitter::build_pipeline unsupported format: {:?}",
                 self.format
@@ -246,13 +256,13 @@ impl Splitter {
         let (tag_setter, audio_muxer) = match self.format {
             Format::Flac | Format::Wave => (audio_enc.clone(), audio_enc.clone()),
             Format::Opus | Format::Vorbis => {
-                let ogg_muxer = gst::ElementFactory::make("oggmux", None).unwrap();
+                let ogg_muxer = gst::ElementFactory::make("oggmux").build().unwrap();
                 self.pipeline.add(&ogg_muxer).unwrap();
                 audio_enc.link(&ogg_muxer).unwrap();
                 (audio_enc.clone(), ogg_muxer)
             }
             Format::MP3 => {
-                let id3v2_muxer = gst::ElementFactory::make("id3v2mux", None).unwrap();
+                let id3v2_muxer = gst::ElementFactory::make("id3v2mux").build().unwrap();
                 self.pipeline.add(&id3v2_muxer).unwrap();
                 audio_enc.link(&id3v2_muxer).unwrap();
                 (id3v2_muxer.clone(), id3v2_muxer)
@@ -266,8 +276,11 @@ impl Splitter {
         }
 
         // Output sink
-        let outsink = gst::ElementFactory::make("filesink", Some("filesink")).unwrap();
-        outsink.set_property("location", &output_path.to_str().unwrap());
+        let outsink = gst::ElementFactory::make("filesink")
+            .name("filesink")
+            .property("location", &output_path.to_str().unwrap())
+            .build()
+            .unwrap();
 
         self.pipeline.add(&outsink).unwrap();
         audio_muxer.link(&outsink).unwrap();
@@ -286,19 +299,23 @@ impl Splitter {
             });
 
             if name.starts_with("audio/") && is_selected_stream_id {
-                let audio_conv =
-                    gst::ElementFactory::make("audioconvert", Some("audioconvert")).unwrap();
+                let audio_conv = gst::ElementFactory::make("audioconvert")
+                    .name("audioconvert")
+                    .build()
+                    .unwrap();
                 pipeline_cb.add(&audio_conv).unwrap();
                 pad.link(&audio_conv.static_pad("sink").unwrap()).unwrap();
-                let audio_resample =
-                    gst::ElementFactory::make("audioresample", Some("audioresample")).unwrap();
+                let audio_resample = gst::ElementFactory::make("audioresample")
+                    .name("audioresample")
+                    .build()
+                    .unwrap();
                 pipeline_cb.add(&audio_resample).unwrap();
                 gst::Element::link_many(&[&audio_conv, &audio_resample, &audio_enc]).unwrap();
                 audio_conv.sync_state_with_parent().unwrap();
                 audio_resample.sync_state_with_parent().unwrap();
                 audio_enc.sync_state_with_parent().unwrap();
             } else {
-                let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
+                let fakesink = gst::ElementFactory::make("fakesink").build().unwrap();
                 pipeline_cb.add(&fakesink).unwrap();
                 pad.link(&fakesink.static_pad("sink").unwrap()).unwrap();
                 fakesink.sync_state_with_parent().unwrap();

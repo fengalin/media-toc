@@ -580,8 +580,8 @@ impl ChapterTreeManager {
         let renderer = gtk::CellRendererText::new();
         renderer.set_editable(options.contains(ColumnOptions::IS_EDITABLE));
 
-        col.pack_start(&renderer, true);
-        col.add_attribute(&renderer, "text", col_id as i32);
+        CellLayoutExt::pack_start(&col, &renderer, true);
+        CellLayoutExt::add_attribute(&col, &renderer, "text", col_id as i32);
         if options.contains(ColumnOptions::CAN_EXPAND) {
             col.set_min_width(70);
             col.set_expand(true);
