@@ -283,7 +283,7 @@ impl RendererBin {
                             event
                                 .make_mut()
                                 .structure_mut()
-                                .set(plugin::SegmentField::PlayRange.as_str(), &true);
+                                .set(plugin::SegmentField::PlayRange.as_str(), true);
                         }
 
                         *remaining_streams -= 1;
@@ -313,7 +313,7 @@ impl RendererBin {
                             event
                                 .make_mut()
                                 .structure_mut()
-                                .set(plugin::SegmentField::RestoringPosition.as_str(), &true);
+                                .set(plugin::SegmentField::RestoringPosition.as_str(), true);
                             state.seek = Uncontrolled;
                             self.obj()
                                 .emit_by_name::<()>(plugin::PLAY_RANGE_DONE_SIGNAL, &[]);
@@ -342,7 +342,7 @@ impl RendererBin {
                             event
                                 .make_mut()
                                 .structure_mut()
-                                .set(plugin::SegmentField::Stage1.as_str(), &true);
+                                .set(plugin::SegmentField::Stage1.as_str(), true);
 
                             drop(state);
                             let ret = self.audio().renderer_queue_sinkpad.send_event(event);
@@ -375,7 +375,7 @@ impl RendererBin {
                             event
                                 .make_mut()
                                 .structure_mut()
-                                .set(plugin::SegmentField::Stage2.as_str(), &true);
+                                .set(plugin::SegmentField::Stage2.as_str(), true);
                         }
 
                         *remaining_streams -= 1;
@@ -845,11 +845,11 @@ impl RendererBin {
     fn new_queue(name: &str) -> gst::Element {
         gst::ElementFactory::make("queue2")
             .name(name)
-            .property("max-size-bytes", &0u32)
-            .property("max-size-buffers", &0u32)
+            .property("max-size-bytes", 0u32)
+            .property("max-size-buffers", 0u32)
             .property(
                 "max-size-time",
-                &plugin::renderer::DEFAULT_BUFFER_SIZE.as_u64(),
+                plugin::renderer::DEFAULT_BUFFER_SIZE.as_u64(),
             )
             .build()
             .unwrap()
@@ -1261,7 +1261,7 @@ impl ElementImpl for RendererBin {
                     "audio_sink",
                     gst::PadDirection::Sink,
                     gst::PadPresence::Request,
-                    &audio_caps,
+                    audio_caps,
                 )
                 .unwrap(),
                 gst::PadTemplate::new(
@@ -1275,7 +1275,7 @@ impl ElementImpl for RendererBin {
                     "audio_src",
                     gst::PadDirection::Src,
                     gst::PadPresence::Sometimes,
-                    &audio_caps,
+                    audio_caps,
                 )
                 .unwrap(),
                 gst::PadTemplate::new(

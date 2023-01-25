@@ -132,13 +132,12 @@ impl UIController for Controller {
 
 impl Controller {
     pub fn new(builder: &gtk::Builder, boundaries: Rc<RefCell<ChaptersBoundaries>>) -> Self {
-        let dbl_waveform = Box::new(DoubleWaveformRenderer::default());
-        let exposed_renderer = dbl_waveform.exposed();
+        let dbl_waveform = Box::<DoubleWaveformRenderer>::default();
 
         let mut ctrl = Controller {
-            exposed_renderer,
+            exposed_renderer: dbl_waveform.exposed(),
             dbl_renderer_impl: Some(dbl_waveform),
-            positions: Rc::new(RefCell::new(ImagePositions::default())),
+            positions: Default::default(),
             boundaries,
 
             container: builder.object("audio-container").unwrap(),

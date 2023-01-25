@@ -259,8 +259,7 @@ impl Iterator for Processor {
                     // No chapter defined => build a fake chapter corresponding to the whole file
 
                     let src_info = self.src_info.read().unwrap();
-                    let mut toc_entry =
-                        gst::TocEntry::new(gst::TocEntryType::Chapter, &"".to_owned());
+                    let mut toc_entry = gst::TocEntry::new(gst::TocEntryType::Chapter, "");
                     toc_entry
                         .get_mut()
                         .unwrap()

@@ -208,7 +208,7 @@ impl Playback {
                 plugin::DBL_RENDERER_IMPL_PROP,
                 &generic::GBoxedDoubleRendererImpl::from(dbl_visu_renderer),
             )
-            .property(plugin::BUFFER_SIZE_PROP, &QUEUE_SIZE.as_u64())
+            .property(plugin::BUFFER_SIZE_PROP, QUEUE_SIZE.as_u64())
             .build()
             .unwrap();
 
@@ -336,7 +336,7 @@ impl Playback {
 
         let file_src = gst::ElementFactory::make("filesrc")
             .name("filesrc")
-            .property("location", &path.to_str().unwrap())
+            .property("location", path.to_str().unwrap())
             .build()
             .unwrap();
         self.pipeline.add(&file_src).unwrap();

@@ -96,7 +96,7 @@ impl TocSetter {
     ) {
         // Input
         let filesrc = gst::ElementFactory::make("filesrc")
-            .property("location", &input_path.to_str().unwrap())
+            .property("location", input_path.to_str().unwrap())
             .build()
             .unwrap();
 
@@ -107,13 +107,13 @@ impl TocSetter {
 
         // Muxer and output sink
         let muxer = gst::ElementFactory::make("matroskamux")
-            .property("writing-app", &"media-toc")
+            .property("writing-app", "media-toc")
             .build()
             .unwrap();
 
         let filesink = gst::ElementFactory::make("filesink")
             .name("filesink")
-            .property("location", &output_path.to_str().unwrap())
+            .property("location", output_path.to_str().unwrap())
             .build()
             .unwrap();
 
@@ -150,7 +150,7 @@ impl TocSetter {
                     gst::PadProbeType::EVENT_DOWNSTREAM,
                     |_pad, probe_info| {
                         if let Some(gst::PadProbeData::Event(ref event)) = probe_info.data {
-                            if let gst::EventView::Toc(ref _toc) = event.view() {
+                            if let gst::EventView::Toc(_toc) = event.view() {
                                 return gst::PadProbeReturn::Drop;
                             }
                         }

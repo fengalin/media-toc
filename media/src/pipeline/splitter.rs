@@ -169,7 +169,7 @@ impl Splitter {
 
         // Input
         let filesrc = gst::ElementFactory::make("filesrc")
-            .property("location", &input_path.to_str().unwrap())
+            .property("location", input_path.to_str().unwrap())
             .build()
             .unwrap();
         let decodebin = gst::ElementFactory::make("decodebin").build().unwrap();
@@ -198,8 +198,8 @@ impl Splitter {
         audio_enc_sink_pad.add_probe(gst::PadProbeType::EVENT_DOWNSTREAM, |_pad, probe_info| {
             if let Some(Event(ref event)) = probe_info.data {
                 match event.view() {
-                    gst::EventView::Tag(ref _tag) => return gst::PadProbeReturn::Drop,
-                    gst::EventView::Toc(ref _toc) => return gst::PadProbeReturn::Drop,
+                    gst::EventView::Tag(_tag) => return gst::PadProbeReturn::Drop,
+                    gst::EventView::Toc(_toc) => return gst::PadProbeReturn::Drop,
                     _ => (),
                 }
             }
@@ -278,7 +278,7 @@ impl Splitter {
         // Output sink
         let outsink = gst::ElementFactory::make("filesink")
             .name("filesink")
-            .property("location", &output_path.to_str().unwrap())
+            .property("location", output_path.to_str().unwrap())
             .build()
             .unwrap();
 

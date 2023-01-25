@@ -589,7 +589,7 @@ impl ElementImpl for Renderer {
                 &[
                     (
                         "format",
-                        &gst::List::new(&[&gst_audio::AudioFormat::S16le.to_str()]),
+                        &gst::List::new([&gst_audio::AudioFormat::S16le.to_str()]),
                     ),
                     ("channels", &gst::IntRange::<i32>::new(1, 8)),
                     ("layout", &"interleaved"),
